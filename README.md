@@ -1,14 +1,18 @@
-### 폴더 생성 
-C:\github\nuri
+# React + Vite
 
-cd C:\github\nuri
-git init
-### 원격 연결
-git remote add origin https://github.com/yuna830/nuri.git
-### 확인
-git remote -v
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-### 자신의 경로
-git fetch origin
+Currently, two official plugins are available:
 
-git checkout -b wonhee origin/wonhee
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+
+Note: This will impact Vite dev & build performances.
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
