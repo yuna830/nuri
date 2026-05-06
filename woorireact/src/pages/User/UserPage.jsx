@@ -17,305 +17,270 @@ const C = {
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  .up-root { background: ${C.cream}; min-height: 100vh; font-family: 'Noto Sans KR', sans-serif; color: ${C.text}; }
+  .up-nav {
+    background: ${C.white}; border-bottom: 1px solid ${C.border};
+    padding: 0 2rem; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 8px rgba(134,167,136,0.08);
+  }
+  .up-nav-logo { font-size: 1.25rem; font-weight: 700; color: ${C.green}; }
+  .up-nav-right { display: flex; align-items: center; gap: 1rem; }
+  .up-nav-date { font-size: 0.85rem; color: ${C.textMuted}; }
+  .up-nav-sos {
+    background: ${C.danger}; color: #fff; border: none; border-radius: 8px;
+    padding: 0.5rem 1.2rem; font-size: 0.9rem; font-weight: 700;
+    font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(224,82,82,0.3); transition: transform 0.1s;
+  }
+  .up-nav-sos:hover { transform: scale(1.03); }
 
-  .up-root {
-    background: ${C.cream};
-    min-height: 100vh;
-    font-family: 'Noto Sans KR', sans-serif;
-    color: ${C.text};
-    padding-bottom: 6rem;
+  .up-layout {
+    max-width: 1200px; margin: 0 auto; padding: 2rem;
+    display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem;
   }
 
-  .up-header {
-    background: ${C.green};
-    padding: 2.2rem 1.5rem 3.8rem;
-    position: relative;
-    overflow: hidden;
+  /* 사이드바 */
+  .up-profile-card {
+    background: ${C.green}; border-radius: 16px; padding: 1.6rem 1.4rem;
+    color: #fff; margin-bottom: 1rem; position: relative; overflow: hidden;
   }
-  .up-header::before {
-    content: '';
-    position: absolute;
-    top: -50px; right: -50px;
-    width: 200px; height: 200px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.08);
+  .up-profile-card::after {
+    content: ''; position: absolute; bottom: -40px; right: -40px;
+    width: 150px; height: 150px; border-radius: 50%; background: rgba(255,255,255,0.07);
   }
-  .up-header::after {
-    content: '';
-    position: absolute;
-    bottom: -70px; left: -30px;
-    width: 240px; height: 240px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.05);
+  .up-profile-avatar {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(255,255,255,0.25); display: flex;
+    align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 0.8rem;
   }
-  .up-header-date {
-    font-size: 0.82rem;
-    color: rgba(255,255,255,0.7);
-    font-weight: 300;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.4rem;
-  }
-  .up-header-greeting {
-    font-size: 1.55rem;
-    font-weight: 700;
-    color: #ffffff;
-    line-height: 1.35;
-  }
-  .up-header-sub {
-    font-size: 0.88rem;
-    color: rgba(255,255,255,0.7);
-    margin-top: 0.35rem;
-    font-weight: 300;
-  }
-  .up-status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(255,255,255,0.16);
-    border: 1px solid rgba(255,255,255,0.28);
-    border-radius: 99px;
-    padding: 0.32rem 0.85rem;
-    font-size: 0.78rem;
-    color: #ffffff;
-    margin-top: 1rem;
-  }
-  .up-status-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #a8e6a8;
+  .up-profile-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.15rem; }
+  .up-profile-sub { font-size: 0.78rem; opacity: 0.8; }
+  .up-profile-region { font-size: 0.75rem; opacity: 0.75; margin-top: 0.15rem; }
+  .up-dot-wrap { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.8rem; font-size: 0.75rem; opacity: 0.9; }
+  .up-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #a8e6a8;
     animation: blink 2s ease-in-out infinite;
   }
   @keyframes blink {
     0%,100% { opacity:1; transform:scale(1); }
     50% { opacity:0.5; transform:scale(1.4); }
   }
-
-  .up-body {
-    padding: 0 1.2rem;
-    margin-top: -1.8rem;
-    position: relative;
-    z-index: 1;
+  .up-sidemenu {
+    background: ${C.white}; border-radius: 16px;
+    border: 1px solid ${C.border}; overflow: hidden; margin-bottom: 1rem;
+  }
+  .up-sidemenu-item {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1.1rem;
+    cursor: pointer; transition: background 0.12s; font-size: 0.9rem; color: ${C.text};
+    border: none; background: transparent; width: 100%; text-align: left;
+    font-family: 'Noto Sans KR', sans-serif; border-bottom: 1px solid ${C.border};
+  }
+  .up-sidemenu-item:last-child { border-bottom: none; }
+  .up-sidemenu-item:hover { background: ${C.greenPale}; }
+  .up-sidemenu-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+  .up-sidemenu-label { flex: 1; }
+  .up-sidemenu-badge {
+    font-size: 0.62rem; font-weight: 700; background: ${C.danger};
+    color: #fff; padding: 0.12rem 0.45rem; border-radius: 99px;
   }
 
-  /* 날씨 카드 */
-  .up-weather {
-    background: ${C.white};
-    border-radius: 20px;
-    padding: 1.4rem 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 20px rgba(134,167,136,0.12);
-    border: 1px solid ${C.border};
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    transition: box-shadow 0.15s;
+  /* 메인 */
+  .up-top-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .up-weather-card {
+    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
+    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
+    cursor: pointer; transition: box-shadow 0.15s; display: flex;
+    flex-direction: column; justify-content: space-between;
   }
-  .up-weather:active { box-shadow: 0 1px 8px rgba(134,167,136,0.1); }
-  .up-weather-label {
-    font-size: 0.72rem;
-    color: ${C.textMuted};
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 0.4rem;
+  .up-weather-card:hover { box-shadow: 0 4px 20px rgba(134,167,136,0.15); }
+  .up-card-label {
+    font-size: 0.7rem; font-weight: 700; color: ${C.textMuted};
+    letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.5rem;
   }
-  .up-weather-temp {
-    font-size: 2.6rem;
-    font-weight: 700;
-    color: ${C.text};
-    line-height: 1;
+  .up-weather-temp { font-size: 2.2rem; font-weight: 700; color: ${C.text}; line-height: 1; }
+  .up-weather-bot { display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; }
+  .up-weather-desc { font-size: 0.8rem; color: ${C.textMuted}; }
+  .up-weather-icon { font-size: 1.8rem; }
+  .up-stat-card {
+    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
+    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
+    display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer; transition: box-shadow 0.15s;
   }
-  .up-weather-desc {
-    font-size: 0.85rem;
-    color: ${C.textMuted};
-    margin-top: 0.3rem;
-  }
-  .up-weather-icon { font-size: 3rem; }
+  .up-stat-card:hover { box-shadow: 0 4px 20px rgba(134,167,136,0.15); }
+  .up-stat-value { font-size: 2.2rem; font-weight: 700; color: ${C.green}; line-height: 1; margin-top: 0.4rem; }
+  .up-stat-value.red { color: ${C.danger}; }
+  .up-stat-sub { font-size: 0.75rem; color: ${C.textMuted}; margin-top: 0.3rem; }
 
-  /* SOS */
-  .up-sos {
-    width: 100%;
-    padding: 1.7rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-    font-family: 'Noto Sans KR', sans-serif;
-    background: ${C.danger};
-    color: #ffffff;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    box-shadow: 0 6px 24px rgba(224,82,82,0.3);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.12s, box-shadow 0.12s;
-  }
-  .up-sos:active {
-    transform: scale(0.97);
-    box-shadow: 0 2px 10px rgba(224,82,82,0.25);
-  }
-  .up-sos-deco {
-    position: absolute;
-    width: 260px; height: 260px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.07);
-    top: -100px; right: -70px;
-    pointer-events: none;
-  }
+  .up-content-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
 
-  /* 메뉴 그리드 */
-  .up-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.9rem;
-    margin-bottom: 1rem;
-  }
   .up-card {
-    background: ${C.white};
-    border: 1px solid ${C.border};
-    border-radius: 18px;
-    padding: 1.25rem 1.1rem;
-    cursor: pointer;
-    text-align: left;
-    font-family: 'Noto Sans KR', sans-serif;
-    box-shadow: 0 2px 12px rgba(134,167,136,0.07);
-    transition: transform 0.13s, box-shadow 0.13s, border-color 0.13s;
-    position: relative;
+    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
+    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
   }
-  .up-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(134,167,136,0.16);
-    border-color: ${C.green};
-  }
-  .up-card:active { transform: scale(0.97); }
-  .up-card-icon { font-size: 1.8rem; display: block; margin-bottom: 0.65rem; }
-  .up-card-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: ${C.text};
-    margin-bottom: 0.2rem;
-  }
-  .up-card-desc {
-    font-size: 0.73rem;
-    color: ${C.textMuted};
-    line-height: 1.45;
-    white-space: pre-line;
-  }
-  .up-card-badge {
-    position: absolute;
-    top: 0.8rem; right: 0.8rem;
-    background: ${C.danger};
-    color: #fff;
-    font-size: 0.62rem;
-    font-weight: 700;
-    padding: 0.15rem 0.45rem;
-    border-radius: 99px;
-  }
+  .up-card.full { grid-column: span 2; }
+  .up-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .up-card-title { font-size: 0.95rem; font-weight: 700; color: ${C.text}; }
+  .up-card-more { font-size: 0.78rem; color: ${C.green}; cursor: pointer; background: transparent; border: none; font-family: 'Noto Sans KR', sans-serif; }
 
-  /* 일정 카드 */
-  .up-schedule {
-    background: ${C.greenPale};
-    border: 1px solid ${C.greenLight};
-    border-radius: 18px;
-    padding: 1.3rem 1.4rem;
-    margin-bottom: 1rem;
-  }
-  .up-schedule-head {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: ${C.greenDark};
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-  }
-  .up-schedule-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid ${C.greenLight};
-  }
-  .up-schedule-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .up-schedule-time {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: ${C.greenDark};
-    min-width: 40px;
-  }
-  .up-schedule-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: ${C.green};
-    flex-shrink: 0;
-  }
+  .up-schedule-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid ${C.border}; }
+  .up-schedule-row:last-child { border-bottom: none; }
+  .up-schedule-time { font-size: 0.78rem; font-weight: 700; color: ${C.greenDark}; min-width: 44px; }
+  .up-schedule-dot { width: 7px; height: 7px; border-radius: 50%; background: ${C.green}; flex-shrink: 0; }
   .up-schedule-text { font-size: 0.88rem; color: ${C.text}; }
 
-  /* FAB */
-  .up-fab {
-    position: fixed;
-    bottom: 1.8rem; right: 1.5rem;
-    width: 60px; height: 60px;
-    border-radius: 50%;
-    background: ${C.green};
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.55rem;
-    box-shadow: 0 4px 20px rgba(134,167,136,0.5);
-    transition: transform 0.13s, box-shadow 0.13s;
-    z-index: 100;
-  }
-  .up-fab:hover { transform: scale(1.07); box-shadow: 0 6px 28px rgba(134,167,136,0.6); }
-  .up-fab:active { transform: scale(0.93); }
+  .up-alert-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid ${C.border}; }
+  .up-alert-item:last-child { border-bottom: none; }
+  .up-alert-badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .up-alert-text { font-size: 0.84rem; color: ${C.text}; line-height: 1.5; }
+  .up-alert-time { font-size: 0.73rem; color: ${C.textMuted}; margin-top: 0.15rem; }
 
-  /* 모달 */
+  .up-quick-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; }
+  .up-quick-btn {
+    background: ${C.greenPale}; border: 1px solid ${C.greenLight}; border-radius: 12px;
+    padding: 1rem 0.6rem; text-align: center; cursor: pointer;
+    transition: all 0.13s; font-family: 'Noto Sans KR', sans-serif;
+  }
+  .up-quick-btn:hover { background: ${C.green}; border-color: ${C.green}; }
+  .up-quick-btn:hover .up-quick-label { color: #fff; }
+  .up-quick-btn:hover .up-quick-desc { color: rgba(255,255,255,0.8); }
+  .up-quick-icon { font-size: 1.6rem; display: block; margin-bottom: 0.4rem; }
+  .up-quick-label { font-size: 0.8rem; font-weight: 700; color: ${C.greenDark}; }
+  .up-quick-desc { font-size: 0.68rem; color: ${C.textMuted}; margin-top: 0.15rem; }
+
+  /* SOS 모달 */
   .up-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 200;
-    display: flex;
-    align-items: flex-end;
-    padding: 1rem;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 200; display: flex; align-items: center; justify-content: center;
   }
   .up-modal {
-    background: ${C.white};
-    border-radius: 24px;
-    padding: 2rem 1.5rem;
-    width: 100%;
-    text-align: center;
+    background: ${C.white}; border-radius: 20px; padding: 2.5rem 2rem;
+    width: 400px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   }
-  .up-modal-ico { font-size: 2.8rem; margin-bottom: 0.7rem; }
-  .up-modal-title { font-size: 1.25rem; font-weight: 700; color: ${C.text}; margin-bottom: 0.4rem; }
-  .up-modal-desc { font-size: 0.88rem; color: ${C.textMuted}; line-height: 1.6; margin-bottom: 1.4rem; }
-  .up-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  .up-modal-ico { font-size: 3rem; margin-bottom: 0.8rem; }
+  .up-modal-title { font-size: 1.3rem; font-weight: 700; color: ${C.text}; margin-bottom: 0.5rem; }
+  .up-modal-desc { font-size: 0.9rem; color: ${C.textMuted}; line-height: 1.6; margin-bottom: 1.8rem; }
+  .up-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
   .up-modal-cancel {
-    background: #efefef; color: ${C.textMuted};
-    border: none; border-radius: 14px;
-    padding: 0.95rem; font-size: 0.95rem; font-weight: 700;
+    background: #f0f0f0; color: ${C.textMuted}; border: none; border-radius: 12px;
+    padding: 0.9rem; font-size: 0.95rem; font-weight: 700;
     font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
   }
   .up-modal-ok {
-    background: ${C.danger}; color: #fff;
-    border: none; border-radius: 14px;
-    padding: 0.95rem; font-size: 0.95rem; font-weight: 700;
+    background: ${C.danger}; color: #fff; border: none; border-radius: 12px;
+    padding: 0.9rem; font-size: 0.95rem; font-weight: 700;
     font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
-    box-shadow: 0 4px 14px rgba(224,82,82,0.3);
   }
 `;
 
-const menus = [
-  { icon: "🌡", title: "기후 알림", desc: "한파·폭염 등\n위험 기후 안내", route: "/weather", badge: null },
-  { icon: "📋", title: "낙상 기록", desc: "낙상 감지 이력\n확인하기", route: "/fall-history", badge: null },
-  { icon: "💼", title: "일자리 찾기", desc: "내 조건 맞춤\n일자리 추천", route: "/jobs", badge: "NEW" },
-  { icon: "📍", title: "내 위치", desc: "실시간 위치\n보호자 공유", route: "/location", badge: null },
-];
+// 건강 점수 계산
+const calcHealthScore = (p) => {
+  const s = (val) => {
+    if (!val || val === "없음" || val === "없음 (스스로 보행 가능)" || val === "없음 (비흡연)" || val === "없음 (금주)") return 100;
+    if (val.includes("경증") || val.includes("경도") || val.includes("초기") || val.includes("가끔") || val.includes("과거") || val.includes("완치") || val.includes("1회")) return 65;
+    return 25;
+  };
+
+  const chronic = Math.round((s(p.diabetes) + s(p.hypertension) + s(p.heart) + s(p.kidney) + s(p.cancer)) / 5);
+
+  const fallPenalty = p.recentFall === "4회 이상" ? 20 : p.recentFall === "2~3회" ? 15 : p.recentFall === "1회" ? 5 : 0;
+  const mobility = Math.max(0, Math.round((s(p.joint) + s(p.stroke) + s(p.walkingAid)) / 3) - fallPenalty);
+
+  const cognition = s(p.dementia);
+  const sensory = Math.round((s(p.vision) + s(p.hearing)) / 2);
+  const respiratory = s(p.lung);
+
+  const smokePenalty = p.smoking === "흡연 중" ? 25 : p.smoking === "과거 흡연 (현재 금연)" ? 10 : 0;
+  const drinkPenalty = p.drinking === "자주 (주 1회 이상)" ? 20 : p.drinking === "가끔 (월 1~2회)" ? 5 : 0;
+  const medPenalty = p.medicineCount === "6개 이상" ? 15 : p.medicineCount === "3~5개" ? 8 : 0;
+  const lifestyle = Math.max(0, 100 - smokePenalty - drinkPenalty - medPenalty);
+
+  return {
+    "만성질환": chronic,
+    "관절·거동": mobility,
+    "인지·정신": cognition,
+    "시력·청력": sensory,
+    "호흡·폐":   respiratory,
+    "생활습관":  lifestyle,
+  };
+};
+
+// 레이더 차트
+function RadarChart({ scores }) {
+  const keys = Object.keys(scores);
+  const vals = Object.values(scores);
+  const n = keys.length;
+  const cx = 130, cy = 130, r = 95;
+  const angle = (i) => (Math.PI * 2 * i) / n - Math.PI / 2;
+  const pt = (i, ratio) => ({
+    x: cx + r * ratio * Math.cos(angle(i)),
+    y: cy + r * ratio * Math.sin(angle(i)),
+  });
+  const gridLevels = [0.25, 0.5, 0.75, 1];
+  const dataPts = vals.map((v, i) => pt(i, v / 100));
+  const pathD = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / n);
+  const avgColor = avg >= 75 ? C.green : avg >= 50 ? "#f0a500" : C.danger;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+      <svg width="260" height="260" viewBox="0 0 260 260">
+        {gridLevels.map((lvl, li) => (
+          <polygon
+            key={li}
+            points={keys.map((_, i) => { const p = pt(i, lvl); return `${p.x},${p.y}`; }).join(" ")}
+            fill="none" stroke={C.border} strokeWidth="1"
+          />
+        ))}
+        {keys.map((_, i) => {
+          const p = pt(i, 1);
+          return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={C.border} strokeWidth="1" />;
+        })}
+        <path d={pathD} fill={C.green} fillOpacity="0.2" stroke={C.green} strokeWidth="2.5" />
+        {dataPts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="4" fill={C.green} stroke="#fff" strokeWidth="2" />
+        ))}
+        {keys.map((key, i) => {
+          const p = pt(i, 1.28);
+          return (
+            <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+              fontSize="10.5" fontWeight="700" fill={C.greenDark} fontFamily="Noto Sans KR, sans-serif">
+              {key}
+            </text>
+          );
+        })}
+        {vals.map((v, i) => {
+          const p = pt(i, (v / 100) * 0.68);
+          return (
+            <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+              fontSize="9" fill={C.text} fontWeight="700">
+              {v}
+            </text>
+          );
+        })}
+      </svg>
+
+      <div style={{ flex: 1, minWidth: "180px" }}>
+        <div style={{ fontSize: "0.72rem", color: C.textMuted, fontWeight: "700", marginBottom: "0.3rem" }}>종합 건강 점수</div>
+        <div style={{ fontSize: "2.8rem", fontWeight: "700", color: avgColor, lineHeight: 1 }}>{avg}</div>
+        <div style={{ fontSize: "0.8rem", color: C.textMuted, marginBottom: "1.1rem" }}>/ 100점</div>
+        {keys.map((key, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.45rem" }}>
+            <div style={{ fontSize: "0.75rem", color: C.textMuted, minWidth: "56px" }}>{key}</div>
+            <div style={{ flex: 1, height: "5px", background: C.greenPale, borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", width: `${vals[i]}%`, borderRadius: "3px", transition: "width 0.5s ease",
+                background: vals[i] >= 75 ? C.green : vals[i] >= 50 ? "#f0a500" : C.danger,
+              }} />
+            </div>
+            <div style={{ fontSize: "0.75rem", fontWeight: "700", color: C.text, minWidth: "24px" }}>{vals[i]}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const schedules = [
   { time: "10:00", text: "혈압약 복용" },
@@ -323,17 +288,43 @@ const schedules = [
   { time: "16:30", text: "공원 산책" },
 ];
 
+const alerts = [
+  { type: "한파", color: "#e05252", msg: "최저기온 -12°C 예상, 외출 자제", time: "오전 9:00" },
+  { type: "강풍", color: "#f0a500", msg: "순간 풍속 15m/s 이상 예상", time: "오후 2:00" },
+];
+
+const menus = [
+  { icon: "🌡", label: "기후 알림",    desc: "위험 기후 안내",       route: "/weather" },
+  { icon: "📋", label: "낙상 기록",    desc: "감지 이력 확인",       route: "/fall-history" },
+  { icon: "💼", label: "일자리 찾기",  desc: "맞춤 일자리 추천",     route: "/jobs", badge: "NEW" },
+  { icon: "📍", label: "내 위치",      desc: "실시간 위치 공유",     route: "/location" },
+  { icon: "👤", label: "내 정보 수정", desc: "신체정보 및 인적사항", route: "/profile" },
+];
+
 export default function UserPage() {
   const navigate = useNavigate();
   const [weather, setWeather] = useState(null);
   const [showSOS, setShowSOS] = useState(false);
   const [dateStr, setDateStr] = useState("");
+  const [userName, setUserName] = useState("사용자");
+  const [userRegion, setUserRegion] = useState("");
+  const [healthScores, setHealthScores] = useState(null);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("user_profile");
+      if (saved) {
+        const p = JSON.parse(saved);
+        setUserName(p.name || "사용자");
+        setUserRegion(p.region || "");
+        setHealthScores(calcHealthScore(p));
+      }
+    } catch {}
+
     setWeather({ temp: 22, status: "맑음", icon: "☀️", region: "서울 송파구" });
     const d = new Date();
     const days = ["일","월","화","수","목","금","토"];
-    setDateStr(`${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
+    setDateStr(`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
   }, []);
 
   const confirmSOS = () => {
@@ -346,69 +337,125 @@ export default function UserPage() {
       <style>{styles}</style>
       <div className="up-root">
 
-        <div className="up-header">
-          <div className="up-header-date">{dateStr}</div>
-          <div className="up-header-greeting">안녕하세요 👋<br />오늘도 건강한 하루 되세요</div>
-          <div className="up-header-sub">케어링이 항상 함께합니다</div>
-          <div className="up-status-badge">
-            <div className="up-status-dot" />
-            디바이스 연결됨
+        <nav className="up-nav">
+          <div className="up-nav-logo">🌿 케어링 CaRing</div>
+          <div className="up-nav-right">
+            <span className="up-nav-date">{dateStr}</span>
+            <button className="up-nav-sos" onClick={() => setShowSOS(true)}>🆘 SOS 도움 요청</button>
           </div>
-        </div>
+        </nav>
 
-        <div className="up-body">
+        <div className="up-layout">
 
-          {/* 날씨 */}
-          <div className="up-weather" onClick={() => navigate("/weather")}>
-            <div>
-              <div className="up-weather-label">오늘 날씨</div>
-              {weather
-                ? <>
-                    <div className="up-weather-temp">{weather.temp}°C</div>
-                    <div className="up-weather-desc">{weather.status} · {weather.region}</div>
-                  </>
-                : <div style={{color:"#bbb",fontSize:"0.9rem"}}>불러오는 중...</div>
-              }
-            </div>
-            <div className="up-weather-icon">{weather?.icon ?? "🌤"}</div>
-          </div>
-
-          {/* SOS */}
-          <button className="up-sos" onClick={() => setShowSOS(true)}>
-            <span className="up-sos-deco" />
-            🆘 &nbsp;SOS 도움 요청
-          </button>
-
-          {/* 메뉴 */}
-          <div className="up-grid">
-            {menus.map(m => (
-              <button key={m.route} className="up-card" onClick={() => navigate(m.route)}>
-                {m.badge && <span className="up-card-badge">{m.badge}</span>}
-                <span className="up-card-icon">{m.icon}</span>
-                <div className="up-card-title">{m.title}</div>
-                <div className="up-card-desc">{m.desc}</div>
-              </button>
-            ))}
-          </div>
-
-          {/* 일정 */}
-          <div className="up-schedule">
-            <div className="up-schedule-head">📅 오늘 일정</div>
-            {schedules.map((s, i) => (
-              <div key={i} className="up-schedule-row">
-                <div className="up-schedule-time">{s.time}</div>
-                <div className="up-schedule-dot" />
-                <div className="up-schedule-text">{s.text}</div>
+          {/* 사이드바 */}
+          <aside>
+            <div className="up-profile-card">
+              <div className="up-profile-avatar">👤</div>
+              <div className="up-profile-name">{userName}님</div>
+              <div className="up-profile-sub">케어링 돌봄 서비스</div>
+              {userRegion && <div className="up-profile-region">📍 {userRegion}</div>}
+              <div className="up-dot-wrap">
+                <div className="up-dot" /> 디바이스 연결됨
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="up-sidemenu">
+              {menus.map(m => (
+                <button key={m.route} className="up-sidemenu-item" onClick={() => navigate(m.route)}>
+                  <span className="up-sidemenu-icon">{m.icon}</span>
+                  <span className="up-sidemenu-label">{m.label}</span>
+                  {m.badge && <span className="up-sidemenu-badge">{m.badge}</span>}
+                </button>
+              ))}
+            </div>
+          </aside>
 
+          {/* 메인 */}
+          <main>
+            {/* 상단 3카드 */}
+            <div className="up-top-row">
+              <div className="up-weather-card" onClick={() => navigate("/weather")}>
+                <div className="up-card-label">오늘 날씨</div>
+                <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
+                <div className="up-weather-bot">
+                  <div className="up-weather-desc">{weather?.status} · {weather?.region}</div>
+                  <div className="up-weather-icon">{weather?.icon ?? "🌤"}</div>
+                </div>
+              </div>
+              <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
+                <div className="up-card-label">이번 달 낙상</div>
+                <div className="up-stat-value red">2건</div>
+                <div className="up-stat-sub">최근: 5월 4일 거실</div>
+              </div>
+              <div className="up-stat-card">
+                <div className="up-card-label">오늘 일정</div>
+                <div className="up-stat-value">{schedules.length}건</div>
+                <div className="up-stat-sub">다음: 10:00 혈압약 복용</div>
+              </div>
+            </div>
+
+            {/* 일정 + 기후 */}
+            <div className="up-content-row">
+              <div className="up-card">
+                <div className="up-card-head">
+                  <div className="up-card-title">📅 오늘 일정</div>
+                </div>
+                {schedules.map((s, i) => (
+                  <div key={i} className="up-schedule-row">
+                    <div className="up-schedule-time">{s.time}</div>
+                    <div className="up-schedule-dot" />
+                    <div className="up-schedule-text">{s.text}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="up-card">
+                <div className="up-card-head">
+                  <div className="up-card-title">🌡 기후 알림</div>
+                  <button className="up-card-more" onClick={() => navigate("/weather")}>전체보기 →</button>
+                </div>
+                {alerts.map((a, i) => (
+                  <div key={i} className="up-alert-item">
+                    <span className="up-alert-badge" style={{ background: a.color, color: "#fff" }}>{a.type}</span>
+                    <div>
+                      <div className="up-alert-text">{a.msg}</div>
+                      <div className="up-alert-time">🕐 {a.time}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 건강 레이더 차트 */}
+            {healthScores && (
+              <div className="up-content-row">
+                <div className="up-card full">
+                  <div className="up-card-head">
+                    <div className="up-card-title">🏥 건강 상태 레이더</div>
+                    <button className="up-card-more" onClick={() => navigate("/profile")}>정보 수정 →</button>
+                  </div>
+                  <RadarChart scores={healthScores} />
+                </div>
+              </div>
+            )}
+
+            {/* 빠른 실행 */}
+            <div className="up-content-row">
+              <div className="up-card full">
+                <div className="up-card-head">
+                  <div className="up-card-title">⚡ 빠른 실행</div>
+                </div>
+                <div className="up-quick-grid">
+                  {menus.map(m => (
+                    <button key={m.route} className="up-quick-btn" onClick={() => navigate(m.route)}>
+                      <span className="up-quick-icon">{m.icon}</span>
+                      <div className="up-quick-label">{m.label}</div>
+                      <div className="up-quick-desc">{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </main>
         </div>
-
-        {/* 챗봇 FAB */}
-        <button className="up-fab" onClick={() => navigate("/chatbot")}>
-          💬
-        </button>
 
         {/* SOS 모달 */}
         {showSOS && (
@@ -416,9 +463,7 @@ export default function UserPage() {
             <div className="up-modal" onClick={e => e.stopPropagation()}>
               <div className="up-modal-ico">🆘</div>
               <div className="up-modal-title">SOS를 보내시겠어요?</div>
-              <div className="up-modal-desc">
-                보호자와 담당 복지사에게<br />즉시 알림이 전송됩니다.
-              </div>
+              <div className="up-modal-desc">보호자와 담당 복지사에게<br />즉시 알림이 전송됩니다.</div>
               <div className="up-modal-row">
                 <button className="up-modal-cancel" onClick={() => setShowSOS(false)}>취소</button>
                 <button className="up-modal-ok" onClick={confirmSOS}>보내기</button>
@@ -426,7 +471,6 @@ export default function UserPage() {
             </div>
           </div>
         )}
-
       </div>
     </>
   );
