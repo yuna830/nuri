@@ -183,7 +183,7 @@ export default function Login() {
       <div className="login-root">
 
         <div className="login-left">
-          <div className="login-logo">🌿 케어링 CaRing</div>
+          <div className="login-logo">🌿 우리 woori</div>
           <div className="login-tagline">취약계층 AI 통합 돌봄 플랫폼</div>
           <div className="login-features">
             {FEATURES.map((f, i) => (

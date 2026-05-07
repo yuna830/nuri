@@ -212,7 +212,7 @@ export default function SignUp() {
       <div className="su-root">
 
         <nav className="su-nav">
-          <div className="su-nav-logo">🌿 케어링 CaRing</div>
+          <div className="su-nav-logo">🌿 우리 woori</div>
           <div className="su-nav-step">정보 등록 {step + 1} / 3</div>
         </nav>
 
