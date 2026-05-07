@@ -23,7 +23,7 @@ export const menus = [
   { icon: "💼", label: "일자리 찾기",  desc: "맞춤 일자리 추천",     route: "/jobs", badge: "NEW" },
   { icon: "📍", label: "내 위치",      desc: "실시간 위치 공유",     route: "/location" },
   { icon: "👤", label: "내 정보 수정", desc: "신체정보 및 인적사항", route: "/profile" },
-  { icon: "💬", label: "AI 챗봇",      desc: "준비 중",              route: null, disabled: true, hideQuick: true },
+  { icon: "💬", label: "AI 챗봇", desc: "준비 중", route: "/chat", disabled: false, hideQuick: true },
 ];
 
 export const calcHealthScore = (profile) => {

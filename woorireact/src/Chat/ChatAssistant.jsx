@@ -10,6 +10,21 @@ import {
   updateSchedule,
 } from "./services/scheduleApi";
 
+const getResolvedSeniorId = () => {
+  const fromStorage = getCurrentSeniorId();
+  if (fromStorage) return fromStorage;
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    if (saved) {
+      const profile = JSON.parse(saved);
+      const id = String(profile?.senior?.id || "");
+      if (id) localStorage.setItem("current_senior_id", id);
+      return id;
+    }
+  } catch {}
+  return null;
+};
+
 export default function ChatAssistant() {
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -17,16 +32,14 @@ export default function ChatAssistant() {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content:
-        "안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요.",
+      content: "안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요.",
     },
   ]);
 
   useEffect(() => {
     async function loadSchedules() {
-      const seniorId = getCurrentSeniorId();
+      const seniorId = getResolvedSeniorId();
       if (!seniorId) return;
-
       try {
         const schedules = await fetchSeniorSchedules(seniorId);
         setSavedSchedules(schedules.map(scheduleFromApi));
@@ -34,7 +47,6 @@ export default function ChatAssistant() {
         console.error("일정 조회 오류:", error);
       }
     }
-
     loadSchedules();
   }, []);
 
@@ -49,7 +61,7 @@ export default function ChatAssistant() {
   }
 
   async function handleScheduleSave(schedule) {
-    const seniorId = getCurrentSeniorId();
+    const seniorId = getResolvedSeniorId();
     const isEditing = Boolean(editingSchedule);
 
     if (!seniorId) {
@@ -72,7 +84,6 @@ export default function ChatAssistant() {
 
       setSavedSchedules((prev) => {
         if (!isEditing) return [savedSchedule, ...prev];
-
         return prev.map((item) =>
           item.id === editingSchedule.id ? savedSchedule : item
         );
@@ -102,13 +113,11 @@ export default function ChatAssistant() {
 
   async function handleScheduleDelete(scheduleId) {
     const target = savedSchedules.find((schedule) => schedule.id === scheduleId);
-
     try {
       await deleteSchedule(scheduleId);
       setSavedSchedules((prev) =>
         prev.filter((schedule) => schedule.id !== scheduleId)
       );
-
       if (target) {
         setMessages((prev) => [
           ...prev,
@@ -158,7 +167,6 @@ export default function ChatAssistant() {
 
 function scheduleToApiPayload(schedule, seniorId) {
   const title = schedule.detail || schedule.title || "일정";
-
   return {
     seniorId: Number(seniorId),
     guardianId: null,
@@ -175,12 +183,7 @@ function scheduleFromApi(schedule) {
   const time = schedule.scheduleTime?.slice(0, 5) || "";
   const timeFields = timeToFields(time);
   const title = schedule.content || schedule.title;
-  const text = scheduleToText({
-    date: schedule.scheduleDate,
-    time,
-    title,
-  });
-
+  const text = scheduleToText({ date: schedule.scheduleDate, time, title });
   return {
     id: schedule.id,
     date: schedule.scheduleDate,
@@ -200,19 +203,15 @@ function fieldsToTime(schedule) {
   const hour = Number(schedule.hour || 9);
   const minute = schedule.minute || "00";
   let hour24 = hour;
-
   if (schedule.period === "오후" && hour < 12) hour24 += 12;
   if (schedule.period === "오전" && hour === 12) hour24 = 0;
-
   return `${pad(hour24)}:${minute}`;
 }
 
 function timeToFields(time) {
   if (!time) return { period: "오전", hour: 9, minute: "00" };
-
   const [rawHour, rawMinute = "00"] = time.split(":");
   const hour24 = Number(rawHour);
-
   return {
     period: hour24 >= 12 ? "오후" : "오전",
     hour: hour24 % 12 || 12,

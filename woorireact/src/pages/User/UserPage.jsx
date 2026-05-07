@@ -343,7 +343,8 @@ export default function UserPage() {
 
       try {
         const dateSchedules = await fetchSchedulesByDate(seniorId, scheduleDate);
-        setSchedules(dateSchedules.map(scheduleFromApi));
+        const list = Array.isArray(dateSchedules) ? dateSchedules : dateSchedules?.data ?? dateSchedules?.content ?? [];
+        setSchedules(list.map(scheduleFromApi));
       } catch (error) {
         console.error("일정 조회 오류:", error);
       }
@@ -431,7 +432,7 @@ export default function UserPage() {
         <div className="up-nav-right">
           <span className="up-nav-date">{dateStr}</span>
           <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
-            🆘 SOS 도움 요청
+            🚨 SOS 도움 요청
           </button>
         </div>
       </nav>
@@ -454,14 +455,7 @@ export default function UserPage() {
                 key={i}
                 className="up-sidemenu-item"
                 type="button"
-                onClick={() => {
-                  if (menu.disabled) {
-                    alert("💬 AI 챗봇 기능은 준비 중입니다!");
-                    return;
-                  }
-
-                  navigate(menu.route);
-                }}
+                onClick={() => navigate(menu.route)}
               >
                 <span className="up-sidemenu-icon">{menu.icon}</span>
                 <span className="up-sidemenu-label">{menu.label}</span>
@@ -629,7 +623,7 @@ export default function UserPage() {
       {showSOS && (
         <div className="up-overlay" onClick={() => setShowSOS(false)}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">🆘</div>
+            <div className="up-modal-ico">🚨</div>
             <div className="up-modal-title">SOS를 보내시겠어요?</div>
             <div className="up-modal-desc">
               보호자와 담당 복지사에게

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export function getCurrentSeniorId() {
   return localStorage.getItem("current_senior_id");
@@ -24,17 +24,24 @@ export async function fetchTodaySchedules(seniorId) {
   const response = await axios.get(
     `${API_BASE_URL}/api/schedules/senior/${seniorId}/today`
   );
-  return response.data;
+  return normalizeScheduleList(response.data);
 }
 
 export async function fetchSchedulesByDate(seniorId, scheduleDate) {
   const response = await axios.get(
     `${API_BASE_URL}/api/schedules/senior/${seniorId}/date/${scheduleDate}`
   );
-  return response.data;
+  return normalizeScheduleList(response.data);
 }
 
 export async function fetchSeniorSchedules(seniorId) {
   const response = await axios.get(`${API_BASE_URL}/api/schedules/senior/${seniorId}`);
-  return response.data;
+  return normalizeScheduleList(response.data);
+}
+
+function normalizeScheduleList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.content)) return data.content;
+  return [];
 }
