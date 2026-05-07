@@ -13,7 +13,13 @@ export default defineConfig({
         target: 'http://apis.data.go.kr',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/senuri/, ''),
-      }
+      },
+      '/weather': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/weather/, ''),
+        secure: false,
+      },
     }
   }
 })
