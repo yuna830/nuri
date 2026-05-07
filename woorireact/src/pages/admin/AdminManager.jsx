@@ -1,4 +1,4 @@
-function Management() {
+function AdminManagement() {
   return (
     <div>
       <h1>User Management</h1>
@@ -7,4 +7,4 @@ function Management() {
   );
 }
 
-export default Management;
+export default AdminManagement;
