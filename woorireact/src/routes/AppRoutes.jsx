@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "../pages/Common/Login";
+import SignUp from "../pages/Common/SignUp";
+
+import G_Login from "../pages/Common/G_Login";
+import G_SignUp from "../pages/Common/G_SignUp";
 
 import GuardianPage from "../pages/Guardian/GuardianPage";
 
@@ -8,7 +12,7 @@ import WeatherAlert from "../pages/User/WeatherAlert";
 import FallHistory from "../pages/User/FallHistory";
 import LocationPage from "../pages/User/LocationPage";
 import JobPage from "../pages/User/JobPage";
-import SignUp from "../pages/Common/SignUp";
+
 
 
 function AppRoutes() {
@@ -17,6 +21,10 @@ function AppRoutes() {
       <Routes>
         {/* Common */}
         <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+
+        <Route path="/glogin" element={<G_Login />} />
+        <Route path="/gsignup" element={<G_SignUp />} />
 
         {/* Guardian */}
         <Route path="/guardian" element={<GuardianPage />} />
@@ -26,7 +34,7 @@ function AppRoutes() {
         <Route path="/fall-history" element={<FallHistory />} />
         <Route path="/location" element={<LocationPage />} />
         <Route path="/jobs" element={<JobPage />} />
-        <Route path="/signup" element={<SignUp />} />
+
         
       </Routes>
     </BrowserRouter>
