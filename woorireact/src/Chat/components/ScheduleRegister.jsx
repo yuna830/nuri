@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { STT_API_URL } from "../services/serverConfig";
 
 const categories = [
   {
@@ -153,7 +154,7 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
         formData.append("file", blob, `record.${extension}`);
 
         try {
-          const response = await axios.post("http://127.0.0.1:8000/stt", formData);
+          const response = await axios.post(STT_API_URL, formData);
           const recognizedText = response.data.text?.trim();
 
           if (!recognizedText) {
