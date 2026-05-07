@@ -11,9 +11,8 @@ import UserPage from "../pages/User/UserPage";
 import WeatherAlert from "../pages/User/WeatherAlert";
 import FallHistory from "../pages/User/FallHistory";
 import LocationPage from "../pages/User/LocationPage";
+import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
-
-
 
 function AppRoutes() {
   return (
@@ -22,6 +21,7 @@ function AppRoutes() {
         {/* Common */}
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+
 
         <Route path="/glogin" element={<G_Login />} />
         <Route path="/gsignup" element={<G_SignUp />} />
@@ -34,8 +34,7 @@ function AppRoutes() {
         <Route path="/fall-history" element={<FallHistory />} />
         <Route path="/location" element={<LocationPage />} />
         <Route path="/jobs" element={<JobPage />} />
-
-        
+        <Route path="/profile" element={<ProfilePage />} />
       </Routes>
     </BrowserRouter>
   );

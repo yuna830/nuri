@@ -338,7 +338,7 @@ export default function UserPage() {
       <div className="up-root">
 
         <nav className="up-nav">
-          <div className="up-nav-logo">🌿 케어링 CaRing</div>
+          <div className="up-nav-logo">🌿 우리 woori</div>
           <div className="up-nav-right">
             <span className="up-nav-date">{dateStr}</span>
             <button className="up-nav-sos" onClick={() => setShowSOS(true)}>🆘 SOS 도움 요청</button>

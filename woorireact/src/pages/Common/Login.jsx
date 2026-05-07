@@ -28,7 +28,10 @@ export default function Login() {
 
     localStorage.setItem(
       "login_temp",
-      JSON.stringify({ name: name.trim(), phone: phone.trim() })
+      JSON.stringify({
+        name: name.trim(),
+        phone: phone.trim(),
+      })
     );
 
     navigate("/signup");
@@ -37,7 +40,7 @@ export default function Login() {
   return (
     <main className="login-root">
       <section className="login-left">
-        <div className="login-logo">🌿 케어링 CaRing</div>
+        <div className="login-logo">🌿 우리 woori</div>
         <div className="login-tagline">취약계층 AI 통합 돌봄 플랫폼</div>
 
         <div className="login-features">
