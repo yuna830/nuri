@@ -155,6 +155,10 @@ function GuardianPage() {
 
   const displayedAlerts = apiAlerts.map((alert) => ({
     id: alert.id,
+    seniorId: alert.seniorId,
+    type: alert.type,
+    latitude: alert.latitude,
+    longitude: alert.longitude,
     time: alert.createdAt
       ? new Date(alert.createdAt).toLocaleString("ko-KR", {
           month: "2-digit",
@@ -165,6 +169,7 @@ function GuardianPage() {
       : "",
     message: alert.message ?? alert.title ?? "알림 내용이 없습니다.",
     status: alert.isRead ? "확인됨" : "미확인",
+    isSos: alert.type === "SOS",
   }));
 
   const unreadAlertCount = displayedAlerts.filter(
@@ -325,6 +330,24 @@ function GuardianPage() {
     setMissingImagePreview(URL.createObjectURL(file));
   };
 
+  const handleOpenEmergencyReport = (alert = null) => {
+    const targetElder =
+      alert?.seniorId
+        ? elders.find((elder) => elder.id === alert.seniorId) ?? selectedElder
+        : selectedElder;
+
+    if (targetElder?.id) {
+      setSelectedElderId(targetElder.id);
+    }
+
+    setMissingDescription(
+      `${targetElder?.name ?? selectedElder.name}님 SOS 요청 후 연락이 닿지 않아 긴급 신고합니다.`
+    );
+
+    setIsAlertPanelOpen(false);
+    setIsMissingReportOpen(true);
+  };
+
   const handleCreateMissingReport = async () => {
     try {
       setIsSubmittingMissingReport(true);
@@ -389,7 +412,11 @@ function GuardianPage() {
             <span className="alarm-count">{unreadAlertCount}</span>
           </button>
 
-          <button className="danger-button" type="button">
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => handleOpenEmergencyReport()}
+          >
             긴급 신고
           </button>
         </div>
@@ -409,6 +436,14 @@ function GuardianPage() {
             </span>
           </button>
         ))}
+
+        <button
+          className="elder-add-button"
+          type="button"
+          onClick={() => setIsAddElderOpen(true)}
+        >
+          + 보호 대상 추가
+        </button>
       </nav>
 
       <section className="guardian-dashboard">
@@ -760,13 +795,33 @@ function GuardianPage() {
                     </div>
 
                     {alert.status === "미확인" ? (
-                      <button
-                        className="alert-read-button"
-                        type="button"
-                        onClick={() => handleReadAlert(alert.id)}
-                      >
-                        확인
-                      </button>
+                      alert.isSos ? (
+                        <div className="alert-actions">
+                          <button
+                            className="alert-read-button"
+                            type="button"
+                            onClick={() => handleReadAlert(alert.id)}
+                          >
+                            조치 완료
+                          </button>
+
+                          <button
+                            className="alert-emergency-button"
+                            type="button"
+                            onClick={() => handleOpenEmergencyReport(alert)}
+                          >
+                            긴급 신고
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="alert-read-button"
+                          type="button"
+                          onClick={() => handleReadAlert(alert.id)}
+                        >
+                          확인
+                        </button>
+                      )
                     ) : (
                       <em className="read">확인됨</em>
                     )}

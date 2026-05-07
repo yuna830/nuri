@@ -184,6 +184,20 @@
   color: #FFFFFF;
 }
 
+.elder-add-button {
+  margin-left: auto;
+  border: 1px dashed #86A788;
+  background: #ffffff;
+  color: #4F6F52;
+  padding: 14px 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.elder-add-button:hover {
+  background: #eef6ef;
+}
+
 .status-badge {
   height: 24px;
   padding: 0 10px;
@@ -436,6 +450,26 @@
   margin: 40px 0;
   color: #777;
   text-align: center;
+}
+
+.alert-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.alert-emergency-button {
+  border: none;
+  border-radius: 8px;
+  background: #b94a42;
+  color: #ffffff;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.alert-emergency-button:hover {
+  background: #9f372f;
 }
 
 .missing-modal-backdrop {

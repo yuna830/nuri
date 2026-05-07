@@ -79,20 +79,47 @@ export default function ProfilePage() {
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
 
-  const handleSave = () => {
-    const savedCurrentSenior = sessionStorage.getItem("currentSenior");
+  const handleSave = async () => {
+    try {
+      const savedCurrentSenior = sessionStorage.getItem("currentSenior");
 
-    if (savedCurrentSenior) {
+      if (!savedCurrentSenior) {
+        alert("수정할 사용자 정보를 찾을 수 없습니다.");
+        return;
+      }
+
       const profile = JSON.parse(savedCurrentSenior);
-      const nextProfile = formToProfile(profile, form);
-      sessionStorage.setItem("currentSenior", JSON.stringify(nextProfile));
+      const seniorId = profile?.senior?.id;
+
+      if (!seniorId) {
+        alert("사용자 ID를 찾을 수 없습니다.");
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("프로필 수정 실패");
+      }
+
+      const updatedProfile = await response.json();
+
+      sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+      setSaved(true);
+
+      setTimeout(() => {
+        navigate("/user");
+      }, 700);
+    } catch (error) {
+      console.error("프로필 수정 실패:", error);
+      alert("정보 수정에 실패했습니다.");
     }
-
-    setSaved(true);
-
-    setTimeout(() => {
-      navigate("/user");
-    }, 700);
   };
 
   const handleReset = () => {

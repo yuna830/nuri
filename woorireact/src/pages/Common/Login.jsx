@@ -16,7 +16,7 @@ export default function Login() {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!name.trim()) {
       setError("이름을 입력해주세요.");
       return;
@@ -27,15 +27,45 @@ export default function Login() {
       return;
     }
 
-    localStorage.setItem(
-      "login_temp",
-      JSON.stringify({
-        name: name.trim(),
-        phone: phone.trim(),
-      })
-    );
+    try {
+      const response = await fetch("http://localhost:8181/api/seniors");
 
-    navigate("/signup");
+      if (!response.ok) {
+        setError("사용자 정보를 불러오지 못했습니다.");
+        return;
+      }
+
+      const profiles = await response.json();
+
+      const matchedProfile = profiles.find((profile) => {
+        const senior = profile.senior;
+
+        return (
+          senior?.name === name.trim() &&
+          senior?.phone === phone.trim()
+        );
+      });
+
+      if (matchedProfile) {
+        sessionStorage.setItem("currentSenior", JSON.stringify(matchedProfile));
+        localStorage.removeItem("login_temp");
+        navigate("/user");
+        return;
+      }
+
+      localStorage.setItem(
+        "login_temp",
+        JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+        })
+      );
+
+      navigate("/signup");
+    } catch (error) {
+      console.error("로그인 실패:", error);
+      setError("서버에 연결할 수 없습니다.");
+    }
   };
 
   return (
