@@ -13,6 +13,7 @@ import FallHistory from "../pages/User/FallHistory";
 import LocationPage from "../pages/User/LocationPage";
 import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
+import WeatherGraph from "../pages/User/WeatherGraph";
 
 function AppRoutes() {
   return (
@@ -35,6 +36,8 @@ function AppRoutes() {
         <Route path="/location" element={<LocationPage />} />
         <Route path="/jobs" element={<JobPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/weather-graph" element={<WeatherGraph />} />
+        
       </Routes>
     </BrowserRouter>
   );

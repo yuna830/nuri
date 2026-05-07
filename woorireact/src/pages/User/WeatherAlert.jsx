@@ -1,20 +1,66 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  COLD_ACTIONS,
-  DUMMY_ALERTS,
-  LEVELS,
-  getWorstAlert,
-  hasHighRiskAlert,
-} from "../../utils/user/weatherAlertData";
+import { COLD_ACTIONS, DUMMY_ALERTS, LEVELS, getWorstAlert, hasHighRiskAlert } from "../../utils/user/weatherAlertData";
 import "../../css/user/WeatherAlert.css";
+
+const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
 export default function WeatherAlert() {
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
-    setAlerts(DUMMY_ALERTS);
+    const fetchAlerts = async () => {
+      try {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const fromTm = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}0000`;
+        const toTm   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}2359`;
+        const url = `/weather/1360000/WthrWrnInfoService/getWthrWrnList`
+          + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
+          + `&stnId=108&fromTmFc=${fromTm}&toTmFc=${toTm}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const items = data?.response?.body?.items?.item || [];
+
+        if (!items || items.length === 0) {
+          setAlerts([{
+            id: 1,
+            type: "오늘 날씨",
+            level: "safe",
+            message: "현재 발령된 기상특보가 없습니다. 오늘 날씨는 비교적 안전합니다.",
+            time: `오늘 ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+            region: "서울 전역",
+          }]);
+          return;
+        }
+
+        const parsed = (Array.isArray(items) ? items : [items]).map((item, i) => {
+          const title = item.title || "";
+          let level = "caution";
+          if (title.includes("경보") || title.includes("한파") || title.includes("폭염")) level = "warning";
+          if (title.includes("태풍") || title.includes("대설경보")) level = "danger";
+          let type = "기상특보";
+          if (title.includes("한파")) type = "한파";
+          else if (title.includes("폭염")) type = "폭염";
+          else if (title.includes("강풍")) type = "강풍";
+          else if (title.includes("호우")) type = "호우";
+          else if (title.includes("대설")) type = "대설";
+          return {
+            id: i + 1, type, level, message: title,
+            time: item.tmFc
+              ? `${item.tmFc.toString().slice(0,4)}.${item.tmFc.toString().slice(4,6)}.${item.tmFc.toString().slice(6,8)} ${item.tmFc.toString().slice(8,10)}:${item.tmFc.toString().slice(10,12)}`
+              : "-",
+            region: "서울 전역",
+          };
+        });
+        setAlerts(parsed);
+      } catch {
+        setAlerts(DUMMY_ALERTS);
+      }
+    };
+
+    fetchAlerts();
   }, []);
 
   const hasWarning = useMemo(() => hasHighRiskAlert(alerts), [alerts]);
@@ -24,10 +70,7 @@ export default function WeatherAlert() {
   return (
     <div className="wa-root">
       <nav className="wa-nav">
-        <button className="wa-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-
+        <button className="wa-nav-back" type="button" onClick={() => navigate("/user")}>← 돌아가기</button>
         <div className="wa-nav-title">🌡 기후 위험 알림</div>
         <div className="wa-nav-sub">기상청 API 연동 · 실시간 업데이트</div>
       </nav>
@@ -35,33 +78,17 @@ export default function WeatherAlert() {
       <div className="wa-layout">
         <main className="wa-main">
           {worstAlert && (
-            <div
-              className="wa-banner"
-              style={{
-                background: `linear-gradient(135deg, ${worstLevel.bg}, ${worstLevel.bg}dd)`,
-              }}
-            >
+            <div className="wa-banner" style={{ background: `linear-gradient(135deg, ${worstLevel.bg}, ${worstLevel.bg}dd)` }}>
               <div className="wa-banner-top">
                 <div>
                   <div className="wa-banner-label">현재 기후 위험 단계</div>
-                  <div className="wa-banner-status">
-                    {worstLevel.icon} {worstLevel.label}
-                  </div>
-                  <div className="wa-banner-desc">
-                    {worstLevel.desc} · {worstAlert.type} 주의보 발령
-                  </div>
+                  <div className="wa-banner-status">{worstLevel.icon} {worstLevel.label}</div>
+                  <div className="wa-banner-desc">{worstLevel.desc} · {worstAlert.type} 주의보 발령</div>
                 </div>
-
                 <div className="wa-banner-icon">{worstLevel.icon}</div>
               </div>
-
               <div className="wa-banner-region">
-                📍 서울 전역 ·{" "}
-                {new Date().toLocaleDateString("ko-KR", {
-                  month: "long",
-                  day: "numeric",
-                })}{" "}
-                기준
+                📍 서울 전역 · {new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} 기준
               </div>
             </div>
           )}
@@ -79,28 +106,17 @@ export default function WeatherAlert() {
           ) : (
             alerts.map((alert) => {
               const level = LEVELS[alert.level];
-
               return (
                 <article key={alert.id} className="wa-alert-card">
                   <div className="wa-alert-bar" style={{ background: level.barColor }} />
-
                   <div className="wa-alert-inner">
                     <div className="wa-alert-top">
-                      <div className="wa-alert-type">
-                        {level.icon} {alert.type}
-                      </div>
-
+                      <div className="wa-alert-type">{level.icon} {alert.type}</div>
                       <div className="wa-alert-right">
-                        {alert.region && (
-                          <span className="wa-alert-region">📍 {alert.region}</span>
-                        )}
-
-                        <span className="wa-alert-badge" style={{ background: level.bg }}>
-                          {level.label}
-                        </span>
+                        {alert.region && <span className="wa-alert-region">📍 {alert.region}</span>}
+                        <span className="wa-alert-badge" style={{ background: level.bg }}>{level.label}</span>
                       </div>
                     </div>
-
                     <div className="wa-alert-msg">{alert.message}</div>
                     <div className="wa-alert-time">🕐 {alert.time}</div>
                   </div>
@@ -113,13 +129,9 @@ export default function WeatherAlert() {
         <aside className="wa-sidebar">
           <div className="wa-level-card">
             <div className="wa-level-title">알림 단계 안내</div>
-
             {Object.entries(LEVELS).map(([key, level]) => (
               <div key={key} className="wa-level-item">
-                <div className="wa-level-pill" style={{ background: level.bg }}>
-                  {level.icon} {level.label}
-                </div>
-
+                <div className="wa-level-pill" style={{ background: level.bg }}>{level.icon} {level.label}</div>
                 <div className="wa-level-info">
                   <div className="wa-level-name">{level.label}</div>
                   <div className="wa-level-desc">{level.desc}</div>
@@ -131,7 +143,6 @@ export default function WeatherAlert() {
           {hasWarning && (
             <div className="wa-action-card">
               <div className="wa-action-title">⚡ 한파 행동 요령</div>
-
               {COLD_ACTIONS.map((action) => (
                 <div key={action.text} className="wa-action-item">
                   <div className="wa-action-icon">{action.icon}</div>
@@ -142,8 +153,7 @@ export default function WeatherAlert() {
           )}
 
           <div className="wa-source-card">
-            📡 본 서비스의 기후 위험 알림은 <b>기상청 공공 API</b>를 통해
-            실시간으로 제공됩니다. 정확한 정보는 기상청 홈페이지를 참고해주세요.
+            📡 본 서비스의 기후 위험 알림은 <b>기상청 공공 API</b>를 통해 실시간으로 제공됩니다.
           </div>
         </aside>
       </div>
