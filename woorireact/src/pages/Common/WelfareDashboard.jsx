@@ -1,6 +1,6 @@
 // React에서 useState 기능을 가져옴
 // useState은 화면에서 값이 바뀌었을 때 다시 렌더링되도록 도와주는 기능
-// 여기서는 복지사가 누른 "적합 / 부적합" 판단 결과를 화면에 바로 반영하기 위해 사용함
+// 여기서는 복지사가 누른 "적합 / 보류 / 부적합" 판단 결과를 화면에 바로 반영하기 위해 사용함
 import { useState } from "react";
 
 // WelfareDashboard 컴포넌트
@@ -25,6 +25,7 @@ function WelfareDashboard(){
             // 복지사가 직접 판단하는 값
             // 처음에는 아직 확인하지 않았으므로 "미검토"로 표시
             // 복지사가 적합 버튼을 누르면 "적합"
+            // 복지사가 보류 버튼을 누르면 "보류"
             // 부적합 버튼을 누르면 "부적합"으로 변경됨
             welfareDecision : "미검토",
         },
@@ -437,6 +438,11 @@ function WelfareDashboard(){
 
     ]);
 
+    // 상세보기에서 선택된 대상자의 id를 저장하는 state
+    // 처음에는 아무 대상자도 선택하지 않았으므로 null
+    // 상세보기 버튼을 누르면 해당 대상자의 id가 저장됨
+    const [selectedSeniorId, setSelectedSeniorId] = useState(null);
+
     // 현재 페이지 번호
     // 처음 화면에서는 1페이지부터 보여주기 위해 기본값을 1로 설정
     const [currentPage, setCurrentPage] = useState(1);
@@ -460,7 +466,7 @@ function WelfareDashboard(){
     const [jobFilter, setJobFilter] = useState("전체");
 
     // 복지사 판단 필터
-    // 전체 / 미검토 / 적합 / 부적합 중 하나를 선택함
+    // 전체 / 미검토 / 적합 / 보류 / 부적합 중 하나를 선택함
     const [decisionFilter, setDecisionFilter] = useState("전체");
 
     // 한 페이지에 보여줄 대상자 수
@@ -492,7 +498,7 @@ function WelfareDashboard(){
             jobFilter === "전체" || senior.jobStatus === jobFilter;
 
         // 복지사 판단 필터
-        // 미검토, 적합, 부적합 중 선택한 값과 일치하는지 확인
+        // 미검토, 적합, 보류, 부적합 중 선택한 값과 일치하는지 확인
         const matchDecision =
             decisionFilter === "전체" || senior.welfareDecision === decisionFilter;
         
@@ -590,11 +596,83 @@ function WelfareDashboard(){
     // 필터 적용 -> 우선순위 정렬 -> 페이지네이션 순서로 처리함
     const currentSeniors = sortedSeniors.slice(startIndex, endIndex);
 
+    // 선택된 대상자 id를 기준으로 실제 대상자 정보를 찾음
+    // 이렇게 하면 상세보기 중에 적합/부적합 버튼을 눌러도 최신값이 반영됨
+    const selectedSenior = seniors.find((senior) => senior.id === selectedSeniorId);
+
+    // 상세정보 페이지에 표시할 추가 정보를 만드는 함수
+    // 지금은 백엔드/DB가 없기 때문에 임시로 대상자 상태에 따라 자동 생성함
+    // 나중에는 guardian, health_info, counseling_record, job_matching, 같은 DB 테이블에서 받아오게 됨
+    const getSeniorDetail = (senior) => {
+        // 건강 상태에 따라 기저질환 예시를 다르게 표시
+        const diseaseInfo =
+            senior.healthStatus === "위험"
+                ? "고혈압 / 당뇨"
+                : senior.healthStatus === "주의"
+                ? "관절 통증"
+                : "특이사항 없음";
+
+        // 건강 상태에 따라 복약정보 예시를 다르게 표시
+        const medicationInfo =
+            senior.healthStatus === "위험"
+                ? "혈압약, 당뇨약 복용 중"
+                : senior.healthStatus === "주의"
+                ? "관절약 복용 중"
+                : "복약정보 없음";
+
+        // 건강 상태에 따라 보행 가능 여부를 다르게 표시
+        const walkingStatus =
+            senior.healthStatus === "위험"
+                ? "장시간 보행 어려움"
+                : senior.healthStatus === "주의"
+                ? "짧은 거리 보행 가능"
+                : "보행 가능";
+
+        // 일자리 상태에 따라 추천받은 일자리 예시를 다르게 표시
+        const recommendedJob =
+            senior.jobStatus === "미추천"
+                ? "추천 일자리 없음"
+                : senior.jobStatus === "지원 중"
+                ? "주민센터 환경 정비 보조"
+                : "복지관 안내 보조";
+
+        return {
+            phone : `010-1000-${String(senior.id).padStart(4, "0")}`,
+            address : senior.region,
+
+            guardianName : `${senior.name[0]}보호자`,
+            guardianPhone : `010-2000-${String(senior.id).padStart(4, "0")}`,
+            guardianRelation : senior.gender === "여성" ? "자녀" : "배우자",
+
+            diseaseInfo,
+            medicationInfo,
+            walkingStatus,
+
+            visionStatus : senior.age >= 80 ? "시력 저하" : "정상",
+            hearingStatus : senior.age >= 82 ? "청력 저하" : "정상",
+            handUseStatus : "양손 사용 가능",
+            availableWorkTime : senior.healthStatus === "위험" ? "하루 2시간" : "하루 3시간",
+
+            currentLocation :
+                senior.locationStatus === "안전구역 이탈" ? "안심구역 외부" : "자택",
+            frequentPlace : "주민센터 / 복지관",
+            safeZone : "자택 반경 500m",
+
+            counselingMemo :
+                senior.healthStatus === "위험"
+                    ? "건강 상태 확인이 필요하며 무리한 업무는 피해야 함"
+                    : "가벼운 업무 중심으로 일자리 추천 가능",
+
+            recommendedJob,
+            applicationStatus : senior.jobStatus,
+        };
+    };
+
     // handleDecision 함수
-    // 복지사가 "적합" 또는 "부적합" 버튼을 눌렀을 때 실행됨
+    // 복지사가 "적합", "보류", "부적합" 버튼을 눌렀을 때 실행됨
     // id : 어떤 대상자의 버튼을 눌렀는지 구분하기 위한 값
     // decision : 복지사가 선택한 판단 값
-    // 예 : "적합" 또는 "부적합"
+    // 예 : "적합", "보류", "부적합"
     const handleDecision = (id, decision) => {
         // seniors 배열을 map으로 하나씩 확인함
         // senior.id === id인 경우 :
@@ -609,7 +687,7 @@ function WelfareDashboard(){
 
         // 변경된 대상자 목록을 setSeniors로 저장함
         // 이 코드가 실행되면 React가 화면을 다시 그려서
-        // "미검토"가 "적합" 또는 "부적합"으로 바로 바뀜
+        // "미검토"가 "적합", "보류", "부적합"으로 바로 바뀜
         setSeniors(updateSeniors);
     };
 
@@ -632,90 +710,475 @@ function WelfareDashboard(){
         setCurrentPage(pageNumber);
     };
 
+    // 상단 요약 카드에 표시할 숫자
+    // 기존에는 문장으로 전체 수와 필터 결과를 보여줬지만,
+    // 디자인 변경 후에는 카드 4개로 나눠서 더 빠르게 확인할 수 있게 함
+    const summaryCounts = {
+        // 전체 대상자 수
+        total : seniors.length,
+
+        // 현재 선택된 필터 조건에 맞는 대상자 수
+        filtered : filteredSeniors.length,
+
+        // 건강 상태가 "위험"인 대상자 수
+        danger : seniors.filter((senior) => senior.healthStatus === "위험").length,
+
+        // 알림 상태가 "없음"이 아닌 대상자 수
+        alert : seniors.filter((senior) => senior.alertStatus !== "없음").length,
+    };
+
+    // 화면에서 반복해서 사용하는 스타일
+    // CSS 파일을 새로 만들지 않고 이 컴포넌트 안에서만 쓰기 위해 객체로 정리함
+    // 색상은 index.css에 이미 정의된 CSS 변수들을 최대한 사용함
+    const styles = {
+        // 전체 페이지 배경과 기본 여백
+        page : {
+            minHeight : "100vh",
+            backgroundColor : "var(--bg-color)",
+            color : "var(--text-color)",
+            padding : "28px",
+            boxSizing : "border-box",
+        },
+
+        // 좌우 여백을 제외한 실제 화면 내용 너비
+        content : {
+            width : "100%",
+            maxWidth : "1280px",
+            margin : "0 auto",
+        },
+
+        // 제목 영역
+        header : {
+            marginBottom : "18px",
+        },
+
+        // 페이지 제목
+        title : {
+            margin : 0,
+            fontSize : "28px",
+            fontWeight : "700",
+        },
+
+        // 제목 아래 설명 문구
+        subText : {
+            margin : "6px 0 0",
+            fontSize : "14px",
+            color : "#666",
+        },
+
+        // 상단 요약 카드 4개를 가로로 배치하는 영역
+        summaryGrid : {
+            display : "grid",
+            gridTemplateColumns : "repeat(4, minmax(0, 1fr))",
+            gap : "12px",
+            marginBottom : "16px",
+        },
+
+        // 각각의 요약 카드
+        summaryBox : {
+            backgroundColor : "white",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "14px",
+        },
+
+        // 요약 카드의 작은 제목
+        summaryLabel : {
+            margin : 0,
+            fontSize : "13px",
+            color : "#666",
+        },
+
+        // 요약 카드의 숫자
+        summaryValue : {
+            margin : "6px 0 0",
+            fontSize : "24px",
+            fontWeight : "700",
+        },
+
+        // 필터 select 박스들을 감싸는 영역
+        filterBox : {
+            display : "flex",
+            flexWrap : "wrap",
+            gap : "12px",
+            alignItems : "end",
+            backgroundColor : "white",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "14px",
+            marginBottom : "16px",
+        },
+
+        // label과 select를 세로로 묶는 작은 영역
+        field : {
+            display : "flex",
+            flexDirection : "column",
+            gap : "6px",
+        },
+
+        // 필터 이름 label
+        label : {
+            fontSize : "13px",
+            fontWeight : "700",
+        },
+
+        // 필터 select 박스
+        select : {
+            height : "38px",
+            minWidth : "130px",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "0 10px",
+            backgroundColor : "white",
+            color : "var(--text-color)",
+        },
+
+        // 테이블 전체를 감싸는 흰색 영역
+        tableBox : {
+            backgroundColor : "white",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            overflow : "hidden",
+        },
+
+        // 대상자 목록 테이블
+        table : {
+            width : "100%",
+            borderCollapse : "collapse",
+            fontSize : "14px",
+        },
+
+        // 테이블 제목 셀
+        th : {
+            textAlign : "left",
+            backgroundColor : "#f7f5e8",
+            padding : "12px 10px",
+            borderBottom : "1px solid var(--border-color)",
+            whiteSpace : "nowrap",
+        },
+
+        // 테이블 일반 셀
+        td : {
+            padding : "11px 10px",
+            borderBottom : "1px solid var(--border-color)",
+            verticalAlign : "middle",
+        },
+
+        // 건강 상태와 복지사 판단 상태를 표시하는 작은 배지의 기본 스타일
+        badge : {
+            display : "inline-block",
+            padding : "5px 9px",
+            borderRadius : "999px",
+            fontSize : "12px",
+            fontWeight : "700",
+            whiteSpace : "nowrap",
+        },
+
+        // 관리 버튼들을 한 줄에 정렬하기 위한 영역
+        actionGroup : {
+            display : "flex",
+            flexWrap : "wrap",
+            gap : "6px",
+        },
+
+        // 기본 버튼
+        smallButton : {
+            padding : "7px 10px",
+            borderRadius : "8px",
+            fontSize : "13px",
+            border : "none",
+            cursor : "pointer",
+            color : "white",
+            backgroundColor : "var(--main-color)",
+        },
+
+        // 보류 버튼
+        // 기본 버튼과 구분되도록 연한 배경과 테두리를 사용함
+        holdButton : {
+            padding : "7px 10px",
+            borderRadius : "8px",
+            fontSize : "13px",
+            border : "1px solid var(--main-color)",
+            cursor : "pointer",
+            color : "var(--text-color)",
+            backgroundColor : "#f7f5e8",
+        },
+
+        // 부적합 버튼
+        // 기존 메인 컬러와 너무 다르지 않게 톤을 낮춘 붉은색을 사용함
+        dangerButton : {
+            padding : "7px 10px",
+            borderRadius : "8px",
+            fontSize : "13px",
+            border : "none",
+            cursor : "pointer",
+            color : "white",
+            backgroundColor : "#b66b6b",
+        },
+
+        // 필터 초기화 버튼
+        resetButton : {
+            height : "38px",
+            padding : "0 14px",
+            borderRadius : "8px",
+            border : "none",
+            backgroundColor : "var(--main-color)",
+            color : "white",
+            cursor : "pointer",
+        },
+
+        // 페이지 이동 버튼 영역
+        pager : {
+            display : "flex",
+            flexWrap : "wrap",
+            justifyContent : "center",
+            gap : "6px",
+            marginTop : "16px",
+        },
+
+        // 팝업 뒤쪽 어두운 배경
+        modalBackdrop : {
+            position : "fixed",
+            inset : 0,
+            backgroundColor : "rgba(0, 0, 0, 0.45)",
+            display : "flex",
+            justifyContent : "center",
+            alignItems : "center",
+            padding : "24px",
+            zIndex : 100,
+        },
+
+        // 팝업 본문 박스
+        modalBox : {
+            width : "min(760px, 100%)",
+            maxHeight : "85vh",
+            overflowY : "auto",
+            backgroundColor : "var(--bg-color)",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "22px",
+            boxShadow : "0 20px 40px rgba(0, 0, 0, 0.25)",
+        },
+
+        // 팝업 제목과 닫기 버튼을 나란히 배치하는 영역
+        modalHeader : {
+            display : "flex",
+            justifyContent : "space-between",
+            alignItems : "start",
+            gap : "12px",
+            marginBottom : "16px",
+        },
+
+        // 팝업 제목
+        modalTitle : {
+            margin : 0,
+            fontSize : "24px",
+        },
+
+        // 팝업 제목 아래 대상자 요약 문구
+        modalSubText : {
+            margin : "6px 0 0",
+            color : "#666",
+        },
+
+        // 팝업 안의 상세정보 섹션들을 2열로 배치
+        detailGrid : {
+            display : "grid",
+            gridTemplateColumns : "repeat(2, minmax(0, 1fr))",
+            gap : "10px",
+        },
+
+        // 팝업 안의 각 정보 박스
+        detailSection : {
+            backgroundColor : "white",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "14px",
+        },
+
+        // 상세정보 섹션 제목
+        sectionTitle : {
+            margin : "0 0 10px",
+            fontSize : "16px",
+        },
+
+        // 상세정보 본문 텍스트
+        detailText : {
+            margin : "6px 0",
+            fontSize : "14px",
+        },
+
+        // 상담 기록 박스
+        memoBox : {
+            marginTop : "12px",
+            backgroundColor : "white",
+            border : "1px solid var(--border-color)",
+            borderRadius : "8px",
+            padding : "14px",
+        },
+    };
+
+    // 건강 상태와 복지사 판단 상태를 배지 색상으로 구분하는 함수
+    // 화면 전체 색상은 기존 CSS 변수를 쓰고, 상태값만 알아보기 쉽게 은은하게 구분함
+    const getBadgeStyle = (type, value) => {
+        const badgeColors = {
+            // 건강 상태 배지 색상
+            health : {
+                "양호" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
+                "주의" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
+                "위험" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
+            },
+
+            // 복지사 판단 배지 색상
+            decision : {
+                "미검토" : { backgroundColor : "#eeeeee", color : "#555" },
+                "적합" : { backgroundColor : "#dff3ff", color : "#176b92" },
+                "보류" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
+                "부적합" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
+            },
+        };
+
+        return {
+            ...styles.badge,
+            ...(badgeColors[type]?.[value] || {
+                backgroundColor : "#eeeeee",
+                color : "#555",
+            }),
+        };
+    };
+
     // return 안에 작성한 JSX가 실제 화면에 표시됨
     return (
-        <div>
+        <div style = {styles.page}>
+            <div style = {styles.content}>
             {/* 페이지 제목 */}
-            <h1>복지사 대상자 관리</h1>
+            <div style = {styles.header}>
+                <h1 style = {styles.title}>복지사 대상자 관리</h1>
+                <p style = {styles.subText}>
+                    대상자 상태를 확인하고 상세정보는 팝업으로 확인합니다.
+                </p>
+            </div>
+
+            {/* 상단 요약 카드 영역 */}
+            {/* 기존 문장형 현황 표시를 카드형으로 바꿔서 중요한 수치를 먼저 보여줌 */}
+            <div style = {styles.summaryGrid}>
+                <div style = {styles.summaryBox}>
+                    <p style = {styles.summaryLabel}>전체 대상자</p>
+                    <p style = {styles.summaryValue}>{summaryCounts.total}명</p>
+                </div>
+
+                <div style = {styles.summaryBox}>
+                    <p style = {styles.summaryLabel}>필터 결과</p>
+                    <p style = {styles.summaryValue}>{summaryCounts.filtered}명</p>
+                </div>
+
+                <div style = {styles.summaryBox}>
+                    <p style = {styles.summaryLabel}>건강 위험</p>
+                    <p style = {styles.summaryValue}>{summaryCounts.danger}명</p>
+                </div>
+
+                <div style = {styles.summaryBox}>
+                    <p style = {styles.summaryLabel}>알림 있음</p>
+                    <p style = {styles.summaryValue}>{summaryCounts.alert}명</p>
+                </div>
+            </div>
 
             {/* 필터 선택 영역 */}
-            {/* 복지사가 건강 상태, 위치 상태, 알림 상태, 일자리 상태, 판단 상태별로 대상자를 걸러볼 수 있음*/}
-            <div style = {{ marginBottom : "20px"}}>
-                <label>건강 상태</label>
-                {/* 현재 선택된 필터 값을 화면에 표시하고, 사용자가 값을 바꾸면 healthFilter를 변경함 */}
-                <select
-                    value = {healthFilter}
-                    onChange = {(e) => {
-                        setHealthFilter(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                >
-                    <option value = "전체">전체</option>
-                    <option value = "양호">양호</option>
-                    <option value = "주의">주의</option>
-                    <option value = "위험">위험</option>
-                </select>
+            {/* 복지사가 건강 상태, 위치 상태, 알림 상태, 일자리 상태, 판단 상태별로 대상자를 걸러볼 수 있음 */}
+            <div style = {styles.filterBox}>
+                <div style = {styles.field}>
+                    <label style = {styles.label}>건강 상태</label>
+                    {/* 현재 선택된 필터 값을 화면에 표시하고, 사용자가 값을 바꾸면 healthFilter를 변경함 */}
+                    <select
+                        style = {styles.select}
+                        value = {healthFilter}
+                        onChange = {(e) => {
+                            setHealthFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                    >
+                        <option value = "전체">전체</option>
+                        <option value = "양호">양호</option>
+                        <option value = "주의">주의</option>
+                        <option value = "위험">위험</option>
+                    </select>
+                </div>
 
-                <label> 위치 상태 </label>
-                <select
-                    value = {locationFilter}
-                    onChange = {(e) => {
-                        setLocationFilter(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                >
-                    <option value = "전체">전체</option>
-                    <option value = "정상">정상</option>
-                    <option value = "안전구역 이탈">안전구역 이탈</option>
-                </select>
+                <div style = {styles.field}>
+                    <label style = {styles.label}>위치 상태</label>
+                    <select
+                        style = {styles.select}
+                        value = {locationFilter}
+                        onChange = {(e) => {
+                            setLocationFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                    >
+                        <option value = "전체">전체</option>
+                        <option value = "정상">정상</option>
+                        <option value = "안전구역 이탈">안전구역 이탈</option>
+                    </select>
+                </div>
 
-                <label> 알림 상태 </label>
-                <select
-                    value = {alertFilter}
-                    onChange = {(e) => {
-                        setAlertFilter(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                >
-                    <option value = "전체">전체</option>
-                    <option value = "없음">없음</option>
-                    <option value = "응급 알림">응급 알림</option>
-                    <option value = "위치 이탈 알림">위치 이탈 알림</option>
-                    <option value = "복약 미확인">복약 미확인</option>
-                    <option value = "장시간 미응답">장시간 미응답</option>
-                </select>
+                <div style = {styles.field}>
+                    <label style = {styles.label}>알림 상태</label>
+                    <select
+                        style = {styles.select}
+                        value = {alertFilter}
+                        onChange = {(e) => {
+                            setAlertFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                    >
+                        <option value = "전체">전체</option>
+                        <option value = "없음">없음</option>
+                        <option value = "응급 알림">응급 알림</option>
+                        <option value = "위치 이탈 알림">위치 이탈 알림</option>
+                        <option value = "복약 미확인">복약 미확인</option>
+                        <option value = "장시간 미응답">장시간 미응답</option>
+                    </select>
+                </div>
 
-                <label> 일자리 상태 </label>
-                <select
-                    value = {jobFilter}
-                    onChange = {(e) => {
-                        setJobFilter(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                >
-                    <option value = "전체">전체</option>
-                    <option value = "추천 완료">추천 완료</option>
-                    <option value = "지원 중">지원 중</option>
-                    <option value = "미추천">미추천</option>
-                </select>
-                
-                <label> 복지사 판단 </label>
-                <select
-                    value = {decisionFilter}
-                    onChange = {(e) => {
-                        setDecisionFilter(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                >
-                    <option value = "전체">전체</option>
-                    <option value = "미검토">미검토</option>
-                    <option value = "적합">적합</option>
-                    <option value = "부적합">부적합</option>
-                </select>
+                <div style = {styles.field}>
+                    <label style = {styles.label}>일자리 상태</label>
+                    <select
+                        style = {styles.select}
+                        value = {jobFilter}
+                        onChange = {(e) => {
+                            setJobFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                    >
+                        <option value = "전체">전체</option>
+                        <option value = "추천 완료">추천 완료</option>
+                        <option value = "지원 중">지원 중</option>
+                        <option value = "미추천">미추천</option>
+                    </select>
+                </div>
+
+                <div style = {styles.field}>
+                    <label style = {styles.label}>복지사 판단</label>
+                    <select
+                        style = {styles.select}
+                        value = {decisionFilter}
+                        onChange = {(e) => {
+                            setDecisionFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                    >
+                        <option value = "전체">전체</option>
+                        <option value = "미검토">미검토</option>
+                        <option value = "적합">적합</option>
+                        <option value = "보류">보류</option>
+                        <option value = "부적합">부적합</option>
+                    </select>
+                </div>
 
                 {/* 필터 초기화 버튼 */}
                 {/* 선택된 필터를 모두 전체로 되돌림 */}
                 <button
+                    type = "button"
+                    style = {styles.resetButton}
                     onClick = {() => {
                         setHealthFilter("전체");
                         setLocationFilter("전체");
@@ -734,107 +1197,139 @@ function WelfareDashboard(){
             </p>
 
             {/* 대상자 목록을 표 형태로 보여주는 영역 */}
-            <table border = "1">
-                {/* thead는 표의 제목 행을 의미함 */}
-                <thead>
-                    <tr>
-                        <th>이름</th>
-                        <th>나이/성별</th>
-                        <th>거주 지역</th>
-                        <th>건강 상태</th>
-                        <th>최근 접속 시간</th>
-                        <th>위치 상태</th>
-                        <th>알림 상태</th>
-                        <th>일자리 매칭 상태</th>
-                        <th>복지사 판단</th>
-                        <th>관리</th>
-                    </tr>
-                </thead>
-
-                {/* tbody는 실제 데이터가 들어가는 표의 본문 영역 */}
-                <tbody>
-                    {/* 
-                        seniors.map()
-                        seniors 배열에 들어 있는 대상자 수만큼 tr 태그를 반복 생성함
-                        
-                        Ex) seniors에 3명이 있으면 표의 행도 3개가 만들어짐
-                    */}
-                    {/* currentSeniors를 사용해서 현재 페이지의 10명만 출력 */}
-                    {currentSeniors.map((senior) => (
-                        // key는 React가 각 행을 구분하기 위해 사용하는 값
-                        // 보통 데이터의 id를 사용함
-                        <tr key = {senior.id}>
-                            {/* 대상자 이름 출력 */}
-                            <td>{senior.name}</td>
-
-                            {/* 나이와 성별을 함께 출력 */}
-                            <td>
-                                {senior.age}세 / {senior.gender}
-                            </td>
-
-                            {/* 거주 지역 출력 */}
-                            <td>{senior.region}</td>
-
-                            {/* 건강 상태 출력 */}
-                            <td>{senior.healthStatus}</td>
-
-                            {/* 최근 접속 시간 출력 */}
-                            <td>{senior.lastAccess}</td>
-
-                            {/* 위치 상태 출력 */}
-                            <td>{senior.locationStatus}</td>
-
-                            {/* 알림 상태 출력 */}
-                            <td>{senior.alertStatus}</td>
-
-                            {/* 일자리 매칭 상태 출력 */}
-                            <td>{senior.jobStatus}</td>
-
-                            {/* 
-                                복지사가 직접 선택한 판단 결과
-                                처음에는 "미검토"
-                                적합 버튼 클릭 시 "적합"
-                                부적합 버튼 클릭 시 "부적합"
-                            */}
-                            <td>{senior.welfareDecision}</td>
-
-                            {/* 관리 버튼 영역 */}
-                            <td>
-                                {/* 나중에 클릭하면 대상자 상세 정보 페이지로 이동하거나 상세 내용을 보여줄 예정 */}
-                                <button>상세보기</button>
-
-                                {/* 
-                                    적합 버튼
-                                    복지사가 대상자의 건강, 신체 정보를 보고
-                                    해당 일자리 추천이 적합하다고 판단할 때 클릭 
-                                */}
-                                <button onClick = {() => handleDecision(senior.id, "적합")}>
-                                    적합
-                                </button>
-
-                                {/* 
-                                    부적합 버튼
-                                    복지사가 대상자의 건강, 신체 정보를 보고
-                                    해당 일자리 추천이 부적합하다고 판단할 때 클릭 
-                                */}
-                                <button onClick = {() => handleDecision(senior.id, "부적합")}>
-                                    부적합
-                                </button>
-                            </td>
+            <div style = {styles.tableBox}>
+                <table style = {styles.table}>
+                    {/* thead는 표의 제목 행을 의미함 */}
+                    <thead>
+                        <tr>
+                            <th style = {styles.th}>이름</th>
+                            <th style = {styles.th}>나이/성별</th>
+                            <th style = {styles.th}>거주 지역</th>
+                            <th style = {styles.th}>건강 상태</th>
+                            <th style = {styles.th}>최근 접속 시간</th>
+                            <th style = {styles.th}>위치 상태</th>
+                            <th style = {styles.th}>알림 상태</th>
+                            <th style = {styles.th}>일자리 매칭 상태</th>
+                            <th style = {styles.th}>복지사 판단</th>
+                            <th style = {styles.th}>관리</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+
+                    {/* tbody는 실제 데이터가 들어가는 표의 본문 영역 */}
+                    <tbody>
+                        {/* currentSeniors를 사용해서 현재 페이지의 10명만 출력 */}
+                        {currentSeniors.map((senior) => (
+                            // key는 React가 각 행을 구분하기 위해 사용하는 값
+                            // 보통 데이터의 id를 사용함
+                            <tr key = {senior.id}>
+                                {/* 대상자 이름 출력 */}
+                                <td style = {styles.td}>{senior.name}</td>
+
+                                {/* 나이와 성별을 함께 출력 */}
+                                <td style = {styles.td}>
+                                    {senior.age}세 / {senior.gender}
+                                </td>
+
+                                {/* 거주 지역 출력 */}
+                                <td style = {styles.td}>{senior.region}</td>
+
+                                {/* 건강 상태 출력 */}
+                                {/* 색상 배지로 표시해서 양호 / 주의 / 위험을 빠르게 구분함 */}
+                                <td style = {styles.td}>
+                                    <span style = {getBadgeStyle("health", senior.healthStatus)}>
+                                        {senior.healthStatus}
+                                    </span>
+                                </td>
+
+                                {/* 최근 접속 시간 출력 */}
+                                <td style = {styles.td}>{senior.lastAccess}</td>
+
+                                {/* 위치 상태 출력 */}
+                                <td style = {styles.td}>{senior.locationStatus}</td>
+
+                                {/* 알림 상태 출력 */}
+                                <td style = {styles.td}>{senior.alertStatus}</td>
+
+                                {/* 일자리 매칭 상태 출력 */}
+                                <td style = {styles.td}>{senior.jobStatus}</td>
+
+                                {/* 복지사가 직접 선택한 판단 결과 */}
+                                {/* 처음에는 "미검토", 버튼 클릭 후 "적합" / "보류" / "부적합"으로 바뀜 */}
+                                <td style = {styles.td}>
+                                    <span style = {getBadgeStyle("decision", senior.welfareDecision)}>
+                                        {senior.welfareDecision}
+                                    </span>
+                                </td>
+
+                                {/* 관리 버튼 영역 */}
+                                <td style = {styles.td}>
+                                    <div style = {styles.actionGroup}>
+                                        {/* 상세보기 버튼 */}
+                                        {/* 클릭하면 selectedSeniorId에 대상자 id를 저장해서 팝업 모달을 띄움 */}
+                                        <button
+                                            type = "button"
+                                            style = {styles.smallButton}
+                                            onClick = {() => setSelectedSeniorId(senior.id)}
+                                        >
+                                            상세보기
+                                        </button>
+
+                                        {/* 적합 버튼 */}
+                                        {/* 복지사가 대상자의 건강, 신체 정보를 보고 해당 일자리 추천이 적합하다고 판단할 때 클릭 */}
+                                        <button
+                                            type = "button"
+                                            style = {styles.smallButton}
+                                            onClick = {() => handleDecision(senior.id, "적합")}
+                                        >
+                                            적합
+                                        </button>
+
+                                        {/* 보류 버튼 */}
+                                        {/* 바로 적합/부적합을 판단하기 어렵거나 추가 확인이 필요할 때 클릭 */}
+                                        <button
+                                            type = "button"
+                                            style = {styles.holdButton}
+                                            onClick = {() => handleDecision(senior.id, "보류")}
+                                        >
+                                            보류
+                                        </button>
+
+                                        {/* 부적합 버튼 */}
+                                        {/* 복지사가 대상자의 건강, 신체 정보를 보고 해당 일자리 추천이 부적합하다고 판단할 때 클릭 */}
+                                        <button
+                                            type = "button"
+                                            style = {styles.dangerButton}
+                                            onClick = {() => handleDecision(senior.id, "부적합")}
+                                        >
+                                            부적합
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
 
             {/* 페이지 이동 버튼 영역 */}
-            <div style = {{ marginTop : "20px" }}>
-                <button onClick = {goToPrevPage} disabled = {currentPage === 1}>
+            <div style = {styles.pager}>
+                <button
+                    type = "button"
+                    style = {styles.smallButton}
+                    onClick = {goToPrevPage}
+                    disabled = {currentPage === 1}
+                >
                     이전
                 </button>
 
                 {Array.from({ length : totalPages }, (_, index) => index + 1).map((pageNumber) => (
-                   <button
+                    <button
+                        type = "button"
                         key = {pageNumber}
+                        style = {{
+                            ...styles.smallButton,
+                            opacity : currentPage === pageNumber ? 0.6 : 1,
+                        }}
                         onClick = {() => goToPage(pageNumber)}
                         disabled = {currentPage === pageNumber}
                     >
@@ -842,10 +1337,111 @@ function WelfareDashboard(){
                     </button>
                 ))}
 
-                <button onClick = {goToNextPage} disabled = {currentPage === totalPages}>
+                <button
+                    type = "button"
+                    style = {styles.smallButton}
+                    onClick = {goToNextPage}
+                    disabled = {currentPage === totalPages}
+                >
                     다음
                 </button>
             </div>
+            </div>
+
+            {/* 팝업 모달 영역 */}
+            {/* selectedSenior가 있을 때만 화면 중앙에 상세정보 팝업을 보여줌 */}
+            {selectedSenior && (
+                <div style = {styles.modalBackdrop}>
+                    <div style = {styles.modalBox}>
+                        {/* getSeniorDetail 함수로 선택된 대상자의 추가 상세정보를 생성함 */}
+                        {(() => {
+                            const detail = getSeniorDetail(selectedSenior);
+
+                            return (
+                                <div>
+                                    {/* 모달 상단 영역 */}
+                                    <div style = {styles.modalHeader}>
+                                        <div>
+                                            <h2 style = {styles.modalTitle}>대상자 상세정보</h2>
+                                            <p style = {styles.modalSubText}>
+                                                {selectedSenior.name} / {selectedSenior.age}세 / {selectedSenior.gender}
+                                            </p>
+                                        </div>
+
+                                        {/* 닫기 버튼 */}
+                                        {/* 클릭하면 selectedSeniorId를 null로 바꿔 팝업을 닫음 */}
+                                        <button
+                                            type = "button"
+                                            style = {styles.smallButton}
+                                            onClick = {() => setSelectedSeniorId(null)}
+                                        >
+                                            닫기
+                                        </button>
+                                    </div>
+
+                                    {/* 모달 상세정보 영역 */}
+                                    <div style = {styles.detailGrid}>
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>기본 정보</h3>
+                                            <p style = {styles.detailText}>이름 : {selectedSenior.name}</p>
+                                            <p style = {styles.detailText}>나이 : {selectedSenior.age}세</p>
+                                            <p style = {styles.detailText}>성별 : {selectedSenior.gender}</p>
+                                            <p style = {styles.detailText}>연락처 : {detail.phone}</p>
+                                            <p style = {styles.detailText}>주소 : {detail.address}</p>
+                                        </div>
+
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>보호자 정보</h3>
+                                            <p style = {styles.detailText}>보호자 이름 : {detail.guardianName}</p>
+                                            <p style = {styles.detailText}>보호자 연락처 : {detail.guardianPhone}</p>
+                                            <p style = {styles.detailText}>관계 : {detail.guardianRelation}</p>
+                                        </div>
+
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>건강 정보</h3>
+                                            <p style = {styles.detailText}>건강 상태 : {selectedSenior.healthStatus}</p>
+                                            <p style = {styles.detailText}>기저질환 : {detail.diseaseInfo}</p>
+                                            <p style = {styles.detailText}>복약정보 : {detail.medicationInfo}</p>
+                                            <p style = {styles.detailText}>보행 가능 여부 : {detail.walkingStatus}</p>
+                                        </div>
+
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>신체 정보</h3>
+                                            <p style = {styles.detailText}>시력 : {detail.visionStatus}</p>
+                                            <p style = {styles.detailText}>청력 : {detail.hearingStatus}</p>
+                                            <p style = {styles.detailText}>손 사용 능력 : {detail.handUseStatus}</p>
+                                            <p style = {styles.detailText}>근무 가능 시간 : {detail.availableWorkTime}</p>
+                                        </div>
+
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>위치 정보</h3>
+                                            <p style = {styles.detailText}>현재 위치 : {detail.currentLocation}</p>
+                                            <p style = {styles.detailText}>자주 가는 장소 : {detail.frequentPlace}</p>
+                                            <p style = {styles.detailText}>안심구역 : {detail.safeZone}</p>
+                                            <p style = {styles.detailText}>위치 상태 : {selectedSenior.locationStatus}</p>
+                                        </div>
+
+                                        <div style = {styles.detailSection}>
+                                            <h3 style = {styles.sectionTitle}>일자리 정보</h3>
+                                            <p style = {styles.detailText}>추천받은 일자리 : {detail.recommendedJob}</p>
+                                            <p style = {styles.detailText}>지원 여부 : {detail.applicationStatus}</p>
+                                            <p style = {styles.detailText}>복지사 판단 : {selectedSenior.welfareDecision}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* 상담 기록 영역 */}
+                                    <div style = {styles.memoBox}>
+                                        <h3 style = {styles.sectionTitle}>상담 기록</h3>
+                                        <p style = {styles.detailText}>
+                                            복지사가 남긴 메모 : {detail.counselingMemo}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
