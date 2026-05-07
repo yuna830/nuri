@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createCareResponse } from "../services/aiCareService";
 import { parseKoreanSchedules } from "../services/scheduleParser";
+import axios from "axios";
 
 export default function ChatView({
   messages,
@@ -15,13 +16,19 @@ export default function ChatView({
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const streamRef = useRef(null);
+  const [recording, setRecording] = useState(false);
+
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, pendingSchedule]);
 
-  async function sendMessage() {
-    const text = input.trim();
+  async function sendMessage(customText = null) {
+    const text = customText || input.trim();
     if (!text || isLoading) return;
 
     setInput("");
@@ -43,6 +50,81 @@ export default function ChatView({
       setIsLoading(false);
     }
   }
+
+  async function startRecording() {
+
+    try {
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+
+      });
+      streamRef.current = stream;
+
+      const mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        chunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+
+        const blob = new Blob(chunksRef.current, {
+          type: "audio/wav",
+        });
+
+        chunksRef.current = [];
+
+        const formData = new FormData();
+
+        formData.append("file", blob, "record.wav");
+
+        try {
+
+          const response = await axios.post(
+            "http://127.0.0.1:8000/stt",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          const recognizedText = response.data.text;
+          await sendMessage(recognizedText);
+
+        } catch (error) {
+
+          console.error("STT 오류:", error);
+
+        }
+      };
+
+      mediaRecorder.start();
+
+      setRecording(true);
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+  }
+
+  function stopRecording() {
+
+    mediaRecorderRef.current?.stop();
+
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+
+    setRecording(false);
+  }
+
 
   function confirmPendingSchedule() {
     if (!pendingSchedule) return;
@@ -122,6 +204,13 @@ export default function ChatView({
                 if (event.key === "Enter") sendMessage();
               }}
             />
+
+            <button
+              type="button"
+              onClick={recording ? stopRecording : startRecording}
+            >
+              {recording ? "녹음 종료" : "음성 입력"}
+            </button>
 
             <button type="button" onClick={sendMessage} disabled={isLoading}>
               전송
