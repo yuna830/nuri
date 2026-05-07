@@ -153,13 +153,29 @@ export default function SignUp() {
       return;
     }
 
-    await fetch("http://localhost:8181/api/seniors", {
+    const response = await fetch("http://localhost:8080/api/seniors", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(form),
     });
+
+    const data = await response.json();
+    const senior = data.senior;
+
+    if (senior?.id) {
+      localStorage.setItem("current_senior_id", String(senior.id));
+      localStorage.setItem(
+        "user_profile",
+        JSON.stringify({
+          ...form,
+          id: senior.id,
+          name: senior.name || form.name,
+          region: senior.region || form.region,
+        })
+      );
+    }
 
     localStorage.removeItem("login_temp");
     navigate("/user");

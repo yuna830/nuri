@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import axios from "axios";
 
 const categories = [
   {
@@ -42,7 +43,11 @@ function pad(value) {
 
 function todayValue() {
   const today = new Date();
-  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  return formatDate(today);
+}
+
+function formatDate(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function formatDateLabel(dateValue) {
@@ -75,6 +80,9 @@ function getInitialCategoryId(schedule) {
 export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
   const initialTime = timeToFields(initialSchedule?.time);
   const isEditing = Boolean(initialSchedule);
+  const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
 
   const [date, setDate] = useState(initialSchedule?.date || todayValue());
   const [period, setPeriod] = useState(initialSchedule?.period || initialTime.period);
@@ -82,8 +90,11 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
   const [minute, setMinute] = useState(initialSchedule?.minute || initialTime.minute);
   const [categoryId, setCategoryId] = useState(getInitialCategoryId(initialSchedule));
   const [detail, setDetail] = useState(
-    initialSchedule?.detail || initialSchedule?.title || "치과 예약",
+    initialSchedule?.detail || initialSchedule?.title || "치과 예약"
   );
+  const [recording, setRecording] = useState(false);
+  const [voiceText, setVoiceText] = useState("");
+  const [voiceError, setVoiceError] = useState("");
 
   const selectedCategory = useMemo(() => {
     return categories.find((category) => category.id === categoryId);
@@ -99,6 +110,78 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
   function handleCategorySelect(category) {
     setCategoryId(category.id);
     setDetail(category.examples[0] || "");
+  }
+
+  function applyVoiceSchedule(text) {
+    const parsed = parseVoiceSchedule(text);
+
+    if (parsed.date) setDate(parsed.date);
+    if (parsed.period) setPeriod(parsed.period);
+    if (parsed.hour) setHour(parsed.hour);
+    if (parsed.minute) setMinute(parsed.minute);
+    if (parsed.categoryId) setCategoryId(parsed.categoryId);
+    if (parsed.detail) setDetail(parsed.detail);
+  }
+
+  async function startRecording() {
+    setVoiceError("");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const mimeType = getSupportedAudioMimeType();
+      const mediaRecorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const recordedMimeType = mediaRecorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: recordedMimeType });
+        chunksRef.current = [];
+
+        const formData = new FormData();
+        const extension = recordedMimeType.includes("wav") ? "wav" : "webm";
+        formData.append("file", blob, `record.${extension}`);
+
+        try {
+          const response = await axios.post("http://127.0.0.1:8000/stt", formData);
+          const recognizedText = response.data.text?.trim();
+
+          if (!recognizedText) {
+            setVoiceError("음성을 인식하지 못했어요. 다시 말해 주세요.");
+            return;
+          }
+
+          setVoiceText(recognizedText);
+          applyVoiceSchedule(recognizedText);
+        } catch (error) {
+          console.error("일정 STT 오류:", error);
+          setVoiceError("음성을 인식하지 못했어요. STT 서버 상태를 확인해 주세요.");
+        }
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+    } catch (error) {
+      console.error("마이크 녹음 오류:", error);
+      setVoiceError("마이크를 사용할 수 없어요. 브라우저 권한을 확인해 주세요.");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setRecording(false);
   }
 
   function handleSave() {
@@ -121,7 +204,7 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
     <section className="schedule-register-page">
       <header className="schedule-register-header">
         <button type="button" onClick={onBack}>
-          챗봇으로
+          채팅으로
         </button>
         <div>
           <p>AI 일정 도우미</p>
@@ -243,13 +326,99 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
 
           <div className="voice-box">
             <h3>음성 입력</h3>
-            <p>Whisper STT 연결 후 말로 일정 등록 기능을 붙일 수 있어요.</p>
-            <button type="button" disabled>
-              말로 일정 등록하기
+            <p>예: 내일 오후 5시 치과 예약</p>
+            <button
+              type="button"
+              className={`voice-record-button ${recording ? "recording" : "idle"}`}
+              onClick={recording ? stopRecording : startRecording}
+            >
+              {recording ? "녹음 종료" : "말로 일정 채우기"}
             </button>
+            {voiceText && <p className="voice-result">인식된 말: {voiceText}</p>}
+            {voiceError && <p className="voice-error">{voiceError}</p>}
           </div>
         </aside>
       </main>
     </section>
   );
+}
+
+function getSupportedAudioMimeType() {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/wav",
+  ];
+
+  return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
+}
+
+function parseVoiceSchedule(text) {
+  return {
+    date: parseDateFromText(text),
+    ...parseTimeFromText(text),
+    categoryId: inferCategoryId(text),
+    detail: cleanDetail(text),
+  };
+}
+
+function parseDateFromText(text) {
+  const today = new Date();
+  const normalized = text.replace(/\s+/g, " ");
+
+  if (normalized.includes("모레")) return formatDate(addDays(today, 2));
+  if (normalized.includes("내일")) return formatDate(addDays(today, 1));
+  if (normalized.includes("오늘")) return formatDate(today);
+
+  const monthDayMatch = normalized.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);
+  if (!monthDayMatch) return "";
+
+  const [, month, day] = monthDayMatch;
+  const candidate = new Date(today.getFullYear(), Number(month) - 1, Number(day));
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  if (candidate < todayStart) candidate.setFullYear(candidate.getFullYear() + 1);
+  return formatDate(candidate);
+}
+
+function parseTimeFromText(text) {
+  const match = text.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
+  if (!match) return {};
+
+  const [, meridiem, rawHour, rawMinute] = match;
+  const hourNumber = Number(rawHour);
+  const minuteNumber = Number(rawMinute || 0);
+
+  return {
+    period: meridiem || (hourNumber >= 8 && hourNumber <= 11 ? "오전" : "오후"),
+    hour: hourNumber > 12 ? hourNumber - 12 : hourNumber,
+    minute: minuteNumber >= 15 && minuteNumber < 45 ? "30" : "00",
+  };
+}
+
+function inferCategoryId(text) {
+  if (/병원|치과|내과|검진|진료|약국/.test(text)) return "hospital";
+  if (/약|복용|영양제/.test(text)) return "medicine";
+  if (/복지관|상담|프로그램/.test(text)) return "welfare";
+  if (/운동|산책|물리치료|스트레칭/.test(text)) return "exercise";
+  if (/식사|아침|점심|저녁/.test(text)) return "meal";
+  return "custom";
+}
+
+function cleanDetail(text) {
+  return text
+    .replace(/오늘|내일|모레/g, "")
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, "")
+    .replace(/(오전|오후)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, "")
+    .replace(/일정|등록|해줘|해주세요|예약해줘|알려줘/g, "")
+    .replace(/[,.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }

@@ -46,8 +46,13 @@
 .schedule-register-header button {
   min-height: 56px;
   padding: 0 22px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #86a788;
+  color: #ffffff;
   font-size: 19px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .chatbot-layout,
@@ -154,21 +159,80 @@
 
 .chat-schedule-confirm button {
   min-height: 52px;
+  border: 1px solid #d7dfce;
+  border-radius: 8px;
+  background: #f8faf4;
+  color: #2f2f2f;
   font-size: 18px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-schedule-confirm button:last-child {
+  background: #86a788;
+  border-color: #86a788;
+  color: #ffffff;
 }
 
 .chatbot-input input {
   flex: 1;
   min-height: 52px;
   box-sizing: border-box;
+  padding: 0 16px;
+  border: 1px solid #d7dfce;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2f2f2f;
   font-size: 18px;
+}
+
+.chatbot-input input::placeholder {
+  color: #7a8178;
+}
+
+.chatbot-input input:focus {
+  border-color: #86a788;
+  box-shadow: 0 0 0 4px rgba(134, 167, 136, 0.16);
+  outline: none;
 }
 
 .chatbot-input button {
   min-width: 100px;
+  min-height: 52px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #86a788;
+  color: #ffffff;
   font-size: 18px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.chatbot-input .voice-record-button {
+  min-width: 118px;
+  border-width: 2px;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.chatbot-input .voice-record-button.idle {
+  background: #86a788;
+  border-color: #86a788;
+}
+
+.chatbot-input .voice-record-button.recording {
+  background: #d94343;
+  border-color: #b92727;
+  box-shadow: 0 0 0 4px rgba(217, 67, 67, 0.16);
+  transform: translateY(1px);
+}
+
+.chatbot-input .voice-record-button:disabled {
+  background: #a9b8b6;
+  border-color: #a9b8b6;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .schedule-list-panel {
@@ -213,13 +277,25 @@
 .saved-schedule-actions button {
   min-height: 42px;
   padding: 0 10px;
+  border: 1px solid #d7dfce;
   border-radius: 8px;
+  background: #ffffff;
+  color: #3f4a3f;
   font-size: 15px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .saved-schedule-actions .danger {
+  border-color: #d36d5c;
+  background: #fff4f1;
+  color: #b44b3b;
+}
+
+.saved-schedule-actions .danger:hover {
+  border-color: #d36d5c;
   background: #d36d5c;
+  color: #ffffff;
 }
 
 .schedule-register-form,
@@ -287,6 +363,12 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.example-buttons button {
+  min-width: 96px;
+  padding: 0 18px;
+  white-space: nowrap;
 }
 
 .segmented-buttons button,
@@ -368,8 +450,32 @@ button.selected {
 
 .voice-box button {
   width: 100%;
-  opacity: 0.55;
-  cursor: not-allowed;
+  min-height: 58px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #86a788;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.voice-box .voice-record-button.recording {
+  background: #d94343;
+  border-color: #b92727;
+  box-shadow: 0 0 0 4px rgba(217, 67, 67, 0.16);
+}
+
+.voice-box .voice-result {
+  margin-top: 12px;
+  color: #2f2f2f;
+  font-weight: 700;
+}
+
+.voice-box .voice-error {
+  margin-top: 12px;
+  color: #b92727;
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {

@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  fetchSchedulesByDate,
+  fetchSeniorSchedules,
+  getCurrentSeniorId,
+} from "../../Chat/services/scheduleApi";
 
 const C = {
   cream: "#FFFDEC",
@@ -123,6 +128,14 @@ const styles = `
   .up-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
   .up-card-title { font-size: 0.95rem; font-weight: 700; color: ${C.text}; }
   .up-card-more { font-size: 0.78rem; color: ${C.green}; cursor: pointer; background: transparent; border: none; font-family: 'Noto Sans KR', sans-serif; }
+  .up-schedule-date {
+    border: 1px solid ${C.border}; border-radius: 8px; padding: 0.4rem 0.55rem;
+    color: ${C.text}; background: ${C.white}; font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.78rem; outline: none;
+  }
+  .up-schedule-date:focus {
+    border-color: ${C.green}; box-shadow: 0 0 0 3px rgba(134,167,136,0.16);
+  }
 
   .up-schedule-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid ${C.border}; }
   .up-schedule-row:last-child { border-bottom: none; }
@@ -158,6 +171,10 @@ const styles = `
     background: ${C.white}; border-radius: 20px; padding: 2.5rem 2rem;
     width: 400px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   }
+  .up-modal.schedule {
+    width: min(560px, calc(100vw - 32px)); max-height: 78vh; overflow-y: auto;
+    text-align: left; padding: 1.6rem;
+  }
   .up-modal-ico { font-size: 3rem; margin-bottom: 0.8rem; }
   .up-modal-title { font-size: 1.3rem; font-weight: 700; color: ${C.text}; margin-bottom: 0.5rem; }
   .up-modal-desc { font-size: 0.9rem; color: ${C.textMuted}; line-height: 1.6; margin-bottom: 1.8rem; }
@@ -172,6 +189,20 @@ const styles = `
     padding: 0.9rem; font-size: 0.95rem; font-weight: 700;
     font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
   }
+  .up-modal-close {
+    border: none; background: ${C.greenPale}; color: ${C.greenDark}; border-radius: 10px;
+    padding: 0.55rem 0.85rem; font-weight: 700; font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+  }
+  .up-all-schedule-list { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 1rem; }
+  .up-all-schedule-item {
+    display: grid; grid-template-columns: 96px 1fr; gap: 0.75rem; align-items: center;
+    padding: 0.8rem; border: 1px solid ${C.border}; border-radius: 12px; background: ${C.greenPale};
+  }
+  .up-all-schedule-date { font-size: 0.78rem; font-weight: 700; color: ${C.greenDark}; }
+  .up-all-schedule-title { font-size: 0.9rem; font-weight: 700; color: ${C.text}; }
+  .up-all-schedule-time { font-size: 0.76rem; color: ${C.textMuted}; margin-top: 0.15rem; }
+  .up-empty-text { color: ${C.textMuted}; font-size: 0.9rem; padding: 1rem 0; }
 `;
 
 // 건강 점수 계산
@@ -282,12 +313,6 @@ function RadarChart({ scores }) {
   );
 }
 
-const schedules = [
-  { time: "10:00", text: "혈압약 복용" },
-  { time: "14:00", text: "병원 진료 예약" },
-  { time: "16:30", text: "공원 산책" },
-];
-
 const alerts = [
   { type: "한파", color: "#e05252", msg: "최저기온 -12°C 예상, 외출 자제", time: "오전 9:00" },
   { type: "강풍", color: "#f0a500", msg: "순간 풍속 15m/s 이상 예상", time: "오후 2:00" },
@@ -301,6 +326,30 @@ const menus = [
   { icon: "👤", label: "내 정보 수정", desc: "신체정보 및 인적사항", route: "/profile" },
 ];
 
+function scheduleFromApi(schedule) {
+  return {
+    id: schedule.id,
+    date: schedule.scheduleDate,
+    time: schedule.scheduleTime?.slice(0, 5) || "시간 미정",
+    text: schedule.content || schedule.title,
+  };
+}
+
+function formatScheduleDate(dateValue) {
+  if (!dateValue) return "날짜 미정";
+
+  const date = new Date(`${dateValue}T00:00:00`);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function todayValue() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const date = String(today.getDate()).padStart(2, "0");
+
+  return `${today.getFullYear()}-${month}-${date}`;
+}
+
 export default function UserPage() {
   const navigate = useNavigate();
   const [weather, setWeather] = useState(null);
@@ -309,8 +358,25 @@ export default function UserPage() {
   const [userName, setUserName] = useState("사용자");
   const [userRegion, setUserRegion] = useState("");
   const [healthScores, setHealthScores] = useState(null);
+  const [schedules, setSchedules] = useState([]);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
+  const [showAllSchedules, setShowAllSchedules] = useState(false);
+  const [allSchedules, setAllSchedules] = useState([]);
+  const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
 
   useEffect(() => {
+    async function loadSchedulesByDate(scheduleDate) {
+      const seniorId = getCurrentSeniorId();
+      if (!seniorId) return;
+
+      try {
+        const dateSchedules = await fetchSchedulesByDate(seniorId, scheduleDate);
+        setSchedules(dateSchedules.map(scheduleFromApi));
+      } catch (error) {
+        console.error("일정 조회 오류:", error);
+      }
+    }
+
     try {
       const saved = localStorage.getItem("user_profile");
       if (saved) {
@@ -325,11 +391,34 @@ export default function UserPage() {
     const d = new Date();
     const days = ["일","월","화","수","목","금","토"];
     setDateStr(`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
-  }, []);
+    loadSchedulesByDate(selectedScheduleDate);
+  }, [selectedScheduleDate]);
 
   const confirmSOS = () => {
     setShowSOS(false);
     setTimeout(() => alert("보호자에게 SOS를 전송했습니다."), 150);
+  };
+
+  const openAllSchedules = async () => {
+    const seniorId = getCurrentSeniorId();
+    setShowAllSchedules(true);
+
+    if (!seniorId) {
+      setAllSchedules([]);
+      return;
+    }
+
+    setIsLoadingAllSchedules(true);
+
+    try {
+      const schedulesData = await fetchSeniorSchedules(seniorId);
+      setAllSchedules(schedulesData.map(scheduleFromApi));
+    } catch (error) {
+      console.error("전체 일정 조회 오류:", error);
+      setAllSchedules([]);
+    } finally {
+      setIsLoadingAllSchedules(false);
+    }
   };
 
   return (
@@ -386,10 +475,14 @@ export default function UserPage() {
                 <div className="up-stat-value red">2건</div>
                 <div className="up-stat-sub">최근: 5월 4일 거실</div>
               </div>
-              <div className="up-stat-card">
+              <div className="up-stat-card" onClick={openAllSchedules}>
                 <div className="up-card-label">오늘 일정</div>
                 <div className="up-stat-value">{schedules.length}건</div>
-                <div className="up-stat-sub">다음: 10:00 혈압약 복용</div>
+                <div className="up-stat-sub">
+                  {schedules.length > 0
+                    ? `다음: ${schedules[0].time} ${schedules[0].text}`
+                    : "오늘 등록된 일정이 없어요"}
+                </div>
               </div>
             </div>
 
@@ -397,15 +490,27 @@ export default function UserPage() {
             <div className="up-content-row">
               <div className="up-card">
                 <div className="up-card-head">
-                  <div className="up-card-title">📅 오늘 일정</div>
+                  <div className="up-card-title">📅 선택한 날짜 일정</div>
+                  <input
+                    className="up-schedule-date"
+                    type="date"
+                    value={selectedScheduleDate}
+                    onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                  />
                 </div>
-                {schedules.map((s, i) => (
-                  <div key={i} className="up-schedule-row">
-                    <div className="up-schedule-time">{s.time}</div>
-                    <div className="up-schedule-dot" />
-                    <div className="up-schedule-text">{s.text}</div>
+                {schedules.length === 0 ? (
+                  <div className="up-schedule-row">
+                    <div className="up-schedule-text">오늘 등록된 일정이 없어요.</div>
                   </div>
-                ))}
+                ) : (
+                  schedules.map((s, i) => (
+                    <div key={`${s.time}-${s.text}-${i}`} className="up-schedule-row">
+                      <div className="up-schedule-time">{s.time}</div>
+                      <div className="up-schedule-dot" />
+                      <div className="up-schedule-text">{s.text}</div>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="up-card">
                 <div className="up-card-head">
@@ -468,6 +573,46 @@ export default function UserPage() {
                 <button className="up-modal-cancel" onClick={() => setShowSOS(false)}>취소</button>
                 <button className="up-modal-ok" onClick={confirmSOS}>보내기</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showAllSchedules && (
+          <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
+            <div className="up-modal schedule" onClick={e => e.stopPropagation()}>
+              <div className="up-card-head">
+                <div>
+                  <div className="up-card-label">전체 일정</div>
+                  <div className="up-modal-title">내가 등록한 일정</div>
+                </div>
+                <button
+                  className="up-modal-close"
+                  type="button"
+                  onClick={() => setShowAllSchedules(false)}
+                >
+                  닫기
+                </button>
+              </div>
+
+              {isLoadingAllSchedules ? (
+                <div className="up-empty-text">일정을 불러오는 중이에요...</div>
+              ) : allSchedules.length === 0 ? (
+                <div className="up-empty-text">등록된 일정이 없어요.</div>
+              ) : (
+                <div className="up-all-schedule-list">
+                  {allSchedules.map((schedule) => (
+                    <div key={schedule.id} className="up-all-schedule-item">
+                      <div className="up-all-schedule-date">
+                        {formatScheduleDate(schedule.date)}
+                      </div>
+                      <div>
+                        <div className="up-all-schedule-title">{schedule.text}</div>
+                        <div className="up-all-schedule-time">{schedule.time}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

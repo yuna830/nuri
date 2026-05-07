@@ -217,6 +217,7 @@ export default function ChatView({
 
             <button
               type="button"
+              className={`voice-record-button ${recording ? "recording" : "idle"}`}
               onClick={recording ? stopRecording : startRecording}
               disabled={isLoading}
             >
