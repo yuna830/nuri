@@ -1,8 +1,10 @@
 package com.nuri.woori.controller;
 
+import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.JobPreference;
 import com.nuri.woori.entity.Senior;
+import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
@@ -20,15 +22,18 @@ public class SeniorController {
     private final SeniorRepository seniorRepository;
     private final HealthInfoRepository healthInfoRepository;
     private final JobPreferenceRepository jobPreferenceRepository;
+    private final GuardianSeniorRepository guardianSeniorRepository;
 
     public SeniorController(
             SeniorRepository seniorRepository,
             HealthInfoRepository healthInfoRepository,
-            JobPreferenceRepository jobPreferenceRepository
+            JobPreferenceRepository jobPreferenceRepository,
+            GuardianSeniorRepository guardianSeniorRepository
     ) {
         this.seniorRepository = seniorRepository;
         this.healthInfoRepository = healthInfoRepository;
         this.jobPreferenceRepository = jobPreferenceRepository;
+        this.guardianSeniorRepository = guardianSeniorRepository;
     }
 
     @PostMapping
@@ -91,6 +96,18 @@ public class SeniorController {
     public List<SeniorProfileResponse> getSeniors() {
         return seniorRepository.findAll()
                 .stream()
+                .map(this::toProfileResponse)
+                .toList();
+    }
+
+    @GetMapping("/guardian/{guardianId}")
+    public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
+        return guardianSeniorRepository.findByGuardianId(guardianId)
+                .stream()
+                .map(GuardianSenior::getSeniorId)
+                .map(seniorRepository::findById)
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
                 .map(this::toProfileResponse)
                 .toList();
     }

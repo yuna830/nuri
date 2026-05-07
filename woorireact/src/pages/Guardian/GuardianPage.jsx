@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { getGuardianAlerts, readAlert, createMissingReport, uploadImage, } from "../../api/guardianApi";
+import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
+import { getCurrentGuardian, getCurrentGuardianId, } from "../../utils/guardian/guardianSession";
+import { getDistanceMeters } from "../../utils/guardian/location";
 import {
   MapContainer,
   TileLayer,
@@ -10,8 +14,6 @@ import {
   useMap,
 } from "react-leaflet";
 import { RefreshCw } from "lucide-react";
-import { elders } from "../../data/mockElders";
-import { getDistanceMeters } from "../../utils/location";
 
 import L from "leaflet";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -19,9 +21,10 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 import "leaflet/dist/leaflet.css";
-import "./GuardianPage.css";
-import "./GuardianMap.css";
-import "./GuardianSidebar.css";
+
+import "../../css/guardian/GuardianPage.css";
+import "../../css/guardian/GuardianMap.css";
+import "../../css/guardian/GuardianSidebar.css";
 
 delete L.Icon.Default.prototype._getIconUrl;
 
@@ -42,7 +45,11 @@ function RecenterMap({ center }) {
 }
 
 function GuardianPage() {
-  const [selectedElderId, setSelectedElderId] = useState(1);
+  const navigate = useNavigate();
+
+  const [guardian, setGuardian] = useState(null);
+  const [elders, setElders] = useState([]);
+  const [selectedElderId, setSelectedElderId] = useState(null);
   const [isSafeZoneOpen, setIsSafeZoneOpen] = useState(false);
   const [isRouteVisible, setIsRouteVisible] = useState(true);
   const [profileImages, setProfileImages] = useState(() => {
@@ -53,6 +60,7 @@ function GuardianPage() {
   const [safeZoneForms, setSafeZoneForms] = useState({});
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const [apiAlerts, setApiAlerts] = useState([]);
+  const [isLoadingElders, setIsLoadingElders] = useState(true);
   const profileMenuRef = useRef(null);
 
   const [isMissingReportOpen, setIsMissingReportOpen] = useState(false);
@@ -62,54 +70,68 @@ function GuardianPage() {
   const [isSubmittingMissingReport, setIsSubmittingMissingReport] = useState(false);
 
   const selectedElder = useMemo(
-    () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0],
-    [selectedElderId]
+    () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
+    [elders, selectedElderId]
   );
 
-  const profileImage = profileImages[selectedElderId] ?? null;
-  const location = selectedElder.currentLocation;
-  const routeHistory = selectedElder.routeHistory;
-  const lastNormalLocation = selectedElder.lastNormalLocation;
+  const loadGuardianAlerts = useCallback(() => {
+    const guardianId = getCurrentGuardianId();
 
-  const safeZoneForm = safeZoneForms[selectedElderId] ?? {
-    name: "자택",
-    centerLatitude: selectedElder.center.lat,
-    centerLongitude: selectedElder.center.lng,
-    radiusMeters: selectedElder.radius,
-  };
+    if (!guardianId) {
+      navigate("/glogin");
+      return;
+    }
 
-  const displayedAlerts = apiAlerts.map((alert) => ({
-    id: alert.id,
-    time: alert.createdAt
-      ? new Date(alert.createdAt).toLocaleString("ko-KR", {
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "",
-    message: alert.message ?? alert.title ?? "알림 내용이 없습니다.",
-    status: alert.isRead ? "확인됨" : "미확인",
-  }));
+    getGuardianAlerts(guardianId)
+      .then(setApiAlerts)
+      .catch((error) => {
+        console.error("알림 조회 실패:", error);
+      });
+  }, [navigate]);
 
-  const unreadAlertCount = displayedAlerts.filter(
-    (alert) => alert.status === "미확인"
-  ).length;
+  useEffect(() => {
+    const loadSeniors = async () => {
+      try {
+        setIsLoadingElders(true);
 
-  const safeZoneCenter = useMemo(
-    () => ({
-      lat: safeZoneForm.centerLatitude,
-      lng: safeZoneForm.centerLongitude,
-    }),
-    [safeZoneForm.centerLatitude, safeZoneForm.centerLongitude]
-  );
+        const currentGuardian = getCurrentGuardian();
 
-  const distance = useMemo(
-    () => getDistanceMeters(safeZoneCenter, location),
-    [safeZoneCenter, location]
-  );
+        if (!currentGuardian) {
+          navigate("/glogin");
+          return;
+        }
 
-  const isOutsideSafeZone = distance > safeZoneForm.radiusMeters;
+        setGuardian(currentGuardian);
+
+        const response = await fetch(
+          `http://localhost:8181/api/seniors/guardian/${currentGuardian.id}`
+        );
+
+        if (!response.ok) {
+          throw new Error("보호 대상자 조회 실패");
+        }
+
+        const profiles = await response.json();
+        const nextElders = profiles.map(mapSeniorProfileToElder);
+
+        setElders(nextElders);
+
+        if (nextElders.length > 0) {
+          setSelectedElderId(nextElders[0].id);
+        }
+      } catch (error) {
+        console.error("보호 대상자 조회 실패:", error);
+      } finally {
+        setIsLoadingElders(false);
+      }
+    };
+
+    loadSeniors();
+  }, [navigate]);
+
+  useEffect(() => {
+    loadGuardianAlerts();
+  }, [loadGuardianAlerts]);
 
   useEffect(() => {
     setIsSafeZoneOpen(false);
@@ -131,39 +153,95 @@ function GuardianPage() {
     };
   }, []);
 
-  useEffect(() => {
-    getGuardianAlerts(1)
-      .then(setApiAlerts)
-      .catch((error) => {
-        console.error("알림 조회 실패:", error);
-      });
-  }, []);
+  const displayedAlerts = apiAlerts.map((alert) => ({
+    id: alert.id,
+    time: alert.createdAt
+      ? new Date(alert.createdAt).toLocaleString("ko-KR", {
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "",
+    message: alert.message ?? alert.title ?? "알림 내용이 없습니다.",
+    status: alert.isRead ? "확인됨" : "미확인",
+  }));
+
+  const unreadAlertCount = displayedAlerts.filter(
+    (alert) => alert.status === "미확인"
+  ).length;
 
   const handleReadAlert = async (alertId) => {
     try {
       const updatedAlert = await readAlert(alertId);
 
       setApiAlerts((prev) =>
-        prev.map((alert) =>
-          alert.id === alertId ? updatedAlert : alert
-        )
+        prev.map((alert) => (alert.id === alertId ? updatedAlert : alert))
       );
     } catch (error) {
       console.error("알림 확인 처리 실패:", error);
     }
   };
 
-  const loadGuardianAlerts = () => {
-    getGuardianAlerts(1)
-      .then(setApiAlerts)
-      .catch((error) => {
-        console.error("알림 조회 실패:", error);
-      });
+  if (isLoadingElders) {
+    return (
+      <main className="guardian-page">
+        <header className="guardian-header">
+          <div className="brand-area">
+            <div className="logo-box">우리</div>
+            <strong className="service-name">우리</strong>
+            <span className="guardian-name">
+              보호자{guardian?.name ? `: ${guardian.name}` : ""}
+            </span>
+          </div>
+        </header>
+
+        <section className="guardian-empty">
+          보호 대상자 정보를 불러오는 중입니다.
+        </section>
+      </main>
+    );
+  }
+
+  if (!selectedElder) {
+    return (
+      <main className="guardian-page">
+        <header className="guardian-header">
+          <div className="brand-area">
+            <div className="logo-box">우리</div>
+            <strong className="service-name">우리</strong>
+            <span className="guardian-name">
+              보호자{guardian?.name ? `: ${guardian.name}` : ""}
+            </span>
+          </div>
+        </header>
+
+        <section className="guardian-empty">
+          등록된 보호 대상자가 없습니다.
+        </section>
+      </main>
+    );
+  }
+
+  const profileImage = profileImages[selectedElderId] ?? null;
+  const location = selectedElder.currentLocation;
+  const routeHistory = selectedElder.routeHistory;
+  const lastNormalLocation = selectedElder.lastNormalLocation;
+
+  const safeZoneForm = safeZoneForms[selectedElderId] ?? {
+    name: "자택",
+    centerLatitude: selectedElder.center.lat,
+    centerLongitude: selectedElder.center.lng,
+    radiusMeters: selectedElder.radius,
   };
 
-  useEffect(() => {
-    loadGuardianAlerts();
-  }, []);
+  const safeZoneCenter = {
+    lat: safeZoneForm.centerLatitude,
+    lng: safeZoneForm.centerLongitude,
+  };
+
+  const distance = getDistanceMeters(safeZoneCenter, location);
+  const isOutsideSafeZone = distance > safeZoneForm.radiusMeters;
 
   const handleSafeZoneChange = (event) => {
     const { name, value } = event.target;
@@ -251,6 +329,13 @@ function GuardianPage() {
     try {
       setIsSubmittingMissingReport(true);
 
+      const guardianId = getCurrentGuardianId();
+
+      if (!guardianId) {
+        navigate("/glogin");
+        return;
+      }
+
       let imageUrl = "";
 
       if (missingImageFile) {
@@ -260,7 +345,7 @@ function GuardianPage() {
 
       await createMissingReport({
         seniorId: selectedElderId,
-        guardianId: 1,
+        guardianId,
         lastSeenLatitude: lastNormalLocation.lat,
         lastSeenLongitude: lastNormalLocation.lng,
         lastSeenAddress: lastNormalLocation.address,
@@ -289,7 +374,9 @@ function GuardianPage() {
         <div className="brand-area">
           <div className="logo-box">우리</div>
           <strong className="service-name">우리</strong>
-          <span className="guardian-name">보호자: 김민지</span>
+          <span className="guardian-name">
+            보호자{guardian?.name ? `: ${guardian.name}` : ""}
+          </span>
         </div>
 
         <div className="header-actions">
@@ -690,6 +777,7 @@ function GuardianPage() {
           </section>
         </div>
       )}
+
       {isMissingReportOpen && (
         <div className="missing-modal-backdrop" onClick={() => setIsMissingReportOpen(false)}>
           <section className="missing-modal" onClick={(event) => event.stopPropagation()}>

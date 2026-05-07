@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./Login.css";
+
+import "../../css/common/Login.css";
 
 const FEATURES = [
   { icon: "🚨", title: "24시간 낙상 감지", desc: "카메라 AI가 실시간으로 안전을 지켜드려요" },

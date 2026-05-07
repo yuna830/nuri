@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import "./SignUp.css";
+
+import "../../css/common/SignUp.css";
 
 const WORK_TYPES = ["장시간 서기", "야외 작업", "야간 근무", "중량물 운반", "컴퓨터 작업", "계단 이동", "반복 작업", "고객 응대"];
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -153,16 +154,29 @@ export default function SignUp() {
       return;
     }
 
-    await fetch("http://localhost:8181/api/seniors", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    try {
+      const response = await fetch("http://localhost:8181/api/seniors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
 
-    localStorage.removeItem("login_temp");
-    navigate("/user");
+      if (!response.ok) {
+        setError("회원가입 저장에 실패했습니다. 백엔드 서버를 확인해주세요.");
+        return;
+      }
+
+      const savedProfile = await response.json();
+
+      sessionStorage.setItem("currentSenior", JSON.stringify(savedProfile));
+      localStorage.removeItem("login_temp");
+
+      navigate("/user");
+    } catch (error) {
+      setError("서버에 연결할 수 없습니다. Spring 서버가 8181 포트로 실행 중인지 확인해주세요.");
+    }
   };
 
   return (
