@@ -11,7 +11,7 @@ export default function ChatAssistant() {
     {
       role: "assistant",
       content:
-        "안녕하세요. 무엇을 도와드릴까요? 일정은 직접 선택하거나 채팅으로 말해도 등록할 수 있어요.",
+        "안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요.",
     },
   ]);
 
@@ -38,7 +38,7 @@ export default function ChatAssistant() {
       ...prev,
       {
         role: "assistant",
-        content: `${schedule.text} 일정이 ${isEditing ? "수정" : "등록"}되었습니다.`,
+        content: `${schedule.text} 일정을 ${isEditing ? "수정" : "등록"}했어요.`,
       },
     ]);
 
@@ -48,14 +48,16 @@ export default function ChatAssistant() {
 
   function handleScheduleDelete(scheduleId) {
     const target = savedSchedules.find((schedule) => schedule.id === scheduleId);
-    setSavedSchedules((prev) => prev.filter((schedule) => schedule.id !== scheduleId));
+    setSavedSchedules((prev) =>
+      prev.filter((schedule) => schedule.id !== scheduleId)
+    );
 
     if (target) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `${target.text} 일정을 삭제했습니다.`,
+          content: `${target.text} 일정을 삭제했어요.`,
         },
       ]);
     }

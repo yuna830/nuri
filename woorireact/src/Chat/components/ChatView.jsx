@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import axios from "axios";
 import { createCareResponse } from "../services/aiCareService";
 import { parseKoreanSchedules } from "../services/scheduleParser";
-import axios from "axios";
 
 export default function ChatView({
   messages,
@@ -15,116 +15,126 @@ export default function ChatView({
   const [input, setInput] = useState("");
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
   const messagesEndRef = useRef(null);
   const streamRef = useRef(null);
-  const [recording, setRecording] = useState(false);
-
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
-
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, pendingSchedule]);
 
-  async function sendMessage(customText = null) {
-    const text = customText || input.trim();
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  function speakAnswer(text) {
+    if (!("speechSynthesis" in window) || !text) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ko-KR";
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function sendMessage(customText = null, options = {}) {
+    const text = typeof customText === "string" ? customText.trim() : input.trim();
     if (!text || isLoading) return;
 
     setInput("");
     setIsLoading(true);
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
 
     try {
       const parsedSchedules = parseKoreanSchedules(text);
       const answer = await createCareResponse({ text, schedules: parsedSchedules });
       const firstSchedule = parsedSchedules[0] || null;
 
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: answer },
-      ]);
-
+      setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
       setPendingSchedule(firstSchedule);
+
+      if (options.speak) speakAnswer(answer);
+    } catch (error) {
+      console.error("채팅 응답 오류:", error);
+
+      const errorMessage = "답변을 가져오지 못했어요. Ollama가 실행 중인지 확인해 주세요.";
+      setMessages((prev) => [...prev, { role: "assistant", content: errorMessage }]);
+
+      if (options.speak) speakAnswer(errorMessage);
     } finally {
       setIsLoading(false);
     }
   }
 
   async function startRecording() {
-
     try {
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getSupportedAudioMimeType();
+      const mediaRecorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
 
       mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        chunksRef.current.push(event.data);
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
 
       mediaRecorder.onstop = async () => {
-
-        const blob = new Blob(chunksRef.current, {
-          type: "audio/wav",
-        });
-
+        const recordedMimeType = mediaRecorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: recordedMimeType });
         chunksRef.current = [];
 
         const formData = new FormData();
-
-        formData.append("file", blob, "record.wav");
+        const extension = recordedMimeType.includes("wav") ? "wav" : "webm";
+        formData.append("file", blob, `record.${extension}`);
 
         try {
-
-          const response = await axios.post(
-            "http://127.0.0.1:8000/stt",
-            formData,
-            {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
-
-          const recognizedText = response.data.text;
-          await sendMessage(recognizedText);
-
+          const response = await axios.post("http://127.0.0.1:8000/stt", formData);
+          const recognizedText = response.data.text?.trim();
+          await sendMessage(recognizedText, { speak: true });
         } catch (error) {
-
           console.error("STT 오류:", error);
-
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "음성을 인식하지 못했어요. STT 서버 상태를 확인해 주세요.",
+            },
+          ]);
         }
       };
 
       mediaRecorder.start();
-
       setRecording(true);
-
     } catch (error) {
-
-      console.error(error);
-
+      console.error("마이크 녹음 오류:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "마이크를 사용할 수 없어요. 브라우저 권한을 확인해 주세요.",
+        },
+      ]);
     }
   }
 
   function stopRecording() {
-
     mediaRecorderRef.current?.stop();
-
-    streamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
-
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
     setRecording(false);
   }
-
 
   function confirmPendingSchedule() {
     if (!pendingSchedule) return;
@@ -141,7 +151,7 @@ export default function ChatView({
       ...prev,
       {
         role: "assistant",
-        content: "알겠어요. 일정 등록을 취소했습니다.",
+        content: "알겠어요. 일정 등록을 취소했어요.",
       },
     ]);
     setPendingSchedule(null);
@@ -208,11 +218,12 @@ export default function ChatView({
             <button
               type="button"
               onClick={recording ? stopRecording : startRecording}
+              disabled={isLoading}
             >
               {recording ? "녹음 종료" : "음성 입력"}
             </button>
 
-            <button type="button" onClick={sendMessage} disabled={isLoading}>
+            <button type="button" onClick={() => sendMessage()} disabled={isLoading}>
               전송
             </button>
           </div>
@@ -222,7 +233,7 @@ export default function ChatView({
           <h2>등록된 일정</h2>
 
           {savedSchedules.length === 0 ? (
-            <p>아직 등록된 일정이 없습니다.</p>
+            <p>아직 등록된 일정이 없어요.</p>
           ) : (
             savedSchedules.map((schedule) => (
               <article key={schedule.id} className="saved-schedule-card">
@@ -246,6 +257,17 @@ export default function ChatView({
       </main>
     </section>
   );
+}
+
+function getSupportedAudioMimeType() {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/wav",
+  ];
+
+  return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
 }
 
 function scheduleToText(schedule) {
