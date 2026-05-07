@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import "./SignUp.css";
+
+import "../../css/common/SignUp.css";
 
 const WORK_TYPES = ["장시간 서기", "야외 작업", "야간 근무", "중량물 운반", "컴퓨터 작업", "계단 이동", "반복 작업", "고객 응대"];
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -179,7 +180,7 @@ export default function SignUp() {
 
     localStorage.removeItem("login_temp");
     navigate("/user");
-  };
+
 
   return (
     <div className="su-root">
@@ -587,5 +588,6 @@ export default function SignUp() {
       </div>
     </div>
   );
+}
 }
 

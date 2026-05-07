@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../Common/SignUp.css";
+
+import "../../css/common/SignUp.css";
 
 const defaultForm = {
   name: "",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchSchedulesByDate,
@@ -6,325 +6,185 @@ import {
   getCurrentSeniorId,
 } from "../../Chat/services/scheduleApi";
 
-const C = {
-  cream: "#FFFDEC",
-  green: "#86A788",
-  greenDark: "#5f7d61",
-  greenLight: "#b8d4ba",
-  greenPale: "#eef6ef",
-  white: "#ffffff",
-  danger: "#e05252",
-  text: "#1e2a1f",
-  textMuted: "#7a9a7c",
-  border: "#d4e8d6",
-};
+import { COLORS, calcHealthScore, menus } from "../../utils/user/userPageData";
+import "../../css/user/UserPage.css";
 
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  .up-root { background: ${C.cream}; min-height: 100vh; font-family: 'Noto Sans KR', sans-serif; color: ${C.text}; }
-  .up-nav {
-    background: ${C.white}; border-bottom: 1px solid ${C.border};
-    padding: 0 2rem; height: 60px; display: flex; align-items: center;
-    justify-content: space-between; position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 1px 8px rgba(134,167,136,0.08);
-  }
-  .up-nav-logo { font-size: 1.25rem; font-weight: 700; color: ${C.green}; }
-  .up-nav-right { display: flex; align-items: center; gap: 1rem; }
-  .up-nav-date { font-size: 0.85rem; color: ${C.textMuted}; }
-  .up-nav-sos {
-    background: ${C.danger}; color: #fff; border: none; border-radius: 8px;
-    padding: 0.5rem 1.2rem; font-size: 0.9rem; font-weight: 700;
-    font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
-    box-shadow: 0 2px 8px rgba(224,82,82,0.3); transition: transform 0.1s;
-  }
-  .up-nav-sos:hover { transform: scale(1.03); }
+const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-  .up-layout {
-    max-width: 1200px; margin: 0 auto; padding: 2rem;
-    display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem;
-  }
+const toGrid = (lat, lon) => {
+  const RE = 6371.00877;
+  const GRID = 5.0;
+  const SLAT1 = 30.0;
+  const SLAT2 = 60.0;
+  const OLON = 126.0;
+  const OLAT = 38.0;
+  const XO = 43;
+  const YO = 136;
+  const DEGRAD = Math.PI / 180.0;
 
-  /* 사이드바 */
-  .up-profile-card {
-    background: ${C.green}; border-radius: 16px; padding: 1.6rem 1.4rem;
-    color: #fff; margin-bottom: 1rem; position: relative; overflow: hidden;
-  }
-  .up-profile-card::after {
-    content: ''; position: absolute; bottom: -40px; right: -40px;
-    width: 150px; height: 150px; border-radius: 50%; background: rgba(255,255,255,0.07);
-  }
-  .up-profile-avatar {
-    width: 52px; height: 52px; border-radius: 50%;
-    background: rgba(255,255,255,0.25); display: flex;
-    align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 0.8rem;
-  }
-  .up-profile-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.15rem; }
-  .up-profile-sub { font-size: 0.78rem; opacity: 0.8; }
-  .up-profile-region { font-size: 0.75rem; opacity: 0.75; margin-top: 0.15rem; }
-  .up-dot-wrap { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.8rem; font-size: 0.75rem; opacity: 0.9; }
-  .up-dot {
-    width: 7px; height: 7px; border-radius: 50%; background: #a8e6a8;
-    animation: blink 2s ease-in-out infinite;
-  }
-  @keyframes blink {
-    0%,100% { opacity:1; transform:scale(1); }
-    50% { opacity:0.5; transform:scale(1.4); }
-  }
-  .up-sidemenu {
-    background: ${C.white}; border-radius: 16px;
-    border: 1px solid ${C.border}; overflow: hidden; margin-bottom: 1rem;
-  }
-  .up-sidemenu-item {
-    display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1.1rem;
-    cursor: pointer; transition: background 0.12s; font-size: 0.9rem; color: ${C.text};
-    border: none; background: transparent; width: 100%; text-align: left;
-    font-family: 'Noto Sans KR', sans-serif; border-bottom: 1px solid ${C.border};
-  }
-  .up-sidemenu-item:last-child { border-bottom: none; }
-  .up-sidemenu-item:hover { background: ${C.greenPale}; }
-  .up-sidemenu-icon { font-size: 1.1rem; width: 22px; text-align: center; }
-  .up-sidemenu-label { flex: 1; }
-  .up-sidemenu-badge {
-    font-size: 0.62rem; font-weight: 700; background: ${C.danger};
-    color: #fff; padding: 0.12rem 0.45rem; border-radius: 99px;
-  }
+  const re = RE / GRID;
+  const slat1 = SLAT1 * DEGRAD;
+  const slat2 = SLAT2 * DEGRAD;
+  const olon = OLON * DEGRAD;
+  const olat = OLAT * DEGRAD;
 
-  /* 메인 */
-  .up-top-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-  .up-weather-card {
-    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
-    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
-    cursor: pointer; transition: box-shadow 0.15s; display: flex;
-    flex-direction: column; justify-content: space-between;
-  }
-  .up-weather-card:hover { box-shadow: 0 4px 20px rgba(134,167,136,0.15); }
-  .up-card-label {
-    font-size: 0.7rem; font-weight: 700; color: ${C.textMuted};
-    letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.5rem;
-  }
-  .up-weather-temp { font-size: 2.2rem; font-weight: 700; color: ${C.text}; line-height: 1; }
-  .up-weather-bot { display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; }
-  .up-weather-desc { font-size: 0.8rem; color: ${C.textMuted}; }
-  .up-weather-icon { font-size: 1.8rem; }
-  .up-stat-card {
-    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
-    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
-    display: flex; flex-direction: column; justify-content: space-between;
-    cursor: pointer; transition: box-shadow 0.15s;
-  }
-  .up-stat-card:hover { box-shadow: 0 4px 20px rgba(134,167,136,0.15); }
-  .up-stat-value { font-size: 2.2rem; font-weight: 700; color: ${C.green}; line-height: 1; margin-top: 0.4rem; }
-  .up-stat-value.red { color: ${C.danger}; }
-  .up-stat-sub { font-size: 0.75rem; color: ${C.textMuted}; margin-top: 0.3rem; }
+  let sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+  sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
 
-  .up-content-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  let sf = Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+  sf = Math.pow(sf, sn) * Math.cos(slat1) / sn;
 
-  .up-card {
-    background: ${C.white}; border-radius: 16px; padding: 1.3rem 1.4rem;
-    border: 1px solid ${C.border}; box-shadow: 0 2px 12px rgba(134,167,136,0.08);
-  }
-  .up-card.full { grid-column: span 2; }
-  .up-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-  .up-card-title { font-size: 0.95rem; font-weight: 700; color: ${C.text}; }
-  .up-card-more { font-size: 0.78rem; color: ${C.green}; cursor: pointer; background: transparent; border: none; font-family: 'Noto Sans KR', sans-serif; }
-  .up-schedule-date {
-    border: 1px solid ${C.border}; border-radius: 8px; padding: 0.4rem 0.55rem;
-    color: ${C.text}; background: ${C.white}; font-family: 'Noto Sans KR', sans-serif;
-    font-size: 0.78rem; outline: none;
-  }
-  .up-schedule-date:focus {
-    border-color: ${C.green}; box-shadow: 0 0 0 3px rgba(134,167,136,0.16);
-  }
+  let ro = Math.tan(Math.PI * 0.25 + olat * 0.5);
+  ro = re * sf / Math.pow(ro, sn);
 
-  .up-schedule-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid ${C.border}; }
-  .up-schedule-row:last-child { border-bottom: none; }
-  .up-schedule-time { font-size: 0.78rem; font-weight: 700; color: ${C.greenDark}; min-width: 44px; }
-  .up-schedule-dot { width: 7px; height: 7px; border-radius: 50%; background: ${C.green}; flex-shrink: 0; }
-  .up-schedule-text { font-size: 0.88rem; color: ${C.text}; }
+  let ra = Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5);
+  ra = re * sf / Math.pow(ra, sn);
 
-  .up-alert-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid ${C.border}; }
-  .up-alert-item:last-child { border-bottom: none; }
-  .up-alert-badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
-  .up-alert-text { font-size: 0.84rem; color: ${C.text}; line-height: 1.5; }
-  .up-alert-time { font-size: 0.73rem; color: ${C.textMuted}; margin-top: 0.15rem; }
-
-  .up-quick-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; }
-  .up-quick-btn {
-    background: ${C.greenPale}; border: 1px solid ${C.greenLight}; border-radius: 12px;
-    padding: 1rem 0.6rem; text-align: center; cursor: pointer;
-    transition: all 0.13s; font-family: 'Noto Sans KR', sans-serif;
-  }
-  .up-quick-btn:hover { background: ${C.green}; border-color: ${C.green}; }
-  .up-quick-btn:hover .up-quick-label { color: #fff; }
-  .up-quick-btn:hover .up-quick-desc { color: rgba(255,255,255,0.8); }
-  .up-quick-icon { font-size: 1.6rem; display: block; margin-bottom: 0.4rem; }
-  .up-quick-label { font-size: 0.8rem; font-weight: 700; color: ${C.greenDark}; }
-  .up-quick-desc { font-size: 0.68rem; color: ${C.textMuted}; margin-top: 0.15rem; }
-
-  /* SOS 모달 */
-  .up-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    z-index: 200; display: flex; align-items: center; justify-content: center;
-  }
-  .up-modal {
-    background: ${C.white}; border-radius: 20px; padding: 2.5rem 2rem;
-    width: 400px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  }
-  .up-modal.schedule {
-    width: min(560px, calc(100vw - 32px)); max-height: 78vh; overflow-y: auto;
-    text-align: left; padding: 1.6rem;
-  }
-  .up-modal-ico { font-size: 3rem; margin-bottom: 0.8rem; }
-  .up-modal-title { font-size: 1.3rem; font-weight: 700; color: ${C.text}; margin-bottom: 0.5rem; }
-  .up-modal-desc { font-size: 0.9rem; color: ${C.textMuted}; line-height: 1.6; margin-bottom: 1.8rem; }
-  .up-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-  .up-modal-cancel {
-    background: #f0f0f0; color: ${C.textMuted}; border: none; border-radius: 12px;
-    padding: 0.9rem; font-size: 0.95rem; font-weight: 700;
-    font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
-  }
-  .up-modal-ok {
-    background: ${C.danger}; color: #fff; border: none; border-radius: 12px;
-    padding: 0.9rem; font-size: 0.95rem; font-weight: 700;
-    font-family: 'Noto Sans KR', sans-serif; cursor: pointer;
-  }
-  .up-modal-close {
-    border: none; background: ${C.greenPale}; color: ${C.greenDark}; border-radius: 10px;
-    padding: 0.55rem 0.85rem; font-weight: 700; font-family: 'Noto Sans KR', sans-serif;
-    cursor: pointer;
-  }
-  .up-all-schedule-list { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 1rem; }
-  .up-all-schedule-item {
-    display: grid; grid-template-columns: 96px 1fr; gap: 0.75rem; align-items: center;
-    padding: 0.8rem; border: 1px solid ${C.border}; border-radius: 12px; background: ${C.greenPale};
-  }
-  .up-all-schedule-date { font-size: 0.78rem; font-weight: 700; color: ${C.greenDark}; }
-  .up-all-schedule-title { font-size: 0.9rem; font-weight: 700; color: ${C.text}; }
-  .up-all-schedule-time { font-size: 0.76rem; color: ${C.textMuted}; margin-top: 0.15rem; }
-  .up-empty-text { color: ${C.textMuted}; font-size: 0.9rem; padding: 1rem 0; }
-`;
-
-// 건강 점수 계산
-const calcHealthScore = (p) => {
-  const s = (val) => {
-    if (!val || val === "없음" || val === "없음 (스스로 보행 가능)" || val === "없음 (비흡연)" || val === "없음 (금주)") return 100;
-    if (val.includes("경증") || val.includes("경도") || val.includes("초기") || val.includes("가끔") || val.includes("과거") || val.includes("완치") || val.includes("1회")) return 65;
-    return 25;
-  };
-
-  const chronic = Math.round((s(p.diabetes) + s(p.hypertension) + s(p.heart) + s(p.kidney) + s(p.cancer)) / 5);
-
-  const fallPenalty = p.recentFall === "4회 이상" ? 20 : p.recentFall === "2~3회" ? 15 : p.recentFall === "1회" ? 5 : 0;
-  const mobility = Math.max(0, Math.round((s(p.joint) + s(p.stroke) + s(p.walkingAid)) / 3) - fallPenalty);
-
-  const cognition = s(p.dementia);
-  const sensory = Math.round((s(p.vision) + s(p.hearing)) / 2);
-  const respiratory = s(p.lung);
-
-  const smokePenalty = p.smoking === "흡연 중" ? 25 : p.smoking === "과거 흡연 (현재 금연)" ? 10 : 0;
-  const drinkPenalty = p.drinking === "자주 (주 1회 이상)" ? 20 : p.drinking === "가끔 (월 1~2회)" ? 5 : 0;
-  const medPenalty = p.medicineCount === "6개 이상" ? 15 : p.medicineCount === "3~5개" ? 8 : 0;
-  const lifestyle = Math.max(0, 100 - smokePenalty - drinkPenalty - medPenalty);
+  let theta = lon * DEGRAD - olon;
+  if (theta > Math.PI) theta -= 2.0 * Math.PI;
+  if (theta < -Math.PI) theta += 2.0 * Math.PI;
+  theta *= sn;
 
   return {
-    "만성질환": chronic,
-    "관절·거동": mobility,
-    "인지·정신": cognition,
-    "시력·청력": sensory,
-    "호흡·폐":   respiratory,
-    "생활습관":  lifestyle,
+    nx: Math.floor(ra * Math.sin(theta) + XO + 0.5),
+    ny: Math.floor(ro - ra * Math.cos(theta) + YO + 0.5),
   };
 };
 
-// 레이더 차트
+const getInitialSeniorProfile = () => {
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
+const getHealthScoresFromProfile = (profile) => {
+  const healthInfo = profile?.healthInfo;
+  if (!healthInfo) return null;
+
+  return calcHealthScore({
+    diabetes: healthInfo.diabetes,
+    hypertension: healthInfo.hypertension,
+    heart: healthInfo.heartDisease,
+    joint: healthInfo.jointDisease,
+    stroke: healthInfo.stroke,
+    kidney: healthInfo.kidneyDisease,
+    lung: healthInfo.lungDisease,
+    liver: healthInfo.liverDisease,
+    cancer: healthInfo.cancer,
+    walkingAid: healthInfo.walkingAid,
+    dementia: healthInfo.dementia,
+    vision: healthInfo.vision,
+    hearing: healthInfo.hearing,
+    recentFall: healthInfo.recentFall,
+    smoking: healthInfo.smoking,
+    drinking: healthInfo.drinking,
+    medicineCount: healthInfo.medicineCount,
+  });
+};
+
 function RadarChart({ scores }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
-  const n = keys.length;
-  const cx = 130, cy = 130, r = 95;
-  const angle = (i) => (Math.PI * 2 * i) / n - Math.PI / 2;
-  const pt = (i, ratio) => ({
-    x: cx + r * ratio * Math.cos(angle(i)),
-    y: cy + r * ratio * Math.sin(angle(i)),
+  const count = keys.length;
+  const cx = 130;
+  const cy = 130;
+  const radius = 95;
+
+  const angle = (i) => (Math.PI * 2 * i) / count - Math.PI / 2;
+  const point = (i, ratio) => ({
+    x: cx + radius * ratio * Math.cos(angle(i)),
+    y: cy + radius * ratio * Math.sin(angle(i)),
   });
+
   const gridLevels = [0.25, 0.5, 0.75, 1];
-  const dataPts = vals.map((v, i) => pt(i, v / 100));
-  const pathD = dataPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
-  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / n);
-  const avgColor = avg >= 75 ? C.green : avg >= 50 ? "#f0a500" : C.danger;
+  const dataPoints = vals.map((v, i) => point(i, v / 100));
+  const pathD = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+  const avg = Math.round(vals.reduce((s, v) => s + v, 0) / count);
+  const avgColor = avg >= 75 ? COLORS.green : avg >= 50 ? "#f0a500" : COLORS.danger;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+    <div className="up-radar-wrap">
       <svg width="260" height="260" viewBox="0 0 260 260">
-        {gridLevels.map((lvl, li) => (
+        {gridLevels.map((lvl) => (
           <polygon
-            key={li}
-            points={keys.map((_, i) => { const p = pt(i, lvl); return `${p.x},${p.y}`; }).join(" ")}
-            fill="none" stroke={C.border} strokeWidth="1"
+            key={lvl}
+            points={keys.map((_, i) => {
+              const p = point(i, lvl);
+              return `${p.x},${p.y}`;
+            }).join(" ")}
+            fill="none"
+            stroke={COLORS.border}
+            strokeWidth="1"
           />
         ))}
+
         {keys.map((_, i) => {
-          const p = pt(i, 1);
-          return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={C.border} strokeWidth="1" />;
+          const p = point(i, 1);
+          return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={COLORS.border} strokeWidth="1" />;
         })}
-        <path d={pathD} fill={C.green} fillOpacity="0.2" stroke={C.green} strokeWidth="2.5" />
-        {dataPts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="4" fill={C.green} stroke="#fff" strokeWidth="2" />
+
+        <path d={pathD} fill={COLORS.green} fillOpacity="0.2" stroke={COLORS.green} strokeWidth="2.5" />
+
+        {dataPoints.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r="4" fill={COLORS.green} stroke="#fff" strokeWidth="2" />
         ))}
+
         {keys.map((key, i) => {
-          const p = pt(i, 1.28);
+          const p = point(i, 1.28);
           return (
-            <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-              fontSize="10.5" fontWeight="700" fill={C.greenDark} fontFamily="Noto Sans KR, sans-serif">
+            <text
+              key={key}
+              x={p.x}
+              y={p.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize="10.5"
+              fontWeight="700"
+              fill={COLORS.greenDark}
+              fontFamily="Noto Sans KR, sans-serif"
+            >
               {key}
             </text>
           );
         })}
+
         {vals.map((v, i) => {
-          const p = pt(i, (v / 100) * 0.68);
+          const p = point(i, (v / 100) * 0.68);
           return (
-            <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-              fontSize="9" fill={C.text} fontWeight="700">
+            <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill={COLORS.text} fontWeight="700">
               {v}
             </text>
           );
         })}
       </svg>
 
-      <div style={{ flex: 1, minWidth: "180px" }}>
-        <div style={{ fontSize: "0.72rem", color: C.textMuted, fontWeight: "700", marginBottom: "0.3rem" }}>종합 건강 점수</div>
-        <div style={{ fontSize: "2.8rem", fontWeight: "700", color: avgColor, lineHeight: 1 }}>{avg}</div>
-        <div style={{ fontSize: "0.8rem", color: C.textMuted, marginBottom: "1.1rem" }}>/ 100점</div>
+      <div className="up-radar-info">
+        <div className="up-radar-label">종합 건강 점수</div>
+        <div className="up-radar-score" style={{ color: avgColor }}>{avg}</div>
+        <div className="up-radar-unit">/ 100점</div>
+
         {keys.map((key, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.45rem" }}>
-            <div style={{ fontSize: "0.75rem", color: C.textMuted, minWidth: "56px" }}>{key}</div>
-            <div style={{ flex: 1, height: "5px", background: C.greenPale, borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{
-                height: "100%", width: `${vals[i]}%`, borderRadius: "3px", transition: "width 0.5s ease",
-                background: vals[i] >= 75 ? C.green : vals[i] >= 50 ? "#f0a500" : C.danger,
-              }} />
+          <div key={key} className="up-radar-row">
+            <div className="up-radar-key">{key}</div>
+            <div className="up-radar-bar">
+              <div
+                className="up-radar-bar-fill"
+                style={{
+                  width: `${vals[i]}%`,
+                  background: vals[i] >= 75 ? COLORS.green : vals[i] >= 50 ? "#f0a500" : COLORS.danger,
+                }}
+              />
             </div>
-            <div style={{ fontSize: "0.75rem", fontWeight: "700", color: C.text, minWidth: "24px" }}>{vals[i]}</div>
+            <div className="up-radar-value">{vals[i]}</div>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
-const alerts = [
-  { type: "한파", color: "#e05252", msg: "최저기온 -12°C 예상, 외출 자제", time: "오전 9:00" },
-  { type: "강풍", color: "#f0a500", msg: "순간 풍속 15m/s 이상 예상", time: "오후 2:00" },
-];
-
-const menus = [
-  { icon: "🌡", label: "기후 알림",    desc: "위험 기후 안내",       route: "/weather" },
-  { icon: "📋", label: "낙상 기록",    desc: "감지 이력 확인",       route: "/fall-history" },
-  { icon: "💼", label: "일자리 찾기",  desc: "맞춤 일자리 추천",     route: "/jobs", badge: "NEW" },
-  { icon: "📍", label: "내 위치",      desc: "실시간 위치 공유",     route: "/location" },
-  { icon: "👤", label: "내 정보 수정", desc: "신체정보 및 인적사항", route: "/profile" },
-];
 
 function scheduleFromApi(schedule) {
   return {
@@ -350,23 +210,135 @@ function todayValue() {
   return `${today.getFullYear()}-${month}-${date}`;
 }
 
+function getStoredSeniorId(initialSenior) {
+  return getCurrentSeniorId() || initialSenior?.id || "";
+}
+
 export default function UserPage() {
   const navigate = useNavigate();
+  const initialProfile = getInitialSeniorProfile();
+  const initialSenior = initialProfile?.senior;
+
   const [weather, setWeather] = useState(null);
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
   const [dateStr, setDateStr] = useState("");
-  const [userName, setUserName] = useState("사용자");
-  const [userRegion, setUserRegion] = useState("");
-  const [healthScores, setHealthScores] = useState(null);
+
+  const [userName, setUserName] = useState(initialSenior?.name || "사용자");
+  const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
+  const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
+
   const [schedules, setSchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
   const [showAllSchedules, setShowAllSchedules] = useState(false);
   const [allSchedules, setAllSchedules] = useState([]);
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
 
+  const fetchWeather = async (lat, lon) => {
+    try {
+      const { nx, ny } = toGrid(lat, lon);
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+      const hour = pad(now.getHours());
+
+      const url = `/weather/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst`
+        + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
+        + `&base_date=${date}&base_time=${hour}00&nx=${nx}&ny=${ny}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      const items = data.response.body.items.item;
+
+      const temp = items.find((i) => i.category === "T1H")?.obsrValue;
+      const humid = items.find((i) => i.category === "REH")?.obsrValue;
+      const pty = items.find((i) => i.category === "PTY")?.obsrValue;
+
+      let icon = "☀️";
+      let status = "맑음";
+
+      if (pty === "1") {
+        icon = "🌧";
+        status = "비";
+      } else if (pty === "2") {
+        icon = "🌨";
+        status = "비/눈";
+      } else if (pty === "3") {
+        icon = "❄️";
+        status = "눈";
+      } else if (pty === "4") {
+        icon = "🌦";
+        status = "소나기";
+      }
+
+      setWeather({
+        temp: Math.round(temp),
+        status,
+        icon,
+        region: "현재 위치",
+        humid: humid ? `${humid}%` : "-",
+      });
+    } catch {
+      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌤", region: "서울" });
+    }
+  };
+
+  const fetchWeatherAlerts = async () => {
+    try {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const fromTm = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}0000`;
+      const toTm = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}2359`;
+
+      const url = `/weather/1360000/WthrWrnInfoService/getWthrWrnList`
+        + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=5&dataType=JSON`
+        + `&stnId=108&fromTmFc=${fromTm}&toTmFc=${toTm}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      const items = data?.response?.body?.items?.item || [];
+
+      if (!items || items.length === 0) {
+        const nowText = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        setWeatherAlerts([
+          { type: "날씨", color: COLORS.green, msg: "현재 발령된 기상특보가 없습니다.", time: nowText },
+        ]);
+        return;
+      }
+
+      const parsed = (Array.isArray(items) ? items : [items]).map((item) => {
+        const title = item.title || "";
+        let color = "#f0a500";
+        let type = "특보";
+
+        if (title.includes("경보") || title.includes("한파") || title.includes("폭염")) color = COLORS.danger;
+        if (title.includes("태풍")) color = "#7a1a1a";
+
+        if (title.includes("한파")) type = "한파";
+        else if (title.includes("폭염")) type = "폭염";
+        else if (title.includes("강풍")) type = "강풍";
+        else if (title.includes("호우")) type = "호우";
+        else if (title.includes("대설")) type = "대설";
+
+        return {
+          type,
+          color,
+          msg: title,
+          time: item.tmFc ? `${item.tmFc.toString().slice(8, 10)}:${item.tmFc.toString().slice(10, 12)}` : "-",
+        };
+      });
+
+      setWeatherAlerts(parsed);
+    } catch {
+      setWeatherAlerts([
+        { type: "날씨", color: COLORS.green, msg: "기상 정보를 불러오지 못했습니다.", time: "-" },
+      ]);
+    }
+  };
+
   useEffect(() => {
     async function loadSchedulesByDate(scheduleDate) {
-      const seniorId = getCurrentSeniorId();
+      const seniorId = getStoredSeniorId(initialSenior);
       if (!seniorId) return;
 
       try {
@@ -377,20 +349,51 @@ export default function UserPage() {
       }
     }
 
-    try {
-      const saved = localStorage.getItem("user_profile");
-      if (saved) {
-        const p = JSON.parse(saved);
-        setUserName(p.name || "사용자");
-        setUserRegion(p.region || "");
-        setHealthScores(calcHealthScore(p));
-      }
-    } catch {}
+    const loadCurrentSenior = async () => {
+      try {
+        const saved = sessionStorage.getItem("currentSenior");
+        if (saved) {
+          const profile = JSON.parse(saved);
+          setUserName(profile?.senior?.name || "사용자");
+          setUserRegion(profile?.senior?.region || profile?.senior?.address || "");
+          setHealthScores(getHealthScoresFromProfile(profile));
+          return;
+        }
 
-    setWeather({ temp: 22, status: "맑음", icon: "☀️", region: "서울 송파구" });
+        const res = await fetch("http://localhost:8080/api/seniors");
+        if (!res.ok) return;
+
+        const profiles = await res.json();
+        const latest = profiles[profiles.length - 1];
+        if (!latest) return;
+
+        sessionStorage.setItem("currentSenior", JSON.stringify(latest));
+        localStorage.setItem("current_senior_id", String(latest.senior.id));
+
+        setUserName(latest?.senior?.name || "사용자");
+        setUserRegion(latest?.senior?.region || latest?.senior?.address || "");
+        setHealthScores(getHealthScoresFromProfile(latest));
+      } catch (error) {
+        console.error("사용자 정보 조회 실패:", error);
+      }
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+        () => fetchWeather(37.5665, 126.9780)
+      );
+    } else {
+      fetchWeather(37.5665, 126.9780);
+    }
+
+    fetchWeatherAlerts();
+    loadCurrentSenior();
+
     const d = new Date();
-    const days = ["일","월","화","수","목","금","토"];
-    setDateStr(`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
+    const days = ["일", "월", "화", "수", "목", "금", "토"];
+    setDateStr(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
+
     loadSchedulesByDate(selectedScheduleDate);
   }, [selectedScheduleDate]);
 
@@ -400,7 +403,7 @@ export default function UserPage() {
   };
 
   const openAllSchedules = async () => {
-    const seniorId = getCurrentSeniorId();
+    const seniorId = getStoredSeniorId(initialSenior);
     setShowAllSchedules(true);
 
     if (!seniorId) {
@@ -422,201 +425,228 @@ export default function UserPage() {
   };
 
   return (
-    <>
-      <style>{styles}</style>
-      <div className="up-root">
+    <div className="up-root">
+      <nav className="up-nav">
+        <div className="up-nav-logo">🌿 우리 woori</div>
+        <div className="up-nav-right">
+          <span className="up-nav-date">{dateStr}</span>
+          <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
+            🆘 SOS 도움 요청
+          </button>
+        </div>
+      </nav>
 
-        <nav className="up-nav">
-          <div className="up-nav-logo">🌿 우리 woori</div>
-          <div className="up-nav-right">
-            <span className="up-nav-date">{dateStr}</span>
-            <button className="up-nav-sos" onClick={() => setShowSOS(true)}>🆘 SOS 도움 요청</button>
+      <div className="up-layout">
+        <aside>
+          <div className="up-profile-card">
+            <div className="up-profile-avatar">👤</div>
+            <div className="up-profile-name">{userName}님</div>
+            <div className="up-profile-sub">우리 돌봄 서비스</div>
+            {userRegion && <div className="up-profile-region">📍 {userRegion}</div>}
+            <div className="up-dot-wrap">
+              <div className="up-dot" /> 디바이스 연결됨
+            </div>
           </div>
-        </nav>
 
-        <div className="up-layout">
+          <div className="up-sidemenu">
+            {menus.map((menu, i) => (
+              <button
+                key={i}
+                className="up-sidemenu-item"
+                type="button"
+                onClick={() => {
+                  if (menu.disabled) {
+                    alert("💬 AI 챗봇 기능은 준비 중입니다!");
+                    return;
+                  }
 
-          {/* 사이드바 */}
-          <aside>
-            <div className="up-profile-card">
-              <div className="up-profile-avatar">👤</div>
-              <div className="up-profile-name">{userName}님</div>
-              <div className="up-profile-sub">케어링 돌봄 서비스</div>
-              {userRegion && <div className="up-profile-region">📍 {userRegion}</div>}
-              <div className="up-dot-wrap">
-                <div className="up-dot" /> 디바이스 연결됨
+                  navigate(menu.route);
+                }}
+              >
+                <span className="up-sidemenu-icon">{menu.icon}</span>
+                <span className="up-sidemenu-label">{menu.label}</span>
+                {menu.badge && (
+                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
+                    {menu.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <main>
+          <div className="up-top-row">
+            <div className="up-weather-card" onClick={() => navigate("/weather-graph")}>
+              <div className="up-card-label">오늘 날씨 📈</div>
+              <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
+              <div className="up-weather-bot">
+                <div className="up-weather-desc">
+                  {weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}
+                </div>
+                <div className="up-weather-icon">{weather?.icon ?? "🌤"}</div>
               </div>
             </div>
-            <div className="up-sidemenu">
-              {menus.map(m => (
-                <button key={m.route} className="up-sidemenu-item" onClick={() => navigate(m.route)}>
-                  <span className="up-sidemenu-icon">{m.icon}</span>
-                  <span className="up-sidemenu-label">{m.label}</span>
-                  {m.badge && <span className="up-sidemenu-badge">{m.badge}</span>}
+
+            <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
+              <div className="up-card-label">이번 달 낙상</div>
+              <div className="up-stat-value red">2건</div>
+              <div className="up-stat-sub">최근: 5월 4일 거실</div>
+            </div>
+
+            <div className="up-stat-card" onClick={openAllSchedules}>
+              <div className="up-card-label">오늘 일정</div>
+              <div className="up-stat-value">{schedules.length}건</div>
+              <div className="up-stat-sub">
+                {schedules.length > 0
+                  ? `다음: ${schedules[0].time} ${schedules[0].text}`
+                  : "오늘 등록된 일정이 없어요"}
+              </div>
+            </div>
+          </div>
+
+          <div className="up-content-row">
+            <div className="up-card">
+              <div className="up-card-head">
+                <div className="up-card-title">📅 선택한 날짜 일정</div>
+                <input
+                  className="up-schedule-date"
+                  type="date"
+                  value={selectedScheduleDate}
+                  onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                />
+              </div>
+
+              {schedules.length === 0 ? (
+                <div className="up-schedule-row">
+                  <div className="up-schedule-text">등록된 일정이 없어요.</div>
+                </div>
+              ) : (
+                schedules.map((schedule, i) => (
+                  <div key={`${schedule.time}-${schedule.text}-${i}`} className="up-schedule-row">
+                    <div className="up-schedule-time">{schedule.time}</div>
+                    <div className="up-schedule-dot" />
+                    <div className="up-schedule-text">{schedule.text}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="up-card">
+              <div className="up-card-head">
+                <div className="up-card-title">🌡 기후 알림</div>
+                <button className="up-card-more" type="button" onClick={() => navigate("/weather")}>
+                  전체보기 →
                 </button>
+              </div>
+
+              {weatherAlerts.map((alert, i) => (
+                <div key={i} className="up-alert-item">
+                  <span className="up-alert-badge" style={{ background: alert.color, color: "#fff" }}>
+                    {alert.type}
+                  </span>
+                  <div>
+                    <div className="up-alert-text">{alert.msg}</div>
+                    <div className="up-alert-time">🕐 {alert.time}</div>
+                  </div>
+                </div>
               ))}
             </div>
-          </aside>
+          </div>
 
-          {/* 메인 */}
-          <main>
-            {/* 상단 3카드 */}
-            <div className="up-top-row">
-              <div className="up-weather-card" onClick={() => navigate("/weather")}>
-                <div className="up-card-label">오늘 날씨</div>
-                <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
-                <div className="up-weather-bot">
-                  <div className="up-weather-desc">{weather?.status} · {weather?.region}</div>
-                  <div className="up-weather-icon">{weather?.icon ?? "🌤"}</div>
+          {healthScores && (
+            <div className="up-content-row">
+              <div className="up-card full">
+                <div className="up-card-head">
+                  <div className="up-card-title">🏥 건강 상태 레이더</div>
+                  <button className="up-card-more" type="button" onClick={() => navigate("/profile")}>
+                    정보 수정 →
+                  </button>
                 </div>
-              </div>
-              <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
-                <div className="up-card-label">이번 달 낙상</div>
-                <div className="up-stat-value red">2건</div>
-                <div className="up-stat-sub">최근: 5월 4일 거실</div>
-              </div>
-              <div className="up-stat-card" onClick={openAllSchedules}>
-                <div className="up-card-label">오늘 일정</div>
-                <div className="up-stat-value">{schedules.length}건</div>
-                <div className="up-stat-sub">
-                  {schedules.length > 0
-                    ? `다음: ${schedules[0].time} ${schedules[0].text}`
-                    : "오늘 등록된 일정이 없어요"}
-                </div>
+                <RadarChart scores={healthScores} />
               </div>
             </div>
+          )}
 
-            {/* 일정 + 기후 */}
-            <div className="up-content-row">
-              <div className="up-card">
-                <div className="up-card-head">
-                  <div className="up-card-title">📅 선택한 날짜 일정</div>
-                  <input
-                    className="up-schedule-date"
-                    type="date"
-                    value={selectedScheduleDate}
-                    onChange={(event) => setSelectedScheduleDate(event.target.value)}
-                  />
-                </div>
-                {schedules.length === 0 ? (
-                  <div className="up-schedule-row">
-                    <div className="up-schedule-text">오늘 등록된 일정이 없어요.</div>
-                  </div>
-                ) : (
-                  schedules.map((s, i) => (
-                    <div key={`${s.time}-${s.text}-${i}`} className="up-schedule-row">
-                      <div className="up-schedule-time">{s.time}</div>
-                      <div className="up-schedule-dot" />
-                      <div className="up-schedule-text">{s.text}</div>
-                    </div>
-                  ))
-                )}
+          <div className="up-content-row">
+            <div className="up-card full">
+              <div className="up-card-head">
+                <div className="up-card-title">⚡ 빠른 실행</div>
               </div>
-              <div className="up-card">
-                <div className="up-card-head">
-                  <div className="up-card-title">🌡 기후 알림</div>
-                  <button className="up-card-more" onClick={() => navigate("/weather")}>전체보기 →</button>
-                </div>
-                {alerts.map((a, i) => (
-                  <div key={i} className="up-alert-item">
-                    <span className="up-alert-badge" style={{ background: a.color, color: "#fff" }}>{a.type}</span>
+              <div className="up-quick-grid">
+                {menus.filter((menu) => !menu.hideQuick).map((menu, i) => (
+                  <button
+                    key={i}
+                    className="up-quick-btn"
+                    type="button"
+                    onClick={() => navigate(menu.route)}
+                  >
+                    <span className="up-quick-icon">{menu.icon}</span>
+                    <div className="up-quick-label">{menu.label}</div>
+                    <div className="up-quick-desc">{menu.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {showAllSchedules && (
+        <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
+          <div className="up-modal schedule" onClick={(event) => event.stopPropagation()}>
+            <div className="up-card-head">
+              <div>
+                <div className="up-card-label">전체 일정</div>
+                <div className="up-modal-title">내가 등록한 일정</div>
+              </div>
+              <button className="up-modal-close" type="button" onClick={() => setShowAllSchedules(false)}>
+                닫기
+              </button>
+            </div>
+
+            {isLoadingAllSchedules ? (
+              <div className="up-empty-text">일정을 불러오는 중이에요...</div>
+            ) : allSchedules.length === 0 ? (
+              <div className="up-empty-text">등록된 일정이 없어요.</div>
+            ) : (
+              <div className="up-all-schedule-list">
+                {allSchedules.map((schedule) => (
+                  <div key={schedule.id} className="up-all-schedule-item">
+                    <div className="up-all-schedule-date">{formatScheduleDate(schedule.date)}</div>
                     <div>
-                      <div className="up-alert-text">{a.msg}</div>
-                      <div className="up-alert-time">🕐 {a.time}</div>
+                      <div className="up-all-schedule-title">{schedule.text}</div>
+                      <div className="up-all-schedule-time">{schedule.time}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* 건강 레이더 차트 */}
-            {healthScores && (
-              <div className="up-content-row">
-                <div className="up-card full">
-                  <div className="up-card-head">
-                    <div className="up-card-title">🏥 건강 상태 레이더</div>
-                    <button className="up-card-more" onClick={() => navigate("/profile")}>정보 수정 →</button>
-                  </div>
-                  <RadarChart scores={healthScores} />
-                </div>
-              </div>
             )}
-
-            {/* 빠른 실행 */}
-            <div className="up-content-row">
-              <div className="up-card full">
-                <div className="up-card-head">
-                  <div className="up-card-title">⚡ 빠른 실행</div>
-                </div>
-                <div className="up-quick-grid">
-                  {menus.map(m => (
-                    <button key={m.route} className="up-quick-btn" onClick={() => navigate(m.route)}>
-                      <span className="up-quick-icon">{m.icon}</span>
-                      <div className="up-quick-label">{m.label}</div>
-                      <div className="up-quick-desc">{m.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </main>
+          </div>
         </div>
+      )}
 
-        {/* SOS 모달 */}
-        {showSOS && (
-          <div className="up-overlay" onClick={() => setShowSOS(false)}>
-            <div className="up-modal" onClick={e => e.stopPropagation()}>
-              <div className="up-modal-ico">🆘</div>
-              <div className="up-modal-title">SOS를 보내시겠어요?</div>
-              <div className="up-modal-desc">보호자와 담당 복지사에게<br />즉시 알림이 전송됩니다.</div>
-              <div className="up-modal-row">
-                <button className="up-modal-cancel" onClick={() => setShowSOS(false)}>취소</button>
-                <button className="up-modal-ok" onClick={confirmSOS}>보내기</button>
-              </div>
+      {showSOS && (
+        <div className="up-overlay" onClick={() => setShowSOS(false)}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">🆘</div>
+            <div className="up-modal-title">SOS를 보내시겠어요?</div>
+            <div className="up-modal-desc">
+              보호자와 담당 복지사에게
+              <br />
+              즉시 알림이 전송됩니다.
+            </div>
+            <div className="up-modal-row">
+              <button className="up-modal-cancel" type="button" onClick={() => setShowSOS(false)}>
+                취소
+              </button>
+              <button className="up-modal-ok" type="button" onClick={confirmSOS}>
+                보내기
+              </button>
             </div>
           </div>
-        )}
-
-        {showAllSchedules && (
-          <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
-            <div className="up-modal schedule" onClick={e => e.stopPropagation()}>
-              <div className="up-card-head">
-                <div>
-                  <div className="up-card-label">전체 일정</div>
-                  <div className="up-modal-title">내가 등록한 일정</div>
-                </div>
-                <button
-                  className="up-modal-close"
-                  type="button"
-                  onClick={() => setShowAllSchedules(false)}
-                >
-                  닫기
-                </button>
-              </div>
-
-              {isLoadingAllSchedules ? (
-                <div className="up-empty-text">일정을 불러오는 중이에요...</div>
-              ) : allSchedules.length === 0 ? (
-                <div className="up-empty-text">등록된 일정이 없어요.</div>
-              ) : (
-                <div className="up-all-schedule-list">
-                  {allSchedules.map((schedule) => (
-                    <div key={schedule.id} className="up-all-schedule-item">
-                      <div className="up-all-schedule-date">
-                        {formatScheduleDate(schedule.date)}
-                      </div>
-                      <div>
-                        <div className="up-all-schedule-title">{schedule.text}</div>
-                        <div className="up-all-schedule-time">{schedule.time}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+    </div>
   );
 }

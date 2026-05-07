@@ -1,0 +1,296 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap");
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.pr-root {
+  background: #fffdec;
+  min-height: 100vh;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #1e2a1f;
+}
+
+.pr-nav {
+  background: #ffffff;
+  border-bottom: 1px solid #d4e8d6;
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 8px rgba(134, 167, 136, 0.08);
+}
+
+.pr-nav-back {
+  background: transparent;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  color: #7a9a7c;
+  cursor: pointer;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.pr-nav-back:hover {
+  border-color: #86a788;
+  color: #86a788;
+}
+
+.pr-nav-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e2a1f;
+  flex: 1;
+}
+
+.pr-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.pr-saved-badge {
+  background: #eef6ef;
+  border: 1px solid #b8d4ba;
+  border-radius: 8px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  color: #5f7d61;
+  font-weight: 500;
+}
+
+.pr-reset-btn {
+  background: transparent;
+  color: #7a9a7c;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 0.45rem 1rem;
+  font-size: 0.88rem;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.pr-save-btn {
+  background: #86a788;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 1.4rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.3);
+}
+
+.pr-layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.pr-sidenav {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #d4e8d6;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+}
+
+.pr-sidenav-item {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 1.1rem;
+  text-align: left;
+  font-size: 0.85rem;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #7a9a7c;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #d4e8d6;
+  cursor: pointer;
+}
+
+.pr-sidenav-item:last-child {
+  border-bottom: none;
+}
+
+.pr-sidenav-item:hover,
+.pr-sidenav-item.active {
+  background: #eef6ef;
+  color: #86a788;
+}
+
+.pr-sidenav-item.active {
+  font-weight: 700;
+  border-left: 3px solid #86a788;
+}
+
+.pr-section {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 1.8rem 2rem;
+  border: 1px solid #d4e8d6;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+  margin-bottom: 1.2rem;
+  scroll-margin-top: 80px;
+}
+
+.pr-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e2a1f;
+  margin-bottom: 1.4rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 2px solid #b8d4ba;
+}
+
+.pr-field {
+  margin-bottom: 1.1rem;
+}
+
+.pr-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #7a9a7c;
+  margin-bottom: 0.45rem;
+  display: block;
+}
+
+.pr-input,
+.pr-select {
+  width: 100%;
+  padding: 0.72rem 1rem;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #1e2a1f;
+  background: #ffffff;
+  outline: none;
+}
+
+.pr-input:focus,
+.pr-select:focus {
+  border-color: #86a788;
+  box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.12);
+}
+
+.pr-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.pr-row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+.pr-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.pr-chip {
+  padding: 0.35rem 0.88rem;
+  border: 1.5px solid #d4e8d6;
+  border-radius: 99px;
+  font-size: 0.82rem;
+  color: #7a9a7c;
+  cursor: pointer;
+  background: transparent;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.pr-chip:hover {
+  border-color: #86a788;
+  color: #86a788;
+}
+
+.pr-chip.on {
+  background: #86a788;
+  border-color: #86a788;
+  color: #fff;
+  font-weight: 700;
+}
+
+.pr-disease-row {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid #d4e8d6;
+}
+
+.pr-disease-row:last-child {
+  border-bottom: none;
+}
+
+.pr-disease-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e2a1f;
+  margin-bottom: 0.55rem;
+  display: block;
+}
+
+.pr-bmi-box {
+  background: #eef6ef;
+  border: 1px solid #b8d4ba;
+  border-radius: 12px;
+  padding: 1rem 1.3rem;
+  margin-top: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.pr-bmi-label {
+  font-size: 0.72rem;
+  color: #7a9a7c;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.pr-bmi-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.pr-bmi-status {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.pr-bmi-guide {
+  font-size: 0.75rem;
+  color: #7a9a7c;
+  line-height: 1.7;
+  margin-left: auto;
+}
+
+.pr-hint {
+  background: #eef6ef;
+  border: 1px solid #b8d4ba;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+  color: #7a9a7c;
+  line-height: 1.6;
+  margin-bottom: 1.2rem;
+}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../Common/Login.css";
+
+import "../../css/common/Login.css";
 
 const FEATURES = [
   { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로를 확인합니다" },
