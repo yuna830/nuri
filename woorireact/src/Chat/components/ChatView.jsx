@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { createCareResponse } from "../services/aiCareService";
 import { parseKoreanSchedules } from "../services/scheduleParser";
+import { STT_API_URL } from "../services/serverConfig";
 
 export default function ChatView({
   messages,
@@ -100,7 +101,7 @@ export default function ChatView({
         formData.append("file", blob, `record.${extension}`);
 
         try {
-          const response = await axios.post("http://127.0.0.1:8000/stt", formData);
+          const response = await axios.post(STT_API_URL, formData);
           const recognizedText = response.data.text?.trim();
           await sendMessage(recognizedText, { speak: true });
         } catch (error) {

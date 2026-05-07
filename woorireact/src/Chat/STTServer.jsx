@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import axios from "axios";
+import { STT_API_URL } from "./services/serverConfig";
 
 function STTServer() {
 
@@ -38,7 +39,7 @@ function STTServer() {
             try {
 
                 const response = await axios.post(
-                    "http://127.0.0.1:8000/stt",
+                    STT_API_URL,
                     formData,
                     {
                         headers: {

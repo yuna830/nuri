@@ -9,6 +9,10 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/senuri': {
         target: 'http://apis.data.go.kr',
         changeOrigin: true,

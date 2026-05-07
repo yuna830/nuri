@@ -1,8 +1,4 @@
-const OLLAMA_API_URL =
-  import.meta.env.VITE_OLLAMA_API_URL || "http://localhost:11434/api/chat";
-
-const OLLAMA_MODEL =
-  import.meta.env.VITE_OLLAMA_MODEL || "qwen2.5:1.5b";
+import { OLLAMA_API_URL, OLLAMA_MODEL } from "./serverConfig";
 
 async function askOllama(message) {
   const response = await fetch(OLLAMA_API_URL, {
