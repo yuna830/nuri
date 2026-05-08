@@ -155,6 +155,25 @@
   }
 }
 
+.lp-safe-zone-place {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dce8d8;
+}
+
+.lp-safe-zone-place strong {
+  color: #1f2a20;
+  font-size: 15px;
+}
+
+.lp-safe-zone-place span {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .lp-status-label {
   font-size: 0.75rem;
   color: #7a9a7c;

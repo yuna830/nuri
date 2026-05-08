@@ -1,48 +1,75 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getGuardianAlerts, readAlert, createMissingReport, uploadImage, } from "../../api/guardianApi";
+import { getGuardianAlerts, readAlert, createMissingReport, uploadImage } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
-import { getCurrentGuardian, getCurrentGuardianId, } from "../../utils/guardian/guardianSession";
-import { getDistanceMeters } from "../../utils/guardian/location";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  Circle,
-  Polyline,
-  useMap,
-} from "react-leaflet";
-import { RefreshCw } from "lucide-react";
+import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
+import { getDistanceMeters, formatShortAddress } from "../../utils/guardian/location";
 
-import L from "leaflet";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import UserPanel from "./UserPanel";
+import LocationPanel from "./LocationPanel";
+import EmergencyPanel from "./EmergencyPanel";
 
 import "leaflet/dist/leaflet.css";
-
 import "../../css/guardian/GuardianPage.css";
 import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
+import "../../css/guardian/GuardianModal.css";
 
-delete L.Icon.Default.prototype._getIconUrl;
+const getDateValue = (date = new Date()) => {
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
+};
 
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
+const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => {
+  const response = await fetch(
+    `http://localhost:8181/api/locations/senior/${seniorId}/date?date=${dateValue}`
+  );
+
+  if (!response.ok || response.status === 204) {
+    return [];
+  }
+
+  const locations = await response.json();
+
+  if (!Array.isArray(locations)) {
+    return [];
+  }
+
+  return locations
+    .filter((location) => location?.latitude && location?.longitude)
+    .map((location) => ({
+      lat: location.latitude,
+      lng: location.longitude,
+      address: location.address || fallbackAddress,
+      receivedAt: location.receivedAt || new Date().toISOString(),
+    }));
+};
+
+const getDefaultSafeZone = (elder) => ({
+  name: "자택",
+  address: elder.address,
+  centerLatitude: elder.center.lat,
+  centerLongitude: elder.center.lng,
+  radiusMeters: elder.radius,
 });
 
-function RecenterMap({ center }) {
-  const map = useMap();
+const loadSafeZone = async (elder) => {
+  const response = await fetch(`http://localhost:8181/api/safe-zones/senior/${elder.id}`);
 
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
+  if (!response.ok || response.status === 204) {
+    return getDefaultSafeZone(elder);
+  }
 
-  return null;
-}
+  const safeZone = await response.json();
+
+  return {
+    name: safeZone.name || "자택",
+    address: safeZone.address || elder.address,
+    centerLatitude: safeZone.centerLatitude ?? elder.center.lat,
+    centerLongitude: safeZone.centerLongitude ?? elder.center.lng,
+    radiusMeters: safeZone.radiusMeters ?? elder.radius,
+  };
+};
 
 function GuardianPage() {
   const navigate = useNavigate();
@@ -50,29 +77,114 @@ function GuardianPage() {
   const [guardian, setGuardian] = useState(null);
   const [elders, setElders] = useState([]);
   const [selectedElderId, setSelectedElderId] = useState(null);
+  const [isAddElderOpen, setIsAddElderOpen] = useState(false);
+
+  const [seniorSearch, setSeniorSearch] = useState("");
+  const [seniorSearchResults, setSeniorSearchResults] = useState([]);
+  const [isSearchingSenior, setIsSearchingSenior] = useState(false);
+  const [hasSearchedSenior, setHasSearchedSenior] = useState(false);
+
+  const [newSeniorForm, setNewSeniorForm] = useState({
+    name: "",
+    phone: "",
+    region: "",
+    relation: "보호 대상자",
+  });
+
+  const [safeZoneForms, setSafeZoneForms] = useState({});
   const [isSafeZoneOpen, setIsSafeZoneOpen] = useState(false);
   const [isRouteVisible, setIsRouteVisible] = useState(true);
-  const [profileImages, setProfileImages] = useState(() => {
-    const savedImages = localStorage.getItem("guardianProfileImages");
-    return savedImages ? JSON.parse(savedImages) : {};
-  });
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [safeZoneForms, setSafeZoneForms] = useState({});
-  const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
-  const [apiAlerts, setApiAlerts] = useState([]);
-  const [isLoadingElders, setIsLoadingElders] = useState(true);
-  const profileMenuRef = useRef(null);
 
+  const [apiAlerts, setApiAlerts] = useState([]);
+  const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const [isMissingReportOpen, setIsMissingReportOpen] = useState(false);
   const [missingDescription, setMissingDescription] = useState("");
   const [missingImageFile, setMissingImageFile] = useState(null);
   const [missingImagePreview, setMissingImagePreview] = useState("");
   const [isSubmittingMissingReport, setIsSubmittingMissingReport] = useState(false);
 
+  const [isLoadingElders, setIsLoadingElders] = useState(true);
+  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+  const [selectedRouteDate, setSelectedRouteDate] = useState(getDateValue());
+
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
     [elders, selectedElderId]
   );
+
+  const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  const attachLatestLocation = async (profile) => {
+    const elder = mapSeniorProfileToElder(profile);
+
+    try {
+      const routeHistory = await fetchRouteHistoryByDate(
+        elder.id,
+        getDateValue(),
+        elder.address
+      );
+
+      if (routeHistory.length === 0) {
+        return elder;
+      }
+
+      const realLocation = routeHistory[routeHistory.length - 1];
+
+      return {
+        ...elder,
+        currentLocation: realLocation,
+        lastNormalLocation: realLocation,
+        routeHistory,
+      };
+    } catch (error) {
+      console.error("오늘 위치 경로 조회 실패:", error);
+      return elder;
+    }
+  };
+
+  const loadGuardianSeniorsWithLocation = useCallback(async () => {
+    const currentGuardian = getCurrentGuardian();
+
+    if (!currentGuardian) {
+      navigate("/glogin");
+      return [];
+    }
+
+    setGuardian(currentGuardian);
+
+    const response = await fetch(
+      `http://localhost:8181/api/seniors/guardian/${currentGuardian.id}`
+    );
+
+    if (!response.ok) {
+      throw new Error("보호 대상자 조회 실패");
+    }
+
+    const profiles = await response.json();
+    return Promise.all(profiles.map(attachLatestLocation));
+  }, [navigate]);
+
+  const reloadGuardianSeniors = useCallback(async () => {
+    const nextElders = await loadGuardianSeniorsWithLocation();
+
+    setElders(nextElders);
+
+    const safeZoneEntries = await Promise.all(
+      nextElders.map(async (elder) => [elder.id, await loadSafeZone(elder)])
+    );
+
+    setSafeZoneForms(Object.fromEntries(safeZoneEntries));
+
+    if (nextElders.length > 0) {
+      setSelectedElderId((prev) => {
+        if (prev && nextElders.some((elder) => elder.id === prev)) {
+          return prev;
+        }
+
+        return nextElders[0].id;
+      });
+    }
+  }, [loadGuardianSeniorsWithLocation]);
 
   const loadGuardianAlerts = useCallback(() => {
     const guardianId = getCurrentGuardianId();
@@ -93,32 +205,7 @@ function GuardianPage() {
     const loadSeniors = async () => {
       try {
         setIsLoadingElders(true);
-
-        const currentGuardian = getCurrentGuardian();
-
-        if (!currentGuardian) {
-          navigate("/glogin");
-          return;
-        }
-
-        setGuardian(currentGuardian);
-
-        const response = await fetch(
-          `http://localhost:8181/api/seniors/guardian/${currentGuardian.id}`
-        );
-
-        if (!response.ok) {
-          throw new Error("보호 대상자 조회 실패");
-        }
-
-        const profiles = await response.json();
-        const nextElders = profiles.map(mapSeniorProfileToElder);
-
-        setElders(nextElders);
-
-        if (nextElders.length > 0) {
-          setSelectedElderId(nextElders[0].id);
-        }
+        await reloadGuardianSeniors();
       } catch (error) {
         console.error("보호 대상자 조회 실패:", error);
       } finally {
@@ -127,7 +214,7 @@ function GuardianPage() {
     };
 
     loadSeniors();
-  }, [navigate]);
+  }, [reloadGuardianSeniors]);
 
   useEffect(() => {
     loadGuardianAlerts();
@@ -136,25 +223,15 @@ function GuardianPage() {
   useEffect(() => {
     setIsSafeZoneOpen(false);
     setIsRouteVisible(true);
-    setIsProfileMenuOpen(false);
+    setSelectedRouteDate(getDateValue());
   }, [selectedElderId]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setIsProfileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   const displayedAlerts = apiAlerts.map((alert) => ({
     id: alert.id,
+    seniorId: alert.seniorId,
+    type: alert.type,
+    latitude: alert.latitude,
+    longitude: alert.longitude,
     time: alert.createdAt
       ? new Date(alert.createdAt).toLocaleString("ko-KR", {
           month: "2-digit",
@@ -165,11 +242,339 @@ function GuardianPage() {
       : "",
     message: alert.message ?? alert.title ?? "알림 내용이 없습니다.",
     status: alert.isRead ? "확인됨" : "미확인",
+    isSos: alert.type === "SOS",
   }));
 
   const unreadAlertCount = displayedAlerts.filter(
     (alert) => alert.status === "미확인"
   ).length;
+
+  if (isLoadingElders) {
+    return (
+      <main className="guardian-page">
+        <GuardianHeader
+          guardian={guardian}
+          unreadAlertCount={unreadAlertCount}
+          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          onOpenEmergencyReport={() => {}}
+        />
+
+        <section className="guardian-loading">
+          <div className="guardian-loading-card">
+            <div className="guardian-loading-spinner" />
+            <strong>보호 대상자 정보를 불러오는 중입니다.</strong>
+            <span>잠시만 기다려주세요.</span>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (!selectedElder) {
+    return (
+      <main className="guardian-page">
+        <GuardianHeader
+          guardian={guardian}
+          unreadAlertCount={unreadAlertCount}
+          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          onOpenEmergencyReport={() => {}}
+        />
+        <section className="guardian-empty">등록된 보호 대상자가 없습니다.</section>
+      </main>
+    );
+  }
+
+  const safeZoneForm = safeZoneForms[activeElderId] ?? getDefaultSafeZone(selectedElder);
+
+  const safeZoneCenter = {
+    lat: safeZoneForm.centerLatitude,
+    lng: safeZoneForm.centerLongitude,
+  };
+
+  const hasCurrentLocation = Boolean(selectedElder.currentLocation);
+  const location = selectedElder.currentLocation ?? selectedElder.center;
+  const routeHistory = selectedElder.routeHistory ?? [];
+  const lastNormalLocation = selectedElder.lastNormalLocation ?? selectedElder.center;
+
+  const mapCenter = hasCurrentLocation
+    ? [location.lat, location.lng]
+    : [safeZoneCenter.lat, safeZoneCenter.lng];
+
+  const distance = hasCurrentLocation ? getDistanceMeters(safeZoneCenter, location) : 0;
+  const isOutsideSafeZone = hasCurrentLocation && distance > safeZoneForm.radiusMeters;
+
+  const getElderStatus = (elder) => {
+    const form = safeZoneForms[elder.id] ?? getDefaultSafeZone(elder);
+
+    if (!elder.currentLocation) {
+      return "unknown";
+    }
+
+    const elderDistance = getDistanceMeters(
+      { lat: form.centerLatitude, lng: form.centerLongitude },
+      elder.currentLocation
+    );
+
+    return elderDistance > form.radiusMeters ? "danger" : "normal";
+  };
+
+  const handleRouteDateChange = async (dateValue) => {
+    if (!activeElderId) {
+      return;
+    }
+
+    try {
+      setSelectedRouteDate(dateValue);
+
+      const nextRouteHistory = await fetchRouteHistoryByDate(
+        activeElderId,
+        dateValue,
+        selectedElder.address
+      );
+
+      setElders((prev) =>
+        prev.map((elder) =>
+          elder.id === activeElderId
+            ? {
+                ...elder,
+                routeHistory: nextRouteHistory,
+              }
+            : elder
+        )
+      );
+
+      setIsRouteVisible(true);
+    } catch (error) {
+      console.error("날짜별 이동 경로 조회 실패:", error);
+      alert("선택한 날짜의 이동 경로를 불러오지 못했습니다.");
+    }
+  };
+
+  const handleSafeZoneChange = (event) => {
+    const { name, value } = event.target;
+
+    if (!activeElderId) {
+      return;
+    }
+
+    setSafeZoneForms((prev) => {
+      const currentSafeZone = prev[activeElderId] ?? safeZoneForm;
+
+      return {
+        ...prev,
+        [activeElderId]: {
+          ...currentSafeZone,
+          [name]: ["name", "address"].includes(name) ? value : Number(value),
+        },
+      };
+    });
+  };
+
+  const handleSelectSafeZonePlace = (place) => {
+    if (!activeElderId) {
+      return;
+    }
+
+    setSafeZoneForms((prev) => {
+      const currentSafeZone = prev[activeElderId] ?? safeZoneForm;
+
+      return {
+        ...prev,
+        [activeElderId]: {
+          ...currentSafeZone,
+          address: place.display_name,
+          centerLatitude: Number(place.lat),
+          centerLongitude: Number(place.lon),
+        },
+      };
+    });
+  };
+
+  const handleSaveSafeZone = async () => {
+    const seniorId = activeElderId;
+
+    if (!seniorId) {
+      alert("보호 대상자를 먼저 선택해주세요.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:8181/api/safe-zones/senior/${seniorId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: safeZoneForm.name,
+            address: safeZoneForm.address,
+            centerLatitude: safeZoneForm.centerLatitude,
+            centerLongitude: safeZoneForm.centerLongitude,
+            radiusMeters: safeZoneForm.radiusMeters,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("안전 반경 저장 실패");
+      }
+
+      const savedSafeZone = await response.json();
+
+      setSafeZoneForms((prev) => ({
+        ...prev,
+        [seniorId]: {
+          name: savedSafeZone.name || safeZoneForm.name,
+          address: savedSafeZone.address || safeZoneForm.address,
+          centerLatitude: savedSafeZone.centerLatitude ?? safeZoneForm.centerLatitude,
+          centerLongitude: savedSafeZone.centerLongitude ?? safeZoneForm.centerLongitude,
+          radiusMeters: savedSafeZone.radiusMeters ?? safeZoneForm.radiusMeters,
+        },
+      }));
+
+      alert("안전 반경이 저장되었습니다.");
+      setIsSafeZoneOpen(false);
+    } catch (error) {
+      console.error("안전 반경 저장 실패:", error);
+      alert("안전 반경 저장에 실패했습니다.");
+    }
+  };
+
+  const handleRefreshLocation = async () => {
+    try {
+      setIsRefreshingLocation(true);
+      await reloadGuardianSeniors();
+      setSelectedRouteDate(getDateValue());
+      setIsRouteVisible(true);
+    } finally {
+      setIsRefreshingLocation(false);
+    }
+  };
+
+  const handleSearchSenior = async () => {
+    const keyword = seniorSearch.trim();
+
+    if (keyword.length < 2) {
+      setHasSearchedSenior(false);
+      setSeniorSearchResults([]);
+      alert("이름이나 연락처를 2글자 이상 입력해주세요.");
+      return;
+    }
+
+    try {
+      setHasSearchedSenior(true);
+      setIsSearchingSenior(true);
+
+      const response = await fetch("http://localhost:8181/api/seniors");
+
+      if (!response.ok) {
+        throw new Error("사용자 조회 실패");
+      }
+
+      const profiles = await response.json();
+      const connectedIds = elders.map((elder) => elder.id);
+
+      const results = profiles.filter((profile) => {
+        const senior = profile.senior;
+
+        if (!senior) return false;
+        if (connectedIds.includes(senior.id)) return false;
+
+        return senior.name?.includes(keyword) || senior.phone?.includes(keyword);
+      });
+
+      setSeniorSearchResults(results);
+    } catch (error) {
+      console.error("사용자 검색 실패:", error);
+      alert("사용자 검색에 실패했습니다.");
+    } finally {
+      setIsSearchingSenior(false);
+    }
+  };
+
+  const handleConnectSenior = async (seniorId) => {
+    try {
+      const guardianId = getCurrentGuardianId();
+
+      if (!guardianId) {
+        navigate("/glogin");
+        return;
+      }
+
+      const response = await fetch(
+        `http://localhost:8181/api/guardians/${guardianId}/seniors`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seniorId,
+            relation: "보호 대상자",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("보호 대상자 연결 실패");
+      }
+
+      await reloadGuardianSeniors();
+
+      setIsAddElderOpen(false);
+      setSeniorSearch("");
+      setSeniorSearchResults([]);
+      setHasSearchedSenior(false);
+
+      alert("보호 대상자가 추가되었습니다.");
+    } catch (error) {
+      console.error("보호 대상자 연결 실패:", error);
+      alert("보호 대상자 추가에 실패했습니다.");
+    }
+  };
+
+  const handleCreateAndConnectSenior = async () => {
+    try {
+      if (!newSeniorForm.name.trim()) {
+        alert("이름을 입력해주세요.");
+        return;
+      }
+
+      const guardianId = getCurrentGuardianId();
+
+      if (!guardianId) {
+        navigate("/glogin");
+        return;
+      }
+
+      const response = await fetch(
+        `http://localhost:8181/api/guardians/${guardianId}/seniors/new`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newSeniorForm),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("신규 보호 대상자 등록 실패");
+      }
+
+      await reloadGuardianSeniors();
+
+      setIsAddElderOpen(false);
+      setNewSeniorForm({
+        name: "",
+        phone: "",
+        region: "",
+        relation: "보호 대상자",
+      });
+
+      alert("신규 보호 대상자가 추가되었습니다.");
+    } catch (error) {
+      console.error("신규 보호 대상자 등록 실패:", error);
+      alert("신규 보호 대상자 등록에 실패했습니다.");
+    }
+  };
 
   const handleReadAlert = async (alertId) => {
     try {
@@ -183,137 +588,22 @@ function GuardianPage() {
     }
   };
 
-  if (isLoadingElders) {
-    return (
-      <main className="guardian-page">
-        <header className="guardian-header">
-          <div className="brand-area">
-            <div className="logo-box">우리</div>
-            <strong className="service-name">우리</strong>
-            <span className="guardian-name">
-              보호자{guardian?.name ? `: ${guardian.name}` : ""}
-            </span>
-          </div>
-        </header>
+  const handleOpenEmergencyReport = (alert = null) => {
+    const targetElder =
+      alert?.seniorId
+        ? elders.find((elder) => elder.id === alert.seniorId) ?? selectedElder
+        : selectedElder;
 
-        <section className="guardian-empty">
-          보호 대상자 정보를 불러오는 중입니다.
-        </section>
-      </main>
-    );
-  }
-
-  if (!selectedElder) {
-    return (
-      <main className="guardian-page">
-        <header className="guardian-header">
-          <div className="brand-area">
-            <div className="logo-box">우리</div>
-            <strong className="service-name">우리</strong>
-            <span className="guardian-name">
-              보호자{guardian?.name ? `: ${guardian.name}` : ""}
-            </span>
-          </div>
-        </header>
-
-        <section className="guardian-empty">
-          등록된 보호 대상자가 없습니다.
-        </section>
-      </main>
-    );
-  }
-
-  const profileImage = profileImages[selectedElderId] ?? null;
-  const location = selectedElder.currentLocation;
-  const routeHistory = selectedElder.routeHistory;
-  const lastNormalLocation = selectedElder.lastNormalLocation;
-
-  const safeZoneForm = safeZoneForms[selectedElderId] ?? {
-    name: "자택",
-    centerLatitude: selectedElder.center.lat,
-    centerLongitude: selectedElder.center.lng,
-    radiusMeters: selectedElder.radius,
-  };
-
-  const safeZoneCenter = {
-    lat: safeZoneForm.centerLatitude,
-    lng: safeZoneForm.centerLongitude,
-  };
-
-  const distance = getDistanceMeters(safeZoneCenter, location);
-  const isOutsideSafeZone = distance > safeZoneForm.radiusMeters;
-
-  const handleSafeZoneChange = (event) => {
-    const { name, value } = event.target;
-
-    setSafeZoneForms((prev) => ({
-      ...prev,
-      [selectedElderId]: {
-        ...safeZoneForm,
-        [name]: name === "name" ? value : Number(value),
-      },
-    }));
-  };
-
-  const handleSaveSafeZone = () => {
-    alert("안전 반경이 저장되었습니다.");
-    setIsSafeZoneOpen(false);
-  };
-
-  const handleRefreshLocation = () => {
-    setIsRouteVisible(true);
-  };
-
-  const handleProfileClick = () => {
-    if (profileImage) {
-      setIsProfileMenuOpen((prev) => !prev);
-      return;
+    if (targetElder?.id) {
+      setSelectedElderId(targetElder.id);
     }
 
-    document.getElementById("profileImageInput").click();
-  };
+    setMissingDescription(
+      `${targetElder?.name ?? selectedElder.name}님 SOS 요청 후 연락이 닿지 않아 긴급 신고합니다.`
+    );
 
-  const handleProfileImageChange = (event) => {
-    const file = event.target.files[0];
-
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const imageUrl = reader.result;
-
-      setProfileImages((prev) => {
-        const next = {
-          ...prev,
-          [selectedElderId]: imageUrl,
-        };
-
-        localStorage.setItem("guardianProfileImages", JSON.stringify(next));
-        return next;
-      });
-
-      setIsProfileMenuOpen(false);
-    };
-
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  };
-
-  const handleChangeProfileImage = () => {
-    document.getElementById("profileImageInput").click();
-  };
-
-  const handleDeleteProfileImage = () => {
-    setProfileImages((prev) => {
-      const next = { ...prev };
-      delete next[selectedElderId];
-
-      localStorage.setItem("guardianProfileImages", JSON.stringify(next));
-      return next;
-    });
-
-    setIsProfileMenuOpen(false);
+    setIsAlertPanelOpen(false);
+    setIsMissingReportOpen(true);
   };
 
   const handleMissingImageChange = (event) => {
@@ -344,7 +634,7 @@ function GuardianPage() {
       }
 
       await createMissingReport({
-        seniorId: selectedElderId,
+        seniorId: activeElderId,
         guardianId,
         lastSeenLatitude: lastNormalLocation.lat,
         lastSeenLongitude: lastNormalLocation.lng,
@@ -370,493 +660,138 @@ function GuardianPage() {
 
   return (
     <main className="guardian-page">
-      <header className="guardian-header">
-        <div className="brand-area">
-          <div className="logo-box">우리</div>
-          <strong className="service-name">우리</strong>
-          <span className="guardian-name">
-            보호자{guardian?.name ? `: ${guardian.name}` : ""}
-          </span>
-        </div>
-
-        <div className="header-actions">
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => setIsAlertPanelOpen(true)}
-          >
-            알림
-            <span className="alarm-count">{unreadAlertCount}</span>
-          </button>
-
-          <button className="danger-button" type="button">
-            긴급 신고
-          </button>
-        </div>
-      </header>
+      <GuardianHeader
+        guardian={guardian}
+        unreadAlertCount={unreadAlertCount}
+        onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+        onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+      />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
-        {elders.map((elder) => (
-          <button
-            key={elder.id}
-            className={`elder-tab ${elder.id === selectedElderId ? "active" : ""}`}
-            type="button"
-            onClick={() => setSelectedElderId(elder.id)}
-          >
-            {elder.name} ({elder.relation})
-            <span className={`status-badge ${elder.status}`}>
-              {elder.status === "normal" ? "정상" : elder.status === "danger" ? "이탈" : "미수신"}
-            </span>
-          </button>
-        ))}
+        {elders.map((elder) => {
+          const elderStatus = getElderStatus(elder);
+
+          return (
+            <button
+              key={elder.id}
+              className={`elder-tab ${elder.id === selectedElderId ? "active" : ""}`}
+              type="button"
+              onClick={() => setSelectedElderId(elder.id)}
+            >
+              {elder.name} ({elder.relation})
+              <span className={`status-badge ${elderStatus}`}>
+                {elderStatus === "normal" ? "정상" : elderStatus === "danger" ? "이탈" : "미수신"}
+              </span>
+            </button>
+          );
+        })}
+
+        <button
+          className="elder-add-button"
+          type="button"
+          onClick={() => {
+            setIsAddElderOpen(true);
+            setSeniorSearch("");
+            setSeniorSearchResults([]);
+            setHasSearchedSenior(false);
+          }}
+        >
+          + 보호 대상 추가
+        </button>
       </nav>
 
       <section className="guardian-dashboard">
-        <aside className="left-panel">
-          <section className="card status-overview profile-status-card">
-            <div className="profile-image-area" ref={profileMenuRef}>
-              <button
-                className={`profile-image-button ${profileImage ? "has-image" : ""}`}
-                type="button"
-                onClick={handleProfileClick}
-              >
-                {profileImage ? (
-                  <img src={profileImage} alt={`${selectedElder.name} 프로필`} />
-                ) : (
-                  <span>이미지 선택</span>
-                )}
-              </button>
+        <UserPanel
+          selectedElder={selectedElder}
+          selectedElderId={activeElderId}
+          hasCurrentLocation={hasCurrentLocation}
+          isOutsideSafeZone={isOutsideSafeZone}
+          distance={distance}
+          location={location}
+          lastNormalLocation={lastNormalLocation}
+          safeZoneForm={safeZoneForm}
+          formatShortAddress={formatShortAddress}
+          isSafeZoneOpen={isSafeZoneOpen}
+          isAddElderOpen={isAddElderOpen}
+          seniorSearch={seniorSearch}
+          setSeniorSearch={setSeniorSearch}
+          seniorSearchResults={seniorSearchResults}
+          isSearchingSenior={isSearchingSenior}
+          hasSearchedSenior={hasSearchedSenior}
+          newSeniorForm={newSeniorForm}
+          setNewSeniorForm={setNewSeniorForm}
+          onToggleSafeZone={() => setIsSafeZoneOpen((prev) => !prev)}
+          onSafeZoneChange={handleSafeZoneChange}
+          onSelectSafeZonePlace={handleSelectSafeZonePlace}
+          onSaveSafeZone={handleSaveSafeZone}
+          onCloseAddElder={() => setIsAddElderOpen(false)}
+          onSearchSenior={handleSearchSenior}
+          onConnectSenior={handleConnectSenior}
+          onCreateAndConnectSenior={handleCreateAndConnectSenior}
+        />
 
-              <input
-                id="profileImageInput"
-                type="file"
-                accept="image/*"
-                onChange={handleProfileImageChange}
-                hidden
-              />
+        <LocationPanel
+          selectedElder={selectedElder}
+          safeZoneForm={safeZoneForm}
+          hasCurrentLocation={hasCurrentLocation}
+          location={location}
+          routeHistory={routeHistory}
+          mapCenter={mapCenter}
+          distance={distance}
+          isRouteVisible={isRouteVisible}
+          isRefreshingLocation={isRefreshingLocation}
+          onRefreshLocation={handleRefreshLocation}
+        />
 
-              {profileImage && isProfileMenuOpen && (
-                <div className="profile-image-menu">
-                  <button type="button" onClick={handleChangeProfileImage}>
-                    변경
-                  </button>
-                  <button type="button" onClick={handleDeleteProfileImage}>
-                    삭제
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="status-profile-head">
-              <strong>
-                {selectedElder.name} ({selectedElder.relation})
-              </strong>
-              <p className="status-line">
-                <span />
-                {isOutsideSafeZone ? "이탈" : "정상"}
-              </p>
-            </div>
-
-            <p className="status-message">
-              {isOutsideSafeZone ? "안전 반경 밖에 있습니다" : "현재 안전 반경 안에 있습니다"}
-            </p>
-            <small>{distance}m 거리</small>
-
-            <dl className="status-profile-list">
-              <div>
-                <dt>나이</dt>
-                <dd>{selectedElder.age}</dd>
-              </div>
-              <div>
-                <dt>성별</dt>
-                <dd>{selectedElder.gender}</dd>
-              </div>
-              <div>
-                <dt>주소</dt>
-                <dd>{selectedElder.address}</dd>
-              </div>
-              <div>
-                <dt>주요 질환</dt>
-                <dd>{selectedElder.condition}</dd>
-              </div>
-            </dl>
-
-            <div className="battery-box">
-              <div className="battery-title-row">
-                <span>GPS 배터리</span>
-                <strong>{selectedElder.battery}%</strong>
-              </div>
-              <div className="battery-row">
-                <div className="battery-bar">
-                  <div style={{ width: `${selectedElder.battery}%` }} />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="card location-summary">
-            <div className="summary-row">
-              <span>현재 위치</span>
-              <strong>{location.address}</strong>
-              <p>
-                위도 {location.lat}, 경도 {location.lng}
-              </p>
-            </div>
-
-            <div className="summary-row">
-              <span>마지막 정상 위치</span>
-              <strong>{lastNormalLocation.address}</strong>
-              <p>
-                위도 {lastNormalLocation.lat}, 경도 {lastNormalLocation.lng}
-              </p>
-            </div>
-
-            <div className="summary-row safe-zone-summary">
-              <span>안전 반경 중심</span>
-              <button
-                className={`safe-zone-trigger ${isSafeZoneOpen ? "active" : ""}`}
-                type="button"
-                onClick={() => setIsSafeZoneOpen((prev) => !prev)}
-              >
-                <span className="safe-zone-top">
-                  <span className="safe-zone-name">{safeZoneForm.name}</span>
-                  <span className="safe-zone-edit">수정</span>
-                </span>
-                <span className="safe-zone-radius">
-                  반경 {safeZoneForm.radiusMeters}m 설정
-                </span>
-              </button>
-            </div>
-          </section>
-
-          {isSafeZoneOpen && (
-            <section className="card safe-zone-card">
-              <h2>안전 반경 설정</h2>
-
-              <label>
-                장소 이름
-                <input
-                  name="name"
-                  value={safeZoneForm.name}
-                  onChange={handleSafeZoneChange}
-                />
-              </label>
-
-              <div className="safe-zone-grid">
-                <label>
-                  중심 위도
-                  <input
-                    name="centerLatitude"
-                    type="number"
-                    step="0.0001"
-                    value={safeZoneForm.centerLatitude}
-                    onChange={handleSafeZoneChange}
-                  />
-                </label>
-
-                <label>
-                  중심 경도
-                  <input
-                    name="centerLongitude"
-                    type="number"
-                    step="0.0001"
-                    value={safeZoneForm.centerLongitude}
-                    onChange={handleSafeZoneChange}
-                  />
-                </label>
-              </div>
-
-              <label>
-                반경
-                <select
-                  name="radiusMeters"
-                  value={safeZoneForm.radiusMeters}
-                  onChange={handleSafeZoneChange}
-                >
-                  <option value={300}>300m</option>
-                  <option value={500}>500m</option>
-                  <option value={1000}>1km</option>
-                  <option value={1500}>1.5km</option>
-                </select>
-              </label>
-
-              <button className="primary-button" type="button" onClick={handleSaveSafeZone}>
-                저장
-              </button>
-            </section>
-          )}
-        </aside>
-
-        <section className="card map-card">
-          <div className="card-header">
-            <h2>실시간 위치</h2>
-
-            <div className="map-actions">
-              <button
-                className="map-icon-button"
-                type="button"
-                aria-label="위치 새로고침"
-                onClick={handleRefreshLocation}
-              >
-                <RefreshCw size={18} strokeWidth={2.2} />
-              </button>
-
-              <button className="subtle-button" type="button">
-                전체화면
-              </button>
-            </div>
-          </div>
-
-          <div className="real-map-area">
-            <MapContainer
-              center={[location.lat, location.lng]}
-              zoom={16}
-              scrollWheelZoom
-              className="leaflet-map"
-            >
-              <RecenterMap center={[location.lat, location.lng]} />
-
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-
-              <Circle
-                center={[safeZoneForm.centerLatitude, safeZoneForm.centerLongitude]}
-                radius={safeZoneForm.radiusMeters}
-                pathOptions={{ color: "#4F6F52", fillColor: "#86A788", fillOpacity: 0.15 }}
-              />
-
-              <Marker position={[safeZoneForm.centerLatitude, safeZoneForm.centerLongitude]}>
-                <Popup>{safeZoneForm.name} 안전 반경 중심</Popup>
-              </Marker>
-
-              <Marker position={[location.lat, location.lng]}>
-                <Popup>
-                  {selectedElder.name} 현재 위치
-                  <br />
-                  {distance}m 거리
-                </Popup>
-              </Marker>
-
-              {isRouteVisible && (
-                <Polyline
-                  positions={routeHistory.map((point) => [point.lat, point.lng])}
-                  pathOptions={{ color: "#C93A32", weight: 4 }}
-                />
-              )}
-            </MapContainer>
-          </div>
-        </section>
-
-        <aside className="right-panel">
-          <section className="card recent-alerts">
-            <div className="card-header">
-              <h2>최근 알림</h2>
-              <button
-                className="text-button"
-                type="button"
-                onClick={() => setIsAlertPanelOpen(true)}
-              >
-                전체보기
-              </button>
-            </div>
-
-            <div className="alert-list">
-              {displayedAlerts.length === 0 ? (
-                <p className="alert-empty">최근 알림이 없습니다.</p>
-              ) : (
-                displayedAlerts.slice(0, 3).map((alert) => (
-                  <article key={alert.id} className="alert-item warning">
-                    <strong>{alert.time}</strong>
-                    <span>{alert.message}</span>
-                    <em>{alert.status}</em>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="card route-card">
-            <div className="card-header">
-              <h2>오늘 이동 경로</h2>
-              <button className="text-button" type="button">
-                날짜 선택
-              </button>
-            </div>
-
-            <ol className="route-list">
-              {routeHistory.slice(-4).reverse().map((point, index) => (
-                <li key={`${point.receivedAt}-${index}`}>
-                  <time>
-                    {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </time>
-                  <span>{point.address}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="card report-card">
-            <div className="report-header">
-              <h2>실종 신고</h2>
-              <button
-                className="outline-danger-button"
-                type="button"
-                onClick={() => setIsMissingReportOpen(true)}
-              >
-                상세 입력
-              </button>
-            </div>
-
-            <p className="last-seen-label">마지막 목격</p>
-            <strong className="last-seen-place">
-              {lastNormalLocation.address}
-            </strong>
-            <button
-              className="report-button"
-              type="button"
-              onClick={async () => {
-                await handleCreateMissingReport();
-                window.open("https://www.safe182.go.kr", "_blank");
-              }}
-            >
-              안전드림 연계 신고
-            </button>
-          </section>
-        </aside>
+        <EmergencyPanel
+          selectedElder={selectedElder}
+          displayedAlerts={displayedAlerts}
+          routeHistory={routeHistory}
+          selectedRouteDate={selectedRouteDate}
+          onRouteDateChange={handleRouteDateChange}
+          lastNormalLocation={lastNormalLocation}
+          isAlertPanelOpen={isAlertPanelOpen}
+          isMissingReportOpen={isMissingReportOpen}
+          missingDescription={missingDescription}
+          setMissingDescription={setMissingDescription}
+          missingImagePreview={missingImagePreview}
+          isSubmittingMissingReport={isSubmittingMissingReport}
+          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          onCloseAlertPanel={() => setIsAlertPanelOpen(false)}
+          onReadAlert={handleReadAlert}
+          onOpenEmergencyReport={handleOpenEmergencyReport}
+          onOpenMissingReport={() => setIsMissingReportOpen(true)}
+          onCloseMissingReport={() => setIsMissingReportOpen(false)}
+          onMissingImageChange={handleMissingImageChange}
+          onCreateMissingReport={handleCreateMissingReport}
+        />
       </section>
-
-      {isAlertPanelOpen && (
-        <div className="alert-panel-backdrop" onClick={() => setIsAlertPanelOpen(false)}>
-          <section className="alert-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="alert-panel-header">
-              <div>
-                <h2>전체 알림</h2>
-                <p>그동안 도착한 보호자 알림입니다.</p>
-              </div>
-
-              <button
-                className="alert-panel-close"
-                type="button"
-                onClick={() => setIsAlertPanelOpen(false)}
-              >
-                닫기
-              </button>
-            </div>
-
-            <div className="alert-panel-list">
-              {displayedAlerts.length === 0 ? (
-                <p className="alert-empty">도착한 알림이 없습니다.</p>
-              ) : (
-                displayedAlerts.map((alert) => (
-                  <article key={alert.id} className="alert-panel-item">
-                    <div>
-                      <strong>{alert.message}</strong>
-                      <span>{alert.time}</span>
-                    </div>
-
-                    {alert.status === "미확인" ? (
-                      <button
-                        className="alert-read-button"
-                        type="button"
-                        onClick={() => handleReadAlert(alert.id)}
-                      >
-                        확인
-                      </button>
-                    ) : (
-                      <em className="read">확인됨</em>
-                    )}
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {isMissingReportOpen && (
-        <div className="missing-modal-backdrop" onClick={() => setIsMissingReportOpen(false)}>
-          <section className="missing-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="missing-modal-header">
-              <div>
-                <h2>실종 신고 상세 입력</h2>
-                <p>마지막 위치와 보호자 메모를 함께 등록합니다.</p>
-              </div>
-
-              <button
-                className="missing-modal-close"
-                type="button"
-                onClick={() => setIsMissingReportOpen(false)}
-              >
-                닫기
-              </button>
-            </div>
-
-            <div className="missing-report-form">
-              <label>
-                대상자
-                <input value={`${selectedElder.name} (${selectedElder.relation})`} readOnly />
-              </label>
-
-              <label>
-                마지막 목격 위치
-                <input value={lastNormalLocation.address} readOnly />
-              </label>
-
-              <label>
-                실종자 사진
-                <div className="missing-image-upload">
-                  {missingImagePreview ? (
-                    <img src={missingImagePreview} alt="실종 신고 사진 미리보기" />
-                  ) : (
-                    <span>사진을 선택하세요</span>
-                  )}
-
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleMissingImageChange}
-                  />
-                </div>
-              </label>
-
-              <label>
-                상세 설명
-                <textarea
-                  value={missingDescription}
-                  onChange={(event) => setMissingDescription(event.target.value)}
-                  placeholder="착의, 마지막 목격 상황, 특이사항을 입력하세요."
-                  rows={6}
-                />
-              </label>
-
-              <div className="missing-modal-actions">
-                <button
-                  className="missing-cancel-button"
-                  type="button"
-                  onClick={() => setIsMissingReportOpen(false)}
-                >
-                  취소
-                </button>
-
-                <button
-                  className="missing-submit-button"
-                  type="button"
-                  onClick={handleCreateMissingReport}
-                  disabled={isSubmittingMissingReport}
-                >
-                  {isSubmittingMissingReport ? "등록 중..." : "실종 신고 등록"}
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
     </main>
+  );
+}
+
+function GuardianHeader({ guardian, unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
+  return (
+    <header className="guardian-header">
+      <div className="brand-area">
+        <div className="logo-box">우리</div>
+        <strong className="service-name">우리</strong>
+        <span className="guardian-name">
+          보호자{guardian?.name ? `: ${guardian.name}` : ""}
+        </span>
+      </div>
+
+      <div className="header-actions">
+        <button className="icon-button" type="button" onClick={onOpenAlertPanel}>
+          알림
+          <span className="alarm-count">{unreadAlertCount}</span>
+        </button>
+
+        <button className="danger-button" type="button" onClick={onOpenEmergencyReport}>
+          긴급 신고
+        </button>
+      </div>
+    </header>
   );
 }
 

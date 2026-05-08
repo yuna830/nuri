@@ -398,9 +398,41 @@ export default function UserPage() {
     loadSchedulesByDate(selectedScheduleDate);
   }, [selectedScheduleDate]);
 
-  const confirmSOS = () => {
-    setShowSOS(false);
-    setTimeout(() => alert("보호자에게 SOS를 전송했습니다."), 150);
+  const confirmSOS = async () => {
+    try {
+      const saved = sessionStorage.getItem("currentSenior");
+
+      if (!saved) {
+        alert("사용자 정보를 찾을 수 없습니다.");
+        return;
+      }
+
+      const profile = JSON.parse(saved);
+      const seniorId = profile?.senior?.id;
+
+      if (!seniorId) {
+        alert("사용자 ID를 찾을 수 없습니다.");
+        return;
+      }
+
+      await fetch("http://localhost:8181/api/alerts/sos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          seniorId,
+          latitude: null,
+          longitude: null,
+        }),
+      });
+
+      setShowSOS(false);
+      setTimeout(() => alert("보호자에게 SOS를 전송했습니다."), 150);
+    } catch (error) {
+      console.error("SOS 전송 실패:", error);
+      alert("SOS 전송에 실패했습니다. 보호자 연결 상태를 확인해주세요.");
+    }
   };
 
   const openAllSchedules = async () => {

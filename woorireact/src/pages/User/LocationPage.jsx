@@ -12,19 +12,99 @@ import {
   loadLocationHistory,
   saveLocationHistory,
 } from "../../utils/user/locationPageUtils";
+import { getDistanceMeters } from "../../utils/guardian/location";
 import "../../css/user/LocationPage.css";
+
+const DEFAULT_SAFE_ZONE = {
+  name: "자택",
+  address: "안전 반경 주소 미설정",
+  centerLatitude: 37.4979,
+  centerLongitude: 127.0276,
+  radiusMeters: SAFE_RADIUS,
+};
+
+const getCurrentSeniorId = () => {
+  try {
+    const savedSenior = sessionStorage.getItem("currentSenior");
+    return savedSenior ? JSON.parse(savedSenior)?.senior?.id ?? null : null;
+  } catch {
+    return null;
+  }
+};
 
 export default function LocationPage() {
   const navigate = useNavigate();
   const [currentPos, setCurrentPos] = useState(null);
+  const [safeZone, setSafeZone] = useState(DEFAULT_SAFE_ZONE);
   const [address, setAddress] = useState("불러오는 중...");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isInRange] = useState(true);
   const [lastUpdate, setLastUpdate] = useState("--:--");
   const [coords, setCoords] = useState(null);
   const [history, setHistory] = useState(loadLocationHistory);
   const lastAddressRef = useRef("");
+
+  const isInRange = currentPos
+    ? getDistanceMeters(
+        {
+          lat: safeZone.centerLatitude,
+          lng: safeZone.centerLongitude,
+        },
+        {
+          lat: currentPos[0],
+          lng: currentPos[1],
+        }
+      ) <= safeZone.radiusMeters
+    : true;
+
+  const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
+    const seniorId = getCurrentSeniorId();
+
+    if (!seniorId) {
+      return;
+    }
+
+    await fetch("http://localhost:8181/api/locations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        seniorId,
+        latitude: lat,
+        longitude: lon,
+        address: nextAddress,
+      }),
+    });
+  };
+
+  const loadSafeZone = useCallback(async () => {
+    const seniorId = getCurrentSeniorId();
+
+    if (!seniorId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8181/api/safe-zones/senior/${seniorId}`);
+
+      if (!response.ok || response.status === 204) {
+        return;
+      }
+
+      const nextSafeZone = await response.json();
+
+      setSafeZone({
+        name: nextSafeZone.name || "자택",
+        address: nextSafeZone.address || "안전 반경 주소 미설정",
+        centerLatitude: nextSafeZone.centerLatitude ?? DEFAULT_SAFE_ZONE.centerLatitude,
+        centerLongitude: nextSafeZone.centerLongitude ?? DEFAULT_SAFE_ZONE.centerLongitude,
+        radiusMeters: nextSafeZone.radiusMeters ?? SAFE_RADIUS,
+      });
+    } catch (error) {
+      console.error("안전 반경 조회 실패:", error);
+    }
+  }, []);
 
   const updateLocation = useCallback(async (lat, lon) => {
     setCurrentPos([lat, lon]);
@@ -33,6 +113,12 @@ export default function LocationPage() {
 
     const nextAddress = await getAddress(lat, lon);
     setAddress(nextAddress);
+
+    try {
+      await saveCurrentLocation({ lat, lon, nextAddress });
+    } catch (error) {
+      console.error("현재 위치 저장 실패:", error);
+    }
 
     if (nextAddress !== lastAddressRef.current) {
       lastAddressRef.current = nextAddress;
@@ -66,6 +152,10 @@ export default function LocationPage() {
       }
     );
   }, [updateLocation]);
+
+  useEffect(() => {
+    loadSafeZone();
+  }, [loadSafeZone]);
 
   useEffect(() => {
     getLocation();
@@ -146,8 +236,8 @@ export default function LocationPage() {
                 />
 
                 <Circle
-                  center={currentPos}
-                  radius={SAFE_RADIUS}
+                  center={[safeZone.centerLatitude, safeZone.centerLongitude]}
+                  radius={safeZone.radiusMeters}
                   pathOptions={{
                     color: "#86A788",
                     fillColor: "#86A788",
@@ -222,9 +312,14 @@ export default function LocationPage() {
               <span>🛡 안전 반경 설정</span>
             </div>
 
+            <div className="lp-safe-zone-place">
+              <strong>{safeZone.name}</strong>
+              <span>{safeZone.address}</span>
+            </div>
+
             <div className="lp-range-main">
               <div>
-                <div className="lp-range-val">{SAFE_RADIUS}</div>
+                <div className="lp-range-val">{safeZone.radiusMeters}</div>
                 <div className="lp-range-unit">미터 (m)</div>
               </div>
 

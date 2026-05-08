@@ -86,6 +86,10 @@
   transform: rotate(20deg);
 }
 
+.map-icon-button.spinning svg {
+  animation: guardian-spin 0.8s linear infinite;
+}
+
 .safe-circle {
   position: absolute;
   width: 310px;
