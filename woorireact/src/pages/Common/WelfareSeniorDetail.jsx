@@ -133,6 +133,68 @@ function WelfareSeniorDetail(){
     };
 
     const detail = getDetail(senior);
+    const detailSections = senior
+        ? [
+            {
+                title : "기본 정보",
+                items : [
+                    { label : "이름", value : senior.name },
+                    { label : "나이/성별", value : formatAgeGender(senior) },
+                    { label : "연락처", value : detail.phone },
+                    { label : "주소", value : detail.address },
+                ],
+            },
+            {
+                title : "보호자 정보",
+                items : [
+                    { label : "보호자 이름", value : detail.guardianName },
+                    { label : "보호자 연락처", value : detail.guardianPhone },
+                    { label : "관계", value : detail.guardianRelation },
+                ],
+            },
+            {
+                title : "건강 정보",
+                items : [
+                    { label : "건강 상태", value : senior.healthStatus },
+                    { label : "기저질환", value : detail.diseaseInfo },
+                    { label : "복약정보", value : detail.medicationInfo },
+                    { label : "보행 가능 여부", value : detail.walkingStatus },
+                ],
+            },
+            {
+                title : "신체 정보",
+                items : [
+                    { label : "시력", value : detail.visionStatus },
+                    { label : "청력", value : detail.hearingStatus },
+                    { label : "손 사용 능력", value : detail.handUseStatus },
+                    { label : "근무 가능 시간", value : detail.availableWorkTime },
+                ],
+            },
+            {
+                title : "위치 정보",
+                items : [
+                    { label : "현재 위치", value : detail.currentLocation },
+                    { label : "자주 가는 장소", value : detail.frequentPlace },
+                    { label : "안심구역", value : detail.safeZone },
+                    { label : "위치 상태", value : senior.locationStatus },
+                ],
+            },
+            {
+                title : "일자리 정보",
+                items : [
+                    { label : "추천받은 일자리", value : detail.recommendedJob },
+                    { label : "일자리 매칭 상태", value : senior.jobStatus },
+                    { label : "복지사 판단", value : senior.welfareDecision },
+                ],
+            },
+            {
+                title : "상담 기록",
+                items : [
+                    { label : "복지사가 남긴 메모", value : detail.counselingMemo },
+                ],
+            },
+        ]
+        : [];
 
     return (
         <div style = {styles.page}>
@@ -167,58 +229,27 @@ function WelfareSeniorDetail(){
 
                 {senior && (
                     <>
-                        <div style = {styles.detailGrid}>
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>기본 정보</h2>
-                                <p style = {styles.detailText}>이름 : {senior.name}</p>
-                                <p style = {styles.detailText}>나이/성별 : {formatAgeGender(senior)}</p>
-                                <p style = {styles.detailText}>연락처 : {detail.phone}</p>
-                                <p style = {styles.detailText}>주소 : {detail.address}</p>
-                            </section>
-
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>보호자 정보</h2>
-                                <p style = {styles.detailText}>보호자 이름 : {detail.guardianName}</p>
-                                <p style = {styles.detailText}>보호자 연락처 : {detail.guardianPhone}</p>
-                                <p style = {styles.detailText}>관계 : {detail.guardianRelation}</p>
-                            </section>
-
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>건강 정보</h2>
-                                <p style = {styles.detailText}>건강 상태 : {senior.healthStatus}</p>
-                                <p style = {styles.detailText}>기저질환 : {detail.diseaseInfo}</p>
-                                <p style = {styles.detailText}>복약정보 : {detail.medicationInfo}</p>
-                                <p style = {styles.detailText}>보행 가능 여부 : {detail.walkingStatus}</p>
-                            </section>
-
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>신체 정보</h2>
-                                <p style = {styles.detailText}>시력 : {detail.visionStatus}</p>
-                                <p style = {styles.detailText}>청력 : {detail.hearingStatus}</p>
-                                <p style = {styles.detailText}>손 사용 능력 : {detail.handUseStatus}</p>
-                                <p style = {styles.detailText}>근무 가능 시간 : {detail.availableWorkTime}</p>
-                            </section>
-
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>위치 정보</h2>
-                                <p style = {styles.detailText}>현재 위치 : {detail.currentLocation}</p>
-                                <p style = {styles.detailText}>자주 가는 장소 : {detail.frequentPlace}</p>
-                                <p style = {styles.detailText}>안심구역 : {detail.safeZone}</p>
-                                <p style = {styles.detailText}>위치 상태 : {senior.locationStatus}</p>
-                            </section>
-
-                            <section style = {styles.detailSection}>
-                                <h2 style = {styles.sectionTitle}>일자리 정보</h2>
-                                <p style = {styles.detailText}>추천받은 일자리 : {detail.recommendedJob}</p>
-                                <p style = {styles.detailText}>일자리 매칭 상태 : {senior.jobStatus}</p>
-                                <p style = {styles.detailText}>복지사 판단 : {senior.welfareDecision}</p>
-                            </section>
+                        <div style = {styles.detailList}>
+                            {detailSections.map((section) => (
+                                <section
+                                    key = {section.title}
+                                    style = {styles.detailSection}
+                                >
+                                    <h2 style = {styles.sectionTitle}>{section.title}</h2>
+                                    <div style = {styles.sectionFields}>
+                                        {section.items.map((item) => (
+                                            <div
+                                                key = {`${section.title}-${item.label}`}
+                                                style = {styles.detailRow}
+                                            >
+                                                <span style = {styles.detailLabel}>{item.label}</span>
+                                                <strong style = {styles.detailValue}>{item.value}</strong>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            ))}
                         </div>
-
-                        <section style = {styles.memoBox}>
-                            <h2 style = {styles.sectionTitle}>상담 기록</h2>
-                            <p style = {styles.detailText}>복지사가 남긴 메모 : {detail.counselingMemo}</p>
-                        </section>
 
                         <div style = {styles.decisionBar}>
                             <button type = "button" style = {styles.smallButton} onClick = {() => handleDecision("적합")}>
@@ -318,31 +349,47 @@ const styles = {
         flexWrap : "wrap",
         justifyContent : "flex-end",
     },
-    detailGrid : {
+    detailList : {
         display : "grid",
-        gridTemplateColumns : "repeat(2, minmax(0, 1fr))",
-        gap : "12px",
+        gridTemplateColumns : "1fr",
+        gap : "14px",
     },
     detailSection : {
         backgroundColor : "white",
         border : "1px solid var(--border-color)",
         borderRadius : "8px",
-        padding : "14px",
+        padding : "22px 24px",
+        boxSizing : "border-box",
     },
     sectionTitle : {
-        margin : "0 0 10px",
-        fontSize : "16px",
+        margin : "0 0 18px",
+        fontSize : "22px",
+        fontWeight : "800",
     },
-    detailText : {
-        margin : "6px 0",
-        fontSize : "14px",
+    sectionFields : {
+        display : "grid",
+        gridTemplateColumns : "1fr",
+        gap : "14px",
     },
-    memoBox : {
-        marginTop : "12px",
-        backgroundColor : "white",
-        border : "1px solid var(--border-color)",
-        borderRadius : "8px",
-        padding : "14px",
+    detailRow : {
+        display : "grid",
+        gridTemplateColumns : "180px minmax(0, 1fr)",
+        alignItems : "center",
+        gap : "18px",
+        padding : "14px 0",
+        borderTop : "1px solid var(--border-color)",
+    },
+    detailLabel : {
+        color : "#666",
+        fontSize : "15px",
+        fontWeight : "700",
+    },
+    detailValue : {
+        color : "var(--text-color)",
+        fontSize : "21px",
+        fontWeight : "700",
+        lineHeight : "1.45",
+        wordBreak : "keep-all",
     },
     decisionBar : {
         display : "flex",
