@@ -96,6 +96,67 @@ public class GuardianController {
         );
     }
 
+    @PostMapping("/{guardianId}/seniors")
+    public GuardianSenior connectSenior(
+            @PathVariable Long guardianId,
+            @RequestBody GuardianSeniorConnectRequest request
+    ) {
+        guardianRepository.findById(guardianId)
+                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+
+        seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (guardianSeniorRepository.existsByGuardianIdAndSeniorId(guardianId, request.seniorId())) {
+            throw new RuntimeException("Already connected senior");
+        }
+
+        GuardianSenior guardianSenior = new GuardianSenior();
+        guardianSenior.setGuardianId(guardianId);
+        guardianSenior.setSeniorId(request.seniorId());
+        guardianSenior.setRelation(request.relation());
+
+        return guardianSeniorRepository.save(guardianSenior);
+    }
+
+    @PostMapping("/{guardianId}/seniors/new")
+    public GuardianSenior createAndConnectSenior(
+            @PathVariable Long guardianId,
+            @RequestBody GuardianSeniorCreateRequest request
+    ) {
+        guardianRepository.findById(guardianId)
+                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+
+        Senior senior = new Senior();
+        senior.setName(request.name());
+        senior.setPhone(request.phone());
+        senior.setAddress(request.region());
+        senior.setRegion(request.region());
+
+        Senior savedSenior = seniorRepository.save(senior);
+
+        GuardianSenior guardianSenior = new GuardianSenior();
+        guardianSenior.setGuardianId(guardianId);
+        guardianSenior.setSeniorId(savedSenior.getId());
+        guardianSenior.setRelation(request.relation());
+
+        return guardianSeniorRepository.save(guardianSenior);
+    }
+
+    public record GuardianSeniorConnectRequest(
+            Long seniorId,
+            String relation
+    ) {
+    }
+
+    public record GuardianSeniorCreateRequest(
+            String name,
+            String phone,
+            String region,
+            String relation
+    ) {
+    }
+
     private String hashPassword(String password) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

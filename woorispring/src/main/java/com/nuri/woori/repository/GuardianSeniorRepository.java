@@ -9,4 +9,6 @@ public interface GuardianSeniorRepository extends JpaRepository<GuardianSenior, 
     List<GuardianSenior> findByGuardianId(Long guardianId);
 
     List<GuardianSenior> findBySeniorId(Long seniorId);
+
+    boolean existsByGuardianIdAndSeniorId(Long guardianId, Long seniorId);
 }
