@@ -154,30 +154,33 @@ export default function SignUp() {
       return;
     }
 
-    try {
-      const response = await fetch("http://localhost:8181/api/seniors", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+    const response = await fetch("http://localhost:8080/api/seniors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(form),
+    });
 
-      if (!response.ok) {
-        setError("회원가입 저장에 실패했습니다. 백엔드 서버를 확인해주세요.");
-        return;
-      }
+    const data = await response.json();
+    const senior = data.senior;
 
-      const savedProfile = await response.json();
-
-      sessionStorage.setItem("currentSenior", JSON.stringify(savedProfile));
-      localStorage.removeItem("login_temp");
-
-      navigate("/user");
-    } catch (error) {
-      setError("서버에 연결할 수 없습니다. Spring 서버가 8181 포트로 실행 중인지 확인해주세요.");
+    if (senior?.id) {
+      localStorage.setItem("current_senior_id", String(senior.id));
+      localStorage.setItem(
+        "user_profile",
+        JSON.stringify({
+          ...form,
+          id: senior.id,
+          name: senior.name || form.name,
+          region: senior.region || form.region,
+        })
+      );
     }
-  };
+
+    localStorage.removeItem("login_temp");
+    navigate("/user");
+
 
   return (
     <div className="su-root">
@@ -586,3 +589,5 @@ export default function SignUp() {
     </div>
   );
 }
+}
+
