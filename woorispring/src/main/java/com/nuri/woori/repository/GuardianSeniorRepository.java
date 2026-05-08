@@ -7,4 +7,8 @@ import java.util.List;
 
 public interface GuardianSeniorRepository extends JpaRepository<GuardianSenior, Long> {
     List<GuardianSenior> findByGuardianId(Long guardianId);
+
+    List<GuardianSenior> findBySeniorId(Long seniorId);
+
+    boolean existsByGuardianIdAndSeniorId(Long guardianId, Long seniorId);
 }

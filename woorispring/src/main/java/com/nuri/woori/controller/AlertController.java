@@ -1,7 +1,11 @@
 package com.nuri.woori.controller;
 
 import com.nuri.woori.entity.Alert;
+import com.nuri.woori.entity.GuardianSenior;
+import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.AlertRepository;
+import com.nuri.woori.repository.GuardianSeniorRepository;
+import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,9 +16,17 @@ import java.util.List;
 public class AlertController {
 
     private final AlertRepository alertRepository;
+    private final GuardianSeniorRepository guardianSeniorRepository;
+    private final SeniorRepository seniorRepository;
 
-    public AlertController(AlertRepository alertRepository) {
+    public AlertController(
+            AlertRepository alertRepository,
+            GuardianSeniorRepository guardianSeniorRepository,
+            SeniorRepository seniorRepository
+    ) {
         this.alertRepository = alertRepository;
+        this.guardianSeniorRepository = guardianSeniorRepository;
+        this.seniorRepository = seniorRepository;
     }
 
     @GetMapping
@@ -32,6 +44,35 @@ public class AlertController {
         return alertRepository.findBySeniorIdOrderByCreatedAtDesc(seniorId);
     }
 
+    @PostMapping("/sos")
+    public List<Alert> createSosAlert(@RequestBody SosAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("SOS");
+                    alert.setTitle("SOS 도움 요청");
+                    alert.setMessage(senior.getName() + "님이 SOS 도움을 요청했습니다.");
+                    alert.setLatitude(request.latitude());
+                    alert.setLongitude(request.longitude());
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)
@@ -39,5 +80,12 @@ public class AlertController {
 
         alert.setIsRead(true);
         return alertRepository.save(alert);
+    }
+
+    public record SosAlertRequest(
+            Long seniorId,
+            Double latitude,
+            Double longitude
+    ) {
     }
 }
