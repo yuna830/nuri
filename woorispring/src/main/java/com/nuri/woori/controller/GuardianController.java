@@ -6,6 +6,7 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -141,6 +142,20 @@ public class GuardianController {
         guardianSenior.setRelation(request.relation());
 
         return guardianSeniorRepository.save(guardianSenior);
+    }
+
+    @DeleteMapping("/{guardianId}/seniors/{seniorId}")
+    public ResponseEntity<Void> disconnectSenior(
+            @PathVariable Long guardianId,
+            @PathVariable Long seniorId
+    ) {
+        GuardianSenior guardianSenior = guardianSeniorRepository
+                .findByGuardianIdAndSeniorId(guardianId, seniorId)
+                .orElseThrow(() -> new RuntimeException("Connected senior not found"));
+
+        guardianSeniorRepository.delete(guardianSenior);
+
+        return ResponseEntity.noContent().build();
     }
 
     public record GuardianSeniorConnectRequest(

@@ -35,7 +35,7 @@ function EmergencyPanel({
             {displayedAlerts.length === 0 ? (
               <p className="alert-empty">최근 알림이 없습니다.</p>
             ) : (
-              displayedAlerts.slice(0, 3).map((alert) => (
+              displayedAlerts.map((alert) => (
                 <article key={alert.id} className="alert-item warning">
                   <strong>{alert.time}</strong>
                   <span>{alert.message}</span>

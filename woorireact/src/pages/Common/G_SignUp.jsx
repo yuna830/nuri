@@ -47,7 +47,7 @@ export default function GuardianSignUp() {
 
     setError("");
 
-    const response = await fetch("http://localhost:8080/api/guardians/signup", {
+    const response = await fetch("http://localhost:8181/api/guardians/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
