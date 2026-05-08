@@ -9,6 +9,18 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      '/health': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/health/, ''),
+        secure: false,
+      },
+      '/airkorea': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/airkorea/, ''),
+        secure: false,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
