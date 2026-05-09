@@ -25,6 +25,8 @@ public class Senior {
     private String region;
     private String emergencyPhone;
     private String disabilityGrade;
+    private String disabilityType;
+    private String profileImageUrl;
 
     private LocalDateTime createdAt = LocalDateTime.now();
 }

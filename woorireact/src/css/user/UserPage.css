@@ -97,11 +97,18 @@
   height: 52px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.6rem;
   margin-bottom: 0.8rem;
+}
+
+.up-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .up-profile-name {
@@ -563,6 +570,51 @@
 .up-modal-ok {
   background: #e05252;
   color: #ffffff;
+}
+
+.up-sos-pending {
+  position: fixed;
+  left: 50%;
+  bottom: 1.4rem;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 2rem));
+  background: #fff;
+  border: 1px solid #f5c6c6;
+  border-left: 5px solid #e05252;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(30, 42, 31, 0.18);
+  padding: 1rem;
+  z-index: 180;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.up-sos-pending strong {
+  display: block;
+  color: #1e2a1f;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.up-sos-pending p {
+  color: #7a9a7c;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.up-sos-pending button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  background: #e05252;
+  color: #fff;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

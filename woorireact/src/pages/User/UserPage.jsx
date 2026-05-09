@@ -6,6 +6,7 @@ import {
   menus,
   schedules,
 } from "../../utils/user/userPageData";
+import { createSosAlert, createSosCancelAlert, fetchLatestClimateAlerts, getCurrentSeniorId as getSavedSeniorId, resolveUploadUrl } from "../../api/userPageApi.js";
 import "../../css/user/UserPage.css";
 
 const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
@@ -146,9 +147,11 @@ export default function UserPage() {
   const [weather, setWeather] = useState(null);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
+  const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
+  const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -191,6 +194,19 @@ export default function UserPage() {
 
   const fetchWeatherAlerts = async () => {
     try {
+      const seniorId = getSavedSeniorId();
+      const savedAlerts = seniorId ? await fetchLatestClimateAlerts(seniorId).catch(() => []) : [];
+      if (savedAlerts.length > 0) {
+        const colors = { danger: COLORS.danger, warning: "#f0a500", caution: "#f0a500", safe: COLORS.green };
+        setWeatherAlerts(savedAlerts.slice(0, 3).map(alert => ({
+          type: alert.type || "기후",
+          color: colors[alert.level] || COLORS.green,
+          msg: alert.message,
+          time: alert.issuedAt ? alert.issuedAt.slice(11, 16) : "-",
+        })));
+        return;
+      }
+
       const now = new Date();
       const pad = (n) => String(n).padStart(2, "0");
       const fromTm = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}0000`;
@@ -304,6 +320,7 @@ export default function UserPage() {
           const profile = JSON.parse(saved);
           setUserName(profile?.senior?.name || "사용자");
           setUserRegion(profile?.senior?.region || profile?.senior?.address || "");
+          setProfileImageUrl(profile?.senior?.profileImageUrl || "");
           setHealthScores(getHealthScoresFromProfile(profile));
           return;
         }
@@ -316,6 +333,7 @@ export default function UserPage() {
         localStorage.setItem("current_senior_id", String(latest.senior.id));
         setUserName(latest?.senior?.name || "사용자");
         setUserRegion(latest?.senior?.region || latest?.senior?.address || "");
+        setProfileImageUrl(latest?.senior?.profileImageUrl || "");
         setHealthScores(getHealthScoresFromProfile(latest));
       } catch (e) {
         console.error("사용자 정보 조회 실패:", e);
@@ -347,22 +365,42 @@ export default function UserPage() {
 
   const confirmSOS = async () => {
     setShowSOS(false);
-    // SOS 알림 서버 전송
+    const seniorId = getCurrentSeniorId(initialSenior);
+
+    if (!seniorId) {
+      alert("사용자 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    try {
+      await createSosAlert({
+        seniorId: Number(seniorId),
+        latitude: currentPos?.lat,
+        longitude: currentPos?.lon,
+      });
+      localStorage.setItem("pending_sos", "true");
+      setPendingSos(true);
+    } catch (error) {
+      console.error("SOS 전송 실패:", error);
+      alert("SOS 전송에 실패했습니다. 보호자에게 직접 연락해주세요.");
+    }
+  };
+
+  const handleSosMistake = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
     if (seniorId) {
-      await fetch(`http://localhost:8181/api/alerts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seniorId,
-          message: "SOS 도움 요청",
-          type: "SOS",
-          latitude: currentPos?.lat,
-          longitude: currentPos?.lon,
-        }),
-      }).catch(() => {});
+      await createSosCancelAlert({
+        seniorId: Number(seniorId),
+        latitude: currentPos?.lat,
+        longitude: currentPos?.lon,
+      }).catch((error) => {
+        console.error("SOS 잘못 누름 알림 실패:", error);
+      });
     }
-    setTimeout(() => alert("보호자에게 SOS를 전송했습니다."), 150);
+
+    localStorage.removeItem("pending_sos");
+    setPendingSos(false);
+    alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
 
   const openAllSchedules = async () => {
@@ -397,7 +435,13 @@ export default function UserPage() {
       <div className="up-layout">
         <aside>
           <div className="up-profile-card">
-            <div className="up-profile-avatar">👤</div>
+            <div className="up-profile-avatar">
+              {profileImageUrl ? (
+                <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
+              ) : (
+                "👤"
+              )}
+            </div>
             <div className="up-profile-name">{userName}님</div>
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {userRegion}</div>}
@@ -626,6 +670,18 @@ export default function UserPage() {
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {pendingSos && (
+        <div className="up-sos-pending">
+          <div>
+            <strong>SOS가 보호자에게 전송됐어요</strong>
+            <p>실수로 누르셨다면 아래 버튼을 눌러 표시를 닫아주세요.</p>
+          </div>
+          <button type="button" onClick={handleSosMistake}>
+            잘못 눌렀어요
+          </button>
         </div>
       )}
 

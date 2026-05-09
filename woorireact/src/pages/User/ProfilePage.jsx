@@ -13,12 +13,14 @@ import {
   formToProfile,
   calcBMI,
 } from "../../utils/user/profileForm.js";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [form, setForm] = useState(defaultForm);
   const [saved, setSaved] = useState(false);
   const [activeSection, setActiveSection] = useState("personal");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -65,6 +67,23 @@ export default function ProfilePage() {
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
 
+  const handleProfileImageChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingPhoto(true);
+      const { imageUrl } = await uploadProfileImage(file);
+      set("profileImageUrl", imageUrl);
+    } catch (error) {
+      console.error("프로필 사진 업로드 실패:", error);
+      alert("프로필 사진 업로드에 실패했습니다.");
+    } finally {
+      setUploadingPhoto(false);
+      event.target.value = "";
+    }
+  };
+
   const handleSave = async () => {
     try {
       const savedCurrentSenior = sessionStorage.getItem("currentSenior");
@@ -99,6 +118,26 @@ export default function ProfilePage() {
         return (
           <section className="pr-section">
             <div className="pr-section-title">인적사항</div>
+            <div className="pr-photo-row">
+              <div className="pr-photo-preview">
+                {form.profileImageUrl ? (
+                  <img src={resolveUploadUrl(form.profileImageUrl)} alt="프로필 사진" />
+                ) : (
+                  <span>사진</span>
+                )}
+              </div>
+              <div className="pr-photo-actions">
+                <label className="pr-photo-btn">
+                  {uploadingPhoto ? "업로드 중..." : "사진 선택"}
+                  <input type="file" accept="image/*" onChange={handleProfileImageChange} disabled={uploadingPhoto} />
+                </label>
+                {form.profileImageUrl && (
+                  <button className="pr-photo-remove" type="button" onClick={() => set("profileImageUrl", "")}>
+                    사진 삭제
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="pr-field">
               <label className="pr-label">이름</label>
               <input className="pr-input" value={form.name} onChange={(e) => set("name", e.target.value)} />

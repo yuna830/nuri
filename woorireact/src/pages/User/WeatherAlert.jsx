@@ -1,41 +1,50 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { COLD_ACTIONS, DUMMY_ALERTS, LEVELS, getWorstAlert, hasHighRiskAlert } from "../../utils/user/weatherAlertData";
+import { fetchTodayClimateAlerts, getCurrentSeniorId, saveClimateAlert } from "../../api/userPageApi.js";
 import "../../css/user/WeatherAlert.css";
 
 const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-const STORAGE_KEY = "weather_alerts_cache";
-
-const loadCachedAlerts = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return [];
-    const { date, alerts } = JSON.parse(saved);
-    const today = new Date().toISOString().slice(0, 10);
-    if (date !== today) {
-      localStorage.removeItem(STORAGE_KEY);
-      return [];
-    }
-    return alerts;
-  } catch {
-    return [];
-  }
-};
-
-const saveCachedAlerts = (alerts) => {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, alerts }));
-  } catch {}
-};
-
 export default function WeatherAlert() {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState(loadCachedAlerts);
+  const [alerts, setAlerts] = useState([]);
   const [lastFetched, setLastFetched] = useState(null);
   const [fetching, setFetching] = useState(false);
   const intervalRef = useRef(null);
+
+  const toViewAlert = (alert) => ({
+    id: alert.eventId || alert.id,
+    type: alert.type,
+    level: alert.level,
+    message: alert.message,
+    time: alert.issuedAt
+      ? alert.issuedAt.replace("T", " ").slice(0, 16)
+      : alert.createdAt?.replace("T", " ").slice(0, 16),
+    fetchTime: alert.issuedAt?.slice(11, 16) || "",
+    region: alert.region,
+  });
+
+  const persistAlert = async (alert) => {
+    const seniorId = getCurrentSeniorId();
+    if (!seniorId) return;
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    const alertDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const issuedAt = `${alertDate}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    await saveClimateAlert({
+      seniorId,
+      eventId: String(alert.id),
+      type: alert.type,
+      level: alert.level,
+      message: alert.message,
+      region: alert.region,
+      source: "KMA",
+      alertDate,
+      issuedAt,
+    }).catch(() => {});
+  };
 
   const fetchAlerts = async () => {
     try {
@@ -70,7 +79,7 @@ export default function WeatherAlert() {
             region: "서울 전역",
           };
           const updated = [newAlert, ...prev];
-          saveCachedAlerts(updated);
+          persistAlert(newAlert);
           return updated;
         });
         return;
@@ -105,7 +114,7 @@ export default function WeatherAlert() {
         const newOnes = parsed.filter(a => !existingIds.has(a.id));
         if (newOnes.length === 0) return prev;
         const updated = [...newOnes, ...prev];
-        saveCachedAlerts(updated);
+        newOnes.forEach(persistAlert);
         return updated;
       });
 
@@ -117,6 +126,16 @@ export default function WeatherAlert() {
   };
 
   useEffect(() => {
+    const loadSavedAlerts = async () => {
+      const seniorId = getCurrentSeniorId();
+      if (!seniorId) return;
+      const savedAlerts = await fetchTodayClimateAlerts(seniorId).catch(() => []);
+      if (savedAlerts.length > 0) {
+        setAlerts(savedAlerts.map(toViewAlert));
+      }
+    };
+
+    loadSavedAlerts();
     fetchAlerts();
     // 1시간마다 자동 갱신
     intervalRef.current = setInterval(fetchAlerts, 60 * 60 * 1000);
@@ -126,12 +145,6 @@ export default function WeatherAlert() {
   const hasWarning = useMemo(() => hasHighRiskAlert(alerts), [alerts]);
   const worstAlert = useMemo(() => getWorstAlert(alerts), [alerts]);
   const worstLevel = worstAlert ? LEVELS[worstAlert.level] : LEVELS.safe;
-
-  const clearAlerts = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setAlerts([]);
-    fetchAlerts();
-  };
 
   return (
     <div className="wa-root">
@@ -163,21 +176,6 @@ export default function WeatherAlert() {
 
           <div className="wa-section-head">
             <div className="wa-section-label">전체 알림 ({alerts.length}건)</div>
-            <button
-              onClick={clearAlerts}
-              style={{
-                background: "transparent",
-                border: `1px solid #d4e8d6`,
-                borderRadius: "8px",
-                padding: "0.2rem 0.7rem",
-                fontSize: "0.75rem",
-                color: "#7a9a7c",
-                cursor: "pointer",
-                fontFamily: "Noto Sans KR, sans-serif",
-              }}
-            >
-              초기화
-            </button>
           </div>
 
           {alerts.length === 0 ? (

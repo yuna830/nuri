@@ -158,6 +158,67 @@
   border-bottom: 2px solid #b8d4ba;
 }
 
+.pr-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.pr-photo-preview {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 1px solid #d4e8d6;
+  background: #eef6ef;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7a9a7c;
+  font-size: 0.82rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pr-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pr-photo-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pr-photo-btn,
+.pr-photo-remove {
+  border: 1px solid #b8d4ba;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.pr-photo-btn {
+  background: #86a788;
+  color: #fff;
+}
+
+.pr-photo-btn input {
+  display: none;
+}
+
+.pr-photo-remove {
+  background: #fff;
+  color: #7a9a7c;
+}
+
 .pr-field {
   margin-bottom: 1.1rem;
 }

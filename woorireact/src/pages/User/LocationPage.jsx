@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from "react-leaflet";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
@@ -32,18 +32,10 @@ const getCurrentSeniorId = () => {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const loadHistory = () => {
-  try {
-    const saved = localStorage.getItem("location_history_v2");
-    return saved ? JSON.parse(saved) : {};
-  } catch { return {}; }
-};
-
-const saveHistory = (data) => {
-  try {
-    localStorage.setItem("location_history_v2", JSON.stringify(data));
-  } catch {}
-};
+const toHistoryItem = (item) => ({
+  time: item.receivedAt ? item.receivedAt.slice(11, 16) : "--:--",
+  place: item.address || "현재 위치",
+});
 
 export default function LocationPage() {
   const navigate = useNavigate();
@@ -56,7 +48,6 @@ export default function LocationPage() {
   const [coords, setCoords] = useState(null);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [historyByDate, setHistoryByDate] = useState({});
-  const lastAddressRef = useRef("");
 
   const isInRange = currentPos
     ? getDistanceMeters(
@@ -72,10 +63,6 @@ export default function LocationPage() {
       ))
     : 0;
 
-  useEffect(() => {
-    setHistoryByDate(loadHistory());
-  }, []);
-
   const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
@@ -85,6 +72,22 @@ export default function LocationPage() {
       body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
     }).catch(() => {});
   };
+
+  const loadLocationHistory = useCallback(async (date) => {
+    const seniorId = getCurrentSeniorId();
+    if (!seniorId) return;
+    try {
+      const response = await fetch(`http://localhost:8181/api/locations/senior/${seniorId}/date?date=${date}`);
+      const data = response.ok ? await response.json() : [];
+      const list = Array.isArray(data) ? data : [];
+      setHistoryByDate(prev => ({
+        ...prev,
+        [date]: list.map(toHistoryItem).reverse(),
+      }));
+    } catch {
+      setHistoryByDate(prev => ({ ...prev, [date]: [] }));
+    }
+  }, []);
 
   const loadSafeZone = useCallback(async () => {
     const seniorId = getCurrentSeniorId();
@@ -115,26 +118,11 @@ export default function LocationPage() {
 
     try {
       await saveCurrentLocation({ lat, lon, nextAddress });
+      await loadLocationHistory(todayStr());
     } catch {}
 
-    if (nextAddress !== lastAddressRef.current) {
-      lastAddressRef.current = nextAddress;
-      const timeStr = getNow();
-      const today = todayStr();
-
-      setHistoryByDate(prev => {
-        const todayList = prev[today] || [];
-        const updated = {
-          ...prev,
-          [today]: [{ time: timeStr, place: nextAddress }, ...todayList].slice(0, 50),
-        };
-        saveHistory(updated);
-        return updated;
-      });
-    }
-
     setLoading(false);
-  }, []);
+  }, [loadLocationHistory]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -152,19 +140,11 @@ export default function LocationPage() {
 
   useEffect(() => { loadSafeZone(); }, [loadSafeZone]);
   useEffect(() => { getLocation(); }, [getLocation]);
+  useEffect(() => { loadLocationHistory(selectedDate); }, [loadLocationHistory, selectedDate]);
   useEffect(() => {
     const timerId = setInterval(getLocation, 30000);
     return () => clearInterval(timerId);
   }, [getLocation]);
-
-  const clearDayHistory = () => {
-    setHistoryByDate(prev => {
-      const updated = { ...prev };
-      delete updated[selectedDate];
-      saveHistory(updated);
-      return updated;
-    });
-  };
 
   const currentHistory = historyByDate[selectedDate] || [];
 
@@ -359,9 +339,6 @@ export default function LocationPage() {
           <div className="lp-history-card">
             <div className="lp-card-title">
               <span>🗺 이동 이력</span>
-              <button className="lp-clear-btn" type="button" onClick={clearDayHistory}>
-                이날 초기화
-              </button>
             </div>
 
             <div style={{ marginBottom: "0.8rem" }}>
