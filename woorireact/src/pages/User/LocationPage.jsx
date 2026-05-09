@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from "react-leaflet";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -9,8 +9,6 @@ import {
   customLocationIcon,
   getAddress,
   getNow,
-  loadLocationHistory,
-  saveLocationHistory,
 } from "../../utils/user/locationPageUtils";
 import { getDistanceMeters } from "../../utils/guardian/location";
 import "../../css/user/LocationPage.css";
@@ -32,6 +30,21 @@ const getCurrentSeniorId = () => {
   }
 };
 
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+const loadHistory = () => {
+  try {
+    const saved = localStorage.getItem("location_history_v2");
+    return saved ? JSON.parse(saved) : {};
+  } catch { return {}; }
+};
+
+const saveHistory = (data) => {
+  try {
+    localStorage.setItem("location_history_v2", JSON.stringify(data));
+  } catch {}
+};
+
 export default function LocationPage() {
   const navigate = useNavigate();
   const [currentPos, setCurrentPos] = useState(null);
@@ -41,59 +54,45 @@ export default function LocationPage() {
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState("--:--");
   const [coords, setCoords] = useState(null);
-  const [history, setHistory] = useState(loadLocationHistory);
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [historyByDate, setHistoryByDate] = useState({});
   const lastAddressRef = useRef("");
 
   const isInRange = currentPos
     ? getDistanceMeters(
-        {
-          lat: safeZone.centerLatitude,
-          lng: safeZone.centerLongitude,
-        },
-        {
-          lat: currentPos[0],
-          lng: currentPos[1],
-        }
+        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
+        { lat: currentPos[0], lng: currentPos[1] }
       ) <= safeZone.radiusMeters
     : true;
 
+  const distance = currentPos
+    ? Math.round(getDistanceMeters(
+        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
+        { lat: currentPos[0], lng: currentPos[1] }
+      ))
+    : 0;
+
+  useEffect(() => {
+    setHistoryByDate(loadHistory());
+  }, []);
+
   const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
     const seniorId = getCurrentSeniorId();
-
-    if (!seniorId) {
-      return;
-    }
-
+    if (!seniorId) return;
     await fetch("http://localhost:8181/api/locations", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        seniorId,
-        latitude: lat,
-        longitude: lon,
-        address: nextAddress,
-      }),
-    });
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
+    }).catch(() => {});
   };
 
   const loadSafeZone = useCallback(async () => {
     const seniorId = getCurrentSeniorId();
-
-    if (!seniorId) {
-      return;
-    }
-
+    if (!seniorId) return;
     try {
       const response = await fetch(`http://localhost:8181/api/safe-zones/senior/${seniorId}`);
-
-      if (!response.ok || response.status === 204) {
-        return;
-      }
-
+      if (!response.ok || response.status === 204) return;
       const nextSafeZone = await response.json();
-
       setSafeZone({
         name: nextSafeZone.name || "자택",
         address: nextSafeZone.address || "안전 반경 주소 미설정",
@@ -101,8 +100,8 @@ export default function LocationPage() {
         centerLongitude: nextSafeZone.centerLongitude ?? DEFAULT_SAFE_ZONE.centerLongitude,
         radiusMeters: nextSafeZone.radiusMeters ?? SAFE_RADIUS,
       });
-    } catch (error) {
-      console.error("안전 반경 조회 실패:", error);
+    } catch (e) {
+      console.error("안전 반경 조회 실패:", e);
     }
   }, []);
 
@@ -116,17 +115,20 @@ export default function LocationPage() {
 
     try {
       await saveCurrentLocation({ lat, lon, nextAddress });
-    } catch (error) {
-      console.error("현재 위치 저장 실패:", error);
-    }
+    } catch {}
 
     if (nextAddress !== lastAddressRef.current) {
       lastAddressRef.current = nextAddress;
       const timeStr = getNow();
+      const today = todayStr();
 
-      setHistory((prev) => {
-        const updated = [{ time: timeStr, place: nextAddress }, ...prev].slice(0, 20);
-        saveLocationHistory(updated);
+      setHistoryByDate(prev => {
+        const todayList = prev[today] || [];
+        const updated = {
+          ...prev,
+          [today]: [{ time: timeStr, place: nextAddress }, ...todayList].slice(0, 50),
+        };
+        saveHistory(updated);
         return updated;
       });
     }
@@ -140,36 +142,31 @@ export default function LocationPage() {
       setLoading(false);
       return;
     }
-
     setLoading(true);
     setError(null);
-
     navigator.geolocation.getCurrentPosition(
       (position) => updateLocation(position.coords.latitude, position.coords.longitude),
-      () => {
-        setError("위치 권한을 허용해주세요.");
-        setLoading(false);
-      }
+      () => { setError("위치 권한을 허용해주세요."); setLoading(false); }
     );
   }, [updateLocation]);
 
-  useEffect(() => {
-    loadSafeZone();
-  }, [loadSafeZone]);
-
-  useEffect(() => {
-    getLocation();
-  }, [getLocation]);
-
+  useEffect(() => { loadSafeZone(); }, [loadSafeZone]);
+  useEffect(() => { getLocation(); }, [getLocation]);
   useEffect(() => {
     const timerId = setInterval(getLocation, 30000);
     return () => clearInterval(timerId);
   }, [getLocation]);
 
-  const clearHistory = () => {
-    localStorage.removeItem("location_history");
-    setHistory([]);
+  const clearDayHistory = () => {
+    setHistoryByDate(prev => {
+      const updated = { ...prev };
+      delete updated[selectedDate];
+      saveHistory(updated);
+      return updated;
+    });
   };
+
+  const currentHistory = historyByDate[selectedDate] || [];
 
   return (
     <div className="lp-root">
@@ -177,9 +174,7 @@ export default function LocationPage() {
         <button className="lp-nav-back" type="button" onClick={() => navigate("/user")}>
           ← 돌아가기
         </button>
-
         <div className="lp-nav-title">📍 내 위치</div>
-
         <div className="lp-nav-right">
           <button className="lp-refresh-btn" type="button" onClick={getLocation}>
             <RefreshCw size={13} /> 새로고침
@@ -189,6 +184,7 @@ export default function LocationPage() {
 
       <div className="lp-layout">
         <div className="lp-map-section">
+          {/* 상태 카드 */}
           <div className="lp-status-card">
             <div className="lp-status-left">
               <div className="lp-status-dot-wrap">
@@ -197,7 +193,6 @@ export default function LocationPage() {
                 </div>
                 <div className={`lp-pulse ${isInRange ? "" : "danger"}`} />
               </div>
-
               <div className="lp-status-info">
                 <div className="lp-status-label">마지막 업데이트 {lastUpdate}</div>
                 <div className="lp-status-addr">
@@ -205,7 +200,6 @@ export default function LocationPage() {
                 </div>
               </div>
             </div>
-
             <div className="lp-status-right">
               <div className={`lp-range-badge ${isInRange ? "safe" : "out"}`}>
                 {isInRange ? "✅ 안전 반경 내" : "🚨 반경 이탈"}
@@ -213,6 +207,7 @@ export default function LocationPage() {
             </div>
           </div>
 
+          {/* 지도 */}
           <div className="lp-map-wrap">
             {loading && (
               <div className="lp-map-placeholder">
@@ -220,132 +215,184 @@ export default function LocationPage() {
                 <div className="lp-map-placeholder-text">위치 불러오는 중...</div>
               </div>
             )}
-
             {error && (
               <div className="lp-map-placeholder">
                 <div className="lp-map-placeholder-icon">⚠️</div>
                 <div className="lp-map-placeholder-text danger">{error}</div>
               </div>
             )}
-
             {!loading && !error && currentPos && (
-              <MapContainer center={currentPos} zoom={15} className="lp-map">
+              <MapContainer
+                center={currentPos}
+                zoom={15}
+                className="lp-map"
+                style={{ zIndex: 0 }}
+              >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution="&copy; OpenStreetMap contributors"
                 />
-
                 <Circle
                   center={[safeZone.centerLatitude, safeZone.centerLongitude]}
                   radius={safeZone.radiusMeters}
                   pathOptions={{
-                    color: "#86A788",
-                    fillColor: "#86A788",
-                    fillOpacity: 0.08,
-                    weight: 2,
-                    dashArray: "6 4",
+                    color: "#86A788", fillColor: "#86A788",
+                    fillOpacity: 0.08, weight: 2,
                   }}
                 />
-
+                {/* 거리선 — 굵은 실선 */}
+                <Polyline
+                  positions={[
+                    [safeZone.centerLatitude, safeZone.centerLongitude],
+                    currentPos,
+                  ]}
+                  pathOptions={{
+                    color: isInRange ? "#86A788" : "#e05252",
+                    weight: 4,
+                    opacity: 0.85,
+                  }}
+                />
                 <Marker position={currentPos} icon={customLocationIcon}>
                   <Popup>
                     <div className="lp-popup">
-                      <strong>현재 위치</strong>
-                      <br />
-                      {address}
+                      <strong>현재 위치</strong><br />
+                      {address}<br />
+                      <span style={{ fontSize: "0.75rem", color: "#7a9a7c" }}>
+                        안전 반경까지 {distance}m
+                      </span>
                     </div>
                   </Popup>
+                </Marker>
+                <Marker position={[safeZone.centerLatitude, safeZone.centerLongitude]}>
+                  <Popup>{safeZone.name} (안전 반경 중심)</Popup>
                 </Marker>
               </MapContainer>
             )}
           </div>
+
+          {/* 거리 카드 */}
+          {currentPos && (
+            <div style={{
+              background: isInRange ? "#eef6ef" : "#fdf0f0",
+              border: `1px solid ${isInRange ? "#b8d4ba" : "#f5c6c6"}`,
+              borderRadius: "12px",
+              padding: "0.8rem 1.2rem",
+              marginTop: "0.8rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <div style={{ fontSize: "0.85rem", color: "#7a9a7c" }}>
+                🏠 {safeZone.name}까지 거리
+              </div>
+              <div style={{
+                fontSize: "1.1rem", fontWeight: "700",
+                color: isInRange ? "#5f7d61" : "#e05252",
+              }}>
+                {distance}m
+                <span style={{ fontSize: "0.75rem", fontWeight: "400", marginLeft: "0.4rem" }}>
+                  {isInRange
+                    ? `(반경 ${safeZone.radiusMeters}m 내)`
+                    : `(반경 ${safeZone.radiusMeters}m 초과)`}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <aside className="lp-sidebar">
+          {/* 위치 정보 */}
           <div className="lp-info-card">
-            <div className="lp-card-title">
-              <span>📡 위치 정보</span>
-            </div>
-
+            <div className="lp-card-title"><span>📡 위치 정보</span></div>
             <div className="lp-info-row">
-              <div className="lp-info-key">
-                <Clock size={13} /> 마지막 갱신
-              </div>
+              <div className="lp-info-key"><Clock size={13} /> 마지막 갱신</div>
               <div className="lp-info-val">{lastUpdate}</div>
             </div>
-
             <div className="lp-info-row">
-              <div className="lp-info-key">
-                <MapPin size={13} /> 현재 주소
-              </div>
+              <div className="lp-info-key"><MapPin size={13} /> 현재 주소</div>
               <div className="lp-info-val lp-address-val">
                 {loading ? "불러오는 중..." : error ? "오류" : address}
               </div>
             </div>
-
             {coords && (
               <>
                 <div className="lp-info-row">
                   <div className="lp-info-key">위도</div>
                   <div className="lp-info-val">{coords.lat}</div>
                 </div>
-
                 <div className="lp-info-row">
                   <div className="lp-info-key">경도</div>
                   <div className="lp-info-val">{coords.lon}</div>
                 </div>
               </>
             )}
-
             <div className="lp-info-row">
-              <div className="lp-info-key">
-                <Shield size={13} /> 안전 상태
-              </div>
+              <div className="lp-info-key"><Shield size={13} /> 안전 상태</div>
               <div className={`lp-info-val ${isInRange ? "green" : "red"}`}>
                 {isInRange ? "반경 내 안전" : "반경 이탈"}
               </div>
             </div>
           </div>
 
+          {/* 안전 반경 */}
           <div className="lp-range-card">
-            <div className="lp-card-title">
-              <span>🛡 안전 반경 설정</span>
-            </div>
-
+            <div className="lp-card-title"><span>🛡 안전 반경 설정</span></div>
             <div className="lp-safe-zone-place">
               <strong>{safeZone.name}</strong>
               <span>{safeZone.address}</span>
             </div>
-
             <div className="lp-range-main">
               <div>
                 <div className="lp-range-val">{safeZone.radiusMeters}</div>
                 <div className="lp-range-unit">미터 (m)</div>
               </div>
-
               <div className={`lp-range-badge ${isInRange ? "safe" : "out"}`}>
                 {isInRange ? "✅ 반경 내" : "🚨 이탈"}
               </div>
             </div>
-
             <div className="lp-range-desc">
               보호자가 설정한 안전 반경입니다. 이 범위를 벗어나면 보호자에게 즉시 알림이 전송됩니다.
             </div>
           </div>
 
+          {/* 날짜별 이동 이력 */}
           <div className="lp-history-card">
             <div className="lp-card-title">
               <span>🗺 이동 이력</span>
-              <button className="lp-clear-btn" type="button" onClick={clearHistory}>
-                초기화
+              <button className="lp-clear-btn" type="button" onClick={clearDayHistory}>
+                이날 초기화
               </button>
             </div>
 
+            <div style={{ marginBottom: "0.8rem" }}>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d4e8d6",
+                  borderRadius: "8px",
+                  padding: "0.4rem 0.7rem",
+                  fontSize: "0.82rem",
+                  fontFamily: "Noto Sans KR, sans-serif",
+                  color: "#1e2a1f",
+                  background: "#fff",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              />
+            </div>
+
             <div className="lp-history-list">
-              {history.length === 0 ? (
-                <div className="lp-history-empty">이동 이력이 없습니다</div>
+              {currentHistory.length === 0 ? (
+                <div className="lp-history-empty">
+                  {selectedDate === todayStr()
+                    ? "오늘 이동 이력이 없습니다"
+                    : "해당 날짜 이력이 없습니다"}
+                </div>
               ) : (
-                history.map((item, index) => (
+                currentHistory.map((item, index) => (
                   <div key={`${item.time}-${index}`} className="lp-history-row">
                     <div className="lp-history-time">{item.time}</div>
                     <div className="lp-history-dot" />

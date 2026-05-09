@@ -60,93 +60,185 @@
   padding: 0.25rem 0.8rem;
 }
 
+/* 직종 필터 + 검색바 sticky 영역 */
+.jp-top-sticky {
+  position: sticky;
+  top: 60px;
+  z-index: 90;
+  background: #fffdec;
+  border-bottom: 1px solid #d4e8d6;
+  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.06);
+}
+
+.jp-top-sticky-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.8rem 2rem;
+}
+
+/* 직종 분류 가로 스크롤 바 */
+.jp-category-bar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.6rem;
+  scrollbar-width: none;
+  margin-bottom: 0.6rem;
+}
+
+.jp-category-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.jp-cat-btn {
+  padding: 0.4rem 1rem;
+  border-radius: 99px;
+  border: 1.5px solid #d4e8d6;
+  background: #fff;
+  font-size: 0.82rem;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #7a9a7c;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.13s;
+  font-weight: 500;
+}
+
+.jp-cat-btn:hover {
+  border-color: #86a788;
+  color: #86a788;
+}
+
+.jp-cat-btn.active {
+  background: #86a788;
+  border-color: #86a788;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 검색바 */
+.jp-search-wrap {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 0.7rem 1rem;
+  border: 1px solid #d4e8d6;
+  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0;
+}
+
+.jp-search-icon {
+  font-size: 1rem;
+  color: #7a9a7c;
+  flex-shrink: 0;
+}
+
+.jp-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.9rem;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #1e2a1f;
+  background: transparent;
+}
+
+.jp-search-input::placeholder {
+  color: #7a9a7c;
+}
+
+.jp-search-clear {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #7a9a7c;
+}
+
+/* 구분선 */
+.jp-search-divider {
+  width: 1px;
+  height: 18px;
+  background: #d4e8d6;
+  flex-shrink: 0;
+  margin: 0 0.2rem;
+}
+
+/* 마감 필터 — 검색바 안 오른쪽 */
+.jp-expire-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+.jp-expire-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid #b8d4ba;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.13s;
+}
+
+.jp-expire-checkbox:checked {
+  background: #86a788;
+  border-color: #86a788;
+}
+
+.jp-expire-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.jp-expire-label {
+  font-size: 0.78rem;
+  color: #7a9a7c;
+  font-family: "Noto Sans KR", sans-serif;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* 레이아웃 */
 .jp-layout {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0 2rem 2rem 2rem;
   display: grid;
   grid-template-columns: 240px 1fr;
   gap: 1.5rem;
   align-items: start;
 }
 
-.jp-filter-box {
-  background: #ffffff;
-  border-radius: 18px;
-  padding: 1.4rem 1.5rem;
-  border: 1px solid #d4e8d6;
-  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
-  margin-bottom: 1rem;
+/* 사이드바 */
+.jp-sidebar {
   position: sticky;
-  top: 80px;
+  top: 170px;
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-top: 1.5rem;
 }
 
-.jp-filter-title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #7a9a7c;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 1rem;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid #d4e8d6;
-}
-
-.jp-filter-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.65rem 0.9rem;
-  border-radius: 10px;
-  border: 1.5px solid transparent;
-  background: transparent;
-  font-size: 0.88rem;
-  font-family: "Noto Sans KR", sans-serif;
-  color: #7a9a7c;
-  cursor: pointer;
-  text-align: left;
-  margin-bottom: 0.3rem;
-  transition: all 0.13s;
-}
-
-.jp-filter-btn:hover {
-  background: #eef6ef;
-  color: #86a788;
-}
-
-.jp-filter-btn.active {
-  background: #86a788;
-  color: #ffffff;
-  font-weight: 700;
-  border-color: #86a788;
-}
-
-.jp-filter-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.jp-filter-dot.all {
-  background: #86a788;
-}
-
-.jp-filter-dot.CM0101 {
-  background: #e8f4ea;
-}
-
-.jp-filter-dot.CM0102 {
-  background: #e8edf8;
-}
-
-.jp-filter-dot.CM0103 {
-  background: #fef3e2;
-}
-
-.jp-filter-dot.CM0104 {
-  background: #fdeaea;
+.jp-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .jp-profile-box {
@@ -154,8 +246,6 @@
   border: 1px solid #b8d4ba;
   border-radius: 18px;
   padding: 1.2rem 1.4rem;
-  position: sticky;
-  top: calc(80px + 220px + 1rem);
 }
 
 .jp-profile-title {
@@ -191,6 +281,11 @@
   color: #5f7d61;
 }
 
+/* 메인 */
+.jp-main {
+  padding-top: 1.5rem;
+}
+
 .jp-main-head {
   display: flex;
   align-items: center;
@@ -206,46 +301,7 @@
   letter-spacing: 0.07em;
 }
 
-.jp-search-wrap {
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 0.7rem 1rem;
-  border: 1px solid #d4e8d6;
-  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.07);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.jp-search-icon {
-  font-size: 1rem;
-  color: #7a9a7c;
-  flex-shrink: 0;
-}
-
-.jp-search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: 0.9rem;
-  font-family: "Noto Sans KR", sans-serif;
-  color: #1e2a1f;
-  background: transparent;
-}
-
-.jp-search-input::placeholder {
-  color: #7a9a7c;
-}
-
-.jp-search-clear {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: #7a9a7c;
-}
-
+/* 카드 */
 .jp-card {
   background: #ffffff;
   border-radius: 18px;
@@ -343,6 +399,29 @@
   gap: 0.3rem;
 }
 
+/* 마감된 카드 */
+.jp-card-expired {
+  opacity: 1;
+  filter: none;
+  cursor: default;
+}
+
+.jp-card-expired:hover {
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+  border-color: #d4e8d6;
+}
+
+.jp-card-expired .jp-card-bar {
+  background: #d93025;
+}
+
+.jp-card-expired .jp-card-badge {
+  background: #fff1f1;
+  color: #d93025;
+  border: 1px solid #f1b5b5;
+}
+
+/* 모달 */
 .jp-overlay {
   position: fixed;
   inset: 0;
@@ -453,6 +532,7 @@
   opacity: 0.9;
 }
 
+/* 더보기 */
 .jp-more-btn {
   width: 100%;
   padding: 1rem;
@@ -472,6 +552,7 @@
   background: #eef6ef;
 }
 
+/* 로딩 / 빈 상태 / 에러 */
 .jp-loading,
 .jp-empty {
   text-align: center;
@@ -498,14 +579,24 @@
   font-size: 1rem;
 }
 
+/* 반응형 */
 @media (max-width: 900px) {
+  .jp-top-sticky-inner {
+    padding: 0.8rem 1rem;
+  }
+
   .jp-layout {
     grid-template-columns: 1fr;
     padding: 1rem;
   }
 
-  .jp-filter-box,
-  .jp-profile-box {
+  .jp-sidebar {
     position: static;
+    max-height: none;
+    padding-top: 0;
+  }
+
+  .jp-main {
+    padding-top: 0;
   }
 }

@@ -89,7 +89,7 @@ export const fetchUVIndex = async (lat, lon) => {
     const pad = (n) => String(n).padStart(2, "0");
     const areaNo = "1100000000";
     const time = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}`;
-    const url = `/weather/1360000/LivingWthrIdxServiceV4/getUVIdxV4`
+    const url = `/weather-api/1360000/LivingWthrIdxServiceV4/getUVIdxV4`
       + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
       + `&areaNo=${areaNo}&time=${time}`;
     const res = await fetch(url);

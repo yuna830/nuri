@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../css/user/WeatherGraph.css";
 import {
@@ -43,13 +43,12 @@ const C = {
   cream: "#FFFDEC", green: "#86A788", greenDark: "#5f7d61",
   greenLight: "#b8d4ba", greenPale: "#eef6ef", white: "#ffffff",
   danger: "#e05252", text: "#1e2a1f", textMuted: "#7a9a7c", border: "#d4e8d6",
+  blue: "#4a7fa8", bluePale: "#eef4fa", blueLight: "#b8d4e8",
 };
 
-// 환경 지수 행동 지침 생성
 const getEnvAdviceItems = (uvData, airData, pollenData) => {
   const items = [];
 
-  // 자외선
   if (uvData?.value >= 11)
     items.push({ icon: "☀️", title: "자외선 위험", desc: "외출을 삼가세요. 반드시 자외선 차단제(SPF50+)와 모자, 선글라스를 착용하고 그늘에서만 이동하세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
   else if (uvData?.value >= 8)
@@ -57,11 +56,10 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
   else if (uvData?.value >= 6)
     items.push({ icon: "☀️", title: "자외선 높음", desc: "선크림을 바르고 외출하세요. 긴 소매 옷을 입으면 더 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (uvData?.value >= 3)
-    items.push({ icon: "☀️", title: "자외선 보통", desc: "장시간 야외 활동 시 선크림을 바르는 것이 좋아요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "☀️", title: "자외선 보통", desc: "장시간 야외 활동 시 선크림을 바르는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (uvData)
-    items.push({ icon: "☀️", title: "자외선 낮음", desc: "자외선 걱정 없이 외출하셔도 좋아요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "☀️", title: "자외선 낮음", desc: "자외선 걱정 없이 외출하셔도 좋아요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
 
-  // 미세먼지 PM10
   if (airData?.pm10?.level === "매우나쁨")
     items.push({ icon: "😷", title: "미세먼지 매우나쁨", desc: "외출을 최대한 자제하세요. 꼭 나가야 한다면 KF94 마스크를 착용하고 귀가 후 손발을 깨끗이 씻으세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
   else if (airData?.pm10?.level === "나쁨")
@@ -69,9 +67,8 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
   else if (airData?.pm10?.level === "보통")
     items.push({ icon: "😷", title: "미세먼지 보통", desc: "민감한 분들은 마스크를 챙기세요. 장시간 야외 활동은 자제하는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (airData?.pm10?.level === "좋음")
-    items.push({ icon: "😷", title: "미세먼지 좋음", desc: "오늘 미세먼지는 좋아요. 환기하기 좋은 날이에요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "😷", title: "미세먼지 좋음", desc: "오늘 미세먼지는 좋아요. 환기하기 좋은 날이에요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
 
-  // 초미세먼지 PM2.5
   if (airData?.pm25?.level === "매우나쁨")
     items.push({ icon: "🫁", title: "초미세먼지 매우나쁨", desc: "호흡기·심혈관 질환이 있으신 분은 절대 외출하지 마세요. KF94 마스크 착용 필수입니다.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
   else if (airData?.pm25?.level === "나쁨")
@@ -79,9 +76,8 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
   else if (airData?.pm25?.level === "보통")
     items.push({ icon: "🫁", title: "초미세먼지 보통", desc: "호흡기가 약하신 분들은 마스크를 착용하는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (airData?.pm25?.level === "좋음")
-    items.push({ icon: "🫁", title: "초미세먼지 좋음", desc: "오늘 초미세먼지는 좋아요. 맑은 공기를 마음껏 마시세요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "🫁", title: "초미세먼지 좋음", desc: "오늘 초미세먼지는 좋아요. 맑은 공기를 마음껏 마시세요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
 
-  // 꽃가루
   if (pollenData?.pine?.value >= 4)
     items.push({ icon: "🌲", title: "소나무 꽃가루 매우높음", desc: "알레르기 비염이나 천식이 있으시면 마스크를 착용하고 외출 후 세안과 샤워를 꼭 하세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
   else if (pollenData?.pine?.value >= 3)
@@ -89,7 +85,7 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
   else if (pollenData?.pine?.value >= 2)
     items.push({ icon: "🌲", title: "소나무 꽃가루 보통", desc: "알레르기가 심하신 분들은 외출 시 마스크를 챙기세요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (pollenData?.pine)
-    items.push({ icon: "🌲", title: "소나무 꽃가루 낮음", desc: "오늘은 소나무 꽃가루가 적어요. 쾌적하게 외출하셔도 좋아요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "🌲", title: "소나무 꽃가루 낮음", desc: "오늘은 소나무 꽃가루가 적어요. 쾌적하게 외출하셔도 좋아요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
 
   if (pollenData?.oak?.value >= 4)
     items.push({ icon: "🌳", title: "참나무 꽃가루 매우높음", desc: "알레르기 증상이 심해질 수 있어요. 외출 시 마스크와 안경을 착용하세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
@@ -98,14 +94,13 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
   else if (pollenData?.oak?.value >= 2)
     items.push({ icon: "🌳", title: "참나무 꽃가루 보통", desc: "알레르기가 심하신 분들은 마스크를 챙기세요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (pollenData?.oak)
-    items.push({ icon: "🌳", title: "참나무 꽃가루 낮음", desc: "오늘은 참나무 꽃가루가 적어요. 안심하고 외출하셔도 좋아요.", color: "#86A788", bg: "#eef6ef", border: "#b8d4ba" });
+    items.push({ icon: "🌳", title: "참나무 꽃가루 낮음", desc: "오늘은 참나무 꽃가루가 적어요. 안심하고 외출하셔도 좋아요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
 
   return items;
 };
 
 export default function WeatherGraph() {
   const navigate = useNavigate();
-  const scrollRef = useRef(null);
 
   const [hourlyData, setHourlyData]   = useState([]);
   const [current, setCurrent]         = useState(null);
@@ -135,11 +130,9 @@ export default function WeatherGraph() {
       const pad = (n) => String(n).padStart(2, "0");
       const currentHour = now.getHours();
 
-      // 항상 0200 발표로 고정해서 오전부터 전체 데이터 가져오기
       let baseTime = "0200";
       let baseDate = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
 
-      // 자정~새벽 2시면 어제 2300
       if (currentHour < 2) {
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -147,7 +140,7 @@ export default function WeatherGraph() {
         baseTime = "2300";
       }
 
-      const url = `/weather/1360000/VilageFcstInfoService_2.0/getVilageFcst`
+      const url = `/weather-api/1360000/VilageFcstInfoService_2.0/getVilageFcst`
         + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=1000&dataType=JSON`
         + `&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
 
@@ -237,13 +230,6 @@ export default function WeatherGraph() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!loading && scrollRef.current) {
-      const nowEl = scrollRef.current.querySelector(".wg-hour-item.now");
-      if (nowEl) nowEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-    }
-  }, [loading]);
-
   const renderLineChart = () => {
     if (hourlyData.length === 0) return null;
     const temps = hourlyData.map(d => parseFloat(d.temp)).filter(t => !isNaN(t));
@@ -307,6 +293,7 @@ export default function WeatherGraph() {
   const envLevelColor = (level) => {
     if (["나쁨","매우나쁨","높음","매우높음","위험"].includes(level)) return C.danger;
     if (["보통"].includes(level)) return "#f0a500";
+    if (["좋음","낮음"].includes(level)) return C.blue;
     return C.green;
   };
 
@@ -328,7 +315,6 @@ export default function WeatherGraph() {
 
         {!loading && !error && (
           <>
-            {/* 현재 날씨 요약 */}
             {current && (
               <div className="wg-summary">
                 <div className="wg-stat">
@@ -354,7 +340,6 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {/* 오늘의 준비물 */}
             {adviceItems.length > 0 && (
               <div className="wg-chart-card">
                 <div className="wg-chart-title">👜 오늘의 준비물</div>
@@ -376,7 +361,6 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {/* 환경 지수 */}
             {(uvData || airData || pollenData) && (
               <div className="wg-chart-card">
                 <div className="wg-chart-title">🌍 환경 지수</div>
@@ -468,7 +452,6 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {/* 환경 지수 행동 지침 카드 */}
             {envAdviceItems.length > 0 && (
               <div className="wg-chart-card">
                 <div className="wg-chart-title">⚠️ 오늘의 환경 주의사항</div>
@@ -489,10 +472,7 @@ export default function WeatherGraph() {
                         <span>{item.icon}</span>
                         <span>{item.title}</span>
                       </div>
-                      <div style={{
-                        fontSize: "0.82rem", color: C.text,
-                        lineHeight: "1.65",
-                      }}>
+                      <div style={{ fontSize: "0.82rem", color: C.text, lineHeight: "1.65" }}>
                         {item.desc}
                       </div>
                     </div>
@@ -501,7 +481,6 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {/* 기온 라인 차트 */}
             <div className="wg-chart-card">
               <div className="wg-chart-title">📈 오늘 시간별 기온 변화</div>
               <div className="wg-chart-wrap">
@@ -509,10 +488,9 @@ export default function WeatherGraph() {
               </div>
             </div>
 
-            {/* 시간별 날씨 카드 */}
             <div className="wg-chart-card">
               <div className="wg-chart-title">🕐 시간별 날씨</div>
-              <div ref={scrollRef} className="wg-hour-list">
+              <div className="wg-hour-list">
                 {hourlyData.map((d, i) => (
                   <div key={i}
                     className={`wg-hour-item ${d.isNow ? "now" : ""} ${d.isPast && !d.isNow ? "past" : ""}`}>
