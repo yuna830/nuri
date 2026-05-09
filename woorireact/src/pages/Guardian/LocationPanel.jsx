@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -45,6 +45,8 @@ function LocationPanel({
   isRefreshingLocation,
   onRefreshLocation,
 }) {
+  const [isMapLocked, setIsMapLocked] = useState(false);
+
   return (
     <section className="card map-card">
       <div className="card-header">
@@ -68,7 +70,17 @@ function LocationPanel({
       </div>
 
       <div className="real-map-area">
-        <MapContainer center={mapCenter} zoom={16} scrollWheelZoom className="leaflet-map">
+        <MapContainer
+          center={mapCenter}
+          zoom={16}
+          scrollWheelZoom={!isMapLocked}
+          dragging={!isMapLocked}
+          touchZoom={!isMapLocked}
+          doubleClickZoom={!isMapLocked}
+          boxZoom={!isMapLocked}
+          keyboard={!isMapLocked}
+          className="leaflet-map"
+        >
           <RecenterMap center={mapCenter} />
 
           <TileLayer
@@ -114,6 +126,21 @@ function LocationPanel({
             />
           )}
         </MapContainer>
+
+        <button
+          className={`map-lock-button ${isMapLocked ? "locked" : ""}`}
+          type="button"
+          aria-label={isMapLocked ? "지도 고정 해제" : "지도 고정"}
+          title={isMapLocked ? "지도 고정 해제" : "지도 고정"}
+          onMouseDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsMapLocked((prev) => !prev);
+          }}
+        >
+          {isMapLocked ? "고정" : "잠금"}
+        </button>
       </div>
     </section>
   );

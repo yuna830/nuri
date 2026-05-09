@@ -78,6 +78,7 @@ function GuardianPage() {
   const [elders, setElders] = useState([]);
   const [selectedElderId, setSelectedElderId] = useState(null);
   const [isAddElderOpen, setIsAddElderOpen] = useState(false);
+  const [deleteModeElderId, setDeleteModeElderId] = useState(null);
 
   const [seniorSearch, setSeniorSearch] = useState("");
   const [seniorSearchResults, setSeniorSearchResults] = useState([]);
@@ -576,6 +577,55 @@ function GuardianPage() {
     }
   };
 
+  const handleDeleteElder = async (targetElder = selectedElder) => {
+    const targetElderId = targetElder?.id;
+
+    if (!targetElderId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${targetElder.name}님과 연결을 해제할까요?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const guardianId = getCurrentGuardianId();
+
+      if (!guardianId) {
+        navigate("/glogin");
+        return;
+      }
+
+      const response = await fetch(
+        `http://localhost:8181/api/guardians/${guardianId}/seniors/${targetElderId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("보호 대상자 연결 해제 실패");
+      }
+
+      setSafeZoneForms((prev) => {
+        const next = { ...prev };
+        delete next[targetElderId];
+        return next;
+      });
+
+      await reloadGuardianSeniors();
+
+      alert("보호 대상자와 연결이 해제되었습니다.");
+    } catch (error) {
+      console.error("연결 해제 실패:", error);
+      alert("해제에 실패했습니다.");
+    }
+  };
+
   const handleReadAlert = async (alertId) => {
     try {
       const updatedAlert = await readAlert(alertId);
@@ -670,19 +720,49 @@ function GuardianPage() {
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
         {elders.map((elder) => {
           const elderStatus = getElderStatus(elder);
+          const statusText =
+            elderStatus === "normal" ? "정상" : elderStatus === "danger" ? "이탈" : "미수신";
+          const isDeleteMode = deleteModeElderId === elder.id;
 
           return (
-            <button
+            <div
               key={elder.id}
-              className={`elder-tab ${elder.id === selectedElderId ? "active" : ""}`}
-              type="button"
-              onClick={() => setSelectedElderId(elder.id)}
+              className={`elder-tab ${elder.id === selectedElderId ? "active" : ""} ${
+                isDeleteMode ? "show-delete" : ""
+              }`}
+              onMouseEnter={() => setDeleteModeElderId(elder.id)}
+              onMouseLeave={() => setDeleteModeElderId(null)}
             >
-              {elder.name} ({elder.relation})
-              <span className={`status-badge ${elderStatus}`}>
-                {elderStatus === "normal" ? "정상" : elderStatus === "danger" ? "이탈" : "미수신"}
-              </span>
-            </button>
+              <button
+                className="elder-tab-main"
+                type="button"
+                onClick={() => {
+                  setSelectedElderId(elder.id);
+                  setDeleteModeElderId(elder.id);
+                }}
+              >
+                <span className="elder-tab-label">
+                  {elder.name} ({elder.relation})
+                </span>
+
+                <span className={`status-badge ${elderStatus}`}>
+                  {statusText}
+                </span>
+              </button>
+
+              <button
+                className="elder-delete-button"
+                type="button"
+                aria-label={`${elder.name} 보호 대상 연결 해제`}
+                title="연결 해제"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleDeleteElder(elder);
+                }}
+              >
+                X
+              </button>
+            </div>
           );
         })}
 
@@ -728,6 +808,7 @@ function GuardianPage() {
           onSearchSenior={handleSearchSenior}
           onConnectSenior={handleConnectSenior}
           onCreateAndConnectSenior={handleCreateAndConnectSenior}
+          onDeleteElder={handleDeleteElder}
         />
 
         <LocationPanel

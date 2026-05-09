@@ -27,6 +27,7 @@ function UserPanel({
   onSearchSenior,
   onConnectSenior,
   onCreateAndConnectSenior,
+  onDeleteElder,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
@@ -261,13 +262,16 @@ function UserPanel({
               onClick={onToggleSafeZone}
             >
               <span className="safe-zone-top">
-                <span>
+                <span className="safe-zone-name-row">
                   <span className="safe-zone-name">{safeZoneForm.name}</span>
-                  {safeZoneForm.address && (
-                    <span className="safe-zone-address">{formatShortAddress(safeZoneForm.address)}</span>
-                  )}
+                  <span className="safe-zone-edit">수정</span>
                 </span>
-                <span className="safe-zone-edit">수정</span>
+
+                {safeZoneForm.address && (
+                  <span className="safe-zone-address">
+                    {formatShortAddress(safeZoneForm.address)}
+                  </span>
+                )}
               </span>
               <span className="safe-zone-radius">
                 반경 {safeZoneForm.radiusMeters}m 설정
