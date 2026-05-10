@@ -56,15 +56,3 @@ export const getAddress = async (lat, lon) => {
   }
 };
 
-export const loadLocationHistory = () => {
-  try {
-    const saved = localStorage.getItem("location_history");
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-};
-
-export const saveLocationHistory = (history) => {
-  localStorage.setItem("location_history", JSON.stringify(history));
-};

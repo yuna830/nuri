@@ -435,3 +435,12 @@
     white-space: normal;
   }
 }
+.lp-map {
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.lp-map-wrap .leaflet-container {
+  z-index: 0 !important;
+}

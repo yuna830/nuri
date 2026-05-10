@@ -46,6 +46,8 @@ public class SeniorController {
         senior.setAddress(request.region());
         senior.setRegion(request.region());
         senior.setDisabilityGrade(request.disabilityGrade());
+        senior.setDisabilityType(request.disabilityType());
+        senior.setProfileImageUrl(request.profileImageUrl());
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -100,6 +102,18 @@ public class SeniorController {
                 .toList();
     }
 
+    @GetMapping("/search")
+    public List<SeniorProfileResponse> searchSeniors(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+
+        return seniorRepository.searchByNameOrPhone(keyword.trim())
+                .stream()
+                .map(this::toProfileResponse)
+                .toList();
+    }
+
     @GetMapping("/guardian/{guardianId}")
     public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
         return guardianSeniorRepository.findByGuardianId(guardianId)
@@ -114,6 +128,14 @@ public class SeniorController {
     @GetMapping("/{id}")
     public SeniorProfileResponse getSenior(@PathVariable Long id) {
         Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        return toProfileResponse(senior);
+    }
+
+    @PostMapping("/login")
+    public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
+        Senior senior = seniorRepository.findByNameAndPhone(request.name(), request.phone())
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         return toProfileResponse(senior);
@@ -134,6 +156,8 @@ public class SeniorController {
         senior.setAddress(request.region());
         senior.setRegion(request.region());
         senior.setDisabilityGrade(request.disabilityGrade());
+        senior.setDisabilityType(request.disabilityType());
+        senior.setProfileImageUrl(request.profileImageUrl());
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -250,6 +274,8 @@ public class SeniorController {
             String region,
             String phone,
             String disabilityGrade,
+            String disabilityType,
+            String profileImageUrl,
             String height,
             String weight,
             String smoking,
@@ -280,6 +306,12 @@ public class SeniorController {
             List<String> hopeJobType,
             List<String> hopeCondition,
             String memo
+    ) {
+    }
+
+    public record SeniorLoginRequest(
+            String name,
+            String phone
     ) {
     }
 

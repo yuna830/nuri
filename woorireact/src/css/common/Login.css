@@ -228,6 +228,16 @@
   box-shadow: 0 0 0 4px var(--login-main-soft);
 }
 
+.login-input::placeholder {
+  color: #9fb4a1;
+}
+
+.login-btn:disabled {
+  cursor: default;
+  opacity: 0.72;
+  transform: none;
+}
+
 .login-error {
   margin-bottom: 1rem;
   padding: 0.7rem 0.9rem;

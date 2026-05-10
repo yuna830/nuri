@@ -7,8 +7,21 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  appType: 'spa',   // ← 이거 추가
   server: {
     proxy: {
+      '/health': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/health/, ''),
+        secure: false,
+      },
+      '/airkorea': {
+        target: 'https://apis.data.go.kr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/airkorea/, ''),
+        secure: false,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
@@ -18,10 +31,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/senuri/, ''),
       },
-      '/weather': {
+      '/weather-api': {
         target: 'https://apis.data.go.kr',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/weather/, ''),
+        rewrite: (path) => path.replace(/^\/weather-api/, ''),
         secure: false,
       },
     }

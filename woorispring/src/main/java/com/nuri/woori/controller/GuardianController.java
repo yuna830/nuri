@@ -45,16 +45,12 @@ public class GuardianController {
 
         Guardian savedGuardian = guardianRepository.save(guardian);
 
-        Senior senior = new Senior();
-        senior.setName(request.seniorName());
-        senior.setAddress(request.seniorAddress());
-        senior.setRegion(request.seniorAddress());
-
-        Senior savedSenior = seniorRepository.save(senior);
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         GuardianSenior guardianSenior = new GuardianSenior();
         guardianSenior.setGuardianId(savedGuardian.getId());
-        guardianSenior.setSeniorId(savedSenior.getId());
+        guardianSenior.setSeniorId(senior.getId());
         guardianSenior.setRelation(request.seniorRelation());
 
         guardianSeniorRepository.save(guardianSenior);
@@ -193,8 +189,7 @@ public class GuardianController {
             String phone,
             String email,
             String password,
-            String seniorName,
-            String seniorAddress,
+            Long seniorId,
             String seniorRelation
     ) {
     }
