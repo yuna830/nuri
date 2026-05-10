@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "../pages/Common/Login";
 
 import { ChatAssistant } from "../Chat";
-import STTServer from "../Chat/STTServer";
 
 import SignUp from "../pages/Common/SignUp";
 
@@ -28,7 +27,6 @@ function AppRoutes() {
         <Route path="/" element={<Login />} />
 
         <Route path="/chat" element={<ChatAssistant />} />
-        <Route path ="/stt" element={<STTServer />} />
         <Route path="/signup" element={<SignUp />} />
 
 

@@ -6,6 +6,24 @@ const SCHEDULE_INTENT_PATTERN =
 const CASUAL_CONTEXT_PATTERN =
   /(힘들|피곤|아프|우울|슬프|외롭|기쁘|좋았|싫|무섭|걱정|고민|생각|기분|괜찮|그래|그냥|요즘|오늘은|내일은)/;
 
+const TYPO_REPLACEMENTS = [
+  [/내읿|낼|낼일|내알|내욜/g, "내일"],
+  [/오우|오부|오후우/g, "오후"],
+  [/오저|오전ㄴ/g, "오전"],
+  [/병언|병우너|병어/g, "병원"],
+  [/공언/g, "공원"],
+  [/산채/g, "산책"],
+  [/치거|치꽈/g, "치과"],
+  [/머야|머여|모야/g, "뭐야"],
+];
+
+export function normalizeScheduleText(text) {
+  return TYPO_REPLACEMENTS.reduce(
+    (normalized, [pattern, replacement]) => normalized.replace(pattern, replacement),
+    text
+  );
+}
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -41,7 +59,7 @@ function parseWeekday(text, baseDate) {
 }
 
 export function parseDateFromText(text, baseDate = new Date()) {
-  const normalized = text.replace(/\s+/g, " ").trim();
+  const normalized = normalizeScheduleText(text).replace(/\s+/g, " ").trim();
 
   if (/오늘/.test(normalized)) return formatDate(baseDate);
   if (/내일\s*모레|내일모레|모레/.test(normalized)) {
@@ -68,7 +86,8 @@ export function parseDateFromText(text, baseDate = new Date()) {
 }
 
 export function parseTimeFromText(text) {
-  const match = text.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
+  const normalized = normalizeScheduleText(text);
+  const match = normalized.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
   if (!match) return "";
 
   const [, meridiem, rawHour, rawMinute] = match;
@@ -88,6 +107,8 @@ function hasScheduleIntent(text) {
 function shouldCreateScheduleCandidate({ text, date, time, title }) {
   const hasIntent = hasScheduleIntent(text);
 
+  if (isScheduleQuestion(text)) return false;
+  if (date && !title && /일정/.test(text)) return false;
   if (hasIntent) return true;
   if (date && time) return true;
   if (date && title && !CASUAL_CONTEXT_PATTERN.test(text)) return true;
@@ -96,12 +117,17 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
   return false;
 }
 
+function isScheduleQuestion(text) {
+  return /일정/.test(text) && /(뭐|뭐야|있어|알려|확인|보여|브리핑|어떻게|언제)/.test(text);
+}
+
 function cleanTitle(text) {
-  return text
+  return normalizeScheduleText(text)
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일\s*에?/g, "")
     .replace(/내일\s*모레|내일모레|오늘|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?/g, "")
     .replace(/(오전|오후)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?\s*에?/g, "")
+    .replace(/(오전|오후)\s*에/g, "")
     .replace(/해야\s*해|해야해|일정|예약|알림|기억해줘|등록해줘|해줘/g, "")
     .replace(/[,:]/g, " ")
     .replace(/\s+/g, " ")
@@ -119,7 +145,8 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
   if (!text || !text.trim()) return [];
 
   return splitIntoItems(text)
-    .map((item) => {
+    .map((sourceText) => {
+      const item = normalizeScheduleText(sourceText);
       const date = parseDateFromText(item, baseDate);
       const time = parseTimeFromText(item);
       const title = cleanTitle(item);
@@ -133,7 +160,7 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
         title: title || item,
         date,
         time,
-        sourceText: item,
+        sourceText,
         createdAt: new Date().toISOString(),
       };
     })
