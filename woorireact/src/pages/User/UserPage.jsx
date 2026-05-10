@@ -288,23 +288,27 @@ export default function UserPage() {
         };
       }).sort((first, second) => second.sortTime - first.sortTime);
 
+      const currentHourStart = new Date(now);
+      currentHourStart.setMinutes(0, 0, 0);
+      const currentHourTime = currentHourStart.getTime();
+      const freshDbAlerts = dbAlerts.filter((alert) => alert.sortTime >= currentHourTime);
+      const staleDbAlerts = dbAlerts.filter((alert) => alert.sortTime < currentHourTime);
+
+      const currentWeatherAlert = {
+        type: "오늘 날씨",
+        color: COLORS.green,
+        msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
+        time: currentDateTime,
+        sortTime: now.getTime() - 1,
+      };
+
       const seenAlertKeys = new Set();
-      const merged = [...envAlerts, ...dbAlerts].filter((alert) => {
+      const merged = [...envAlerts, ...freshDbAlerts, currentWeatherAlert, ...staleDbAlerts].filter((alert) => {
         const key = alert.type;
         if (seenAlertKeys.has(key)) return false;
         seenAlertKeys.add(key);
         return true;
       }).sort((first, second) => second.sortTime - first.sortTime);
-
-      if (merged.length < 2 && !seenAlertKeys.has("오늘 날씨")) {
-        merged.push({
-          type: "오늘 날씨",
-          color: COLORS.green,
-          msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
-          time: currentDateTime,
-          sortTime: now.getTime() - 1,
-        });
-      }
 
       const latestTwoAlerts = merged.slice(0, 2);
       if (latestTwoAlerts.length > 0) {
@@ -405,13 +409,21 @@ export default function UserPage() {
     fetchWeatherAlerts();
     startLocationTracking();
     weatherAlertIntervalRef.current = setInterval(fetchWeatherAlerts, 60 * 1000);
+    let safeZoneIntervalId;
+    let jobsIntervalId;
+    let seniorIntervalId;
 
     const seniorId = getCurrentSeniorId(initialSenior);
-    if (seniorId) {
+    const loadSafeZoneForHome = () => {
+      if (!seniorId) return;
       fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
         .then((response) => response.ok ? response.json() : null)
         .then((data) => { if (data) setSafeZone(data); })
         .catch(() => {});
+    };
+    loadSafeZoneForHome();
+    if (seniorId) {
+      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 60 * 1000);
     }
 
     const checkNewJobs = async () => {
@@ -424,6 +436,7 @@ export default function UserPage() {
       localStorage.setItem("jobs_latest_job_id", latestJobId);
     };
     checkNewJobs();
+    jobsIntervalId = setInterval(checkNewJobs, 5 * 60 * 1000);
 
     const loadCurrentSenior = async () => {
       try {
@@ -466,6 +479,7 @@ export default function UserPage() {
       }
     };
     loadCurrentSenior();
+    seniorIntervalId = setInterval(loadCurrentSenior, 60 * 1000);
 
     const currentDate = new Date();
     const days = ["일", "월", "화", "수", "목", "금", "토"];
@@ -475,13 +489,16 @@ export default function UserPage() {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
       if (weatherIntervalRef.current) clearInterval(weatherIntervalRef.current);
       if (weatherAlertIntervalRef.current) clearInterval(weatherAlertIntervalRef.current);
+      if (safeZoneIntervalId) clearInterval(safeZoneIntervalId);
+      if (jobsIntervalId) clearInterval(jobsIntervalId);
+      if (seniorIntervalId) clearInterval(seniorIntervalId);
     };
   }, []);
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
     if (!seniorId) return;
-    fetch(`/api/schedules/senior/${seniorId}/date/${selectedScheduleDate}`)
+    const loadSelectedDateSchedules = () => fetch(`/api/schedules/senior/${seniorId}/date/${selectedScheduleDate}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         const list = Array.isArray(data) ? data : data?.content ?? [];
@@ -492,19 +509,25 @@ export default function UserPage() {
         }
       })
       .catch(() => setScheduleList([]));
+    loadSelectedDateSchedules();
+    const scheduleIntervalId = setInterval(loadSelectedDateSchedules, 60 * 1000);
+    return () => clearInterval(scheduleIntervalId);
   }, [selectedScheduleDate]);
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
     if (!seniorId) return;
     const today = todayValue();
-    fetch(`/api/schedules/senior/${seniorId}/date/${today}`)
+    const loadTodaySchedules = () => fetch(`/api/schedules/senior/${seniorId}/date/${today}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         const list = Array.isArray(data) ? data : data?.content ?? [];
         setTodaySchedules(list.map(scheduleFromApi));
       })
       .catch(() => setTodaySchedules([]));
+    loadTodaySchedules();
+    const todayScheduleIntervalId = setInterval(loadTodaySchedules, 60 * 1000);
+    return () => clearInterval(todayScheduleIntervalId);
   }, []);
 
   useEffect(() => {
