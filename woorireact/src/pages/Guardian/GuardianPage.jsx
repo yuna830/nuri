@@ -22,7 +22,7 @@ const getDateValue = (date = new Date()) => {
 
 const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => {
   const response = await fetch(
-    `http://localhost:8181/api/locations/senior/${seniorId}/date?date=${dateValue}`
+    `http://localhost:8080/api/locations/senior/${seniorId}/date?date=${dateValue}`
   );
 
   if (!response.ok || response.status === 204) {
@@ -54,7 +54,7 @@ const getDefaultSafeZone = (elder) => ({
 });
 
 const loadSafeZone = async (elder) => {
-  const response = await fetch(`http://localhost:8181/api/safe-zones/senior/${elder.id}`);
+  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${elder.id}`);
 
   if (!response.ok || response.status === 204) {
     return getDefaultSafeZone(elder);
@@ -154,7 +154,7 @@ function GuardianPage() {
     setGuardian(currentGuardian);
 
     const response = await fetch(
-      `http://localhost:8181/api/seniors/guardian/${currentGuardian.id}`
+      `http://localhost:8080/api/seniors/guardian/${currentGuardian.id}`
     );
 
     if (!response.ok) {
@@ -401,7 +401,7 @@ function GuardianPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:8181/api/safe-zones/senior/${seniorId}`,
+        `http://localhost:8080/api/safe-zones/senior/${seniorId}`,
         {
           method: "PUT",
           headers: {
@@ -467,7 +467,7 @@ function GuardianPage() {
       setHasSearchedSenior(true);
       setIsSearchingSenior(true);
 
-      const response = await fetch("http://localhost:8181/api/seniors");
+      const response = await fetch("http://localhost:8080/api/seniors");
 
       if (!response.ok) {
         throw new Error("사용자 조회 실패");
@@ -504,7 +504,7 @@ function GuardianPage() {
       }
 
       const response = await fetch(
-        `http://localhost:8181/api/guardians/${guardianId}/seniors`,
+        `http://localhost:8080/api/guardians/${guardianId}/seniors`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -548,7 +548,7 @@ function GuardianPage() {
       }
 
       const response = await fetch(
-        `http://localhost:8181/api/guardians/${guardianId}/seniors/new`,
+        `http://localhost:8080/api/guardians/${guardianId}/seniors/new`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -601,7 +601,7 @@ function GuardianPage() {
       }
 
       const response = await fetch(
-        `http://localhost:8181/api/guardians/${guardianId}/seniors/${targetElderId}`,
+        `http://localhost:8080/api/guardians/${guardianId}/seniors/${targetElderId}`,
         {
           method: "DELETE",
         }

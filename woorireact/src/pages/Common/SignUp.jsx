@@ -145,7 +145,7 @@ export default function SignUp() {
   const submit = async () => {
     try {
       setSaving(true);
-      const response = await fetch("http://localhost:8181/api/seniors", {
+      const response = await fetch("http://localhost:8080/api/seniors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

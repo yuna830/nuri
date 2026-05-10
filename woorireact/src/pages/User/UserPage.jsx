@@ -354,7 +354,7 @@ export default function UserPage() {
       // 서버에 위치 저장
       const seniorId = getCurrentSeniorId(initialSenior);
       if (seniorId) {
-        await fetch("http://localhost:8181/api/locations", {
+        await fetch("http://localhost:8080/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: resolvedAddress || address }),
@@ -408,7 +408,7 @@ export default function UserPage() {
 
     const seniorId = getCurrentSeniorId(initialSenior);
     if (seniorId) {
-      fetch(`http://localhost:8181/api/safe-zones/senior/` + seniorId)
+      fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
         .then((response) => response.ok ? response.json() : null)
         .then((data) => { if (data) setSafeZone(data); })
         .catch(() => {});
@@ -432,7 +432,7 @@ export default function UserPage() {
           const profile = JSON.parse(saved);
           const cachedSeniorId = profile?.senior?.id;
           if (cachedSeniorId) {
-            const response = await fetch(`http://localhost:8181/api/seniors/` + cachedSeniorId);
+            const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
             if (response.ok) {
               const freshProfile = await response.json();
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
@@ -450,7 +450,7 @@ export default function UserPage() {
           return;
         }
 
-        const response = await fetch("http://localhost:8181/api/seniors");
+        const response = await fetch("http://localhost:8080/api/seniors");
         if (!response.ok) return;
         const profiles = await response.json();
         const latest = profiles[profiles.length - 1];

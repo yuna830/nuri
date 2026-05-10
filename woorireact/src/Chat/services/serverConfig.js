@@ -1,4 +1,5 @@
-const DEFAULT_AI_SERVER_HOST = "172.28.6.243";
+/* const DEFAULT_AI_SERVER_HOST = "172.28.6.243"; */
+const DEFAULT_AI_SERVER_HOST = "172.28.224.1";
 
 const AI_SERVER_HOST =
   import.meta.env.VITE_AI_SERVER_HOST || DEFAULT_AI_SERVER_HOST;
@@ -38,4 +39,4 @@ export const OLLAMA_API_URL = normalizeServerUrl(
 );
 
 export const OLLAMA_MODEL =
-  import.meta.env.VITE_OLLAMA_MODEL || "qwen2.5:1.5b";
+  import.meta.env.VITE_OLLAMA_MODEL || "qwen2.5:3b";

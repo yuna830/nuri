@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./ChatAssistant.css";
 import ChatView from "./components/ChatView";
 import ScheduleRegister from "./components/ScheduleRegister";
@@ -6,6 +6,7 @@ import {
   createSchedule,
   deleteSchedule,
   fetchSchedulesByDate,
+  fetchSeniorSchedules,
   getCurrentSeniorId,
   updateSchedule,
 } from "./services/scheduleApi";
@@ -29,6 +30,7 @@ export default function ChatAssistant() {
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [savedSchedules, setSavedSchedules] = useState([]);
+  const didShowBriefingRef = useRef(false);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
   const [messages, setMessages] = useState([
     {
@@ -37,13 +39,35 @@ export default function ChatAssistant() {
     },
   ]);
 
+  function showTodayBriefing(schedules) {
+    if (didShowBriefingRef.current) return;
+
+    const todaySchedules = schedules.filter((schedule) => schedule.date === todayValue());
+    if (todaySchedules.length === 0) return;
+
+    didShowBriefingRef.current = true;
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `오늘 일정은 ${todaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
+      },
+    ]);
+  }
+
   useEffect(() => {
     async function loadSchedules() {
       const seniorId = getResolvedSeniorId();
       if (!seniorId) return;
       try {
-      const schedules = await fetchSchedulesByDate(seniorId, selectedScheduleDate);
-      setSavedSchedules(schedules.map(scheduleFromApi));
+        const schedules = await fetchSchedulesByDate(seniorId, selectedScheduleDate);
+        const normalizedSchedules = schedules.map(scheduleFromApi);
+        setSavedSchedules(normalizedSchedules);
+
+        if (!didShowBriefingRef.current) {
+          const allSchedules = await fetchSeniorSchedules(seniorId);
+          showTodayBriefing(allSchedules.map(scheduleFromApi));
+        }
       } catch (error) {
         console.error("일정 조회 오류:", error);
       }
@@ -64,6 +88,17 @@ export default function ChatAssistant() {
   async function handleScheduleSave(schedule) {
     const seniorId = getResolvedSeniorId();
     const isEditing = Boolean(editingSchedule);
+
+    if (isPastSchedule(schedule)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말씀해 주세요.",
+        },
+      ]);
+      return;
+    }
 
     if (!seniorId) {
       setMessages((prev) => [
@@ -112,6 +147,58 @@ export default function ChatAssistant() {
         {
           role: "assistant",
           content: "일정을 저장하지 못했어요. 서버 연결을 확인해 주세요.",
+        },
+      ]);
+    }
+  }
+
+  async function handleScheduleUpdate(schedule) {
+    const seniorId = getResolvedSeniorId();
+
+    if (isPastSchedule(schedule)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "지난 날짜나 이미 지난 시간으로는 일정을 수정할 수 없어요. 앞으로의 날짜와 시간으로 다시 말씀해 주세요.",
+        },
+      ]);
+      return;
+    }
+
+    if (!seniorId) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "사용자 정보가 없어 일정을 수정하지 못했어요. 다시 로그인해 주세요.",
+        },
+      ]);
+      return;
+    }
+
+    try {
+      const payload = scheduleToApiPayload(schedule, seniorId);
+      const saved = await updateSchedule(schedule.id, payload);
+      const savedSchedule = scheduleFromApi(saved);
+
+      setSavedSchedules((prev) =>
+        prev.map((item) => (item.id === savedSchedule.id ? savedSchedule : item))
+      );
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `${savedSchedule.text} 일정으로 수정했어요.`,
+        },
+      ]);
+    } catch (error) {
+      console.error("일정 수정 오류:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "일정을 수정하지 못했어요. 서버 연결을 확인해 주세요.",
         },
       ]);
     }
@@ -167,6 +254,7 @@ export default function ChatAssistant() {
       onScheduleDateChange={setSelectedScheduleDate}
       onScheduleOpen={openScheduleCreate}
       onScheduleSave={handleScheduleSave}
+      onScheduleUpdate={handleScheduleUpdate}
       onScheduleEdit={openScheduleEdit}
       onScheduleDelete={handleScheduleDelete}
     />
@@ -175,13 +263,17 @@ export default function ChatAssistant() {
 
 function scheduleToApiPayload(schedule, seniorId) {
   const title = schedule.detail || schedule.title || "일정";
+  const scheduleTime = Object.prototype.hasOwnProperty.call(schedule, "time")
+    ? schedule.time || null
+    : fieldsToTime(schedule);
+
   return {
     seniorId: Number(seniorId),
     guardianId: null,
     title,
     content: title,
     scheduleDate: schedule.date || todayValue(),
-    scheduleTime: schedule.time || fieldsToTime(schedule),
+    scheduleTime,
     isRepeat: false,
     isAlarm: true,
   };
@@ -233,9 +325,28 @@ function scheduleToText(schedule) {
   return `${dateText}${timeText} ${schedule.title}`.trim();
 }
 
+function formatScheduleBrief(schedule) {
+  return `${schedule.time ? `${schedule.time} ` : ""}${schedule.title || schedule.detail || "일정"}`;
+}
+
+function isPastSchedule(schedule) {
+  const date = schedule.date || todayValue();
+  const today = todayValue();
+
+  if (date < today) return true;
+  if (date > today || !schedule.time) return false;
+
+  return schedule.time <= currentTimeValue();
+}
+
 function todayValue() {
   const today = new Date();
   return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+function currentTimeValue() {
+  const now = new Date();
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 function pad(value) {
