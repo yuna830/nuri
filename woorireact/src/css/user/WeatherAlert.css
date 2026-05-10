@@ -320,6 +320,127 @@
   margin-top: 0.1rem;
 }
 
+.wa-climate-card {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 18px;
+  padding: 1.4rem 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+}
+
+.wa-climate-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.2rem;
+}
+
+.wa-climate-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5f7d61;
+  line-height: 1.45;
+}
+
+.wa-climate-title {
+  margin-top: 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e2a1f;
+}
+
+.wa-climate-tag {
+  flex-shrink: 0;
+  border: 1px solid #f1b5b5;
+  background: #fff1f1;
+  color: #d93025;
+  border-radius: 99px;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.wa-donut {
+  width: 176px;
+  height: 176px;
+  border-radius: 50%;
+  margin: 0.4rem auto 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wa-donut-inner {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px #e7efe8;
+}
+
+.wa-donut-inner strong {
+  font-size: 1rem;
+  color: #1e2a1f;
+}
+
+.wa-donut-inner span {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: #7a9a7c;
+}
+
+.wa-score-row {
+  display: grid;
+  grid-template-columns: 42px 1fr 38px;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.wa-score-row span {
+  color: #5f7d61;
+  font-size: 0.82rem;
+}
+
+.wa-score-row b {
+  color: #5f7d61;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.wa-score-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: #edf3ee;
+  overflow: hidden;
+}
+
+.wa-score-bar div {
+  height: 100%;
+  border-radius: 99px;
+}
+
+.wa-tip-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+
+.wa-tip-list div {
+  border: 1px solid #d4e8d6;
+  background: #fffdec;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.82rem;
+  color: #5f7d61;
+}
+
 .wa-action-card {
   background: #fff5f5;
   border: 1px solid #f5c6c6;

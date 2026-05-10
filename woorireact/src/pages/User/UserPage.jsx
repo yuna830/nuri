@@ -6,7 +6,20 @@ import {
   menus,
   schedules,
 } from "../../utils/user/userPageData";
-import { createSosAlert, createSosCancelAlert, fetchLatestClimateAlerts, getCurrentSeniorId as getSavedSeniorId, resolveUploadUrl } from "../../api/userPageApi.js";
+import { MapContainer, TileLayer, Marker, Circle } from "react-leaflet";
+import { customLocationIcon } from "../../utils/user/locationPageUtils";
+import {
+  createSosAlert,
+  createSosCancelAlert,
+  fetchLatestClimateAlerts,
+  fetchTodayForecast,
+  getCurrentSeniorId as getSavedSeniorId,
+  resolveUploadUrl,
+  reverseGeocode,
+} from "../../api/userPageApi.js";
+import { fetchJobList } from "../../utils/user/jobApi";
+import { fetchAirQuality, fetchPollenIndex, fetchUVIndex } from "../../utils/user/weatherAdvice";
+import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
 const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
@@ -143,6 +156,8 @@ export default function UserPage() {
   const initialProfile = getInitialSeniorProfile();
   const initialSenior = initialProfile?.senior;
   const locationIntervalRef = useRef(null);
+  const weatherIntervalRef = useRef(null);
+  const weatherAlertIntervalRef = useRef(null);
 
   const [weather, setWeather] = useState(null);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
@@ -158,6 +173,7 @@ export default function UserPage() {
   const [showAllSchedules, setShowAllSchedules] = useState(false);
   const [allSchedules, setAllSchedules] = useState([]);
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
+  const [jobHasNew, setJobHasNew] = useState(false);
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -167,84 +183,133 @@ export default function UserPage() {
 
   const fetchWeather = async (lat, lon) => {
     try {
-      const { nx, ny } = toGrid(lat, lon);
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
-      const date = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
-      const hour = pad(now.getHours());
-      const url = `/weather-api/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst`
-        + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
-        + `&base_date=${date}&base_time=${hour}00&nx=${nx}&ny=${ny}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const items = data.response.body.items.item;
-      const temp  = items.find(i => i.category === "T1H")?.obsrValue;
-      const humid = items.find(i => i.category === "REH")?.obsrValue;
-      const pty   = items.find(i => i.category === "PTY")?.obsrValue;
-      let icon = "☀️", status = "맑음";
-      if (pty === "1") { icon = "🌧"; status = "비"; }
-      else if (pty === "2") { icon = "🌨"; status = "비/눈"; }
-      else if (pty === "3") { icon = "❄️"; status = "눈"; }
-      else if (pty === "4") { icon = "🌦"; status = "소나기"; }
-      setWeather({ temp: Math.round(temp), status, icon, region: "현재 위치", humid: humid ? `${humid}%` : "-" });
+      const [forecast, region] = await Promise.all([
+        fetchTodayForecast(lat, lon),
+        reverseGeocode(lat, lon),
+      ]);
+
+      setWeather({
+        temp: forecast.temp === "--" ? "--" : Math.round(Number(forecast.temp)),
+        status: forecast.status,
+        icon: forecast.icon,
+        region,
+        humid: forecast.humid && forecast.humid !== "--" ? forecast.humid + "%" : "-",
+      });
     } catch {
-      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌤", region: "서울" });
+      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌤️", region: "현재 위치" });
     }
   };
 
   const fetchWeatherAlerts = async () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const currentTime = pad(now.getHours()) + ":" + pad(now.getMinutes());
+
+    const getPositionForAlert = () => new Promise((resolve) => {
+      if (currentPos) {
+        resolve({ lat: currentPos.lat, lon: currentPos.lon });
+        return;
+      }
+      if (!navigator.geolocation) {
+        resolve({ lat: 37.5665, lon: 126.9780 });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => resolve({ lat: 37.5665, lon: 126.9780 })
+      );
+    });
+
     try {
       const seniorId = getSavedSeniorId();
       const savedAlerts = seniorId ? await fetchLatestClimateAlerts(seniorId).catch(() => []) : [];
-      if (savedAlerts.length > 0) {
-        const colors = { danger: COLORS.danger, warning: "#f0a500", caution: "#f0a500", safe: COLORS.green };
-        setWeatherAlerts(savedAlerts.slice(0, 3).map(alert => ({
+      const pos = await getPositionForAlert();
+      const [uv, air, pollen] = await Promise.all([
+        fetchUVIndex(pos.lat, pos.lon),
+        fetchAirQuality(pos.lat, pos.lon),
+        fetchPollenIndex(pos.lat, pos.lon),
+      ]);
+
+      const envAlerts = [];
+      if (uv?.value >= 6) {
+        envAlerts.push({
+          type: "자외선",
+          color: uv.value >= 8 ? COLORS.danger : "#f0a500",
+          msg: `자외선 지수가 ${uv.value}로 높습니다. 모자, 선크림, 긴 소매 옷을 챙기고 낮 시간 외출을 줄여주세요.`,
+          time: currentTime,
+        });
+      }
+      if (air?.pm10?.value > 80 || air?.pm25?.value > 35) {
+        envAlerts.push({
+          type: "미세먼지",
+          color: air.pm10.value > 150 || air.pm25.value > 75 ? COLORS.danger : "#f0a500",
+          msg: "미세먼지 상태가 좋지 않습니다. 외출 시 마스크를 착용해주세요.",
+          time: currentTime,
+        });
+      }
+      const pollenHigh = ["pine", "oak", "weeds"].find((key) => pollen?.[key]?.value >= 3);
+      if (pollenHigh) {
+        envAlerts.push({
+          type: "꽃가루",
+          color: pollen[pollenHigh].value >= 4 ? COLORS.danger : "#f0a500",
+          msg: "꽃가루 농도가 높습니다. 알레르기나 호흡기 질환이 있다면 마스크를 착용해주세요.",
+          time: currentTime,
+        });
+      }
+
+      const isReadableAlert = (alert) => {
+        const text = `${alert.type || ""} ${alert.message || ""}`;
+        return /[가-힣]/.test(text) && !text.includes("???");
+      };
+
+      const seenDbAlertKeys = new Set();
+      const dbAlerts = savedAlerts.filter(isReadableAlert).filter((alert) => {
+        const key = `${alert.type}-${alert.message}-${alert.issuedAt?.slice(0, 13) || ""}`;
+        if (seenDbAlertKeys.has(key)) return false;
+        seenDbAlertKeys.add(key);
+        return true;
+      }).slice(0, 3).map((alert) => {
+        const colors = { danger: COLORS.danger, warning: COLORS.danger, caution: "#f0a500", safe: COLORS.green };
+        return {
           type: alert.type || "기후",
           color: colors[alert.level] || COLORS.green,
           msg: alert.message,
           time: alert.issuedAt ? alert.issuedAt.slice(11, 16) : "-",
-        })));
+        };
+      });
+
+      const seenAlertKeys = new Set();
+      const merged = [...envAlerts, ...dbAlerts].filter((alert) => {
+        const key = `${alert.type}-${alert.msg}`;
+        if (seenAlertKeys.has(key)) return false;
+        seenAlertKeys.add(key);
+        return true;
+      }).slice(0, 2);
+      if (merged.length > 0) {
+        setWeatherAlerts(merged);
         return;
       }
 
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
-      const fromTm = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}0000`;
-      const toTm   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}2359`;
-      const url = `/weather-api/1360000/WthrWrnInfoService/getWthrWrnList`
-        + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=5&dataType=JSON`
-        + `&stnId=108&fromTmFc=${fromTm}&toTmFc=${toTm}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const items = data?.response?.body?.items?.item || [];
-      const pad2 = (n) => String(n).padStart(2, "0");
-      const now2 = new Date();
-      if (!items || items.length === 0) {
-        setWeatherAlerts([{ type: "날씨", color: COLORS.green, msg: "현재 발령된 기상특보가 없습니다.", time: `${pad2(now2.getHours())}:${pad2(now2.getMinutes())}` }]);
-        return;
-      }
-      const parsed = (Array.isArray(items) ? items : [items]).map(item => {
-        const title = item.title || "";
-        let color = "#f0a500";
-        if (title.includes("경보") || title.includes("한파") || title.includes("폭염")) color = COLORS.danger;
-        if (title.includes("태풍")) color = "#7a1a1a";
-        let type = "특보";
-        if (title.includes("한파")) type = "한파";
-        else if (title.includes("폭염")) type = "폭염";
-        else if (title.includes("강풍")) type = "강풍";
-        else if (title.includes("호우")) type = "호우";
-        else if (title.includes("대설")) type = "대설";
-        return { type, color, msg: title, time: item.tmFc ? `${item.tmFc.toString().slice(8,10)}:${item.tmFc.toString().slice(10,12)}` : "-" };
-      });
-      setWeatherAlerts(parsed);
+      setWeatherAlerts([{
+        type: "안전",
+        color: COLORS.green,
+        msg: "현재 확인된 기후 위험 알림이 없습니다.",
+        time: currentTime,
+      }]);
     } catch {
-      setWeatherAlerts([{ type: "날씨", color: COLORS.green, msg: "기상 정보를 불러오지 못했습니다.", time: "-" }]);
+      setWeatherAlerts([{
+        type: "안전",
+        color: COLORS.green,
+        msg: "기후 알림을 확인하는 중입니다.",
+        time: currentTime,
+      }]);
     }
   };
 
-  // 위치 가져오기 + 서버 전송
   const updateLocation = async (lat, lon) => {
     setCurrentPos({ lat, lon });
+    const resolvedAddress = await reverseGeocode(lat, lon).catch(() => "현재 위치");
+    setCurrentAddress(resolvedAddress);
 
     // 주소 변환
     try {
@@ -254,7 +319,7 @@ export default function UserPage() {
       const d = await res.json();
       const addr = d?.address;
       const address = addr?.suburb || addr?.neighbourhood || addr?.city_district || addr?.city || "현재 위치";
-      setCurrentAddress(address);
+      setCurrentAddress(resolvedAddress || address);
 
       // 서버에 위치 저장
       const seniorId = getCurrentSeniorId(initialSenior);
@@ -262,7 +327,7 @@ export default function UserPage() {
         await fetch("http://localhost:8181/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address }),
+          body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: resolvedAddress || address }),
         }).catch(() => {});
       }
     } catch {
@@ -297,36 +362,67 @@ export default function UserPage() {
         () => {}
       );
     }, 30000);
+
+    weatherIntervalRef.current = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+        () => fetchWeather(37.5665, 126.9780)
+      );
+    }, 10 * 60 * 1000);
   };
 
   useEffect(() => {
     fetchWeatherAlerts();
     startLocationTracking();
+    weatherAlertIntervalRef.current = setInterval(fetchWeatherAlerts, 60 * 1000);
 
-    // 안전 반경 불러오기
     const seniorId = getCurrentSeniorId(initialSenior);
     if (seniorId) {
-      fetch(`http://localhost:8181/api/safe-zones/senior/${seniorId}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setSafeZone(data); })
+      fetch(`http://localhost:8181/api/safe-zones/senior/` + seniorId)
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => { if (data) setSafeZone(data); })
         .catch(() => {});
     }
 
-    // DB에서 사용자 정보
+    const checkNewJobs = async () => {
+      const result = await fetchJobList(1, "").catch(() => null);
+      const latestJobId = result?.list?.[0]?.jobId;
+      if (!latestJobId) return;
+      const seenJobId = localStorage.getItem("jobs_last_seen_job_id");
+      setJobHasNew(Boolean(seenJobId && seenJobId !== latestJobId));
+      if (!seenJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+      localStorage.setItem("jobs_latest_job_id", latestJobId);
+    };
+    checkNewJobs();
+
     const loadCurrentSenior = async () => {
       try {
         const saved = sessionStorage.getItem("currentSenior");
         if (saved) {
           const profile = JSON.parse(saved);
+          const cachedSeniorId = profile?.senior?.id;
+          if (cachedSeniorId) {
+            const response = await fetch(`http://localhost:8181/api/seniors/` + cachedSeniorId);
+            if (response.ok) {
+              const freshProfile = await response.json();
+              sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              setUserName(freshProfile?.senior?.name || "사용자");
+              setUserRegion(freshProfile?.senior?.region || freshProfile?.senior?.address || "");
+              setProfileImageUrl(freshProfile?.senior?.profileImageUrl || "");
+              setHealthScores(getHealthScoresFromProfile(freshProfile));
+              return;
+            }
+          }
           setUserName(profile?.senior?.name || "사용자");
           setUserRegion(profile?.senior?.region || profile?.senior?.address || "");
           setProfileImageUrl(profile?.senior?.profileImageUrl || "");
           setHealthScores(getHealthScoresFromProfile(profile));
           return;
         }
-        const res = await fetch("http://localhost:8080/api/seniors");
-        if (!res.ok) return;
-        const profiles = await res.json();
+
+        const response = await fetch("http://localhost:8181/api/seniors");
+        if (!response.ok) return;
+        const profiles = await response.json();
         const latest = profiles[profiles.length - 1];
         if (!latest) return;
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
@@ -335,22 +431,23 @@ export default function UserPage() {
         setUserRegion(latest?.senior?.region || latest?.senior?.address || "");
         setProfileImageUrl(latest?.senior?.profileImageUrl || "");
         setHealthScores(getHealthScoresFromProfile(latest));
-      } catch (e) {
-        console.error("사용자 정보 조회 실패:", e);
+      } catch (error) {
+        console.error("사용자 정보 조회 실패:", error);
       }
     };
     loadCurrentSenior();
 
-    const d = new Date();
-    const days = ["일","월","화","수","목","금","토"];
-    setDateStr(`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
+    const currentDate = new Date();
+    const days = ["일", "월", "화", "수", "목", "금", "토"];
+    setDateStr(currentDate.getFullYear() + "년 " + (currentDate.getMonth() + 1) + "월 " + currentDate.getDate() + "일(" + days[currentDate.getDay()] + ")");
 
     return () => {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+      if (weatherIntervalRef.current) clearInterval(weatherIntervalRef.current);
+      if (weatherAlertIntervalRef.current) clearInterval(weatherAlertIntervalRef.current);
     };
   }, []);
 
-  // 날짜별 일정 불러오기
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
     if (!seniorId) return;
@@ -362,6 +459,15 @@ export default function UserPage() {
       })
       .catch(() => setScheduleList([]));
   }, [selectedScheduleDate]);
+
+  useEffect(() => {
+    if (!currentPos || !safeZone) return;
+    const dist = Math.sqrt(
+      Math.pow((currentPos.lat - safeZone.centerLatitude) * 111000, 2)
+      + Math.pow((currentPos.lon - safeZone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
+    );
+    setIsInRange(dist <= safeZone.radiusMeters);
+  }, [currentPos, safeZone]);
 
   const confirmSOS = async () => {
     setShowSOS(false);
@@ -405,11 +511,13 @@ export default function UserPage() {
 
   const openAllSchedules = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
+    const today = todayValue();
+    setSelectedScheduleDate(today);
     setShowAllSchedules(true);
     if (!seniorId) { setAllSchedules([]); return; }
     setIsLoadingAllSchedules(true);
     try {
-      const res = await fetch(`/api/schedules/senior/${seniorId}`);
+      const res = await fetch(`/api/schedules/senior/${seniorId}/date/${today}`);
       const data = res.ok ? await res.json() : [];
       const list = Array.isArray(data) ? data : data?.content ?? [];
       setAllSchedules(list.map(scheduleFromApi));
@@ -423,11 +531,11 @@ export default function UserPage() {
   return (
     <div className="up-root">
       <nav className="up-nav">
-        <div className="up-nav-logo">🌿 우리 woori</div>
+        <div className="up-nav-logo">우리 woori</div>
         <div className="up-nav-right">
           <span className="up-nav-date">{dateStr}</span>
           <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
-            🚨 SOS 도움 요청
+            SOS 알림 요청
           </button>
         </div>
       </nav>
@@ -457,48 +565,63 @@ export default function UserPage() {
                 className="up-sidemenu-item"
                 type="button"
                 onClick={() => {
-                  if (menu.disabled) { alert("💬 AI 챗봇 기능은 준비 중입니다!"); return; }
+                  if (menu.disabled) {
+                    alert("AI 챗봇 기능은 준비 중입니다.");
+                    return;
+                  }
+                  if (menu.badgeKey === "jobs") {
+                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
+                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+                    setJobHasNew(false);
+                  }
                   navigate(menu.route);
                 }}
               >
                 <span className="up-sidemenu-icon">{menu.icon}</span>
                 <span className="up-sidemenu-label">{menu.label}</span>
-                {menu.badge && (
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew)) && (
                   <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
-                    {menu.badge}
+                    {menu.badge || "NEW"}
                   </span>
                 )}
               </button>
             ))}
           </div>
 
-          {/* 현재 위치 미니 카드 */}
           <div className="up-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
             <div className="up-card-head">
               <div className="up-card-title">📍 현재 위치</div>
               <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>→</span>
             </div>
             <div style={{
-              display: "flex", alignItems: "center", gap: "0.5rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
               marginBottom: "0.5rem",
             }}>
               <div style={{
-                width: "8px", height: "8px", borderRadius: "50%",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
                 background: isInRange ? COLORS.green : COLORS.danger,
                 flexShrink: 0,
                 animation: "up-blink 2s ease-in-out infinite",
               }} />
               <span style={{
-                fontSize: "0.82rem", fontWeight: "700",
+                fontSize: "0.82rem",
+                fontWeight: "700",
                 color: isInRange ? COLORS.green : COLORS.danger,
               }}>
-                {isInRange ? "안전 반경 내" : "⚠️ 반경 이탈"}
+                {isInRange ? "안전 반경 내" : "위험 반경 이탈"}
               </span>
             </div>
             <div style={{
-              fontSize: "0.78rem", color: COLORS.textMuted,
+              fontSize: "0.78rem",
+              color: COLORS.textMuted,
               lineHeight: "1.5",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}>
               {currentAddress}
             </div>
@@ -507,17 +630,43 @@ export default function UserPage() {
                 {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
               </div>
             )}
+            {currentPos && (
+              <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
+                <MapContainer
+                  key={`${currentPos.lat.toFixed(4)}-${currentPos.lon.toFixed(4)}`}
+                  center={[currentPos.lat, currentPos.lon]}
+                  zoom={15}
+                  className="up-mini-map"
+                  scrollWheelZoom={false}
+                  dragging={false}
+                  zoomControl={false}
+                  attributionControl={false}
+                >
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  {safeZone && (
+                    <Circle
+                      center={[safeZone.centerLatitude, safeZone.centerLongitude]}
+                      radius={safeZone.radiusMeters}
+                      pathOptions={{ color: "#86A788", fillColor: "#86A788", fillOpacity: 0.12 }}
+                    />
+                  )}
+                  <Marker position={[currentPos.lat, currentPos.lon]} icon={customLocationIcon} />
+                </MapContainer>
+              </div>
+            )}
           </div>
         </aside>
 
         <main>
           <div className="up-top-row">
             <div className="up-weather-card" onClick={() => navigate("/weather-graph")}>
-              <div className="up-card-label">오늘 날씨 📈</div>
+              <div className="up-card-label">오늘 날씨</div>
               <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
               <div className="up-weather-bot">
-                <div className="up-weather-desc">{weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}</div>
-                <div className="up-weather-icon">{weather?.icon ?? "🌤"}</div>
+                <div className="up-weather-desc">
+                  {weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}
+                </div>
+                <div className="up-weather-icon">{weather?.icon ?? "🌤️"}</div>
               </div>
             </div>
 
@@ -538,32 +687,20 @@ export default function UserPage() {
             </div>
           </div>
 
-          {/* 일정 + 기후 알림 */}
           <div className="up-content-row">
-            {/* 일정 카드 */}
             <div className="up-card">
               <div className="up-card-head">
                 <div className="up-card-title">📅 일정</div>
                 <input
+                  className="up-schedule-date"
                   type="date"
                   value={selectedScheduleDate}
-                  onChange={e => setSelectedScheduleDate(e.target.value)}
-                  style={{
-                    border: `1px solid ${COLORS.border}`,
-                    borderRadius: "8px",
-                    padding: "0.25rem 0.5rem",
-                    fontSize: "0.75rem",
-                    color: COLORS.textMuted,
-                    fontFamily: "Noto Sans KR, sans-serif",
-                    background: COLORS.cream,
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
+                  onChange={(event) => setSelectedScheduleDate(event.target.value)}
                 />
               </div>
 
               {scheduleList.length === 0 ? (
-                <div style={{ padding: "1rem 0", textAlign: "center", color: COLORS.textMuted, fontSize: "0.85rem" }}>
+                <div className="up-schedule-empty">
                   등록된 일정이 없어요 😊
                 </div>
               ) : (
@@ -577,7 +714,6 @@ export default function UserPage() {
               )}
             </div>
 
-            {/* 기후 알림 카드 */}
             <div className="up-card">
               <div className="up-card-head">
                 <div className="up-card-title">🌡 기후 알림</div>
@@ -586,24 +722,24 @@ export default function UserPage() {
                 </button>
               </div>
 
-              {weatherAlerts.map((a, i) => (
+              {weatherAlerts.slice(0, 2).map((a, i) => (
                 <div key={i} className="up-alert-item">
                   <span className="up-alert-badge" style={{
-                    background: a.color, color: "#fff",
+                    background: a.color,
+                    color: "#fff",
                     border: `1px solid ${a.color}`,
                   }}>
                     {a.type}
                   </span>
                   <div>
                     <div className="up-alert-text">{a.msg}</div>
-                    <div className="up-alert-time">🕐 {a.time}</div>
+                    <div className="up-alert-time">⏱ {a.time}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* 건강 레이더 */}
           {healthScores && (
             <div className="up-content-row">
               <div className="up-card full">
@@ -618,11 +754,10 @@ export default function UserPage() {
             </div>
           )}
 
-          {/* 빠른 실행 */}
           <div className="up-content-row">
             <div className="up-card full">
               <div className="up-card-head">
-                <div className="up-card-title">⚡ 빠른 실행</div>
+                <div className="up-card-title">빠른 실행</div>
               </div>
               <div className="up-quick-grid">
                 {menus.filter(m => !m.hideQuick).map((m, i) => (
@@ -643,22 +778,29 @@ export default function UserPage() {
         </main>
       </div>
 
-      {/* 전체 일정 모달 */}
       {showAllSchedules && (
         <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
-          <div className="up-modal" style={{ maxHeight: "70vh", overflowY: "auto", textAlign: "left", width: "480px" }}
-            onClick={e => e.stopPropagation()}>
+          <div
+            className="up-modal"
+            style={{ maxHeight: "70vh", overflowY: "auto", textAlign: "left", width: "480px" }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="up-card-head" style={{ marginBottom: "1rem" }}>
               <div className="up-modal-title" style={{ fontSize: "1.1rem" }}>📅 전체 일정</div>
-              <button style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
-                onClick={() => setShowAllSchedules(false)}>✕</button>
+              <button
+                style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
+                type="button"
+                onClick={() => setShowAllSchedules(false)}
+              >
+                ×
+              </button>
             </div>
             {isLoadingAllSchedules ? (
               <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>불러오는 중...</div>
             ) : allSchedules.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>등록된 일정이 없어요.</div>
+              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>등록된 일정이 없어요</div>
             ) : (
-              allSchedules.map(s => (
+              allSchedules.map((s) => (
                 <div key={s.id} className="up-schedule-row">
                   <div className="up-schedule-time" style={{ minWidth: "80px", fontSize: "0.75rem" }}>{s.date}</div>
                   <div className="up-schedule-dot" />
@@ -685,10 +827,9 @@ export default function UserPage() {
         </div>
       )}
 
-      {/* SOS 모달 */}
       {showSOS && (
         <div className="up-overlay" onClick={() => setShowSOS(false)}>
-          <div className="up-modal" onClick={e => e.stopPropagation()}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
             <div className="up-modal-ico">🚨</div>
             <div className="up-modal-title">SOS를 보내시겠어요?</div>
             <div className="up-modal-desc">

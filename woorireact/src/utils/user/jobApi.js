@@ -18,23 +18,23 @@ export const EMPL_COLOR = {
 };
 
 export const JOB_CATEGORY_FILTERS = [
-  { label: "전체",      value: "", srchWrd: "" },
-  { label: "🧹 환경미화", value: "미화",    srchWrd: "미화" },
-  { label: "🛡 경비·보안", value: "경비",   srchWrd: "경비" },
-  { label: "🏥 요양·돌봄", value: "요양",   srchWrd: "요양" },
-  { label: "📋 사무보조",  value: "사무보조", srchWrd: "사무보조" },
-  { label: "🏭 생산·제조", value: "생산",   srchWrd: "생산" },
-  { label: "🚗 운전·배달", value: "운전",   srchWrd: "운전" },
-  { label: "🍳 조리·식품", value: "조리",   srchWrd: "조리" },
-  { label: "📦 물류·유통", value: "물류",   srchWrd: "물류" },
-  { label: "기타",      value: "기타",    srchWrd: "" },
+  { label: "전체", value: "", srchWrd: "" },
+  { label: "환경미화", value: "환경미화", srchWrd: "미화" },
+  { label: "경비·보안", value: "경비", srchWrd: "경비" },
+  { label: "요양·돌봄", value: "요양", srchWrd: "요양" },
+  { label: "사무보조", value: "사무보조", srchWrd: "사무" },
+  { label: "생산·제조", value: "생산", srchWrd: "생산" },
+  { label: "운전·배달", value: "운전", srchWrd: "운전" },
+  { label: "조리·식품", value: "조리", srchWrd: "조리" },
+  { label: "물류·유통", value: "물류", srchWrd: "물류" },
+  { label: "기타", value: "기타", srchWrd: "" },
 ];
 
 export const categorizeJob = (job) => {
-  const title = (job.recrtTitle || "") + (job.jobclsNm || "");
-  for (const cat of JOB_CATEGORY_FILTERS) {
-    if (!cat.srchWrd) continue;
-    if (title.includes(cat.srchWrd)) return cat.label;
+  const title = `${job.recrtTitle || ""} ${job.jobclsNm || ""}`;
+  for (const category of JOB_CATEGORY_FILTERS) {
+    if (!category.srchWrd) continue;
+    if (title.includes(category.srchWrd)) return category.label;
   }
   return "기타";
 };
@@ -52,20 +52,20 @@ export const parseJobList = (xmlText) => {
 
   return {
     list: Array.from(items).map((item) => ({
-      jobId:      item.querySelector("jobId")?.textContent || "",
+      jobId: item.querySelector("jobId")?.textContent || "",
       recrtTitle: item.querySelector("recrtTitle")?.textContent || "",
-      oranNm:     item.querySelector("oranNm")?.textContent || "",
-      emplymShp:  item.querySelector("emplymShp")?.textContent || "CM0105",
+      oranNm: item.querySelector("oranNm")?.textContent || "",
+      emplymShp: item.querySelector("emplymShp")?.textContent || "CM0105",
       emplymShpNm: item.querySelector("emplymShpNm")?.textContent || "기타",
-      workPlcNm:  item.querySelector("workPlcNm")?.textContent || "",
-      jobclsNm:   item.querySelector("jobclsNm")?.textContent || "",
-      frDd:       item.querySelector("frDd")?.textContent || "",
-      toDd:       item.querySelector("toDd")?.textContent || "",
-      acptMthd:   item.querySelector("acptMthd")?.textContent || "",
-      deadline:   item.querySelector("deadline")?.textContent || "",
-      plDetAddr:  item.querySelector("plDetAddr")?.textContent || "",
+      workPlcNm: item.querySelector("workPlcNm")?.textContent || "",
+      jobclsNm: item.querySelector("jobclsNm")?.textContent || "",
+      frDd: item.querySelector("frDd")?.textContent || "",
+      toDd: item.querySelector("toDd")?.textContent || "",
+      acptMthd: item.querySelector("acptMthd")?.textContent || "",
+      deadline: item.querySelector("deadline")?.textContent || "",
+      plDetAddr: item.querySelector("plDetAddr")?.textContent || "",
       clerkContt: item.querySelector("clerkContt")?.textContent || "",
-      detCnts:    item.querySelector("detCnts")?.textContent || "",
+      detCnts: item.querySelector("detCnts")?.textContent || "",
       clltPrnnum: item.querySelector("clltPrnnum")?.textContent || "",
     })),
     total: Number(total) || 0,
@@ -87,13 +87,13 @@ export const getSavedJobProfile = () => {
     const currentSenior = sessionStorage.getItem("currentSenior");
     if (currentSenior) {
       const profile = JSON.parse(currentSenior);
-      const healthInfo    = profile.healthInfo    ?? {};
+      const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
       return {
-        maxHours:    healthInfo.maxHours,
+        maxHours: healthInfo.maxHours,
         maxDistance: healthInfo.maxDistance,
-        payType:     jobPreference.payType,
-        hopeDays:    jobPreference.hopeDays
+        payType: jobPreference.payType,
+        hopeDays: jobPreference.hopeDays
           ? String(jobPreference.hopeDays).split(",").filter(Boolean)
           : [],
       };

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { createCareResponse } from "../services/aiCareService";
 import { parseKoreanSchedules } from "../services/scheduleParser";
@@ -8,11 +9,14 @@ export default function ChatView({
   messages,
   setMessages,
   savedSchedules,
+  selectedScheduleDate,
+  onScheduleDateChange,
   onScheduleOpen,
   onScheduleSave,
   onScheduleEdit,
   onScheduleDelete,
 }) {
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,9 +39,7 @@ export default function ChatView({
 
   function speakAnswer(text) {
     if (!("speechSynthesis" in window) || !text) return;
-
     window.speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ko-KR";
     utterance.rate = 0.95;
@@ -63,10 +65,8 @@ export default function ChatView({
       if (options.speak) speakAnswer(answer);
     } catch (error) {
       console.error("채팅 응답 오류:", error);
-
-      const errorMessage = "답변을 가져오지 못했어요. Ollama가 실행 중인지 확인해 주세요.";
+      const errorMessage = "응답을 가져오지 못했어요. 잠시 후 다시 시도해주세요.";
       setMessages((prev) => [...prev, { role: "assistant", content: errorMessage }]);
-
       if (options.speak) speakAnswer(errorMessage);
     } finally {
       setIsLoading(false);
@@ -79,11 +79,7 @@ export default function ChatView({
       streamRef.current = stream;
 
       const mimeType = getSupportedAudioMimeType();
-      const mediaRecorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType } : undefined
-      );
-
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -108,10 +104,7 @@ export default function ChatView({
           console.error("STT 오류:", error);
           setMessages((prev) => [
             ...prev,
-            {
-              role: "assistant",
-              content: "음성을 인식하지 못했어요. STT 서버 상태를 확인해 주세요.",
-            },
+            { role: "assistant", content: "음성을 인식하지 못했어요. 다시 한 번 말씀해주세요." },
           ]);
         }
       };
@@ -122,10 +115,7 @@ export default function ChatView({
       console.error("마이크 녹음 오류:", error);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "마이크를 사용할 수 없어요. 브라우저 권한을 확인해 주세요.",
-        },
+        { role: "assistant", content: "마이크를 사용할 수 없어요. 브라우저 권한을 확인해주세요." },
       ]);
     }
   }
@@ -139,46 +129,38 @@ export default function ChatView({
 
   function confirmPendingSchedule() {
     if (!pendingSchedule) return;
-
-    onScheduleSave({
-      ...pendingSchedule,
-      text: scheduleToText(pendingSchedule),
-    });
+    onScheduleSave({ ...pendingSchedule, text: scheduleToText(pendingSchedule) });
     setPendingSchedule(null);
   }
 
   function cancelPendingSchedule() {
     setMessages((prev) => [
       ...prev,
-      {
-        role: "assistant",
-        content: "알겠어요. 일정 등록을 취소했어요.",
-      },
+      { role: "assistant", content: "알겠어요. 일정 등록을 취소했어요." },
     ]);
     setPendingSchedule(null);
   }
 
   return (
     <section className="chatbot-page">
+      <nav className="chatbot-nav">
+        <button type="button" onClick={() => navigate("/user")}>← 홈으로</button>
+        <span>AI 챗봇</span>
+      </nav>
+
       <header className="chatbot-header">
         <div>
           <p>AI 챗봇</p>
           <h1>무엇을 도와드릴까요?</h1>
         </div>
-
-        <button type="button" onClick={onScheduleOpen}>
-          일정 등록하기
-        </button>
+        <button type="button" onClick={onScheduleOpen}>일정 등록하기</button>
       </header>
 
       <main className="chatbot-layout">
         <section className="chatbot-panel">
           <div className="chatbot-messages" aria-live="polite">
             {messages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={`chat-message ${message.role}`}
-              >
+              <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
                 {message.content}
               </div>
             ))}
@@ -195,12 +177,8 @@ export default function ChatView({
               <p>이 일정으로 등록할까요?</p>
               <strong>{scheduleToText(pendingSchedule)}</strong>
               <div>
-                <button type="button" onClick={cancelPendingSchedule}>
-                  취소
-                </button>
-                <button type="button" onClick={confirmPendingSchedule}>
-                  등록
-                </button>
+                <button type="button" onClick={cancelPendingSchedule}>취소</button>
+                <button type="button" onClick={confirmPendingSchedule}>등록</button>
               </div>
             </div>
           )}
@@ -232,18 +210,23 @@ export default function ChatView({
         </section>
 
         <aside className="schedule-list-panel">
-          <h2>등록된 일정</h2>
+          <div className="schedule-list-head">
+            <h2>등록된 일정</h2>
+            <input
+              type="date"
+              value={selectedScheduleDate}
+              onChange={(event) => onScheduleDateChange(event.target.value)}
+            />
+          </div>
 
           {savedSchedules.length === 0 ? (
-            <p>아직 등록된 일정이 없어요.</p>
+            <p>선택한 날짜에 등록된 일정이 없어요.</p>
           ) : (
             savedSchedules.map((schedule) => (
               <article key={schedule.id} className="saved-schedule-card">
                 <p>{schedule.text}</p>
                 <div className="saved-schedule-actions">
-                  <button type="button" onClick={() => onScheduleEdit(schedule)}>
-                    수정
-                  </button>
+                  <button type="button" onClick={() => onScheduleEdit(schedule)}>수정</button>
                   <button
                     type="button"
                     className="danger"
@@ -268,7 +251,6 @@ function getSupportedAudioMimeType() {
     "audio/mp4",
     "audio/wav",
   ];
-
   return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
 }
 

@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   EMPL_COLOR,
   EMPL_MAP,
+  JOB_CATEGORY_FILTERS,
+  categorizeJob,
   fetchJobList,
   formatDate,
   getSavedJobProfile,
-  JOB_CATEGORY_FILTERS,
-  categorizeJob,
 } from "../../utils/user/jobApi";
 import "../../css/user/JobPage.css";
+
+const PAGE_SIZE = 20;
+const API_PAGE_SIZE = 100;
 
 export default function JobPage() {
   const navigate = useNavigate();
@@ -18,66 +21,19 @@ export default function JobPage() {
   const [error, setError] = useState(null);
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [loadedPage, setLoadedPage] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
+  const [hasMoreSource, setHasMoreSource] = useState(true);
   const [selected, setSelected] = useState(null);
   const [profile, setProfile] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
 
-  useEffect(() => { setProfile(getSavedJobProfile()); }, []);
-
-  const fetchAll = async (startPage = 1) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const pages = [startPage, startPage + 1, startPage + 2, startPage + 3, startPage + 4];
-      const results = await Promise.all(pages.map(p => fetchJobList(p, "")));
-      const allJobs = results.flatMap(r => r.list);
-      const total = results[0]?.total || 0;
-      const unique = Array.from(new Map(allJobs.map(j => [j.jobId, j])).values());
-      setTotalCount(total);
-      return { unique, total };
-    } catch {
-      setError("일자리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
-      return { unique: [], total: 0 };
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchAll(1).then(({ unique }) => {
-      setJobs(unique);
-      setPage(5);
-    });
-  }, [category]);
+    setProfile(getSavedJobProfile());
+  }, []);
 
-  const handleMore = async () => {
-    if (loading) return;
-
-    const nextStart = page + 1;
-    setLoading(true);
-
-    try {
-      const pages = [nextStart, nextStart + 1, nextStart + 2, nextStart + 3, nextStart + 4];
-      const results = await Promise.all(pages.map(p => fetchJobList(p, "")));
-      const newJobs = results.flatMap(r => r.list);
-
-      setJobs(prev => {
-        const existingIds = new Set(prev.map(j => j.jobId));
-        const newOnes = newJobs.filter(j => !existingIds.has(j.jobId));
-        return [...prev, ...newOnes];
-      });
-
-      setPage(nextStart + 4);
-    } catch {
-      setError("추가 데이터를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isExpired = (job) => {
+  const isExpired = useCallback((job) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (job.toDd) {
@@ -87,23 +43,101 @@ export default function JobPage() {
       const endDate = new Date(`${y}-${m}-${d}`);
       if (endDate < today) return true;
     }
-    if (job.deadline === "마감") return true;
-    return false;
+    return job.deadline === "마감";
+  }, []);
+
+  const matchesCategory = useCallback((job) => {
+    if (!category) return true;
+    const selectedCategory = JOB_CATEGORY_FILTERS.find((item) => item.value === category);
+    if (!selectedCategory?.srchWrd) return categorizeJob(job) === "기타";
+    return categorizeJob(job) === selectedCategory.label
+      || job.recrtTitle?.includes(selectedCategory.srchWrd)
+      || job.jobclsNm?.includes(selectedCategory.srchWrd);
+  }, [category]);
+
+  const matchesSearch = useCallback((job) => {
+    if (!search.trim()) return true;
+    const keyword = search.trim();
+    return job.recrtTitle?.includes(keyword)
+      || job.oranNm?.includes(keyword)
+      || job.workPlcNm?.includes(keyword)
+      || job.jobclsNm?.includes(keyword);
+  }, [search]);
+
+  const filterJobs = useCallback((list) => {
+    return list.filter((job) => {
+      if (hideExpired && isExpired(job)) return false;
+      return matchesCategory(job) && matchesSearch(job);
+    });
+  }, [hideExpired, isExpired, matchesCategory, matchesSearch]);
+
+  const filtered = useMemo(() => filterJobs(jobs), [jobs, filterJobs]);
+  const visibleJobs = filtered.slice(0, visibleCount);
+  const hasMoreVisible = filtered.length > visibleCount || hasMoreSource;
+
+  const loadUntilEnough = useCallback(async ({ startPage = 1, targetCount = PAGE_SIZE, replace = false } = {}) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      let nextPage = startPage;
+      let nextJobs = replace ? [] : jobs;
+      let nextTotal = totalCount;
+      let shouldContinue = true;
+
+      while (shouldContinue) {
+        const result = await fetchJobList(nextPage, "");
+        nextTotal = result.total || nextTotal;
+        const merged = new Map(nextJobs.map((job) => [job.jobId, job]));
+        result.list.forEach((job) => merged.set(job.jobId, job));
+        nextJobs = Array.from(merged.values());
+
+        const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
+        const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
+        const emptyPage = result.list.length === 0;
+        const reachedSafetyLimit = nextPage >= 60;
+
+        shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
+        nextPage += 1;
+      }
+
+      setJobs(nextJobs);
+      setTotalCount(nextTotal);
+      setLoadedPage(nextPage - 1);
+      setHasMoreSource(!(nextTotal > 0 && nextJobs.length >= nextTotal));
+    } catch {
+      setError("일자리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterJobs, jobs, totalCount]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    setJobs([]);
+    setLoadedPage(0);
+    setHasMoreSource(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
+  }, [category, search, hideExpired]);
+
+  const handleCategoryClick = (value) => {
+    setCategory(value);
   };
 
-  const filtered = jobs.filter(job => {
-    if (hideExpired && isExpired(job)) return false;
-    const matchSearch = search
-      ? (job.recrtTitle?.includes(search) || job.oranNm?.includes(search) || job.workPlcNm?.includes(search))
-      : true;
-    const matchCategory = (() => {
-      if (category === "") return true;
-      const found = JOB_CATEGORY_FILTERS.find(f => f.value === category);
-      if (!found || !found.srchWrd) return categorizeJob(job) === "기타";
-      return job.recrtTitle?.includes(found.srchWrd) || job.jobclsNm?.includes(found.srchWrd);
-    })();
-    return matchSearch && matchCategory;
-  });
+  const handleMore = async () => {
+    if (loading) return;
+    const nextVisibleCount = visibleCount + PAGE_SIZE;
+    setVisibleCount(nextVisibleCount);
+
+    if (filtered.length < nextVisibleCount && hasMoreSource) {
+      await loadUntilEnough({
+        startPage: loadedPage + 1,
+        targetCount: nextVisibleCount,
+        replace: false,
+      });
+    }
+  };
 
   const handleApply = (job) => {
     if (job.clerkContt) {
@@ -117,8 +151,11 @@ export default function JobPage() {
     try {
       const saved = sessionStorage.getItem("currentSenior");
       const seniorId = saved ? JSON.parse(saved)?.senior?.id : null;
-      if (!seniorId) { alert("로그인 정보가 없습니다."); return; }
-      await fetch(`http://localhost:8083/api/job-interests`, {
+      if (!seniorId) {
+        alert("로그인 정보가 없습니다.");
+        return;
+      }
+      await fetch("http://localhost:8083/api/job-interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,7 +188,7 @@ export default function JobPage() {
                 key={item.label}
                 className={`jp-cat-btn ${category === item.value ? "active" : ""}`}
                 type="button"
-                onClick={() => setCategory(item.value)}
+                onClick={() => handleCategoryClick(item.value)}
               >
                 {item.label}
               </button>
@@ -163,7 +200,7 @@ export default function JobPage() {
             <input
               className="jp-search-input"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="공고명, 기업명, 근무지 검색..."
             />
             {search && (
@@ -175,7 +212,7 @@ export default function JobPage() {
                 type="checkbox"
                 className="jp-expire-checkbox"
                 checked={hideExpired}
-                onChange={e => setHideExpired(e.target.checked)}
+                onChange={(event) => setHideExpired(event.target.checked)}
               />
               <span className="jp-expire-label">마감 숨기기</span>
             </label>
@@ -222,14 +259,14 @@ export default function JobPage() {
               {search
                 ? `"${search}" 검색 결과 · ${filtered.length}건`
                 : category
-                ? `${category} · ${filtered.length}건`
-                : `구인 목록 · ${filtered.length}건 표시 중`}
+                  ? `${category} · ${filtered.length}건`
+                  : `구인 목록 · ${filtered.length}건 표시 중`}
             </div>
           </div>
 
           {error && <div className="jp-error">⚠️ {error}</div>}
           {loading && jobs.length === 0 && (
-            <div className="jp-loading">💼 일자리 정보 불러오는 중... (500건 로딩 중)</div>
+            <div className="jp-loading">💼 일자리 정보를 불러오는 중...</div>
           )}
           {!loading && !error && filtered.length === 0 && (
             <div className="jp-empty">
@@ -238,7 +275,7 @@ export default function JobPage() {
             </div>
           )}
 
-          {filtered.map((job, idx) => {
+          {visibleJobs.map((job, idx) => {
             const empl = EMPL_MAP[job.emplymShp] || "기타";
             const color = EMPL_COLOR[job.emplymShp] || EMPL_COLOR.CM0105;
             const jobCategory = categorizeJob(job);
@@ -294,9 +331,9 @@ export default function JobPage() {
             );
           })}
 
-          {!loading && !error && jobs.length > 0 && jobs.length < totalCount && (
+          {!loading && !error && visibleJobs.length > 0 && hasMoreVisible && (
             <button className="jp-more-btn" type="button" onClick={handleMore}>
-              더보기 ({jobs.length} / {totalCount}건)
+              더보기 ({visibleJobs.length} / {filtered.length + (hasMoreSource ? "+" : "")}건)
             </button>
           )}
         </main>
@@ -304,7 +341,7 @@ export default function JobPage() {
 
       {selected && (
         <div className="jp-overlay" onClick={() => setSelected(null)}>
-          <div className="jp-modal" onClick={e => e.stopPropagation()}>
+          <div className="jp-modal" onClick={(event) => event.stopPropagation()}>
             <div className="jp-modal-header">
               <button className="jp-modal-close" type="button" onClick={() => setSelected(null)}>✕</button>
               <div className="jp-modal-title">{selected.recrtTitle}</div>
@@ -321,7 +358,7 @@ export default function JobPage() {
                 { key: "접수방법", val: selected.acptMthd },
                 { key: "연락처", val: selected.clerkContt },
                 { key: "상세내용", val: selected.detCnts },
-              ].filter(row => row.val).map(row => (
+              ].filter((row) => row.val).map((row) => (
                 <div key={row.key} className="jp-modal-row">
                   <div className="jp-modal-key">{row.key}</div>
                   <div className="jp-modal-val">{row.val}</div>

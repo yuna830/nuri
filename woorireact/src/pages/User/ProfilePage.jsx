@@ -75,6 +75,24 @@ export default function ProfilePage() {
       setUploadingPhoto(true);
       const { imageUrl } = await uploadProfileImage(file);
       set("profileImageUrl", imageUrl);
+
+      const savedCurrentSenior = sessionStorage.getItem("currentSenior");
+      if (savedCurrentSenior) {
+        const profile = JSON.parse(savedCurrentSenior);
+        const seniorId = profile?.senior?.id;
+        if (seniorId) {
+          const nextForm = { ...form, profileImageUrl: imageUrl };
+          const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(nextForm),
+          });
+          if (response.ok) {
+            const updatedProfile = await response.json();
+            sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+          }
+        }
+      }
     } catch (error) {
       console.error("프로필 사진 업로드 실패:", error);
       alert("프로필 사진 업로드에 실패했습니다.");

@@ -5,7 +5,7 @@ import ScheduleRegister from "./components/ScheduleRegister";
 import {
   createSchedule,
   deleteSchedule,
-  fetchSeniorSchedules,
+  fetchSchedulesByDate,
   getCurrentSeniorId,
   updateSchedule,
 } from "./services/scheduleApi";
@@ -29,6 +29,7 @@ export default function ChatAssistant() {
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [savedSchedules, setSavedSchedules] = useState([]);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -41,14 +42,14 @@ export default function ChatAssistant() {
       const seniorId = getResolvedSeniorId();
       if (!seniorId) return;
       try {
-        const schedules = await fetchSeniorSchedules(seniorId);
-        setSavedSchedules(schedules.map(scheduleFromApi));
+      const schedules = await fetchSchedulesByDate(seniorId, selectedScheduleDate);
+      setSavedSchedules(schedules.map(scheduleFromApi));
       } catch (error) {
         console.error("일정 조회 오류:", error);
       }
     }
     loadSchedules();
-  }, []);
+  }, [selectedScheduleDate]);
 
   function openScheduleCreate() {
     setEditingSchedule(null);
@@ -83,6 +84,11 @@ export default function ChatAssistant() {
       const savedSchedule = scheduleFromApi(saved);
 
       setSavedSchedules((prev) => {
+        if (savedSchedule.date !== selectedScheduleDate) {
+          return isEditing
+            ? prev.filter((item) => item.id !== editingSchedule.id)
+            : prev;
+        }
         if (!isEditing) return [savedSchedule, ...prev];
         return prev.map((item) =>
           item.id === editingSchedule.id ? savedSchedule : item
@@ -157,6 +163,8 @@ export default function ChatAssistant() {
       messages={messages}
       setMessages={setMessages}
       savedSchedules={savedSchedules}
+      selectedScheduleDate={selectedScheduleDate}
+      onScheduleDateChange={setSelectedScheduleDate}
       onScheduleOpen={openScheduleCreate}
       onScheduleSave={handleScheduleSave}
       onScheduleEdit={openScheduleEdit}
