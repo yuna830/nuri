@@ -23,6 +23,7 @@ export default function ChatView({
   onScheduleDelete,
 }) {
   const navigate = useNavigate();
+  const dateText = formatTodayKorean();
   const [input, setInput] = useState("");
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -346,9 +347,13 @@ export default function ChatView({
 
   return (
     <section className="chatbot-page">
-      <nav className="chatbot-nav">
-        <button type="button" onClick={() => navigate("/user")}>← 홈으로</button>
-        <span>AI 챗봇</span>
+      <nav className="chatbot-global-nav">
+        <button className="chatbot-nav-logo" type="button" onClick={() => navigate("/user")}>
+          우리 woori
+        </button>
+        <div className="chatbot-nav-right">
+          <span className="chatbot-nav-date">{dateText}</span>
+        </div>
       </nav>
 
       <header className="chatbot-header">
@@ -634,6 +639,14 @@ function todayValue() {
 function currentTimeValue() {
   const now = new Date();
   return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function formatTodayKorean() {
+  const today = new Date();
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
+  return `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일(${
+    days[today.getDay()]
+  })`;
 }
 
 function pad(value) {
