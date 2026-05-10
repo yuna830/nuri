@@ -30,7 +30,7 @@ export default function ProfilePage() {
           const cachedProfile = JSON.parse(savedCurrentSenior);
           const seniorId = cachedProfile?.senior?.id;
           if (seniorId) {
-            const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`);
+            const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
             if (response.ok) {
               const freshProfile = await response.json();
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
@@ -39,7 +39,7 @@ export default function ProfilePage() {
             }
           }
         }
-        const response = await fetch("http://localhost:8181/api/seniors");
+        const response = await fetch("http://localhost:8080/api/seniors");
         if (!response.ok) return;
         const profiles = await response.json();
         const latestProfile = profiles[profiles.length - 1];
@@ -82,7 +82,7 @@ export default function ProfilePage() {
         const seniorId = profile?.senior?.id;
         if (seniorId) {
           const nextForm = { ...form, profileImageUrl: imageUrl };
-          const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`, {
+          const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(nextForm),
@@ -109,7 +109,7 @@ export default function ProfilePage() {
       const profile = JSON.parse(savedCurrentSenior);
       const seniorId = profile?.senior?.id;
       if (!seniorId) { alert("사용자 ID를 찾을 수 없습니다."); return; }
-      const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`, {
+      const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

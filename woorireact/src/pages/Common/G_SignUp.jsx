@@ -50,7 +50,7 @@ export default function GuardianSignUp() {
     try {
       setError("");
       setIsSearching(true);
-      const response = await fetch(`http://localhost:8181/api/seniors/search?keyword=${encodeURIComponent(keyword)}`);
+      const response = await fetch(`http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(keyword)}`);
       const data = response.ok ? await response.json() : [];
       setSeniorResults(Array.isArray(data) ? data : []);
       if (!response.ok || data.length === 0) {
@@ -81,7 +81,7 @@ export default function GuardianSignUp() {
       setSaving(true);
       setError("");
 
-      const response = await fetch("http://localhost:8181/api/guardians/signup", {
+      const response = await fetch("http://localhost:8080/api/guardians/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

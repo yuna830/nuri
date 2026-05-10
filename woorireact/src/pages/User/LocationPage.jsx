@@ -66,7 +66,7 @@ export default function LocationPage() {
   const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
-    await fetch("http://localhost:8181/api/locations", {
+    await fetch("http://localhost:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
@@ -77,7 +77,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8181/api/locations/senior/${seniorId}/date?date=${date}`);
+      const response = await fetch(`http://localhost:8080/api/locations/senior/${seniorId}/date?date=${date}`);
       const data = response.ok ? await response.json() : [];
       const list = Array.isArray(data) ? data : [];
       setHistoryByDate(prev => ({
@@ -93,7 +93,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8181/api/safe-zones/senior/${seniorId}`);
+      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}`);
       if (!response.ok || response.status === 204) return;
       const nextSafeZone = await response.json();
       setSafeZone({

@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8181";
+const API_BASE = "http://localhost:8080";
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
 export const toWeatherGrid = (lat, lon) => {
