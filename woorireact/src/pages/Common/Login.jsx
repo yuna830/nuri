@@ -28,7 +28,7 @@ export default function Login() {
     }
 
     try {
-      const response = await fetch("http://localhost:8181/api/seniors");
+      const response = await fetch("http://localhost:8080/api/seniors");
 
       if (!response.ok) {
         setError("사용자 정보를 불러오지 못했습니다.");

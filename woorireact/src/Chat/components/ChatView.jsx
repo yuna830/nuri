@@ -33,6 +33,19 @@ export default function ChatView({
     };
   }, []);
 
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return undefined;
+
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
   function speakAnswer(text) {
     if (!("speechSynthesis" in window) || !text) return;
 
@@ -40,7 +53,10 @@ export default function ChatView({
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ko-KR";
-    utterance.rate = 0.95;
+    utterance.voice = getCuteKoreanVoice();
+    utterance.pitch = 1.25;
+    utterance.rate = 1.06;
+    utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   }
 
@@ -54,8 +70,18 @@ export default function ChatView({
 
     try {
       const parsedSchedules = parseKoreanSchedules(text);
-      const answer = await createCareResponse({ text, schedules: parsedSchedules });
       const firstSchedule = parsedSchedules[0] || null;
+
+      if (firstSchedule && isPastSchedule(firstSchedule)) {
+        const pastMessage =
+          "지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말씀해 주세요.";
+        setMessages((prev) => [...prev, { role: "assistant", content: pastMessage }]);
+        setPendingSchedule(null);
+        if (options.speak) speakAnswer(pastMessage);
+        return;
+      }
+
+      const answer = await createCareResponse({ text, schedules: parsedSchedules });
 
       setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
       setPendingSchedule(firstSchedule);
@@ -272,8 +298,48 @@ function getSupportedAudioMimeType() {
   return candidates.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
 }
 
+function getCuteKoreanVoice() {
+  if (!("speechSynthesis" in window)) return null;
+
+  const voices = window.speechSynthesis.getVoices();
+  const koreanVoices = voices.filter((voice) => voice.lang?.toLowerCase().startsWith("ko"));
+  const cuteVoiceNames = ["female", "woman", "girl", "heami", "sunhi", "yuna", "google"];
+
+  return (
+    koreanVoices.find((voice) =>
+      cuteVoiceNames.some((name) => voice.name.toLowerCase().includes(name))
+    ) ||
+    koreanVoices[0] ||
+    null
+  );
+}
+
 function scheduleToText(schedule) {
   const dateText = schedule.date || "날짜 확인 필요";
   const timeText = schedule.time ? ` ${schedule.time}` : "";
   return `${dateText}${timeText} ${schedule.title}`.trim();
+}
+
+function isPastSchedule(schedule) {
+  const date = schedule.date || todayValue();
+  const today = todayValue();
+
+  if (date < today) return true;
+  if (date > today || !schedule.time) return false;
+
+  return schedule.time <= currentTimeValue();
+}
+
+function todayValue() {
+  const today = new Date();
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+function currentTimeValue() {
+  const now = new Date();
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function pad(value) {
+  return String(value).padStart(2, "0");
 }

@@ -64,6 +64,17 @@ export default function ChatAssistant() {
     const seniorId = getResolvedSeniorId();
     const isEditing = Boolean(editingSchedule);
 
+    if (isPastSchedule(schedule)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말씀해 주세요.",
+        },
+      ]);
+      return;
+    }
+
     if (!seniorId) {
       setMessages((prev) => [
         ...prev,
@@ -167,13 +178,17 @@ export default function ChatAssistant() {
 
 function scheduleToApiPayload(schedule, seniorId) {
   const title = schedule.detail || schedule.title || "일정";
+  const scheduleTime = Object.prototype.hasOwnProperty.call(schedule, "time")
+    ? schedule.time || null
+    : fieldsToTime(schedule);
+
   return {
     seniorId: Number(seniorId),
     guardianId: null,
     title,
     content: title,
     scheduleDate: schedule.date || todayValue(),
-    scheduleTime: schedule.time || fieldsToTime(schedule),
+    scheduleTime,
     isRepeat: false,
     isAlarm: true,
   };
@@ -225,9 +240,24 @@ function scheduleToText(schedule) {
   return `${dateText}${timeText} ${schedule.title}`.trim();
 }
 
+function isPastSchedule(schedule) {
+  const date = schedule.date || todayValue();
+  const today = todayValue();
+
+  if (date < today) return true;
+  if (date > today || !schedule.time) return false;
+
+  return schedule.time <= currentTimeValue();
+}
+
 function todayValue() {
   const today = new Date();
   return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+function currentTimeValue() {
+  const now = new Date();
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 function pad(value) {

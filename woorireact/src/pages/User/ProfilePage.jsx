@@ -30,7 +30,7 @@ export default function ProfilePage() {
           const seniorId = cachedProfile?.senior?.id;
 
           if (seniorId) {
-            const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`);
+            const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
 
             if (response.ok) {
               const freshProfile = await response.json();
@@ -41,7 +41,7 @@ export default function ProfilePage() {
           }
         }
 
-        const response = await fetch("http://localhost:8181/api/seniors");
+        const response = await fetch("http://localhost:8080/api/seniors");
 
         if (!response.ok) return;
 

@@ -104,7 +104,7 @@ function GuardianPage() {
         setGuardian(currentGuardian);
 
         const response = await fetch(
-          `http://localhost:8181/api/seniors/guardian/${currentGuardian.id}`
+          `http://localhost:8080/api/seniors/guardian/${currentGuardian.id}`
         );
 
         if (!response.ok) {
