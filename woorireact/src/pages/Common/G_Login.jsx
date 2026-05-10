@@ -4,10 +4,10 @@ import { useNavigate } from "react-router-dom";
 import "../../css/common/Login.css";
 
 const FEATURES = [
-  { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로를 확인합니다" },
-  { icon: "🚨", title: "긴급 알림 수신", desc: "안전 반경 이탈, 낙상, 실종 신고 알림을 받습니다" },
-  { icon: "🗺", title: "안심 구역 관리", desc: "자택, 병원, 복지관 등 안전 구역을 설정합니다" },
-  { icon: "📋", title: "건강 정보 확인", desc: "등록된 건강 정보와 주의사항을 함께 확인합니다" },
+  { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로 확인" },
+  { icon: "🚨", title: "긴급 알림 수신", desc: "안전 반경 이탈, 낙상, 실종 신고 알림" },
+  { icon: "🗺", title: "안심 구역 관리", desc: "자택, 병원, 복지관 등 안전 구역 설정" },
+  { icon: "📋", title: "건강 정보 확인", desc: "등록된 건강 정보와 주의사항을 함께 확인" },
 ];
 
 export default function GuardianLogin() {
@@ -116,7 +116,7 @@ export default function GuardianLogin() {
           </button>
 
           <div className="login-footer">
-            케어링은 보호자와 어르신을 연결해
+            우리는 보호자와 어르신을 연결해
             <br />
             더 안전한 돌봄을 돕습니다.
           </div>

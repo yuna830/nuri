@@ -89,7 +89,7 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference);
+        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
     }
 
     @GetMapping
@@ -104,11 +104,10 @@ public class SeniorController {
     public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
         return guardianSeniorRepository.findByGuardianId(guardianId)
                 .stream()
-                .map(GuardianSenior::getSeniorId)
-                .map(seniorRepository::findById)
+                .map(link -> seniorRepository.findById(link.getSeniorId())
+                        .map(senior -> toProfileResponse(senior, link.getRelation())))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
-                .map(this::toProfileResponse)
                 .toList();
     }
 
@@ -184,17 +183,36 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference);
+        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
+    }
+
+    private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        return new SeniorProfileResponse(
+                senior,
+                healthInfo,
+                jobPreference,
+                relation == null || relation.isBlank() ? "보호 대상자" : relation
+        );
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
-        HealthInfo healthInfo = healthInfoRepository.findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        JobPreference jobPreference = jobPreferenceRepository.findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        return new SeniorProfileResponse(senior, healthInfo, jobPreference);
+        return new SeniorProfileResponse(senior, healthInfo, jobPreference, "보호 대상자");
     }
 
     private Integer toInteger(String value) {
@@ -268,7 +286,8 @@ public class SeniorController {
     public record SeniorProfileResponse(
             Senior senior,
             HealthInfo healthInfo,
-            JobPreference jobPreference
+            JobPreference jobPreference,
+            String relation
     ) {
     }
 }

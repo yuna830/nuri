@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getGuardianAlerts, readAlert, createMissingReport, uploadImage } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
-import { getDistanceMeters, formatShortAddress } from "../../utils/guardian/location";
+import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
 
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
@@ -494,7 +494,7 @@ function GuardianPage() {
     }
   };
 
-  const handleConnectSenior = async (seniorId) => {
+  const handleConnectSenior = async (seniorId, relation = "보호 대상자") => {
     try {
       const guardianId = getCurrentGuardianId();
 
@@ -510,7 +510,7 @@ function GuardianPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             seniorId,
-            relation: "보호 대상자",
+            relation: relation.trim() || "보호 대상자",
           }),
         }
       );
@@ -791,6 +791,7 @@ function GuardianPage() {
           lastNormalLocation={lastNormalLocation}
           safeZoneForm={safeZoneForm}
           formatShortAddress={formatShortAddress}
+          formatSafeZoneAddress={formatSafeZoneAddress}
           isSafeZoneOpen={isSafeZoneOpen}
           isAddElderOpen={isAddElderOpen}
           seniorSearch={seniorSearch}

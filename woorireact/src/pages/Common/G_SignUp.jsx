@@ -40,8 +40,13 @@ export default function GuardianSignUp() {
   const handleSubmit = async () => {
     const validationMessage = validate();
 
+    // if (validationMessage) {
+    //   setError(validationMessage);
+    //   return;
+    // }
+
     if (validationMessage) {
-      setError(validationMessage);
+      alert(validationMessage);
       return;
     }
 
@@ -74,8 +79,20 @@ export default function GuardianSignUp() {
   return (
     <div className="su-root">
       <nav className="su-nav">
-        <div className="su-nav-logo">🌿 케어링 CaRing</div>
-        <div className="su-nav-step">보호자 계정 등록</div>
+        <div className="su-nav-inner">
+          <div className="su-nav-logo">🌿 우리 woori</div>
+
+          <div className="su-nav-actions">
+            <span className="su-nav-step">보호자 계정 등록</span>
+            <button
+              className="su-nav-login"
+              type="button"
+              onClick={() => navigate("/glogin")}
+            >
+              로그인
+            </button>
+          </div>
+        </div>
       </nav>
 
       <div className="su-layout">
@@ -84,28 +101,30 @@ export default function GuardianSignUp() {
         <div className="su-section">
           <div className="su-section-title">보호자 회원가입</div>
 
-          <div className="su-field">
-            <label className="su-label">
-              이름 <span className="su-required">*</span>
-            </label>
-            <input
-              className="su-input"
-              value={form.name}
-              onChange={(event) => set("name", event.target.value)}
-              placeholder="김민지"
-            />
-          </div>
+          <div className="su-row">
+            <div className="su-field">
+              <label className="su-label">
+                이름 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.name}
+                onChange={(event) => set("name", event.target.value)}
+                placeholder="김민지"
+              />
+            </div>
 
-          <div className="su-field">
-            <label className="su-label">
-              연락처 <span className="su-required">*</span>
-            </label>
-            <input
-              className="su-input"
-              value={form.phone}
-              onChange={(event) => set("phone", event.target.value)}
-              placeholder="010-0000-0000"
-            />
+            <div className="su-field">
+              <label className="su-label">
+                연락처 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.phone}
+                onChange={(event) => set("phone", event.target.value)}
+                placeholder="010-0000-0000"
+              />
+            </div>
           </div>
 
           <div className="su-field">
@@ -152,16 +171,30 @@ export default function GuardianSignUp() {
         <div className="su-section">
           <div className="su-section-title">관리 대상자 정보</div>
 
-          <div className="su-field">
-            <label className="su-label">
-              사용자 이름 <span className="su-required">*</span>
-            </label>
-            <input
-              className="su-input"
-              value={form.seniorName}
-              onChange={(event) => set("seniorName", event.target.value)}
-              placeholder="이영희"
-            />
+          <div className="su-row">
+            <div className="su-field">
+              <label className="su-label">
+                사용자 이름 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.seniorName}
+                onChange={(event) => set("seniorName", event.target.value)}
+                placeholder="이영희"
+              />
+            </div>
+
+            <div className="su-field">
+              <label className="su-label">
+                관계 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.seniorRelation}
+                onChange={(event) => set("seniorRelation", event.target.value)}
+                placeholder="어머니"
+              />
+            </div>
           </div>
 
           <div className="su-field">
@@ -175,32 +208,14 @@ export default function GuardianSignUp() {
               placeholder="서울시 강남구 역삼동"
             />
           </div>
-
-          <div className="su-field">
-            <label className="su-label">
-              관계 <span className="su-required">*</span>
-            </label>
-            <input
-              className="su-input"
-              value={form.seniorRelation}
-              onChange={(event) => set("seniorRelation", event.target.value)}
-              placeholder="어머니"
-            />
-          </div>
         </div>
 
         <div className="su-btn-row">
-          <button
-            className="su-btn-prev"
-            type="button"
-            onClick={() => navigate("/glogin")}
-          >
-            ← 로그인으로
-          </button>
-
-          <button className="su-btn-next" type="button" onClick={handleSubmit}>
-            보호자 가입 완료
-          </button>
+          <div className="su-btn-row su-btn-row-end">
+            <button className="su-btn-next" type="button" onClick={handleSubmit}>
+              보호자 가입 완료
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -69,7 +69,7 @@ export default function Login() {
   };
 
   return (
-    <main className="login-root">
+    <main className="login-root login-user">
       <section className="login-left">
         <div className="login-logo">🌿 우리 woori</div>
         <div className="login-tagline">취약계층 AI 통합 돌봄 플랫폼</div>
@@ -117,7 +117,7 @@ export default function Login() {
           />
 
           <button className="login-btn" type="button" onClick={handleStart}>
-            🌿 서비스 시작하기
+            서비스 시작하기
           </button>
 
           <div className="login-divider">처음 사용하시나요?</div>
@@ -127,7 +127,7 @@ export default function Login() {
             type="button"
             onClick={() => navigate("/signup")}
           >
-            📋 정보 등록하기
+            정보 등록하기
           </button>
 
           <div className="login-footer">

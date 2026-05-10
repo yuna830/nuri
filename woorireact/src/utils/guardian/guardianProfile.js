@@ -35,11 +35,12 @@ export const mapSeniorProfileToElder = (profile) => {
   return {
     id: senior.id,
     name: senior.name || "이름 없음",
-    relation: "보호 대상자",
+    relation: profile.relation || "보호 대상자",
     status: "unknown",
     age: senior.age ? `${senior.age}세` : "-",
     gender: senior.gender || "-",
     address,
+    profileImageUrl: senior.profileImageUrl || "",
     condition: makeConditionText(healthInfo),
     battery: 75,
     center: {

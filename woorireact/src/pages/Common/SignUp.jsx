@@ -101,7 +101,6 @@ export default function SignUp() {
 
     return defaultForm;
   });
-  const [error, setError] = useState("");
 
   const set = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -124,10 +123,10 @@ export default function SignUp() {
 
   const validate = () => {
     if (step === 0) {
-      if (!form.name) return "이름을 입력해주세요.";
+      if (!form.name.trim()) return "이름을 입력해주세요.";
       if (!form.age) return "나이를 입력해주세요.";
       if (!form.gender) return "성별을 선택해주세요.";
-      if (!form.region) return "거주지를 입력해주세요.";
+      if (!form.region.trim()) return "거주지를 입력해주세요.";
     }
 
     if (step === 1) {
@@ -142,11 +141,9 @@ export default function SignUp() {
     const validationMessage = validate();
 
     if (validationMessage) {
-      setError(validationMessage);
+      alert(validationMessage);
       return;
     }
-
-    setError("");
 
     if (step < 2) {
       setStep(step + 1);
@@ -154,39 +151,61 @@ export default function SignUp() {
       return;
     }
 
-    const response = await fetch("http://localhost:8080/api/seniors", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    try {
+      const response = await fetch("http://localhost:8080/api/seniors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
 
-    const data = await response.json();
-    const senior = data.senior;
+      if (!response.ok) {
+        alert("정보 등록에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
 
-    if (senior?.id) {
-      localStorage.setItem("current_senior_id", String(senior.id));
-      localStorage.setItem(
-        "user_profile",
-        JSON.stringify({
-          ...form,
-          id: senior.id,
-          name: senior.name || form.name,
-          region: senior.region || form.region,
-        })
-      );
+      const data = await response.json();
+      const senior = data.senior;
+
+      if (senior?.id) {
+        localStorage.setItem("current_senior_id", String(senior.id));
+        localStorage.setItem(
+          "user_profile",
+          JSON.stringify({
+            ...form,
+            id: senior.id,
+            name: senior.name || form.name,
+            region: senior.region || form.region,
+          })
+        );
+      }
+
+      localStorage.removeItem("login_temp");
+      navigate("/user");
+    } catch (error) {
+      console.error("정보 등록 실패:", error);
+      alert("서버에 연결할 수 없습니다.");
     }
-
-    localStorage.removeItem("login_temp");
-    navigate("/user");
-
+  };
 
   return (
     <div className="su-root">
       <nav className="su-nav">
-        <div className="su-nav-logo">🌿 우리 woori</div>
-        <div className="su-nav-step">정보 등록 {step + 1} / 3</div>
+        <div className="su-nav-inner">
+          <div className="su-nav-logo">🌿 우리 woori</div>
+
+          <div className="su-nav-actions">
+            <span className="su-nav-step">정보 등록 {step + 1} / 3</span>
+            <button
+              className="su-nav-login"
+              type="button"
+              onClick={() => navigate("/")}
+            >
+              로그인
+            </button>
+          </div>
+        </div>
       </nav>
 
       <div className="su-stepbar">
@@ -196,11 +215,7 @@ export default function SignUp() {
               key={stepLabel}
               className={`su-step-item ${index < STEPS.length - 1 ? "grow" : ""}`}
             >
-              <div
-                className={`su-step-circle ${
-                  index < step ? "done" : index === step ? "active" : ""
-                }`}
-              >
+              <div className={`su-step-circle ${index < step ? "done" : index === step ? "active" : ""}`}>
                 {index < step ? "✓" : index + 1}
               </div>
 
@@ -217,8 +232,6 @@ export default function SignUp() {
       </div>
 
       <div className="su-layout">
-        {error && <div className="su-error">⚠️ {error}</div>}
-
         {step === 0 && (
           <div className="su-section">
             <div className="su-section-title">📋 인적사항</div>
@@ -290,12 +303,10 @@ export default function SignUp() {
                     <div className="su-bmi-label">BMI 지수</div>
                     <div className="su-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div>
                   </div>
-
                   <div>
                     <div className="su-bmi-label">판정</div>
                     <div className="su-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div>
                   </div>
-
                   <div className="su-bmi-guide">
                     정상: 18.5 ~ 22.9
                     <br />
@@ -438,25 +449,13 @@ export default function SignUp() {
               {form.hasSurgery === "있음" && (
                 <div className="su-field">
                   <label className="su-label">어떤 수술을 받으셨나요? (연도 포함해서 자세히 적어주세요)</label>
-                  <textarea
-                    className="su-input su-textarea"
-                    value={form.surgeryDetail}
-                    onChange={(event) => set("surgeryDetail", event.target.value)}
-                    placeholder="예) 2020년 무릎 인공관절 수술, 2022년 백내장 수술, 2023년 담낭 절제 등"
-                    rows={3}
-                  />
+                  <textarea className="su-input su-textarea" value={form.surgeryDetail} onChange={(event) => set("surgeryDetail", event.target.value)} placeholder="예) 2020년 무릎 인공관절 수술, 2022년 백내장 수술" rows={3} />
                 </div>
               )}
 
               <div className="su-field">
                 <label className="su-label">기타 특이사항 (선택)</label>
-                <textarea
-                  className="su-input su-textarea"
-                  value={form.otherDisease}
-                  onChange={(event) => set("otherDisease", event.target.value)}
-                  placeholder="예) 허리 디스크, 복용 중인 약 이름, 알레르기 등 추가로 알려주실 내용"
-                  rows={3}
-                />
+                <textarea className="su-input su-textarea" value={form.otherDisease} onChange={(event) => set("otherDisease", event.target.value)} placeholder="예) 허리 디스크, 복용 중인 약 이름, 알레르기 등" rows={3} />
               </div>
             </div>
 
@@ -551,43 +550,30 @@ export default function SignUp() {
 
             <div className="su-field">
               <label className="su-label">기타 희망 사항 (선택)</label>
-              <textarea
-                className="su-input su-textarea"
-                value={form.memo}
-                onChange={(event) => set("memo", event.target.value)}
-                placeholder="예) 이전 직업 경력, 특기, 자격증 등 추가로 알려주실 내용"
-                rows={4}
-              />
+              <textarea className="su-input su-textarea" value={form.memo} onChange={(event) => set("memo", event.target.value)} placeholder="예) 이전 직업 경력, 특기, 자격증 등" rows={4} />
             </div>
           </div>
         )}
 
-        <div className="su-btn-row">
-          {step > 0 ? (
+        <div className={`su-btn-row ${step === 0 ? "su-btn-row-end" : ""}`}>
+          {step > 0 && (
             <button
               className="su-btn-prev"
               type="button"
               onClick={() => {
-                setError("");
                 setStep(step - 1);
                 window.scrollTo(0, 0);
               }}
             >
               ← 이전
             </button>
-          ) : (
-            <button className="su-btn-prev" type="button" onClick={() => navigate("/")}>
-              ← 로그인으로
-            </button>
           )}
 
           <button className="su-btn-next" type="button" onClick={handleNext}>
-            {step < 2 ? "다음 →" : "✅ 등록 완료"}
+            {step < 2 ? "다음" : "등록 완료"}
           </button>
         </div>
       </div>
     </div>
   );
 }
-}
-

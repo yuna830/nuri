@@ -149,6 +149,33 @@
   font-size: 14px;
 }
 
+.add-elder-connect-fields {
+  padding: 20px 24px;
+  border-bottom: 1px solid #EEF3EA;
+  display: grid;
+  gap: 12px;
+}
+
+.add-elder-connect-fields .add-elder-search {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.add-elder-relation-field {
+  display: grid;
+  gap: 6px;
+  color: #4F6F52;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.add-elder-relation-field input {
+  border: 1px solid #D4E8D6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
 .alert-panel-backdrop {
   position: fixed;
   inset: 0;

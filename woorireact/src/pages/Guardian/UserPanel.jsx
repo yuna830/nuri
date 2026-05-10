@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { resolveUploadUrl } from "../../api/userPageApi";
 
 function UserPanel({
   selectedElder,
@@ -10,6 +11,7 @@ function UserPanel({
   lastNormalLocation,
   safeZoneForm,
   formatShortAddress,
+  formatSafeZoneAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
   onSafeZoneChange,
@@ -40,7 +42,13 @@ function UserPanel({
 
   const profileMenuRef = useRef(null);
 
-  const profileImage = profileImages[selectedElderId] ?? null;
+  const guardianProfileImage = profileImages[selectedElderId] ?? null;
+
+  const userProfileImage = selectedElder?.profileImageUrl
+    ? resolveUploadUrl(selectedElder.profileImageUrl)
+    : null;
+
+  const profileImage = guardianProfileImage || userProfileImage;
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
@@ -378,6 +386,7 @@ function AddElderModal({
   onCreateAndConnectSenior,
 }) {
   const [isCreateElderOpen, setIsCreateElderOpen] = useState(false);
+  const [connectRelation, setConnectRelation] = useState("보호 대상자");
 
   const handleClose = () => {
     setIsCreateElderOpen(false);
@@ -398,17 +407,28 @@ function AddElderModal({
           </button>
         </div>
 
-        <div className="add-elder-search">
-          <input
-            value={seniorSearch}
-            onChange={(event) => setSeniorSearch(event.target.value)}
-            placeholder="이름 또는 연락처로 검색"
-            onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
-          />
+        <div className="add-elder-connect-fields">
+          <div className="add-elder-search">
+            <input
+              value={seniorSearch}
+              onChange={(event) => setSeniorSearch(event.target.value)}
+              placeholder="이름 또는 연락처로 검색"
+              onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
+            />
 
-          <button type="button" onClick={onSearchSenior}>
-            검색
-          </button>
+            <button type="button" onClick={onSearchSenior}>
+              검색
+            </button>
+          </div>
+
+          <label className="add-elder-relation-field">
+            관계
+            <input
+              value={connectRelation}
+              onChange={(event) => setConnectRelation(event.target.value)}
+              placeholder="어머니, 아버지, 배우자"
+            />
+          </label>
         </div>
 
         <div className="add-elder-list">
@@ -430,7 +450,7 @@ function AddElderModal({
                     <em>{senior.region || senior.address || "주소 없음"}</em>
                   </div>
 
-                  <button type="button" onClick={() => onConnectSenior(senior.id)}>
+                  <button type="button" onClick={() => onConnectSenior(senior.id, connectRelation)}>
                     선택
                   </button>
                 </article>

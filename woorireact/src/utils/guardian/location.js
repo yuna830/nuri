@@ -12,6 +12,40 @@ export function getDistanceMeters(from, to) {
   return Math.round(earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+export const formatCityAddress = (address) => {
+  if (!address) {
+    return "주소 없음";
+  }
+
+  return address
+    .replaceAll("서울특별시", "서울시")
+    .replaceAll("부산광역시", "부산시")
+    .replaceAll("대구광역시", "대구시")
+    .replaceAll("인천광역시", "인천시")
+    .replaceAll("광주광역시", "광주시")
+    .replaceAll("대전광역시", "대전시")
+    .replaceAll("울산광역시", "울산시")
+    .replaceAll("세종특별자치시", "세종시");
+};
+
+export const formatSafeZoneAddress = (address) => {
+  if (!address) {
+    return "주소 없음";
+  }
+
+  return formatCityAddress(address)
+    .replace(/\b서울시\b/g, "")
+    .replace(/\b부산시\b/g, "")
+    .replace(/\b대구시\b/g, "")
+    .replace(/\b인천시\b/g, "")
+    .replace(/\b광주시\b/g, "")
+    .replace(/\b대전시\b/g, "")
+    .replace(/\b울산시\b/g, "")
+    .replace(/\b세종시\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const formatShortAddress = (address) => {
   if (!address) {
     return "주소 없음";
@@ -23,7 +57,7 @@ export const formatShortAddress = (address) => {
     .filter(Boolean);
 
   if (parts.length === 0) {
-    return address;
+    return formatCityAddress(address);
   }
 
   const countryRemoved = parts.filter((part) => part !== "대한민국");
@@ -37,16 +71,16 @@ export const formatShortAddress = (address) => {
   );
 
   if (building && cityDistrict.length > 0) {
-    return [...cityDistrict.slice(-2), building].join(" ");
+    return formatCityAddress([...cityDistrict.slice(-2), building].join(" "));
   }
 
   if (building) {
-    return building;
+    return formatCityAddress(building);
   }
 
   const usefulParts = countryRemoved.filter(
     (part) => !/^\d+$/.test(part) && !/^\d{5}$/.test(part)
   );
 
-  return usefulParts.slice(0, 3).join(" ");
+  return formatCityAddress(usefulParts.slice(0, 3).join(" "));
 };
