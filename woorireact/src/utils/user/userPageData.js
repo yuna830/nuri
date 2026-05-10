@@ -18,34 +18,39 @@ export const schedules = [
 ];
 
 export const menus = [
-  { icon: "🌡", label: "기후 알림",    desc: "위험 기후 안내",       route: "/weather" },
-  { icon: "📋", label: "낙상 기록",    desc: "감지 이력 확인",       route: "/fall-history" },
-  { icon: "💼", label: "일자리 찾기",  desc: "맞춤 일자리 추천",     route: "/jobs", badge: "NEW" },
-  { icon: "📍", label: "내 위치",      desc: "실시간 위치 공유",     route: "/location" },
+  { icon: "🌡️", label: "기후 알림", desc: "위험 기후 안내", route: "/weather" },
+  { icon: "📋", label: "낙상 기록", desc: "감지 이력 확인", route: "/fall-history" },
+  { icon: "💼", label: "일자리 찾기", desc: "맞춤 일자리 추천", route: "/jobs", badgeKey: "jobs" },
+  { icon: "📍", label: "내 위치", desc: "실시간 위치 공유", route: "/location" },
   { icon: "👤", label: "내 정보 수정", desc: "신체정보 및 인적사항", route: "/profile" },
   { icon: "💬", label: "AI 챗봇", desc: "준비 중", route: "/chat", disabled: false, hideQuick: true },
 ];
 
-export const calcHealthScore = (profile) => {
-  const score = (value) => {
-    if (
-      !value ||
-      value === "없음" ||
-      value === "없음 (스스로 보행 가능)" ||
-      value === "없음 (비흡연)" ||
-      value === "없음 (금주)"
-    ) return 100;
-    if (
-      value.includes("경증") || value.includes("경도") || value.includes("초기") ||
-      value.includes("가끔") || value.includes("과거") || value.includes("완치") ||
-      value.includes("1회")
-    ) return 65;
-    return 25;
-  };
+const isNone = (value) => {
+  if (!value) return true;
+  return ["없음", "해당 없음", "없음 (스스로 보행 가능)", "없음 (비흡연)", "없음 (금주)"].includes(value);
+};
 
+const score = (value) => {
+  if (isNone(value)) return 100;
+  if (
+    String(value).includes("경증")
+    || String(value).includes("경도")
+    || String(value).includes("초기")
+    || String(value).includes("가끔")
+    || String(value).includes("과거")
+    || String(value).includes("완치")
+    || String(value).includes("1회")
+  ) {
+    return 65;
+  }
+  return 25;
+};
+
+export const calcHealthScore = (profile) => {
   const chronic = Math.round(
-    (score(profile.diabetes) + score(profile.hypertension) + score(profile.heart) +
-     score(profile.kidney) + score(profile.cancer)) / 5
+    (score(profile.diabetes) + score(profile.hypertension) + score(profile.heart)
+      + score(profile.kidney) + score(profile.cancer)) / 5
   );
   const fallPenalty = profile.recentFall === "4회 이상" ? 20 : profile.recentFall === "2~3회" ? 15 : profile.recentFall === "1회" ? 5 : 0;
   const mobility = Math.max(0, Math.round((score(profile.joint) + score(profile.stroke) + score(profile.walkingAid)) / 3) - fallPenalty);
@@ -59,7 +64,7 @@ export const calcHealthScore = (profile) => {
 
   return {
     만성질환: chronic,
-    "관절·거동": mobility,
+    "관절·보행": mobility,
     "인지·정신": cognition,
     "시력·청력": sensory,
     "호흡·폐": respiratory,

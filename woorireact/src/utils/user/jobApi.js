@@ -17,13 +17,27 @@ export const EMPL_COLOR = {
   CM0105: { bg: "#f0f0f0", color: "#555555" },
 };
 
-export const FILTERS = [
-  { label: "전체", value: "" },
-  { label: "정규직", value: "CM0101" },
-  { label: "계약직", value: "CM0102" },
-  { label: "시간제", value: "CM0103" },
-  { label: "일당직", value: "CM0104" },
+export const JOB_CATEGORY_FILTERS = [
+  { label: "전체", value: "", srchWrd: "" },
+  { label: "환경미화", value: "환경미화", srchWrd: "미화" },
+  { label: "경비·보안", value: "경비", srchWrd: "경비" },
+  { label: "요양·돌봄", value: "요양", srchWrd: "요양" },
+  { label: "사무보조", value: "사무보조", srchWrd: "사무" },
+  { label: "생산·제조", value: "생산", srchWrd: "생산" },
+  { label: "운전·배달", value: "운전", srchWrd: "운전" },
+  { label: "조리·식품", value: "조리", srchWrd: "조리" },
+  { label: "물류·유통", value: "물류", srchWrd: "물류" },
+  { label: "기타", value: "기타", srchWrd: "" },
 ];
+
+export const categorizeJob = (job) => {
+  const title = `${job.recrtTitle || ""} ${job.jobclsNm || ""}`;
+  for (const category of JOB_CATEGORY_FILTERS) {
+    if (!category.srchWrd) continue;
+    if (title.includes(category.srchWrd)) return category.label;
+  }
+  return "기타";
+};
 
 export const formatDate = (dateText) => {
   if (!dateText || dateText.length < 8) return "-";
@@ -59,27 +73,22 @@ export const parseJobList = (xmlText) => {
 };
 
 export const fetchJobList = async (pageNo = 1, emplymShp = "") => {
-  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=12`;
+  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=100`;
 
-  if (emplymShp) {
-    url += `&emplymShp=${emplymShp}`;
-  }
+  if (emplymShp) url += `&emplymShp=${emplymShp}`;
 
   const response = await fetch(url);
   const text = await response.text();
-
   return parseJobList(text);
 };
 
 export const getSavedJobProfile = () => {
   try {
     const currentSenior = sessionStorage.getItem("currentSenior");
-
     if (currentSenior) {
       const profile = JSON.parse(currentSenior);
       const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
-
       return {
         maxHours: healthInfo.maxHours,
         maxDistance: healthInfo.maxDistance,
@@ -89,7 +98,6 @@ export const getSavedJobProfile = () => {
           : [],
       };
     }
-
     const saved = localStorage.getItem("user_profile");
     return saved ? JSON.parse(saved) : null;
   } catch {

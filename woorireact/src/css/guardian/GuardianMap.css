@@ -17,6 +17,7 @@
 }
 
 .real-map-area {
+  position: relative;
   height: 560px;
   min-height: 560px;
   margin: 16px;
@@ -84,6 +85,38 @@
 
 .map-icon-button:active {
   transform: rotate(20deg);
+}
+
+.map-icon-button.spinning svg {
+  animation: guardian-spin 0.8s linear infinite;
+}
+
+.map-lock-button {
+  position: absolute;
+  left: 10px;
+  top: 76px;
+  z-index: 500;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #B8B8B8;
+  border-radius: 3px;
+  background: #FFFFFF;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.2);
+}
+
+.map-lock-button:hover {
+  background: #F4F6F1;
+  color: var(--deep-green);
+}
+
+.map-lock-button.locked {
+  background: var(--main-color);
+  border-color: var(--main-color);
+  color: #FFFFFF;
 }
 
 .safe-circle {

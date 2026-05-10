@@ -36,7 +36,7 @@ export const mapSeniorProfileToElder = (profile) => {
     id: senior.id,
     name: senior.name || "이름 없음",
     relation: "보호 대상자",
-    status: "normal",
+    status: "unknown",
     age: senior.age ? `${senior.age}세` : "-",
     gender: senior.gender || "-",
     address,
@@ -47,26 +47,9 @@ export const mapSeniorProfileToElder = (profile) => {
       lng: DEFAULT_CENTER.lng,
     },
     radius: 500,
-    currentLocation: {
-      lat: DEFAULT_CENTER.lat,
-      lng: DEFAULT_CENTER.lng,
-      address,
-      receivedAt: new Date().toISOString(),
-    },
-    lastNormalLocation: {
-      lat: DEFAULT_CENTER.lat,
-      lng: DEFAULT_CENTER.lng,
-      address,
-      receivedAt: new Date().toISOString(),
-    },
+    currentLocation: null,
+    lastNormalLocation: null,
     alerts: [],
-    routeHistory: [
-      {
-        lat: DEFAULT_CENTER.lat,
-        lng: DEFAULT_CENTER.lng,
-        address,
-        receivedAt: new Date().toISOString(),
-      },
-    ],
+    routeHistory: [],
   };
 };

@@ -46,6 +46,8 @@ public class SeniorController {
         senior.setAddress(request.region());
         senior.setRegion(request.region());
         senior.setDisabilityGrade(request.disabilityGrade());
+        senior.setDisabilityType(request.disabilityType());
+        senior.setProfileImageUrl(request.profileImageUrl());
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -100,6 +102,18 @@ public class SeniorController {
                 .toList();
     }
 
+    @GetMapping("/search")
+    public List<SeniorProfileResponse> searchSeniors(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+
+        return seniorRepository.searchByNameOrPhone(keyword.trim())
+                .stream()
+                .map(this::toProfileResponse)
+                .toList();
+    }
+
     @GetMapping("/guardian/{guardianId}")
     public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
         return guardianSeniorRepository.findByGuardianId(guardianId)
@@ -118,6 +132,83 @@ public class SeniorController {
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         return toProfileResponse(senior);
+    }
+
+    @PostMapping("/login")
+    public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
+        Senior senior = seniorRepository.findByNameAndPhone(request.name(), request.phone())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        return toProfileResponse(senior);
+    }
+
+    @PutMapping("/{id}")
+    public SeniorProfileResponse updateSenior(
+            @PathVariable Long id,
+            @RequestBody SeniorCreateRequest request
+    ) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        senior.setName(request.name());
+        senior.setAge(toInteger(request.age()));
+        senior.setGender(request.gender());
+        senior.setPhone(request.phone());
+        senior.setAddress(request.region());
+        senior.setRegion(request.region());
+        senior.setDisabilityGrade(request.disabilityGrade());
+        senior.setDisabilityType(request.disabilityType());
+        senior.setProfileImageUrl(request.profileImageUrl());
+
+        Senior savedSenior = seniorRepository.save(senior);
+
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(id)
+                .orElseGet(HealthInfo::new);
+
+        healthInfo.setSeniorId(id);
+        healthInfo.setHeight(toBigDecimal(request.height()));
+        healthInfo.setWeight(toBigDecimal(request.weight()));
+        healthInfo.setSmoking(request.smoking());
+        healthInfo.setDrinking(request.drinking());
+        healthInfo.setMedicineCount(request.medicineCount());
+        healthInfo.setDiabetes(request.diabetes());
+        healthInfo.setHypertension(request.hypertension());
+        healthInfo.setHeartDisease(request.heart());
+        healthInfo.setJointDisease(request.joint());
+        healthInfo.setStroke(request.stroke());
+        healthInfo.setKidneyDisease(request.kidney());
+        healthInfo.setLungDisease(request.lung());
+        healthInfo.setLiverDisease(request.liver());
+        healthInfo.setCancer(request.cancer());
+        healthInfo.setWalkingAid(request.walkingAid());
+        healthInfo.setDementia(request.dementia());
+        healthInfo.setVision(request.vision());
+        healthInfo.setHearing(request.hearing());
+        healthInfo.setRecentFall(request.recentFall());
+        healthInfo.setHasSurgery(request.hasSurgery());
+        healthInfo.setSurgeryDetail(request.surgeryDetail());
+        healthInfo.setOtherDisease(request.otherDisease());
+        healthInfo.setMaxHours(request.maxHours());
+        healthInfo.setMaxDistance(request.maxDistance());
+        healthInfo.setDisabledWork(join(request.disabledWork()));
+
+        HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
+
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(id)
+                .orElseGet(JobPreference::new);
+
+        jobPreference.setSeniorId(id);
+        jobPreference.setPayType(request.payType());
+        jobPreference.setHopeDays(join(request.hopeDays()));
+        jobPreference.setHopeJobType(join(request.hopeJobType()));
+        jobPreference.setHopeCondition(join(request.hopeCondition()));
+        jobPreference.setMemo(request.memo());
+
+        JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
+
+        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference);
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -165,6 +256,8 @@ public class SeniorController {
             String region,
             String phone,
             String disabilityGrade,
+            String disabilityType,
+            String profileImageUrl,
             String height,
             String weight,
             String smoking,
@@ -195,6 +288,12 @@ public class SeniorController {
             List<String> hopeJobType,
             List<String> hopeCondition,
             String memo
+    ) {
+    }
+
+    public record SeniorLoginRequest(
+            String name,
+            String phone
     ) {
     }
 

@@ -150,6 +150,16 @@
   border-color: #86a788;
 }
 
+.login-input::placeholder {
+  color: #9fb4a1;
+}
+
+.login-btn:disabled {
+  cursor: default;
+  opacity: 0.72;
+  transform: none;
+}
+
 .login-error {
   background: #fdf0f0;
   border: 1px solid #f5c6c6;

@@ -6,6 +6,7 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -44,16 +45,12 @@ public class GuardianController {
 
         Guardian savedGuardian = guardianRepository.save(guardian);
 
-        Senior senior = new Senior();
-        senior.setName(request.seniorName());
-        senior.setAddress(request.seniorAddress());
-        senior.setRegion(request.seniorAddress());
-
-        Senior savedSenior = seniorRepository.save(senior);
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         GuardianSenior guardianSenior = new GuardianSenior();
         guardianSenior.setGuardianId(savedGuardian.getId());
-        guardianSenior.setSeniorId(savedSenior.getId());
+        guardianSenior.setSeniorId(senior.getId());
         guardianSenior.setRelation(request.seniorRelation());
 
         guardianSeniorRepository.save(guardianSenior);
@@ -96,6 +93,81 @@ public class GuardianController {
         );
     }
 
+    @PostMapping("/{guardianId}/seniors")
+    public GuardianSenior connectSenior(
+            @PathVariable Long guardianId,
+            @RequestBody GuardianSeniorConnectRequest request
+    ) {
+        guardianRepository.findById(guardianId)
+                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+
+        seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (guardianSeniorRepository.existsByGuardianIdAndSeniorId(guardianId, request.seniorId())) {
+            throw new RuntimeException("Already connected senior");
+        }
+
+        GuardianSenior guardianSenior = new GuardianSenior();
+        guardianSenior.setGuardianId(guardianId);
+        guardianSenior.setSeniorId(request.seniorId());
+        guardianSenior.setRelation(request.relation());
+
+        return guardianSeniorRepository.save(guardianSenior);
+    }
+
+    @PostMapping("/{guardianId}/seniors/new")
+    public GuardianSenior createAndConnectSenior(
+            @PathVariable Long guardianId,
+            @RequestBody GuardianSeniorCreateRequest request
+    ) {
+        guardianRepository.findById(guardianId)
+                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+
+        Senior senior = new Senior();
+        senior.setName(request.name());
+        senior.setPhone(request.phone());
+        senior.setAddress(request.region());
+        senior.setRegion(request.region());
+
+        Senior savedSenior = seniorRepository.save(senior);
+
+        GuardianSenior guardianSenior = new GuardianSenior();
+        guardianSenior.setGuardianId(guardianId);
+        guardianSenior.setSeniorId(savedSenior.getId());
+        guardianSenior.setRelation(request.relation());
+
+        return guardianSeniorRepository.save(guardianSenior);
+    }
+
+    @DeleteMapping("/{guardianId}/seniors/{seniorId}")
+    public ResponseEntity<Void> disconnectSenior(
+            @PathVariable Long guardianId,
+            @PathVariable Long seniorId
+    ) {
+        GuardianSenior guardianSenior = guardianSeniorRepository
+                .findByGuardianIdAndSeniorId(guardianId, seniorId)
+                .orElseThrow(() -> new RuntimeException("Connected senior not found"));
+
+        guardianSeniorRepository.delete(guardianSenior);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    public record GuardianSeniorConnectRequest(
+            Long seniorId,
+            String relation
+    ) {
+    }
+
+    public record GuardianSeniorCreateRequest(
+            String name,
+            String phone,
+            String region,
+            String relation
+    ) {
+    }
+
     private String hashPassword(String password) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -117,8 +189,7 @@ public class GuardianController {
             String phone,
             String email,
             String password,
-            String seniorName,
-            String seniorAddress,
+            Long seniorId,
             String seniorRelation
     ) {
     }

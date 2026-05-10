@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { formatPhoneNumber } from "../../utils/common/phone.js";
 import "../../css/common/Login.css";
 
 const FEATURES = [
-  { icon: "🚨", title: "24시간 낙상 감지", desc: "카메라 AI가 실시간으로 안전을 지켜드려요" },
-  { icon: "🌡", title: "위험 기후 알림", desc: "한파·폭염 등 위험 기상 자동 안내" },
-  { icon: "📍", title: "실시간 위치 공유", desc: "보호자에게 현재 위치를 실시간으로 공유" },
-  { icon: "💼", title: "맞춤 일자리 추천", desc: "신체 조건에 맞는 노인 일자리 매칭" },
+  { icon: "🚨", title: "긴급 상황 알림", desc: "SOS와 위치 정보를 보호자에게 빠르게 전달해요" },
+  { icon: "🌡", title: "기후 위험 안내", desc: "폭염, 한파, 미세먼지 같은 위험 정보를 확인해요" },
+  { icon: "📍", title: "현재 위치 확인", desc: "안전 반경 이탈 여부를 쉽게 볼 수 있어요" },
+  { icon: "💼", title: "맞춤 일자리", desc: "건강과 활동 조건에 맞는 공고를 찾아요" },
 ];
 
 export default function Login() {
@@ -15,56 +16,48 @@ export default function Login() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleStart = async () => {
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName) {
       setError("이름을 입력해주세요.");
       return;
     }
 
-    if (!phone.trim()) {
+    if (!trimmedPhone) {
       setError("전화번호를 입력해주세요.");
       return;
     }
 
     try {
-      const response = await fetch("http://localhost:8080/api/seniors");
+      setLoading(true);
+      setError("");
 
-      if (!response.ok) {
-        setError("사용자 정보를 불러오지 못했습니다.");
-        return;
-      }
-
-      const profiles = await response.json();
-
-      const matchedProfile = profiles.find((profile) => {
-        const senior = profile.senior;
-
-        return (
-          senior?.name === name.trim() &&
-          senior?.phone === phone.trim()
-        );
+      const response = await fetch("http://localhost:8181/api/seniors/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName, phone: trimmedPhone }),
       });
 
-      if (matchedProfile) {
-        sessionStorage.setItem("currentSenior", JSON.stringify(matchedProfile));
+      if (response.ok) {
+        const profile = await response.json();
+        sessionStorage.setItem("currentSenior", JSON.stringify(profile));
+        localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
         localStorage.removeItem("login_temp");
         navigate("/user");
         return;
       }
 
-      localStorage.setItem(
-        "login_temp",
-        JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-        })
-      );
-
+      localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
       navigate("/signup");
-    } catch (error) {
-      console.error("로그인 실패:", error);
-      setError("서버에 연결할 수 없습니다.");
+    } catch (loginError) {
+      console.error("사용자 로그인 실패:", loginError);
+      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,7 +65,7 @@ export default function Login() {
     <main className="login-root">
       <section className="login-left">
         <div className="login-logo">🌿 우리 woori</div>
-        <div className="login-tagline">취약계층 AI 통합 돌봄 플랫폼</div>
+        <div className="login-tagline">노약자와 장애인을 위한 AI 통합 돌봄 서비스</div>
 
         <div className="login-features">
           {FEATURES.map((feature) => (
@@ -89,11 +82,11 @@ export default function Login() {
 
       <section className="login-right">
         <div className="login-box">
-          <div className="login-title">안녕하세요 👋</div>
+          <div className="login-title">사용자 로그인</div>
           <div className="login-sub">
-            이름과 전화번호를 입력하고
+            이름과 전화번호를 입력하면
             <br />
-            서비스를 시작해보세요!
+            등록된 사용자 정보를 찾아드려요.
           </div>
 
           {error && <div className="login-error">⚠️ {error}</div>}
@@ -103,7 +96,7 @@ export default function Login() {
             className="login-input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="홍길동"
+            placeholder="예: 김영희"
             onKeyDown={(event) => event.key === "Enter" && handleStart()}
           />
 
@@ -111,13 +104,13 @@ export default function Login() {
           <input
             className="login-input"
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="010-0000-0000"
+            onChange={(event) => setPhone(formatPhoneNumber(event.target.value))}
+            placeholder="예: 010-0000-0000"
             onKeyDown={(event) => event.key === "Enter" && handleStart()}
           />
 
-          <button className="login-btn" type="button" onClick={handleStart}>
-            🌿 서비스 시작하기
+          <button className="login-btn" type="button" onClick={handleStart} disabled={loading}>
+            {loading ? "확인 중..." : "서비스 시작하기"}
           </button>
 
           <div className="login-divider">처음 사용하시나요?</div>
@@ -127,17 +120,14 @@ export default function Login() {
             type="button"
             onClick={() => navigate("/signup")}
           >
-            📋 정보 등록하기
+            사용자 정보 등록하기
           </button>
 
           <div className="login-footer">
-            케어링은 어르신의 안전하고 건강한 일상을
-            <br />
-            AI 기술로 함께 지켜드립니다.
+            입력하신 정보는 돌봄 서비스 제공을 위해서만 사용됩니다.
           </div>
         </div>
       </section>
     </main>
   );
 }
-
