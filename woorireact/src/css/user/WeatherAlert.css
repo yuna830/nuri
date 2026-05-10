@@ -62,8 +62,14 @@
   padding: 2rem;
   display: grid;
   grid-template-columns: 1fr 320px;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: start;
+}
+
+.wa-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
 }
 
 .wa-banner {
@@ -271,7 +277,7 @@
   background: #ffffff;
   border-radius: 18px;
   padding: 1.4rem 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
   border: 1px solid #d4e8d6;
   box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
 }
@@ -325,7 +331,7 @@
   border: 1px solid #d4e8d6;
   border-radius: 18px;
   padding: 1.4rem 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
   box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
 }
 
@@ -446,7 +452,7 @@
   border: 1px solid #f5c6c6;
   border-radius: 18px;
   padding: 1.4rem 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .wa-action-title {
@@ -490,6 +496,7 @@
   border: 1px solid #b8d4ba;
   border-radius: 14px;
   padding: 1rem 1.2rem;
+  margin-bottom: 0;
   font-size: 0.78rem;
   color: #7a9a7c;
   line-height: 1.6;

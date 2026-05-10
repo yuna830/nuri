@@ -303,6 +303,27 @@
   padding: 1.3rem 1.4rem;
 }
 
+.up-schedule-card,
+.up-climate-card {
+  height: 215px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.up-climate-card .up-alert-item:last-child {
+  border-bottom: none;
+}
+
+.up-climate-card {
+  padding-right: 1.75rem;
+  padding-bottom: 1.65rem;
+}
+
+.up-climate-card .up-card-head {
+  margin-bottom: 0.75rem;
+}
+
 .up-card.full {
   grid-column: span 2;
 }
@@ -350,7 +371,7 @@
 }
 
 .up-schedule-empty {
-  min-height: 150px;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,6 +379,24 @@
   color: #7a9a7c;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.up-schedule-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: #b8d4ba transparent;
+}
+
+.up-schedule-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.up-schedule-list::-webkit-scrollbar-thumb {
+  background: #b8d4ba;
+  border-radius: 99px;
 }
 
 .up-schedule-row {
@@ -396,8 +435,9 @@
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  padding: 0.6rem 0;
+  padding: 0.45rem 0.45rem 0.45rem 0;
   border-bottom: 1px solid #d4e8d6;
+  min-width: 0;
 }
 
 .up-alert-item:last-child {
@@ -411,18 +451,29 @@
   border-radius: 99px;
   white-space: nowrap;
   flex-shrink: 0;
+  width: 76px;
+  text-align: center;
+}
+
+.up-alert-item > div:last-child {
+  flex: 1;
+  min-width: 0;
 }
 
 .up-alert-text {
   font-size: 0.84rem;
   color: #1e2a1f;
-  line-height: 1.5;
+  line-height: 1.45;
+  max-width: calc(100% - 0.35rem);
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .up-alert-time {
   font-size: 0.73rem;
   color: #7a9a7c;
-  margin-top: 0.15rem;
+  margin-top: 0.08rem;
 }
 
 .up-quick-grid {

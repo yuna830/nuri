@@ -16,12 +16,13 @@ const DEFAULT_POS = { lat: 37.5665, lon: 126.9780 };
 
 const LEVELS = {
   safe: { label: "안전", bg: "#86A788", barColor: "#86A788", icon: "✅", desc: "외출 가능" },
+  normal: { label: "보통", bg: "#4f9cc9", barColor: "#4f9cc9", icon: "ℹ️", desc: "확인 필요" },
   caution: { label: "주의", bg: "#f0a500", barColor: "#f0a500", icon: "⚠️", desc: "주의 필요" },
   warning: { label: "경고", bg: "#e05252", barColor: "#e05252", icon: "🚨", desc: "외출 자제" },
   danger: { label: "위험", bg: "#7a1a1a", barColor: "#7a1a1a", icon: "⛔", desc: "외출 금지" },
 };
 
-const LEVEL_ORDER = { danger: 0, warning: 1, caution: 2, safe: 3 };
+const LEVEL_ORDER = { danger: 0, warning: 1, caution: 2, normal: 3, safe: 4 };
 const ACTIONS = [
   { icon: "🧥", text: "외출 전 옷차림과 보행 보조도구를 다시 확인하세요." },
   { icon: "📞", text: "위험 단계에서는 보호자에게 이동 사실을 먼저 알려주세요." },
@@ -37,6 +38,13 @@ const todayDate = () => {
 const formatNow = () => {
   const now = new Date();
   return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
+const formatTodayDateTime = (time) => `${todayDate()} ${time}`;
+const getAlertTimestamp = (alert) => {
+  if (alert.issuedAt) return Date.parse(alert.issuedAt);
+  if (alert.createdAt) return Date.parse(alert.createdAt);
+  if (alert.time) return Date.parse(alert.time.replace(/\./g, "-"));
+  return 0;
 };
 
 const getPosition = () => new Promise((resolve) => {
@@ -60,6 +68,7 @@ const normalizeAlert = (alert) => ({
     : alert.createdAt?.replace("T", " ").slice(0, 16),
   fetchTime: alert.issuedAt?.slice(11, 16) || "",
   region: alert.region,
+  sortTime: getAlertTimestamp(alert),
 });
 
 const parseWarningType = (title) => {
@@ -125,7 +134,6 @@ export default function WeatherAlert() {
     setAlerts((prev) => {
       const existingIds = new Set(prev.map((item) => String(item.id)));
       const unique = newAlerts.filter((item) => !existingIds.has(String(item.id)));
-      if (shouldPersist) unique.forEach(persistAlert);
       return unique.length > 0 ? [...unique, ...prev] : prev;
     });
   };
@@ -152,9 +160,10 @@ export default function WeatherAlert() {
           type: "오늘 날씨",
           level: "safe",
           message: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
-          time: `오늘 ${pad(now.getHours())}:00`,
+          time: formatTodayDateTime(`${pad(now.getHours())}:00`),
           fetchTime: `${pad(now.getHours())}:00`,
           region: "대한민국",
+          sortTime: new Date(`${todayDate()}T${pad(now.getHours())}:00:00`).getTime(),
         };
         addAlerts([safeAlert], recordSafe);
         return;
@@ -170,9 +179,12 @@ export default function WeatherAlert() {
           message: title,
           time: item.tmFc
             ? `${eventTime.slice(0, 4)}.${eventTime.slice(4, 6)}.${eventTime.slice(6, 8)} ${eventTime.slice(8, 10)}:${eventTime.slice(10, 12)}`
-            : `오늘 ${timeStr}`,
+            : formatTodayDateTime(timeStr),
           fetchTime: timeStr,
           region: item.region || "대한민국",
+          sortTime: item.tmFc
+            ? Date.parse(`${eventTime.slice(0, 4)}-${eventTime.slice(4, 6)}-${eventTime.slice(6, 8)}T${eventTime.slice(8, 10)}:${eventTime.slice(10, 12)}:00`)
+            : now.getTime(),
         };
       });
       addAlerts(parsed, true);
@@ -182,8 +194,9 @@ export default function WeatherAlert() {
         type: "기후",
         level: "safe",
         message: "기상 정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.",
-        time: `오늘 ${formatNow()}`,
+        time: formatTodayDateTime(formatNow()),
         region: "대한민국",
+        sortTime: Date.now(),
       }], false);
     } finally {
       setFetching(false);
@@ -210,15 +223,17 @@ export default function WeatherAlert() {
     const time = formatNow();
     const nextAlerts = [];
 
-    if (uv?.value >= 6) {
+    if (uv?.value >= 3) {
+      const uvLevelText = uv.value >= 8 ? "매우 높음" : uv.value >= 6 ? "높음" : "보통";
       nextAlerts.push({
         id: todayDate() + "-" + pad(now.getHours()) + "-uv",
         type: "\uC790\uC678\uC120",
-        level: uv.value >= 8 ? "warning" : "caution",
-        message: "\uC790\uC678\uC120 \uC9C0\uC218\uAC00 " + uv.value + "\uB85C \uB192\uC2B5\uB2C8\uB2E4. \uBAA8\uC790, \uC120\uD06C\uB9BC, \uAE34 \uC18C\uB9E4 \uC637\uC744 \uCC59\uAE30\uACE0 \uB0AE \uC2DC\uAC04 \uC678\uCD9C\uC744 \uC904\uC5EC\uC8FC\uC138\uC694.",
-        time: "\uC624\uB298 " + time,
+        level: uv.value >= 8 ? "warning" : uv.value >= 6 ? "caution" : "normal",
+        message: "\uC790\uC678\uC120 \uC9C0\uC218\uAC00 " + uv.value + "\uB85C " + uvLevelText + "\uC785\uB2C8\uB2E4. \uC678\uCD9C \uC2DC \uBAA8\uC790\uB098 \uC120\uD06C\uB9BC\uC744 \uCC59\uACA8\uC8FC\uC138\uC694.",
+        time: formatTodayDateTime(time),
         fetchTime: time,
         region: "\uD604\uC7AC \uC704\uCE58",
+        sortTime: now.getTime(),
       });
     }
     if (air?.pm10?.value > 80 || air?.pm25?.value > 35) {
@@ -227,9 +242,10 @@ export default function WeatherAlert() {
         type: "\uBBF8\uC138\uBA3C\uC9C0",
         level: air.pm10.value > 150 || air.pm25.value > 75 ? "warning" : "caution",
         message: "\uBBF8\uC138\uBA3C\uC9C0 \uC0C1\uD0DC\uAC00 \uC88B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. PM10 " + air.pm10.value + ", PM2.5 " + air.pm25.value + " \uAE30\uC900\uC73C\uB85C \uC678\uCD9C \uC2DC \uB9C8\uC2A4\uD06C\uB97C \uCC29\uC6A9\uD574\uC8FC\uC138\uC694.",
-        time: "\uC624\uB298 " + time,
+        time: formatTodayDateTime(time),
         fetchTime: time,
         region: air.station || "\uD604\uC7AC \uC704\uCE58",
+        sortTime: now.getTime(),
       });
     }
     const pollenHigh = ["pine", "oak", "weeds"].find((key) => pollen?.[key]?.value >= 3);
@@ -239,14 +255,14 @@ export default function WeatherAlert() {
         type: "\uAF43\uAC00\uB8E8",
         level: pollen[pollenHigh].value >= 4 ? "warning" : "caution",
         message: "\uAF43\uAC00\uB8E8 \uB18D\uB3C4\uAC00 \uB192\uC2B5\uB2C8\uB2E4. \uC54C\uB808\uB974\uAE30\uB098 \uD638\uD761\uAE30 \uC9C8\uD658\uC774 \uC788\uB2E4\uBA74 \uB9C8\uC2A4\uD06C\uB97C \uCC29\uC6A9\uD558\uACE0 \uADC0\uAC00 \uD6C4 \uC138\uC548\uD574\uC8FC\uC138\uC694.",
-        time: "\uC624\uB298 " + time,
+        time: formatTodayDateTime(time),
         fetchTime: time,
         region: "\uD604\uC7AC \uC704\uCE58",
+        sortTime: now.getTime(),
       });
     }
 
     setEnvironmentAlerts(nextAlerts);
-    nextAlerts.forEach(persistAlertOnce);
   };
 
   useEffect(() => {
@@ -259,18 +275,8 @@ export default function WeatherAlert() {
       loadEnvironmentAlerts().catch(() => {});
     }, 60 * 1000);
 
-    const now = new Date();
-    const nextHour = new Date(now);
-    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
-    const firstHourlyTimeout = setTimeout(() => {
-      fetchWarnings({ recordSafe: true });
-      hourlyIntervalRef.current = setInterval(() => fetchWarnings({ recordSafe: true }), 60 * 60 * 1000);
-    }, nextHour.getTime() - now.getTime());
-
     return () => {
       clearInterval(liveIntervalRef.current);
-      clearInterval(hourlyIntervalRef.current);
-      clearTimeout(firstHourlyTimeout);
     };
   }, []);
 
@@ -281,15 +287,15 @@ export default function WeatherAlert() {
       if (existingIds.has(id)) return false;
       existingIds.add(id);
       return true;
-    });
+    }).sort((first, second) => (second.sortTime || 0) - (first.sortTime || 0));
   }, [alerts, environmentAlerts]);
 
-  const worstAlert = useMemo(() => {
+  const currentAlert = useMemo(() => {
     if (displayAlerts.length === 0) return null;
-    return [...displayAlerts].sort((first, second) => LEVEL_ORDER[first.level] - LEVEL_ORDER[second.level])[0];
+    return displayAlerts[0];
   }, [displayAlerts]);
-  const hasWarning = worstAlert && (worstAlert.level === "warning" || worstAlert.level === "danger");
-  const worstLevel = worstAlert ? LEVELS[worstAlert.level] : LEVELS.safe;
+  const hasWarning = currentAlert && (currentAlert.level === "warning" || currentAlert.level === "danger");
+  const currentLevel = currentAlert ? LEVELS[currentAlert.level] : LEVELS.safe;
 
   return (
     <div className="wa-root">
@@ -303,18 +309,18 @@ export default function WeatherAlert() {
 
       <div className="wa-layout">
         <main className="wa-main">
-          {worstAlert && (
-            <div className="wa-banner" style={{ background: `linear-gradient(135deg, ${worstLevel.bg}, ${worstLevel.bg}dd)` }}>
+          {currentAlert && (
+            <div className="wa-banner" style={{ background: `linear-gradient(135deg, ${currentLevel.bg}, ${currentLevel.bg}dd)` }}>
               <div className="wa-banner-top">
                 <div>
                   <div className="wa-banner-label">현재 기후 위험 단계</div>
-                  <div className="wa-banner-status">{worstLevel.icon} {worstLevel.label}</div>
-                  <div className="wa-banner-desc">{worstLevel.desc} · {worstAlert.type} 기준</div>
+                  <div className="wa-banner-status">{currentLevel.icon} {currentLevel.label}</div>
+                  <div className="wa-banner-desc">{currentLevel.desc} · {currentAlert.type} 기준</div>
                 </div>
-                <div className="wa-banner-icon">{worstLevel.icon}</div>
+                <div className="wa-banner-icon">{currentLevel.icon}</div>
               </div>
               <div className="wa-banner-region">
-                📍 {worstAlert.region || "대한민국"} · {new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} 기준
+                📍 {currentAlert.region || "대한민국"} · {currentAlert.time || new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} 기준
               </div>
             </div>
           )}

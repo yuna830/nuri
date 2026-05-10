@@ -149,9 +149,14 @@ export default function ChatView({
       </nav>
 
       <header className="chatbot-header">
-        <div>
-          <p>AI 챗봇</p>
-          <h1>무엇을 도와드릴까요?</h1>
+        <div className="chatbot-title-wrap">
+          <button className="chatbot-back-inline" type="button" onClick={() => navigate("/user")}>
+            ← 홈으로
+          </button>
+          <div>
+            <p>AI 챗봇</p>
+            <h1>무엇을 도와드릴까요?</h1>
+          </div>
         </div>
         <button type="button" onClick={onScheduleOpen}>일정 등록하기</button>
       </header>

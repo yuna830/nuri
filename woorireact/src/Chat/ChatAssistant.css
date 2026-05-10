@@ -24,6 +24,32 @@
   gap: 16px;
 }
 
+.chatbot-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.chatbot-back-inline {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d7dfce;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5f7f63;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(56, 72, 57, 0.06);
+}
+
+.chatbot-back-inline:hover {
+  border-color: #86a788;
+  color: #3f6743;
+}
+
 .chatbot-nav {
   max-width: 1120px;
   margin: 0 auto 14px;

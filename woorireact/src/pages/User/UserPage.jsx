@@ -11,7 +11,7 @@ import { customLocationIcon } from "../../utils/user/locationPageUtils";
 import {
   createSosAlert,
   createSosCancelAlert,
-  fetchLatestClimateAlerts,
+  fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId as getSavedSeniorId,
   resolveUploadUrl,
@@ -169,6 +169,7 @@ export default function UserPage() {
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
+  const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
   const [showAllSchedules, setShowAllSchedules] = useState(false);
   const [allSchedules, setAllSchedules] = useState([]);
@@ -178,6 +179,7 @@ export default function UserPage() {
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
   const [currentAddress, setCurrentAddress] = useState("위치 불러오는 중...");
+  const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
 
@@ -203,7 +205,9 @@ export default function UserPage() {
   const fetchWeatherAlerts = async () => {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const currentTime = pad(now.getHours()) + ":" + pad(now.getMinutes());
+    const currentDateTime = `${today} ${currentTime}`;
 
     const getPositionForAlert = () => new Promise((resolve) => {
       if (currentPos) {
@@ -222,7 +226,7 @@ export default function UserPage() {
 
     try {
       const seniorId = getSavedSeniorId();
-      const savedAlerts = seniorId ? await fetchLatestClimateAlerts(seniorId).catch(() => []) : [];
+      const savedAlerts = seniorId ? await fetchTodayClimateAlerts(seniorId).catch(() => []) : [];
       const pos = await getPositionForAlert();
       const [uv, air, pollen] = await Promise.all([
         fetchUVIndex(pos.lat, pos.lon),
@@ -231,12 +235,14 @@ export default function UserPage() {
       ]);
 
       const envAlerts = [];
-      if (uv?.value >= 6) {
+      if (uv?.value >= 3) {
+        const uvLevelText = uv.value >= 8 ? "매우 높음" : uv.value >= 6 ? "높음" : "보통";
         envAlerts.push({
           type: "자외선",
-          color: uv.value >= 8 ? COLORS.danger : "#f0a500",
-          msg: `자외선 지수가 ${uv.value}로 높습니다. 모자, 선크림, 긴 소매 옷을 챙기고 낮 시간 외출을 줄여주세요.`,
-          time: currentTime,
+          color: uv.value >= 8 ? COLORS.danger : uv.value >= 6 ? "#f0a500" : "#4f9cc9",
+          msg: `자외선 지수가 ${uv.value}로 ${uvLevelText}입니다. 외출 시 모자나 선크림을 챙겨주세요.`,
+          time: currentDateTime,
+          sortTime: now.getTime(),
         });
       }
       if (air?.pm10?.value > 80 || air?.pm25?.value > 35) {
@@ -244,7 +250,8 @@ export default function UserPage() {
           type: "미세먼지",
           color: air.pm10.value > 150 || air.pm25.value > 75 ? COLORS.danger : "#f0a500",
           msg: "미세먼지 상태가 좋지 않습니다. 외출 시 마스크를 착용해주세요.",
-          time: currentTime,
+          time: currentDateTime,
+          sortTime: now.getTime(),
         });
       }
       const pollenHigh = ["pine", "oak", "weeds"].find((key) => pollen?.[key]?.value >= 3);
@@ -253,7 +260,8 @@ export default function UserPage() {
           type: "꽃가루",
           color: pollen[pollenHigh].value >= 4 ? COLORS.danger : "#f0a500",
           msg: "꽃가루 농도가 높습니다. 알레르기나 호흡기 질환이 있다면 마스크를 착용해주세요.",
-          time: currentTime,
+          time: currentDateTime,
+          sortTime: now.getTime(),
         });
       }
 
@@ -268,25 +276,39 @@ export default function UserPage() {
         if (seenDbAlertKeys.has(key)) return false;
         seenDbAlertKeys.add(key);
         return true;
-      }).slice(0, 3).map((alert) => {
-        const colors = { danger: COLORS.danger, warning: COLORS.danger, caution: "#f0a500", safe: COLORS.green };
+      }).map((alert) => {
+        const colors = { danger: COLORS.danger, warning: COLORS.danger, caution: "#f0a500", normal: "#4f9cc9", safe: COLORS.green };
+        const issuedAt = alert.issuedAt || alert.createdAt || "";
         return {
           type: alert.type || "기후",
           color: colors[alert.level] || COLORS.green,
           msg: alert.message,
-          time: alert.issuedAt ? alert.issuedAt.slice(11, 16) : "-",
+          time: issuedAt ? issuedAt.replace("T", " ").slice(0, 16) : "-",
+          sortTime: issuedAt ? Date.parse(issuedAt) : 0,
         };
-      });
+      }).sort((first, second) => second.sortTime - first.sortTime);
 
       const seenAlertKeys = new Set();
       const merged = [...envAlerts, ...dbAlerts].filter((alert) => {
-        const key = `${alert.type}-${alert.msg}`;
+        const key = alert.type;
         if (seenAlertKeys.has(key)) return false;
         seenAlertKeys.add(key);
         return true;
-      }).slice(0, 2);
-      if (merged.length > 0) {
-        setWeatherAlerts(merged);
+      }).sort((first, second) => second.sortTime - first.sortTime);
+
+      if (merged.length < 2 && !seenAlertKeys.has("오늘 날씨")) {
+        merged.push({
+          type: "오늘 날씨",
+          color: COLORS.green,
+          msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
+          time: currentDateTime,
+          sortTime: now.getTime() - 1,
+        });
+      }
+
+      const latestTwoAlerts = merged.slice(0, 2);
+      if (latestTwoAlerts.length > 0) {
+        setWeatherAlerts(latestTwoAlerts);
         return;
       }
 
@@ -294,20 +316,28 @@ export default function UserPage() {
         type: "안전",
         color: COLORS.green,
         msg: "현재 확인된 기후 위험 알림이 없습니다.",
-        time: currentTime,
+        time: currentDateTime,
       }]);
     } catch {
       setWeatherAlerts([{
         type: "안전",
         color: COLORS.green,
         msg: "기후 알림을 확인하는 중입니다.",
-        time: currentTime,
+        time: currentDateTime,
       }]);
     }
   };
 
   const updateLocation = async (lat, lon) => {
     setCurrentPos({ lat, lon });
+    const capturedAt = new Date();
+    setCurrentLocationTime(
+      capturedAt.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    );
     const resolvedAddress = await reverseGeocode(lat, lon).catch(() => "현재 위치");
     setCurrentAddress(resolvedAddress);
 
@@ -455,10 +485,27 @@ export default function UserPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         const list = Array.isArray(data) ? data : data?.content ?? [];
-        setScheduleList(list.map(scheduleFromApi));
+        const mapped = list.map(scheduleFromApi);
+        setScheduleList(mapped);
+        if (selectedScheduleDate === todayValue()) {
+          setTodaySchedules(mapped);
+        }
       })
       .catch(() => setScheduleList([]));
   }, [selectedScheduleDate]);
+
+  useEffect(() => {
+    const seniorId = getCurrentSeniorId(initialSenior);
+    if (!seniorId) return;
+    const today = todayValue();
+    fetch(`/api/schedules/senior/${seniorId}/date/${today}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        const list = Array.isArray(data) ? data : data?.content ?? [];
+        setTodaySchedules(list.map(scheduleFromApi));
+      })
+      .catch(() => setTodaySchedules([]));
+  }, []);
 
   useEffect(() => {
     if (!currentPos || !safeZone) return;
@@ -630,6 +677,11 @@ export default function UserPage() {
                 {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
               </div>
             )}
+            {currentLocationTime && (
+              <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
+                기준 시간 {currentLocationTime}
+              </div>
+            )}
             {currentPos && (
               <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
                 <MapContainer
@@ -678,17 +730,17 @@ export default function UserPage() {
 
             <div className="up-stat-card" onClick={openAllSchedules}>
               <div className="up-card-label">오늘 일정</div>
-              <div className="up-stat-value">{scheduleList.length}건</div>
+              <div className="up-stat-value">{todaySchedules.length}건</div>
               <div className="up-stat-sub">
-                {scheduleList.length > 0
-                  ? `다음: ${scheduleList[0].time} ${scheduleList[0].text}`
+                {todaySchedules.length > 0
+                  ? `다음: ${todaySchedules[0].time} ${todaySchedules[0].text}`
                   : "오늘 등록된 일정이 없어요"}
               </div>
             </div>
           </div>
 
           <div className="up-content-row">
-            <div className="up-card">
+            <div className="up-card up-schedule-card">
               <div className="up-card-head">
                 <div className="up-card-title">📅 일정</div>
                 <input
@@ -699,22 +751,24 @@ export default function UserPage() {
                 />
               </div>
 
-              {scheduleList.length === 0 ? (
-                <div className="up-schedule-empty">
-                  등록된 일정이 없어요 😊
-                </div>
-              ) : (
-                scheduleList.map((s, i) => (
-                  <div key={i} className="up-schedule-row">
-                    <div className="up-schedule-time">{s.time}</div>
-                    <div className="up-schedule-dot" />
-                    <div className="up-schedule-text">{s.text}</div>
+              <div className="up-schedule-list">
+                {scheduleList.length === 0 ? (
+                  <div className="up-schedule-empty">
+                    등록된 일정이 없어요 😊
                   </div>
-                ))
-              )}
+                ) : (
+                  scheduleList.map((s, i) => (
+                    <div key={i} className="up-schedule-row">
+                      <div className="up-schedule-time">{s.time}</div>
+                      <div className="up-schedule-dot" />
+                      <div className="up-schedule-text">{s.text}</div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
-            <div className="up-card">
+            <div className="up-card up-climate-card">
               <div className="up-card-head">
                 <div className="up-card-title">🌡 기후 알림</div>
                 <button className="up-card-more" type="button" onClick={() => navigate("/weather")}>
