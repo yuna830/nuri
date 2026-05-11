@@ -1,6 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import WelfareDashboard from "../pages/Common/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Common/WelfareSeniorDetail";
+import WelfareJobPostings from "../pages/Common/WelfareJobPostings";
+import WelfareLogin from "../pages/Common/WelfareLogin";
+import WelfareSignup from "../pages/Common/WelfareSignup";
 import Login from "../pages/Common/Login";
 import SignUp from "../pages/Common/SignUp";
 import G_Login from "../pages/Common/G_Login";
@@ -16,13 +19,55 @@ import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
 import WeatherGraph from "../pages/User/WeatherGraph";
 
+function RequireWelfareLogin({ children }) {
+  const currentWorker = sessionStorage.getItem("currentWelfareWorker");
+
+  if (!currentWorker) {
+    return <Navigate to="/welfare-login" replace />;
+  }
+
+  return children;
+}
+
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<WelfareDashboard />} />
-        <Route path="/welfare" element={<WelfareDashboard />} />
-        <Route path="/welfare/seniors/:id" element={<WelfareSeniorDetail />} />
+        <Route path="/" element={<Navigate to="/welfare-login" replace />} />
+        <Route path="/welfare-login" element={<WelfareLogin />} />
+        <Route path="/welfare-signup" element={<WelfareSignup />} />
+        <Route
+          path="/welfare"
+          element={
+            <RequireWelfareLogin>
+              <WelfareDashboard />
+            </RequireWelfareLogin>
+          }
+        />
+        <Route
+          path="/welfare/seniors/:id"
+          element={
+            <RequireWelfareLogin>
+              <WelfareSeniorDetail />
+            </RequireWelfareLogin>
+          }
+        />
+        <Route
+          path="/welfare/jobs"
+          element={
+            <RequireWelfareLogin>
+              <WelfareJobPostings />
+            </RequireWelfareLogin>
+          }
+        />
+        <Route
+          path="/welfare/seniors/:id/jobs"
+          element={
+            <RequireWelfareLogin>
+              <WelfareJobPostings />
+            </RequireWelfareLogin>
+          }
+        />
 
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
