@@ -443,6 +443,202 @@
   color: #FFFFFF;
 }
 
+.guardian-user-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #0f1f14;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.guardian-user-link:hover {
+  color: #48694b;
+  text-decoration: underline;
+}
+
+.condition-alert-button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.condition-alert-button:hover .condition-list {
+  color: #48694b;
+}
+
+.condition-alert-hint {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #86a788;
+}
+
+.medicine-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 25, 18, 0.45);
+}
+
+.medicine-alert-modal {
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 14px;
+  background: #fffef7;
+  border: 1px solid #d4e8d6;
+  box-shadow: 0 18px 50px rgba(30, 42, 31, 0.22);
+  padding: 1.4rem;
+}
+
+.medicine-alert-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.medicine-alert-header h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.medicine-alert-header p {
+  margin: 0;
+  color: #6f7f70;
+  font-size: 0.85rem;
+}
+
+.medicine-alert-close {
+  border: none;
+  background: #eef6ef;
+  color: #48694b;
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.medicine-alert-field {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.medicine-alert-field textarea {
+  resize: vertical;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.8rem;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.medicine-alert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.medicine-alert-cancel,
+.medicine-alert-submit {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.medicine-alert-cancel {
+  background: #eef1ea;
+  color: #4f5d50;
+}
+
+.medicine-alert-submit {
+  background: #86a788;
+  color: white;
+}
+
+.medicine-alert-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.guardian-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 1200;
+  width: min(420px, calc(100vw - 2rem));
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #d8e8d8;
+  border-left: 5px solid #86a788;
+  border-radius: 14px;
+  background: #fffef9;
+  box-shadow: 0 18px 45px rgba(30, 42, 31, 0.18);
+}
+
+.guardian-toast.danger {
+  border-left-color: #b9493f;
+  background: #fff8f6;
+}
+
+.guardian-toast.danger button:not(.guardian-toast-close) {
+  background: #b9493f;
+}
+
+.guardian-toast.normal button:not(.guardian-toast-close) {
+  background: #86a788;
+}
+
+.guardian-toast > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.guardian-toast strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #1e2a1f;
+  font-size: 0.95rem;
+}
+
+.guardian-toast p {
+  margin: 0;
+  color: #6f7f70;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.guardian-toast button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  background: #86a788;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.guardian-toast-close {
+  background: #eef1ea !important;
+  color: #4f5d50 !important;
+}
+
 @media (max-width: 1180px) {
   .guardian-page {
     height: auto;

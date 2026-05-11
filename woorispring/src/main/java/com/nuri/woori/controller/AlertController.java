@@ -87,6 +87,26 @@ public class AlertController {
                 .toList();
     }
 
+    @PostMapping("/medicine")
+    public Alert createMedicineAlert(@RequestBody MedicineAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(request.guardianId());
+        alert.setType("MEDICINE");
+        alert.setTitle("복약 알림");
+        alert.setMessage(
+                request.message() == null || request.message().isBlank()
+                        ? senior.getName() + "님, 복용 중인 약을 확인하고 제때 복용해주세요."
+                        : request.message()
+        );
+        alert.setIsRead(false);
+
+        return alertRepository.save(alert);
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)
@@ -100,6 +120,13 @@ public class AlertController {
             Long seniorId,
             Double latitude,
             Double longitude
+    ) {
+    }
+
+    public record MedicineAlertRequest(
+            Long seniorId,
+            Long guardianId,
+            String message
     ) {
     }
 }

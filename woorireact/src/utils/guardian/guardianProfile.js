@@ -39,6 +39,7 @@ export const mapSeniorProfileToElder = (profile) => {
     status: "unknown",
     age: senior.age ? `${senior.age}세` : "-",
     gender: senior.gender || "-",
+    phone: senior.phone || "",
     address,
     profileImageUrl: senior.profileImageUrl || "",
     condition: makeConditionText(healthInfo),

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { resolveUploadUrl } from "../../api/userPageApi";
 
 function UserPanel({
@@ -30,6 +31,7 @@ function UserPanel({
   onConnectSenior,
   onCreateAndConnectSenior,
   onDeleteElder,
+  onOpenMedicineAlert,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
@@ -41,6 +43,29 @@ function UserPanel({
   const [isSearchingSafeZone, setIsSearchingSafeZone] = useState(false);
 
   const profileMenuRef = useRef(null);
+
+  const navigate = useNavigate();
+
+  const handleOpenUserPage = () => {
+    if (!selectedElder?.id) return;
+
+    const seniorProfile = {
+      senior: {
+        id: selectedElder.id,
+        name: selectedElder.name,
+        age: selectedElder.age,
+        gender: selectedElder.gender,
+        address: selectedElder.address,
+        region: selectedElder.address,
+        profileImageUrl: selectedElder.profileImageUrl || "",
+      },
+    };
+
+    sessionStorage.setItem("currentSenior", JSON.stringify(seniorProfile));
+    localStorage.setItem("current_senior_id", String(selectedElder.id));
+
+    navigate("/user");
+  };
 
   const guardianProfileImage = profileImages[selectedElderId] ?? null;
 
@@ -193,9 +218,14 @@ function UserPanel({
           </div>
 
           <div className="status-profile-head">
-            <strong>
+            <button
+              className="guardian-user-link"
+              type="button"
+              onClick={handleOpenUserPage}
+            >
               {selectedElder.name} ({selectedElder.relation})
-            </strong>
+            </button>
+
             <p className={`status-line ${!hasCurrentLocation ? "muted" : isOutsideSafeZone ? "danger" : "normal"}`}>
               <span />
               {!hasCurrentLocation ? "미수신" : isOutsideSafeZone ? "이탈" : "정상"}
@@ -227,11 +257,18 @@ function UserPanel({
             <div className="condition-row">
               <dt>주요 질환</dt>
               <dd>
-                <ul className="condition-list">
-                  {selectedElder.condition.split(", ").map((condition) => (
-                    <li key={condition}>{condition}</li>
-                  ))}
-                </ul>
+                <button
+                  className="condition-alert-button"
+                  type="button"
+                  onClick={onOpenMedicineAlert}
+                >
+                  <ul className="condition-list">
+                    {selectedElder.condition.split(", ").map((condition) => (
+                      <li key={condition}>{condition}</li>
+                    ))}
+                  </ul>
+                  <span className="condition-alert-hint"></span>
+                </button>
               </dd>
             </div>
           </dl>

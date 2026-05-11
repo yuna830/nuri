@@ -334,7 +334,7 @@ export default function UserPage() {
     }
   };
 
-  const updateLocation = async (lat, lon) => {
+  const updateLocation = async (lat, lon, accuracy) => {
     setCurrentPos({ lat, lon });
 
     const capturedAt = new Date();
@@ -379,6 +379,17 @@ export default function UserPage() {
               )
           )
         : Infinity;
+
+      if (accuracy && accuracy > 1000) {
+        console.warn("위치 정확도가 낮아 저장하지 않음:", accuracy);
+        return;
+      }
+      // 위치 잘못 찍힘 방지 
+      if (lastSavedLocation && movedMeters > 3000) {
+        console.warn("비정상 위치 튐 감지, 저장하지 않음:", movedMeters);
+        return;
+      }
+
       // 가만히 있어도 찍힘 => 50미터로
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
@@ -419,7 +430,7 @@ export default function UserPage() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-        updateLocation(pos.coords.latitude, pos.coords.longitude);
+        updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       () => fetchWeather(37.5665, 126.9780)
     );
@@ -427,7 +438,11 @@ export default function UserPage() {
     // 30초마다 위치 자동 갱신
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
+        pos => updateLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy
+        ),
         () => {}
       );
     }, 30000);
