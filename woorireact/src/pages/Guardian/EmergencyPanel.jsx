@@ -1,6 +1,3 @@
-import { formatCityAddress } from "../../utils/guardian/location";
-
-
 function EmergencyPanel({
   selectedElder,
   displayedAlerts,
@@ -28,6 +25,11 @@ function EmergencyPanel({
   onCallNeedsReport,
   onCloseCallResult,
 }) {
+  const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
+  const lastSeenAddress = selectedElder.lastNormalLocation
+    ? lastNormalLocation.address
+    : "기록 없음";
+
   return (
     <>
       <aside className="right-panel">
@@ -44,7 +46,7 @@ function EmergencyPanel({
               <p className="alert-empty">최근 알림이 없습니다.</p>
             ) : (
               displayedAlerts.map((alert) => (
-                <article key={alert.id} className="alert-item warning">
+                <article key={alert.id} className={`alert-item ${alert.isSafeZone ? "danger" : "warning"}`}>
                   <strong>{alert.time}</strong>
                   <span>{alert.message}</span>
                   <em>{alert.status}</em>
@@ -56,12 +58,7 @@ function EmergencyPanel({
 
         <section className="card route-card">
           <div className="card-header">
-            <h2>
-              {selectedRouteDate === new Date().toISOString().slice(0, 10)
-                ? "오늘 이동 경로"
-                : "선택 날짜 이동 경로"}
-            </h2>
-
+            <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
             <input
               className="route-date-input"
               type="date"
@@ -104,9 +101,7 @@ function EmergencyPanel({
           </div>
 
           <p className="last-seen-label">마지막 목격</p>
-          <strong className="last-seen-place">
-            {selectedElder.lastNormalLocation ? lastNormalLocation.address : "기록 없음"}
-          </strong>
+          <strong className="last-seen-place">{lastSeenAddress}</strong>
 
           <button
             className="report-button"
@@ -139,7 +134,7 @@ function EmergencyPanel({
                 <p className="alert-empty">도착한 알림이 없습니다.</p>
               ) : (
                 displayedAlerts.map((alert) => (
-                  <article key={alert.id} className="alert-panel-item">
+                  <article key={alert.id} className={`alert-panel-item ${alert.isSafeZone ? "danger" : ""}`}>
                     <div>
                       <strong>{alert.message}</strong>
                       <span>{alert.time}</span>
@@ -166,7 +161,7 @@ function EmergencyPanel({
                         </div>
                       ) : (
                         <button
-                          className="alert-confirm-button"
+                          className={`alert-confirm-button ${alert.isSafeZone ? "danger" : ""}`}
                           type="button"
                           onClick={() => onReadAlert(alert.id)}
                         >
@@ -237,10 +232,7 @@ function EmergencyPanel({
 
               <label>
                 마지막 목격 위치
-                <input
-                  value={selectedElder.lastNormalLocation ? lastNormalLocation.address : "기록 없음"}
-                  readOnly
-                />
+                <input value={lastSeenAddress} readOnly />
               </label>
 
               <label>

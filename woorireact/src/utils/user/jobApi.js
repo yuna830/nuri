@@ -1,7 +1,37 @@
 const SERVICE_KEY =
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
-const jobListCache = new Map();
+
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+const jobListCache = new Map();
+
+export const EMPL_MAP = {
+  CM0101: "정규직",
+  CM0102: "계약직",
+  CM0103: "시간제",
+  CM0104: "일당직",
+  CM0105: "기타",
+};
+
+export const EMPL_COLOR = {
+  CM0101: { bg: "#e8f4ea", color: "#2d7a3a" },
+  CM0102: { bg: "#e8edf8", color: "#2d4a8a" },
+  CM0103: { bg: "#fef3e2", color: "#8a5a00" },
+  CM0104: { bg: "#fdeaea", color: "#8a2020" },
+  CM0105: { bg: "#f0f0f0", color: "#555555" },
+};
+
+export const JOB_CATEGORY_FILTERS = [
+  { label: "전체", value: "", keywords: [] },
+  { label: "환경미화", value: "환경미화", keywords: ["미화", "청소", "환경"] },
+  { label: "경비·보안", value: "경비", keywords: ["경비", "보안", "안전"] },
+  { label: "요양·돌봄", value: "요양", keywords: ["요양", "돌봄", "간병", "보호"] },
+  { label: "사무보조", value: "사무보조", keywords: ["사무", "행정", "전산", "문서"] },
+  { label: "생산·제조", value: "생산", keywords: ["생산", "제조", "포장", "조립"] },
+  { label: "운전·배달", value: "운전", keywords: ["운전", "배송", "배달", "택배"] },
+  { label: "조리·식품", value: "조리", keywords: ["조리", "급식", "식당", "주방"] },
+  { label: "물류·유통", value: "물류", keywords: ["물류", "유통", "매장", "판매"] },
+  { label: "기타", value: "기타", keywords: [] },
+];
 
 const readJobCache = (cacheKey) => {
   const memoryCached = jobListCache.get(cacheKey);
@@ -33,40 +63,11 @@ const writeJobCache = (cacheKey, data) => {
   }
 };
 
-export const EMPL_MAP = {
-  CM0101: "정규직",
-  CM0102: "계약직",
-  CM0103: "시간제",
-  CM0104: "일당직",
-  CM0105: "기타",
-};
-
-export const EMPL_COLOR = {
-  CM0101: { bg: "#e8f4ea", color: "#2d7a3a" },
-  CM0102: { bg: "#e8edf8", color: "#2d4a8a" },
-  CM0103: { bg: "#fef3e2", color: "#8a5a00" },
-  CM0104: { bg: "#fdeaea", color: "#8a2020" },
-  CM0105: { bg: "#f0f0f0", color: "#555555" },
-};
-
-export const JOB_CATEGORY_FILTERS = [
-  { label: "전체", value: "", srchWrd: "" },
-  { label: "환경미화", value: "환경미화", srchWrd: "미화" },
-  { label: "경비·보안", value: "경비", srchWrd: "경비" },
-  { label: "요양·돌봄", value: "요양", srchWrd: "요양" },
-  { label: "사무보조", value: "사무보조", srchWrd: "사무" },
-  { label: "생산·제조", value: "생산", srchWrd: "생산" },
-  { label: "운전·배달", value: "운전", srchWrd: "운전" },
-  { label: "조리·식품", value: "조리", srchWrd: "조리" },
-  { label: "물류·유통", value: "물류", srchWrd: "물류" },
-  { label: "기타", value: "기타", srchWrd: "" },
-];
-
 export const categorizeJob = (job) => {
-  const title = `${job.recrtTitle || ""} ${job.jobclsNm || ""}`;
+  const text = `${job.recrtTitle || ""} ${job.jobclsNm || ""} ${job.detCnts || ""}`;
   for (const category of JOB_CATEGORY_FILTERS) {
-    if (!category.srchWrd) continue;
-    if (title.includes(category.srchWrd)) return category.label;
+    if (!category.keywords.length) continue;
+    if (category.keywords.some((keyword) => text.includes(keyword))) return category.label;
   }
   return "기타";
 };
@@ -110,7 +111,6 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   if (cached) return cached;
 
   let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
-
   if (emplymShp) url += `&emplymShp=${emplymShp}`;
 
   const response = await fetch(url);
@@ -140,6 +140,7 @@ export const getSavedJobProfile = () => {
           : [],
       };
     }
+
     const saved = localStorage.getItem("user_profile");
     return saved ? JSON.parse(saved) : null;
   } catch {

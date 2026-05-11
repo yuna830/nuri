@@ -427,6 +427,16 @@
   background: #eef6ef;
 }
 
+.alert-confirm-button.danger {
+  border-color: #e05252;
+  background: #e05252;
+  color: #ffffff;
+}
+
+.alert-confirm-button.danger:hover {
+  background: #c94343;
+}
+
 .missing-modal-backdrop {
   position: fixed;
   inset: 0;

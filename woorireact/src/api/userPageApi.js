@@ -368,3 +368,34 @@ export const createSosCancelAlert = async ({ seniorId, latitude, longitude }) =>
   return response.json();
 };
 
+export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, address }) => {
+  const response = await fetch(`${API_BASE}/api/alerts/safe-zone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId, latitude, longitude, address }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Safe zone alert failed");
+  }
+
+  return response.json();
+};
+
+export const fetchSeniorAlerts = async (seniorId) => {
+  if (!seniorId) return [];
+  const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}`);
+  if (!response.ok) return [];
+  return response.json();
+};
+
+export const readAlert = async (alertId) => {
+  const response = await fetch(`${API_BASE}/api/alerts/${alertId}/read`, {
+    method: "PATCH",
+  });
+  if (!response.ok) {
+    throw new Error("Alert read failed");
+  }
+  return response.json();
+};
+

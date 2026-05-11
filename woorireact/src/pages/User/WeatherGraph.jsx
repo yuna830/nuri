@@ -186,6 +186,24 @@ export default function WeatherGraph() {
     } catch {}
   }, []);
 
+  const fetchEnvironment = async (lat, lon) => {
+    const [uvResult, pollenResult, airResult] = await Promise.allSettled([
+      fetchUVIndex(lat, lon),
+      fetchPollenIndex(lat, lon),
+      fetchAirQuality(lat, lon),
+    ]);
+
+    if (uvResult.status === "fulfilled" && uvResult.value) {
+      setChanged(setUvData, uvResult.value);
+    }
+    if (pollenResult.status === "fulfilled" && pollenResult.value) {
+      setChanged(setPollenData, pollenResult.value);
+    }
+    if (airResult.status === "fulfilled" && airResult.value) {
+      setChanged(setAirData, airResult.value);
+    }
+  };
+
   const fetchHourly = async (lat, lon) => {
     try {
       const { nx, ny } = toGrid(lat, lon);
@@ -258,14 +276,6 @@ export default function WeatherGraph() {
         const healthItems  = getHealthItems(profile, nowData.temp, nowData.pty);
         setChanged(setAdviceItems, [...weatherItems, ...healthItems]);
 
-        const [uv, pollen, air] = await Promise.all([
-          fetchUVIndex(lat, lon),
-          fetchPollenIndex(lat, lon),
-          fetchAirQuality(lat, lon),
-        ]);
-        if (uv)     setChanged(setUvData, uv);
-        if (pollen) setChanged(setPollenData, pollen);
-        if (air)    setChanged(setAirData, air);
       }
 
       setLoading(false);
@@ -282,12 +292,14 @@ export default function WeatherGraph() {
         async pos => {
           const { latitude: lat, longitude: lon } = pos.coords;
           setChanged(setAddress, await reverseGeocode(lat, lon));
+          fetchEnvironment(lat, lon);
           fetchHourly(lat, lon);
         },
-        () => { setChanged(setAddress, "서울"); fetchHourly(37.5665, 126.9780); }
+        () => { setChanged(setAddress, "서울"); fetchEnvironment(37.5665, 126.9780); fetchHourly(37.5665, 126.9780); }
       );
     } else {
       setChanged(setAddress, "서울");
+      fetchEnvironment(37.5665, 126.9780);
       fetchHourly(37.5665, 126.9780);
     }
   }, []);
