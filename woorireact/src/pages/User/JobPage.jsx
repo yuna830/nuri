@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import {
   EMPL_COLOR,
   EMPL_MAP,
@@ -50,10 +51,13 @@ export default function JobPage() {
   const matchesCategory = useCallback((job) => {
     if (!category) return true;
     const selectedCategory = JOB_CATEGORY_FILTERS.find((item) => item.value === category);
-    if (!selectedCategory?.srchWrd) return categorizeJob(job) === "기타";
+    if (!selectedCategory?.keywords?.length) return categorizeJob(job) === "기타";
     return categorizeJob(job) === selectedCategory.label
-      || job.recrtTitle?.includes(selectedCategory.srchWrd)
-      || job.jobclsNm?.includes(selectedCategory.srchWrd);
+      || selectedCategory.keywords.some((keyword) =>
+        job.recrtTitle?.includes(keyword) ||
+        job.jobclsNm?.includes(keyword) ||
+        job.detCnts?.includes(keyword)
+      );
   }, [category]);
 
   const matchesSearch = useCallback((job) => {
@@ -187,11 +191,13 @@ export default function JobPage() {
 
   return (
     <div className="jp-root">
-      <nav className="jp-nav">
-        <button className="jp-nav-back" type="button" onClick={() => navigate("/user")}>← 돌아가기</button>
-        <div className="jp-nav-title">💼 일자리 찾기</div>
-        {!loading && !error && <div className="jp-nav-count">총 {totalCount}건</div>}
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="💼 일자리 찾기"
+        right={!loading && !error ? <span className="jp-nav-count">총 {totalCount}건</span> : null}
+        onBack={() => navigate("/user")}
+      />
 
       <div className="jp-top-sticky">
         <div className="jp-top-sticky-inner">
@@ -281,7 +287,7 @@ export default function JobPage() {
           {loading && jobs.length === 0 && (
             <div className="jp-loading">💼 일자리 정보를 불러오는 중...</div>
           )}
-          {!loading && !error && filtered.length === 0 && (
+          {!loading && !error && filtered.length === 0 && !hasMoreSource && (
             <div className="jp-empty">
               <div className="jp-empty-icon">🔍</div>
               <div className="jp-empty-text">해당하는 일자리가 없습니다</div>
@@ -344,9 +350,11 @@ export default function JobPage() {
             );
           })}
 
-          {!loading && !error && visibleJobs.length > 0 && hasMoreVisible && (
+          {!loading && !error && hasMoreVisible && (
             <button className="jp-more-btn" type="button" onClick={handleMore}>
-              더보기 ({visibleJobs.length} / {filtered.length + (hasMoreSource ? "+" : "")}건)
+              {visibleJobs.length > 0
+                ? `더보기 (${visibleJobs.length} / ${filtered.length + (hasMoreSource ? "+" : "")}건)`
+                : "이 카테고리 공고 더 찾아보기"}
             </button>
           )}
         </main>

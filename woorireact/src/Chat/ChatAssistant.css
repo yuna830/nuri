@@ -1,24 +1,22 @@
 .chatbot-page,
 .schedule-register-page {
-  height: 100vh;
+  min-height: 100vh;
   box-sizing: border-box;
-  padding: 86px 28px 28px;
-  overflow: hidden;
+  padding: 0 0 28px;
   background: #fffdec;
   color: #2f2f2f;
 }
 
 .schedule-register-page {
   height: auto;
-  min-height: 100vh;
-  padding: 28px;
   overflow-y: auto;
 }
 
 .chatbot-header,
 .schedule-register-header {
-  max-width: 1120px;
+  max-width: 1280px;
   margin: 0 auto 20px;
+  padding: 28px 2rem 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,71 +27,6 @@
   display: flex;
   align-items: flex-start;
   gap: 16px;
-}
-
-.chatbot-back-inline {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid #d7dfce;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #5f7f63;
-  font-family: "Noto Sans KR", sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(56, 72, 57, 0.06);
-}
-
-.chatbot-back-inline:hover {
-  border-color: #86a788;
-  color: #3f6743;
-}
-
-.chatbot-global-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  height: 60px;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0 2rem;
-  border-bottom: 1px solid #d4e8d6;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 8px rgba(134, 167, 136, 0.08);
-}
-
-.chatbot-nav-logo {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #86a788;
-  font-family: "Noto Sans KR", sans-serif;
-  font-size: 1.25rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.chatbot-nav-logo:hover {
-  transform: scale(1.03);
-}
-
-.chatbot-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.chatbot-nav-date {
-  color: #7a9a7c;
-  font-size: 0.85rem;
-  font-weight: 700;
 }
 
 .schedule-register-header {
@@ -114,8 +47,7 @@
   font-size: 34px;
 }
 
-.chatbot-header button,
-.schedule-register-header button {
+.chatbot-sub-action {
   min-height: 56px;
   padding: 0 22px;
   border: 1px solid #86a788;
@@ -129,9 +61,10 @@
 
 .chatbot-layout,
 .schedule-register-layout {
-  max-width: 1120px;
-  height: calc(100vh - 252px);
+  max-width: 1280px;
+  height: calc(100vh - 284px);
   margin: 0 auto;
+  padding: 0 2rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
@@ -181,6 +114,7 @@
   line-height: 1.55;
   word-break: keep-all;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .chat-message.assistant {
@@ -225,7 +159,7 @@
 
 .chat-schedule-confirm div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
 }
 
@@ -244,6 +178,16 @@
   background: #86a788;
   border-color: #86a788;
   color: #ffffff;
+}
+
+.chat-schedule-confirm button.danger {
+  background: #fff1ef;
+  border-color: #ef6b58;
+  color: #b64635;
+}
+
+.pending-delete-list {
+  margin-bottom: 12px;
 }
 
 .chatbot-input input {
@@ -577,7 +521,7 @@ button.selected {
   .schedule-register-page {
     height: auto;
     min-height: 100vh;
-    padding: 16px;
+    padding-bottom: 16px;
     overflow: visible;
   }
 
@@ -590,6 +534,7 @@ button.selected {
   .chatbot-layout,
   .schedule-register-layout {
     height: auto;
+    padding: 0 1rem;
     grid-template-columns: 1fr;
   }
 

@@ -1,24 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   COLORS,
   calcHealthScore,
   menus,
   schedules,
 } from "../../utils/user/userPageData";
-import { MapContainer, TileLayer, Marker, Circle } from "react-leaflet";
-import { customLocationIcon } from "../../utils/user/locationPageUtils";
 import {
+  createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
+  fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId as getSavedSeniorId,
+  readAlert,
   resolveUploadUrl,
   reverseGeocode,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
-import { fetchAirQuality, fetchPollenIndex, fetchUVIndex } from "../../utils/user/weatherAdvice";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
@@ -161,6 +163,11 @@ const formatDongAddress = (address = "") => {
   return parts.slice(0, 3).join(" ");
 };
 
+const toTelHref = (phone = "") => {
+  const digits = String(phone).replace(/[^0-9+]/g, "");
+  return digits ? `tel:${digits}` : "";
+};
+
 const getLocalCareTeam = (seniorId) => {
   if (!seniorId) return null;
 
@@ -178,6 +185,24 @@ const setChanged = (setter, nextValue) => {
   setter((prevValue) => (isSameJson(prevValue, nextValue) ? prevValue : nextValue));
 };
 
+const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+
+const shouldSendSafeZoneAlert = (seniorId, safeZone, lat, lon) => {
+  if (!seniorId || !safeZone) return false;
+
+  const roundedLat = Math.round(lat * 1000);
+  const roundedLon = Math.round(lon * 1000);
+  const key = `safe-zone-alert:${seniorId}:${safeZone.radiusMeters}:${roundedLat}:${roundedLon}`;
+  const lastSentAt = Number(localStorage.getItem(key) || 0);
+
+  if (Date.now() - lastSentAt < SAFE_ZONE_ALERT_COOLDOWN_MS) {
+    return false;
+  }
+
+  localStorage.setItem(key, String(Date.now()));
+  return true;
+};
+
 export default function UserPage() {
   const navigate = useNavigate();
   const initialProfile = getInitialSeniorProfile();
@@ -186,7 +211,7 @@ export default function UserPage() {
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
-  // 보호자 페이지 이동 경로에서 위치가 1분마다 계속 저장되는 것 방지
+  // 보호자 페이지 이동 경로에서 위치가 너무 자주 저장되는 것을 방지
   const lastSavedLocationRef = useRef(null);
 
   const [weather, setWeather] = useState(null);
@@ -200,7 +225,9 @@ export default function UserPage() {
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
+    guardianPhone: initialProfile?.guardian?.phone || initialSenior?.guardianPhone || initialLocalCareTeam?.guardianPhone || "",
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
+    socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
@@ -210,6 +237,7 @@ export default function UserPage() {
   const [allSchedules, setAllSchedules] = useState([]);
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
+  const [incomingCallAlert, setIncomingCallAlert] = useState(null);
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -259,43 +287,7 @@ export default function UserPage() {
     try {
       const seniorId = getSavedSeniorId();
       const savedAlerts = seniorId ? await fetchTodayClimateAlerts(seniorId).catch(() => []) : [];
-      const pos = await getPositionForAlert();
-      const [uv, air, pollen] = await Promise.all([
-        fetchUVIndex(pos.lat, pos.lon),
-        fetchAirQuality(pos.lat, pos.lon),
-        fetchPollenIndex(pos.lat, pos.lon),
-      ]);
-
       const envAlerts = [];
-      if (uv?.value >= 3) {
-        const uvLevelText = uv.value >= 8 ? "매우 높음" : uv.value >= 6 ? "높음" : "보통";
-        envAlerts.push({
-          type: "자외선",
-          color: uv.value >= 8 ? COLORS.danger : uv.value >= 6 ? "#f0a500" : "#4f9cc9",
-          msg: `자외선 지수가 ${uv.value}로 ${uvLevelText}입니다. 외출 시 모자나 선크림을 챙겨주세요.`,
-          time: currentDateTime,
-          sortTime: now.getTime(),
-        });
-      }
-      if (air?.pm10?.value > 80 || air?.pm25?.value > 35) {
-        envAlerts.push({
-          type: "미세먼지",
-          color: air.pm10.value > 150 || air.pm25.value > 75 ? COLORS.danger : "#f0a500",
-          msg: "미세먼지 상태가 좋지 않습니다. 외출 시 마스크를 착용해주세요.",
-          time: currentDateTime,
-          sortTime: now.getTime(),
-        });
-      }
-      const pollenHigh = ["pine", "oak", "weeds"].find((key) => pollen?.[key]?.value >= 3);
-      if (pollenHigh) {
-        envAlerts.push({
-          type: "꽃가루",
-          color: pollen[pollenHigh].value >= 4 ? COLORS.danger : "#f0a500",
-          msg: "꽃가루 농도가 높습니다. 알레르기나 호흡기 질환이 있다면 마스크를 착용해주세요.",
-          time: currentDateTime,
-          sortTime: now.getTime(),
-        });
-      }
 
       const isReadableAlert = (alert) => {
         const text = `${alert.type || ""} ${alert.message || ""}`;
@@ -405,16 +397,6 @@ export default function UserPage() {
     try {
       const seniorId = getCurrentSeniorId(initialSenior);
 
-      if (accuracy && accuracy > 1000) {
-        console.warn("위치 정확도가 낮아 저장하지 않음:", accuracy);
-        return;
-      }
-
-      if (lastSavedLocation && movedMeters > 3000) {
-        console.warn("비정상 위치 튐 감지, 저장하지 않음:", movedMeters);
-        return;
-      }
-
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
@@ -445,6 +427,18 @@ export default function UserPage() {
       );
 
       setChanged(setIsInRange, dist <= safeZone.radiusMeters);
+
+      if (
+        dist > safeZone.radiusMeters &&
+        shouldSendSafeZoneAlert(getCurrentSeniorId(initialSenior), safeZone, lat, lon)
+      ) {
+        createSafeZoneAlert({
+          seniorId: getCurrentSeniorId(initialSenior),
+          latitude: lat,
+          longitude: lon,
+          address: resolvedAddress || "현재 위치",
+        }).catch(() => {});
+      }
     }
   };
 
@@ -459,7 +453,7 @@ export default function UserPage() {
       () => fetchWeather(37.5665, 126.9780)
     );
 
-    // 30초마다 위치 자동 갱신
+    // 30珥덈쭏???꾩튂 ?먮룞 媛깆떊
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         pos => updateLocation(
@@ -535,7 +529,9 @@ export default function UserPage() {
       setChanged(setCareTeam, {
         guardianName: guardian?.name || profile?.guardianName || senior.guardianName || localCareTeam?.guardianName || "",
         guardianRelation: profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
+        guardianPhone: guardian?.phone || profile?.guardianPhone || senior.guardianPhone || localCareTeam?.guardianPhone || "",
         socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
+        socialWorkerPhone: socialWorker?.phone || profile?.socialWorkerPhone || senior.socialWorkerPhone || localCareTeam?.socialWorkerPhone || "",
       });
     };
 
@@ -601,14 +597,7 @@ export default function UserPage() {
     const currentDate = new Date();
     const days = ["일", "월", "화", "수", "목", "금", "토"];
     setDateStr(
-      currentDate.getFullYear() +
-        "년 " +
-        (currentDate.getMonth() + 1) +
-        "월 " +
-        currentDate.getDate() +
-        "일(" +
-        days[currentDate.getDay()] +
-        ")"
+      `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
 
     return () => {
@@ -665,6 +654,26 @@ export default function UserPage() {
     setChanged(setIsInRange, dist <= safeZone.radiusMeters);
   }, [currentPos, safeZone]);
 
+  useEffect(() => {
+    const seniorId = getCurrentSeniorId(initialSenior);
+    if (!seniorId) return undefined;
+
+    let cancelled = false;
+    const loadCallRequest = async () => {
+      const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
+      if (cancelled) return;
+      const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
+      setIncomingCallAlert(callAlert || null);
+    };
+
+    loadCallRequest();
+    const timerId = setInterval(loadCallRequest, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(timerId);
+    };
+  }, [initialSenior]);
+
   const confirmSOS = async () => {
     setShowSOS(false);
     const seniorId = getCurrentSeniorId(initialSenior);
@@ -705,6 +714,25 @@ export default function UserPage() {
     alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
 
+  const handleReceiveCall = async () => {
+    if (incomingCallAlert?.id) {
+      await readAlert(incomingCallAlert.id).catch(() => {});
+    }
+    setIncomingCallAlert(null);
+
+    if (careTeam.guardianPhone) {
+      window.location.href = `tel:${careTeam.guardianPhone.replace(/[^0-9]/g, "")}`;
+    }
+  };
+
+  const handleDismissCallRequest = async () => {
+    const alertId = incomingCallAlert?.id;
+    setIncomingCallAlert(null);
+    if (alertId) {
+      await readAlert(alertId).catch(() => {});
+    }
+  };
+
   const openAllSchedules = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
     const today = todayValue();
@@ -726,15 +754,7 @@ export default function UserPage() {
 
   return (
     <div className="up-root">
-      <nav className="up-nav">
-        <div className="up-nav-logo">우리 woori</div>
-        <div className="up-nav-right">
-          <span className="up-nav-date">{dateStr}</span>
-          <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
-            SOS 알림 요청
-          </button>
-        </div>
-      </nav>
+      <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
 
       <div className="up-layout">
         <aside>
@@ -746,7 +766,7 @@ export default function UserPage() {
                 "👤"
               )}
             </div>
-            <div className="up-profile-name">{userName}님</div>
+            <div className="up-profile-name">{userName}</div>
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
@@ -755,15 +775,27 @@ export default function UserPage() {
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                <strong>
-                  {careTeam.guardianName
-                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                    : "매칭 전"}
-                </strong>
+                {careTeam.guardianName && toTelHref(careTeam.guardianPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.guardianPhone)}>
+                    {`${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`}
+                  </a>
+                ) : (
+                  <strong>
+                    {careTeam.guardianName
+                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                      : "매칭 전"}
+                  </strong>
+                )}
               </div>
               <div>
                 <span>복지사</span>
-                <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
+                    {careTeam.socialWorkerName}
+                  </a>
+                ) : (
+                  <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                )}
               </div>
             </div>
           </div>
@@ -800,8 +832,8 @@ export default function UserPage() {
 
           <div className="up-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
             <div className="up-card-head">
-              <div className="up-card-title">📍 현재 위치</div>
-              <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>→</span>
+              <div className="up-card-title">현재 위치</div>
+              <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
             </div>
             <div style={{
               display: "flex",
@@ -822,7 +854,7 @@ export default function UserPage() {
                 fontWeight: "700",
                 color: isInRange ? COLORS.green : COLORS.danger,
               }}>
-                {isInRange ? "안전 반경 내" : "위험 반경 이탈"}
+                {isInRange ? "안전 반경 내" : "안전 반경 이탈"}
               </span>
             </div>
             <div style={{
@@ -847,26 +879,15 @@ export default function UserPage() {
             )}
             {currentPos && (
               <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
-                <MapContainer
-                  key={`${currentPos.lat.toFixed(4)}-${currentPos.lon.toFixed(4)}`}
-                  center={[currentPos.lat, currentPos.lon]}
-                  zoom={15}
+                <KakaoMap
+                  center={{ lat: currentPos.lat, lng: currentPos.lon }}
+                  zoom={5}
                   className="up-mini-map"
-                  scrollWheelZoom={false}
-                  dragging={false}
-                  zoomControl={false}
-                  attributionControl={false}
-                >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {safeZone && (
-                    <Circle
-                      center={[safeZone.centerLatitude, safeZone.centerLongitude]}
-                      radius={safeZone.radiusMeters}
-                      pathOptions={{ color: "#86A788", fillColor: "#86A788", fillOpacity: 0.12 }}
-                    />
-                  )}
-                  <Marker position={[currentPos.lat, currentPos.lon]} icon={customLocationIcon} />
-                </MapContainer>
+                  safeZone={safeZone}
+                  currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
+                  currentLabel="현재 위치"
+                  safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                />
               </div>
             )}
           </div>
@@ -881,7 +902,7 @@ export default function UserPage() {
                 <div className="up-weather-desc">
                   {weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}
                 </div>
-                <div className="up-weather-icon">{weather?.icon ?? "🌤️"}</div>
+                <div className="up-weather-icon">{weather?.icon ?? "☁️"}</div>
               </div>
             </div>
 
@@ -905,19 +926,28 @@ export default function UserPage() {
           <div className="up-content-row">
             <div className="up-card up-schedule-card">
               <div className="up-card-head">
-                <div className="up-card-title">📅 일정</div>
-                <input
-                  className="up-schedule-date"
-                  type="date"
-                  value={selectedScheduleDate}
-                  onChange={(event) => setSelectedScheduleDate(event.target.value)}
-                />
+                <div className="up-card-title">일정</div>
+                <div className="up-schedule-tools">
+                  <input
+                    className="up-schedule-date"
+                    type="date"
+                    value={selectedScheduleDate}
+                    onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="up-schedule-create"
+                    onClick={() => navigate("/chat?mode=schedule")}
+                  >
+                    일정 생성
+                  </button>
+                </div>
               </div>
 
               <div className="up-schedule-list">
                 {scheduleList.length === 0 ? (
                   <div className="up-schedule-empty">
-                    등록된 일정이 없어요 😊
+                    등록된 일정이 없어요.
                   </div>
                 ) : (
                   scheduleList.map((s, i) => (
@@ -933,9 +963,9 @@ export default function UserPage() {
 
             <div className="up-card up-climate-card">
               <div className="up-card-head">
-                <div className="up-card-title">🌡 기후 알림</div>
+                <div className="up-card-title">기후 알림</div>
                 <button className="up-card-more" type="button" onClick={() => navigate("/weather")}>
-                  전체보기 →
+                  전체보기
                 </button>
               </div>
 
@@ -950,7 +980,7 @@ export default function UserPage() {
                   </span>
                   <div>
                     <div className="up-alert-text">{a.msg}</div>
-                    <div className="up-alert-time">⏱ {a.time}</div>
+                    <div className="up-alert-time">{a.time}</div>
                   </div>
                 </div>
               ))}
@@ -961,9 +991,9 @@ export default function UserPage() {
             <div className="up-content-row">
               <div className="up-card full">
                 <div className="up-card-head">
-                  <div className="up-card-title">🏥 건강 상태 레이더</div>
+                  <div className="up-card-title">건강 상태 레이더</div>
                   <button className="up-card-more" type="button" onClick={() => navigate("/profile")}>
-                    정보 수정 →
+                    정보 수정
                   </button>
                 </div>
                 <RadarChart scores={healthScores} />
@@ -1003,7 +1033,7 @@ export default function UserPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="up-card-head" style={{ marginBottom: "1rem" }}>
-              <div className="up-modal-title" style={{ fontSize: "1.1rem" }}>📅 전체 일정</div>
+              <div className="up-modal-title" style={{ fontSize: "1.1rem" }}>전체 일정</div>
               <button
                 style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
                 type="button"
@@ -1015,7 +1045,7 @@ export default function UserPage() {
             {isLoadingAllSchedules ? (
               <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>불러오는 중...</div>
             ) : allSchedules.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>등록된 일정이 없어요</div>
+              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>등록된 일정이 없어요.</div>
             ) : (
               allSchedules.map((s) => (
                 <div key={s.id} className="up-schedule-row">
@@ -1032,11 +1062,31 @@ export default function UserPage() {
         </div>
       )}
 
+      {incomingCallAlert && (
+        <div className="up-overlay" onClick={handleDismissCallRequest}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">📞</div>
+            <div className="up-modal-title">보호자가 전화를 요청했습니다.</div>
+            <div className="up-modal-desc">
+              전화 앱에 수신 화면이 뜨면 통화 버튼을 눌러주세요.
+            </div>
+            <div className="up-modal-row">
+              <button className="up-modal-cancel" type="button" onClick={handleDismissCallRequest}>
+                나중에
+              </button>
+              <button className="up-modal-ok" type="button" onClick={handleReceiveCall}>
+                전화 받기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingSos && (
         <div className="up-sos-pending">
           <div>
-            <strong>SOS가 보호자에게 전송됐어요</strong>
-            <p>실수로 누르셨다면 아래 버튼을 눌러 표시를 닫아주세요.</p>
+            <strong>SOS가 보호자에게 전송되었어요.</strong>
+            <p>실수로 누르셨다면 아래 버튼을 눌러 표시를 취소해 주세요.</p>
           </div>
           <button type="button" onClick={handleSosMistake}>
             잘못 눌렀어요

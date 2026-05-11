@@ -6,6 +6,7 @@ import {
   createMissingReport,
   uploadImage,
   getPoliceMissingAlerts,
+  createCallRequestAlert,
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
@@ -483,6 +484,10 @@ function GuardianPage() {
       return `${seniorName}의 SOS 요청`;
     }
 
+    if (alert.type === "SAFE_ZONE") {
+      return originalMessage;
+    }
+
     return originalMessage;
   };
 
@@ -528,6 +533,7 @@ function GuardianPage() {
         message: formatAlertMessage(alert),
         status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
         isSos: alert.type === "SOS",
+        isSafeZone: alert.type === "SAFE_ZONE",
       };
     });
 
@@ -976,7 +982,7 @@ function GuardianPage() {
     }
   };
 
-  const handleCallAlert = (targetAlert) => {
+  const handleCallAlert = async (targetAlert) => {
     const targetElder = targetAlert?.seniorId
       ? elders.find((elder) => String(elder.id) === String(targetAlert.seniorId))
       : selectedElder;
@@ -990,6 +996,15 @@ function GuardianPage() {
 
     setCallingAlert(targetAlert);
     setIsCallResultOpen(true);
+
+    if (targetElder?.id) {
+      await createCallRequestAlert({
+        seniorId: targetElder.id,
+        latitude: targetElder.currentLocation?.lat,
+        longitude: targetElder.currentLocation?.lng,
+      }).catch(() => {});
+    }
+
     window.location.href = `tel:${phone}`;
   };
 
@@ -1380,13 +1395,12 @@ function GuardianPage() {
   );
 }
 
-// ✅ 버그 수정: guardian?.name 으로 통일하여 guardian이 null일 때 에러 방지
 function GuardianHeader({ guardian, unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
   return (
     <header className="guardian-header">
       <div className="brand-area">
-        <div className="logo-box">?곕━</div>
-        <strong className="service-name">?곕━</strong>
+        <div className="logo-box">우리</div>
+        <strong className="service-name">우리 돌봄</strong>
         <span className="guardian-name">
           {guardian?.name ? `보호자: ${guardian.name}` : ""}
         </span>

@@ -16,7 +16,7 @@
 .up-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1280px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -165,12 +165,24 @@
   opacity: 0.72;
 }
 
-.up-care-team strong {
+.up-care-team strong,
+.up-care-call {
   font-size: 0.82rem;
   font-weight: 700;
   color: #ffffff;
   line-height: 1.35;
   word-break: keep-all;
+}
+
+.up-care-call {
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.up-care-call:hover {
+  color: #f3fff3;
 }
 
 @keyframes up-blink {
@@ -378,12 +390,35 @@
   font-family: "Noto Sans KR", sans-serif;
 }
 
+.up-schedule-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.up-schedule-create {
+  min-height: 36px;
+  border: 1px solid #c7dfca;
+  border-radius: 10px;
+  padding: 0 0.85rem;
+  background: #f5fbf5;
+  color: #5f8a62;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.up-schedule-create:hover {
+  background: #eaf5eb;
+}
+
 .up-schedule-date {
   min-height: 36px;
   border: 1px solid #d4e8d6;
   border-radius: 10px;
   padding: 0 0.75rem;
-  background: #fffdec;
+  background: #ffffff;
   color: #5f7d61;
   font-family: "Noto Sans KR", sans-serif;
   font-size: 0.82rem;

@@ -16,7 +16,7 @@
 .lp-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1200px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -78,11 +78,11 @@
 }
 
 .lp-layout {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 1.5rem;
   align-items: start;
 }
@@ -437,6 +437,10 @@
 }
 
 @media (max-width: 900px) {
+  .lp-nav {
+    padding: 0 1rem;
+  }
+
   .lp-layout {
     grid-template-columns: 1fr;
     padding: 1rem;

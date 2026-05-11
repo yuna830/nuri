@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import "../../css/user/WeatherGraph.css";
 import {
   fetchUVIndex,
@@ -186,6 +187,24 @@ export default function WeatherGraph() {
     } catch {}
   }, []);
 
+  const fetchEnvironment = async (lat, lon) => {
+    const [uvResult, pollenResult, airResult] = await Promise.allSettled([
+      fetchUVIndex(lat, lon),
+      fetchPollenIndex(lat, lon),
+      fetchAirQuality(lat, lon),
+    ]);
+
+    if (uvResult.status === "fulfilled" && uvResult.value) {
+      setChanged(setUvData, uvResult.value);
+    }
+    if (pollenResult.status === "fulfilled" && pollenResult.value) {
+      setChanged(setPollenData, pollenResult.value);
+    }
+    if (airResult.status === "fulfilled" && airResult.value) {
+      setChanged(setAirData, airResult.value);
+    }
+  };
+
   const fetchHourly = async (lat, lon) => {
     try {
       const { nx, ny } = toGrid(lat, lon);
@@ -258,14 +277,6 @@ export default function WeatherGraph() {
         const healthItems  = getHealthItems(profile, nowData.temp, nowData.pty);
         setChanged(setAdviceItems, [...weatherItems, ...healthItems]);
 
-        const [uv, pollen, air] = await Promise.all([
-          fetchUVIndex(lat, lon),
-          fetchPollenIndex(lat, lon),
-          fetchAirQuality(lat, lon),
-        ]);
-        if (uv)     setChanged(setUvData, uv);
-        if (pollen) setChanged(setPollenData, pollen);
-        if (air)    setChanged(setAirData, air);
       }
 
       setLoading(false);
@@ -282,12 +293,14 @@ export default function WeatherGraph() {
         async pos => {
           const { latitude: lat, longitude: lon } = pos.coords;
           setChanged(setAddress, await reverseGeocode(lat, lon));
+          fetchEnvironment(lat, lon);
           fetchHourly(lat, lon);
         },
-        () => { setChanged(setAddress, "서울"); fetchHourly(37.5665, 126.9780); }
+        () => { setChanged(setAddress, "서울"); fetchEnvironment(37.5665, 126.9780); fetchHourly(37.5665, 126.9780); }
       );
     } else {
       setChanged(setAddress, "서울");
+      fetchEnvironment(37.5665, 126.9780);
       fetchHourly(37.5665, 126.9780);
     }
   }, []);
@@ -361,16 +374,27 @@ export default function WeatherGraph() {
 
   const envAdviceItems = getEnvAdviceItems(uvData, airData, pollenData);
   const dustLevel = airData?.pm10?.value >= 150 ? "주의" : airData?.pm10?.value >= 80 ? "관심" : airData ? "낮음" : "정보 확인 중";
+  const hasRainPrep = adviceItems.some((item) => item.label.includes("우산"));
+  const hasLayerPrep = adviceItems.some((item) => item.label.includes("긴팔") || item.label.includes("가디건"));
+  const rainChance = Number(current?.pop || 0);
+  const prepGuideItems = [
+    hasRainPrep || rainChance >= 50
+      ? "비 예보가 있어 외출 전 우산을 챙겨주세요."
+      : "비 가능성은 낮지만 외출 전 하늘 상태를 한 번 확인해주세요.",
+    hasLayerPrep
+      ? "기온 변화에 대비해 얇은 겉옷을 준비하면 좋아요."
+      : "현재 기온에 맞춰 가볍고 편한 옷차림이 좋아요.",
+  ];
 
   return (
     <div className="wg-root">
-      <nav className="wg-nav">
-        <button className="wg-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-        <div className="wg-nav-title">🌤 오늘 날씨 상세</div>
-        <span className="wg-nav-location">📍 {address}</span>
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="🌤 오늘 날씨 상세"
+        right={`📍 ${address}`}
+        onBack={() => navigate("/user")}
+      />
 
       <div className="wg-layout">
         {loading && <div className="wg-loading">🌤 날씨 데이터 불러오는 중...</div>}
@@ -403,111 +427,70 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {adviceItems.length > 0 && (
-              <div className="wg-chart-card">
-                <div className="wg-chart-title">👜 오늘의 준비물</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {adviceItems.map((item, i) => {
-                    const bc = badgeColor(item.category);
-                    return (
-                      <span key={i} style={{
-                        display: "inline-flex", alignItems: "center", gap: "0.35rem",
-                        padding: "0.4rem 0.9rem", borderRadius: "99px",
-                        fontSize: "0.82rem", fontWeight: "700",
-                        background: bc.bg, border: `1px solid ${bc.border}`, color: bc.color,
+            <div className="wg-alert-grid">
+              {envAdviceItems.length > 0 && (
+                <div className="wg-chart-card wg-env-advice-card">
+                  <div className="wg-chart-title">⚠️ 오늘의 환경 주의사항</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+                    {envAdviceItems.map((item, i) => (
+                      <div key={i} style={{
+                        background: item.bg,
+                        border: `1px solid ${item.border}`,
+                        borderRadius: "12px",
+                        padding: "0.9rem 1rem",
+                        borderLeft: `4px solid ${item.color}`,
                       }}>
-                        {item.icon} {item.label}
-                      </span>
-                    );
-                  })}
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: "0.5rem",
+                          fontSize: "0.88rem", fontWeight: "700",
+                          color: item.color, marginBottom: "0.4rem",
+                        }}>
+                          <span>{item.icon}</span>
+                          <span>{item.title}</span>
+                        </div>
+                        <div style={{ fontSize: "0.82rem", color: C.text, lineHeight: "1.65" }}>
+                          {item.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="wg-chart-card">
-              <div className="wg-chart-title">🌍 환경 지수</div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {uvData && (
-                  <div style={{
-                    display: "flex", alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "0.65rem 0", borderBottom: `1px solid ${C.border}`,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
-                      fontSize: "0.85rem", color: C.textMuted }}>
-                      <span>☀️</span><span>자외선 지수</span>
+              <div className="wg-side-column">
+                {adviceItems.length > 0 && (
+                  <div className="wg-chart-card wg-advice-card">
+                    <div className="wg-chart-title">👜 오늘의 준비물</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {adviceItems.map((item, i) => {
+                        const bc = badgeColor(item.category);
+                        return (
+                          <span key={i} style={{
+                            display: "inline-flex", alignItems: "center", gap: "0.35rem",
+                            padding: "0.4rem 0.9rem", borderRadius: "99px",
+                            fontSize: "0.82rem", fontWeight: "700",
+                            background: bc.bg, border: `1px solid ${bc.border}`, color: bc.color,
+                          }}>
+                            {item.icon} {item.label}
+                          </span>
+                        );
+                      })}
                     </div>
-                    <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                      color: envLevelColor(uvData.level) }}>
-                      {uvData.value} — {uvData.level}
-                    </span>
+                    <div className="wg-prep-guide">
+                      <div className="wg-mini-title">오늘은 이렇게 준비하세요</div>
+                      <ul>
+                        {prepGuideItems.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 )}
-                <EnvRow
-                  icon="😷"
-                  label="미세먼지 PM10"
-                  value={airData ? `${airData.pm10.value}㎍/㎥ — ${airData.pm10.level}` : "정보 확인 중"}
-                  color={airData ? envLevelColor(airData.pm10.level) : C.textMuted}
-                />
-                <EnvRow
-                  icon="🫁"
-                  label="초미세먼지 PM2.5"
-                  value={airData ? `${airData.pm25.value}㎍/㎥ — ${airData.pm25.level}` : "정보 확인 중"}
-                  color={airData ? envLevelColor(airData.pm25.level) : C.textMuted}
-                />
-                <EnvRow
-                  icon="🌫️"
-                  label="황사"
-                  value={dustLevel}
-                  color={dustLevel === "주의" ? C.danger : dustLevel === "관심" ? "#f0a500" : airData ? C.blue : C.textMuted}
-                />
-                {airData && (
-                  <div style={{ fontSize: "0.7rem", color: C.textMuted, padding: "0.3rem 0" }}>
-                    측정소: {airData.station} · 에어코리아
-                  </div>
-                )}
-                {pollenData?.pine && (
-                  <EnvRow
-                    icon="🌲"
-                    label="소나무 꽃가루"
-                    value={pollenData.pine.text}
-                    color={envLevelColor(pollenData.pine.text)}
-                  />
-                )}
-                {pollenData?.oak && (
-                  <EnvRow
-                    icon="🌳"
-                    label="참나무 꽃가루"
-                    value={pollenData.oak.text}
-                    color={envLevelColor(pollenData.oak.text)}
-                    hasBorder={false}
-                  />
-                )}
-              </div>
-            </div>
 
-            {false && (uvData || airData || pollenData) && (
-              <div className="wg-chart-card">
-                <div className="wg-chart-title">🌍 환경 지수</div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  {uvData && (
-                    <div style={{
-                      display: "flex", alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0.65rem 0", borderBottom: `1px solid ${C.border}`,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
-                        fontSize: "0.85rem", color: C.textMuted }}>
-                        <span>☀️</span><span>자외선 지수</span>
-                      </div>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                        color: envLevelColor(uvData.level) }}>
-                        {uvData.value} — {uvData.level}
-                      </span>
-                    </div>
-                  )}
-                  {airData && (
-                    <>
+                <div className="wg-chart-card wg-env-card">
+                  <div className="wg-chart-title">🌍 환경 지수</div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {uvData && (
                       <div style={{
                         display: "flex", alignItems: "center",
                         justifyContent: "space-between",
@@ -515,105 +498,67 @@ export default function WeatherGraph() {
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
                           fontSize: "0.85rem", color: C.textMuted }}>
-                          <span>😷</span><span>미세먼지 PM10</span>
+                          <span>☀️</span><span>자외선 지수</span>
                         </div>
                         <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                          color: envLevelColor(airData.pm10.level) }}>
-                          {airData.pm10.value}㎍/㎥ — {airData.pm10.level}
+                          color: envLevelColor(uvData.level) }}>
+                          {uvData.value} — {uvData.level}
                         </span>
                       </div>
-                      <div style={{
-                        display: "flex", alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "0.65rem 0", borderBottom: `1px solid ${C.border}`,
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
-                          fontSize: "0.85rem", color: C.textMuted }}>
-                          <span>🫁</span><span>초미세먼지 PM2.5</span>
-                        </div>
-                        <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                          color: envLevelColor(airData.pm25.level) }}>
-                          {airData.pm25.value}㎍/㎥ — {airData.pm25.level}
-                        </span>
-                      </div>
+                    )}
+                    <EnvRow
+                      icon="😷"
+                      label="미세먼지 PM10"
+                      value={airData ? `${airData.pm10.value}㎍/㎥ — ${airData.pm10.level}` : "정보 확인 중"}
+                      color={airData ? envLevelColor(airData.pm10.level) : C.textMuted}
+                    />
+                    <EnvRow
+                      icon="🫁"
+                      label="초미세먼지 PM2.5"
+                      value={airData ? `${airData.pm25.value}㎍/㎥ — ${airData.pm25.level}` : "정보 확인 중"}
+                      color={airData ? envLevelColor(airData.pm25.level) : C.textMuted}
+                    />
+                    <EnvRow
+                      icon="🌫️"
+                      label="황사"
+                      value={dustLevel}
+                      color={dustLevel === "주의" ? C.danger : dustLevel === "관심" ? "#f0a500" : airData ? C.blue : C.textMuted}
+                    />
+                    {airData && (
                       <div style={{ fontSize: "0.7rem", color: C.textMuted, padding: "0.3rem 0" }}>
                         측정소: {airData.station} · 에어코리아
                       </div>
-                    </>
-                  )}
-                  {pollenData?.pine && (
-                    <div style={{
-                      display: "flex", alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0.65rem 0", borderBottom: `1px solid ${C.border}`,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
-                        fontSize: "0.85rem", color: C.textMuted }}>
-                        <span>🌲</span><span>소나무 꽃가루</span>
-                      </div>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                        color: envLevelColor(pollenData.pine.text) }}>
-                        {pollenData.pine.text}
-                      </span>
-                    </div>
-                  )}
-                  {pollenData?.oak && (
-                    <div style={{
-                      display: "flex", alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0.65rem 0",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
-                        fontSize: "0.85rem", color: C.textMuted }}>
-                        <span>🌳</span><span>참나무 꽃가루</span>
-                      </div>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "700",
-                        color: envLevelColor(pollenData.oak.text) }}>
-                        {pollenData.oak.text}
-                      </span>
-                    </div>
-                  )}
+                    )}
+                    {pollenData?.pine && (
+                      <EnvRow
+                        icon="🌲"
+                        label="소나무 꽃가루"
+                        value={pollenData.pine.text}
+                        color={envLevelColor(pollenData.pine.text)}
+                      />
+                    )}
+                    {pollenData?.oak && (
+                      <EnvRow
+                        icon="🌳"
+                        label="참나무 꽃가루"
+                        value={pollenData.oak.text}
+                        color={envLevelColor(pollenData.oak.text)}
+                        hasBorder={false}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {envAdviceItems.length > 0 && (
-              <div className="wg-chart-card">
-                <div className="wg-chart-title">⚠️ 오늘의 환경 주의사항</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
-                  {envAdviceItems.map((item, i) => (
-                    <div key={i} style={{
-                      background: item.bg,
-                      border: `1px solid ${item.border}`,
-                      borderRadius: "12px",
-                      padding: "0.9rem 1rem",
-                      borderLeft: `4px solid ${item.color}`,
-                    }}>
-                      <div style={{
-                        display: "flex", alignItems: "center", gap: "0.5rem",
-                        fontSize: "0.88rem", fontWeight: "700",
-                        color: item.color, marginBottom: "0.4rem",
-                      }}>
-                        <span>{item.icon}</span>
-                        <span>{item.title}</span>
-                      </div>
-                      <div style={{ fontSize: "0.82rem", color: C.text, lineHeight: "1.65" }}>
-                        {item.desc}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="wg-chart-card">
+            <div className="wg-chart-card wg-temp-chart-card">
               <div className="wg-chart-title">📈 오늘 시간별 기온 변화</div>
               <div className="wg-chart-wrap">
                 {renderLineChart()}
               </div>
             </div>
 
-            <div className="wg-chart-card">
+            <div className="wg-chart-card wg-hourly-card">
               <div className="wg-chart-title">🕐 시간별 날씨</div>
               <div className="wg-hour-list">
                 {hourlyData.map((d, i) => (

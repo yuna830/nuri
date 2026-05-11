@@ -78,11 +78,13 @@ const normalizeItems = (items) => {
   return Object.values(grouped).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 };
 
-export const fetchTodayForecast = async (lat, lon) => {
+export const fetchForecastForDay = async (lat, lon, dayOffset = 0) => {
   const { nx, ny } = toWeatherGrid(lat, lon);
   const { baseDate, baseTime } = getForecastBase();
   const now = new Date();
-  const today = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const target = new Date(now);
+  target.setDate(target.getDate() + dayOffset);
+  const targetDate = `${target.getFullYear()}${pad(target.getMonth() + 1)}${pad(target.getDate())}`;
   const currentHour = now.getHours();
   const cacheKey = `today-forecast:${baseDate}:${baseTime}:${nx}:${ny}`;
   const url = `/weather-api/1360000/VilageFcstInfoService_2.0/getVilageFcst`
@@ -121,7 +123,7 @@ export const fetchTodayForecast = async (lat, lon) => {
 
   const items = data?.response?.body?.items?.item || [];
   const hourly = normalizeItems(Array.isArray(items) ? items : [items])
-    .filter((item) => item.date === today)
+    .filter((item) => item.date === targetDate)
     .map((item) => {
       const hour = Number(item.time?.slice(0, 2) || 0);
       const text = weatherText(item.SKY, item.PTY);
@@ -145,6 +147,8 @@ export const fetchTodayForecast = async (lat, lon) => {
 
   return { ...current, hourly };
 };
+
+export const fetchTodayForecast = (lat, lon) => fetchForecastForDay(lat, lon, 0);
 
 export const reverseGeocode = async (lat, lon) => {
   const roundedLat = Number(lat).toFixed(4);
@@ -361,6 +365,37 @@ export const createSosCancelAlert = async ({ seniorId, latitude, longitude }) =>
     throw new Error("SOS cancel alert failed");
   }
 
+  return response.json();
+};
+
+export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, address }) => {
+  const response = await fetch(`${API_BASE}/api/alerts/safe-zone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId, latitude, longitude, address }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Safe zone alert failed");
+  }
+
+  return response.json();
+};
+
+export const fetchSeniorAlerts = async (seniorId) => {
+  if (!seniorId) return [];
+  const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}`);
+  if (!response.ok) return [];
+  return response.json();
+};
+
+export const readAlert = async (alertId) => {
+  const response = await fetch(`${API_BASE}/api/alerts/${alertId}/read`, {
+    method: "PATCH",
+  });
+  if (!response.ok) {
+    throw new Error("Alert read failed");
+  }
   return response.json();
 };
 

@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline } from "react-leaflet";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
   SAFE_RADIUS,
-  customLocationIcon,
   getAddress,
   getNow,
 } from "../../utils/user/locationPageUtils";
 import { getDistanceMeters } from "../../utils/guardian/location";
+import { createSafeZoneAlert } from "../../api/userPageApi.js";
 import "../../css/user/LocationPage.css";
 
 const DEFAULT_SAFE_ZONE = {
@@ -36,6 +37,24 @@ const toHistoryItem = (item) => ({
   time: item.receivedAt ? item.receivedAt.slice(11, 16) : "--:--",
   place: item.address || "현재 위치",
 });
+
+const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+
+const shouldSendSafeZoneAlert = (seniorId, safeZone, lat, lon) => {
+  if (!seniorId || !safeZone) return false;
+
+  const roundedLat = Math.round(lat * 1000);
+  const roundedLon = Math.round(lon * 1000);
+  const key = `safe-zone-alert:${seniorId}:${safeZone.radiusMeters}:${roundedLat}:${roundedLon}`;
+  const lastSentAt = Number(localStorage.getItem(key) || 0);
+
+  if (Date.now() - lastSentAt < SAFE_ZONE_ALERT_COOLDOWN_MS) {
+    return false;
+  }
+
+  localStorage.setItem(key, String(Date.now()));
+  return true;
+};
 
 export default function LocationPage() {
   const navigate = useNavigate();
@@ -121,8 +140,26 @@ export default function LocationPage() {
       await loadLocationHistory(todayStr());
     } catch {}
 
+    const seniorId = getCurrentSeniorId();
+    const currentDistance = Math.round(getDistanceMeters(
+      { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
+      { lat, lng: lon }
+    ));
+
+    if (
+      currentDistance > safeZone.radiusMeters &&
+      shouldSendSafeZoneAlert(seniorId, safeZone, lat, lon)
+    ) {
+      createSafeZoneAlert({
+        seniorId,
+        latitude: lat,
+        longitude: lon,
+        address: nextAddress,
+      }).catch(() => {});
+    }
+
     setLoading(false);
-  }, [loadLocationHistory]);
+  }, [loadLocationHistory, safeZone]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -147,20 +184,32 @@ export default function LocationPage() {
   }, [getLocation]);
 
   const currentHistory = historyByDate[selectedDate] || [];
+  const mapCenter = currentPos
+    ? { lat: currentPos[0], lng: currentPos[1] }
+    : { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude };
+  const currentLocationMarker = currentPos
+    ? { lat: currentPos[0], lng: currentPos[1] }
+    : null;
+  const routeToCurrentLocation = currentPos
+    ? [
+        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
+        { lat: currentPos[0], lng: currentPos[1] },
+      ]
+    : [];
 
   return (
     <div className="lp-root">
-      <nav className="lp-nav">
-        <button className="lp-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-        <div className="lp-nav-title">📍 내 위치</div>
-        <div className="lp-nav-right">
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="📍 내 위치"
+        onBack={() => navigate("/user")}
+        right={(
           <button className="lp-refresh-btn" type="button" onClick={getLocation}>
             <RefreshCw size={13} /> 새로고침
           </button>
-        </div>
-      </nav>
+        )}
+      />
 
       <div className="lp-layout">
         <div className="lp-map-section">
@@ -182,7 +231,7 @@ export default function LocationPage() {
             </div>
             <div className="lp-status-right">
               <div className={`lp-range-badge ${isInRange ? "safe" : "out"}`}>
-                {isInRange ? "✅ 안전 반경 내" : "🚨 반경 이탈"}
+                {isInRange ? "안전 반경 내" : "반경 이탈"}
               </div>
             </div>
           </div>
@@ -201,52 +250,27 @@ export default function LocationPage() {
                 <div className="lp-map-placeholder-text danger">{error}</div>
               </div>
             )}
-            {!loading && !error && currentPos && (
-              <MapContainer
-                center={currentPos}
-                zoom={15}
+            {!loading && (
+              <KakaoMap
+                center={mapCenter}
+                zoom={4}
                 className="lp-map"
                 style={{ zIndex: 0 }}
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution="&copy; OpenStreetMap contributors"
-                />
-                <Circle
-                  center={[safeZone.centerLatitude, safeZone.centerLongitude]}
-                  radius={safeZone.radiusMeters}
-                  pathOptions={{
-                    color: "#86A788", fillColor: "#86A788",
-                    fillOpacity: 0.08, weight: 2,
-                  }}
-                />
-                {/* 거리선 — 굵은 실선 */}
-                <Polyline
-                  positions={[
-                    [safeZone.centerLatitude, safeZone.centerLongitude],
-                    currentPos,
-                  ]}
-                  pathOptions={{
-                    color: isInRange ? "#86A788" : "#e05252",
-                    weight: 4,
-                    opacity: 0.85,
-                  }}
-                />
-                <Marker position={currentPos} icon={customLocationIcon}>
-                  <Popup>
-                    <div className="lp-popup">
-                      <strong>현재 위치</strong><br />
-                      {address}<br />
-                      <span style={{ fontSize: "0.75rem", color: "#7a9a7c" }}>
-                        안전 반경까지 {distance}m
-                      </span>
+                safeZone={safeZone}
+                currentLocation={currentLocationMarker}
+                currentLabel={currentPos ? `현재 위치<br />${address}<br />안전 반경까지 ${distance}m` : "현재 위치"}
+                safeZoneLabel={`${safeZone.name} 안전 반경 중심`}
+                route={routeToCurrentLocation}
+                showRoute={currentPos !== null}
+                fallback={
+                  <div className="lp-map-placeholder">
+                    <div className="lp-map-placeholder-icon">🗺️</div>
+                    <div className="lp-map-placeholder-text">
+                      카카오맵을 불러오지 못했습니다. JavaScript 키와 Web 플랫폼 도메인을 확인해주세요.
                     </div>
-                  </Popup>
-                </Marker>
-                <Marker position={[safeZone.centerLatitude, safeZone.centerLongitude]}>
-                  <Popup>{safeZone.name} (안전 반경 중심)</Popup>
-                </Marker>
-              </MapContainer>
+                  </div>
+                }
+              />
             )}
           </div>
 
@@ -281,7 +305,7 @@ export default function LocationPage() {
 
           <div className="lp-history-card lp-history-card-wide">
             <div className="lp-card-title">
-              <span>🗺 이동 이력</span>
+              <span>이동 이력</span>
             </div>
 
             <div style={{ marginBottom: "0.8rem" }}>
@@ -309,7 +333,7 @@ export default function LocationPage() {
                 <div className="lp-history-empty">
                   {selectedDate === todayStr()
                     ? "오늘 이동 이력이 없습니다"
-                    : "해당 날짜 이력이 없습니다"}
+                    : "해당 날짜 이동 이력이 없습니다"}
                 </div>
               ) : (
                 currentHistory.map((item, index) => (
@@ -327,7 +351,7 @@ export default function LocationPage() {
         <aside className="lp-sidebar">
           {/* 위치 정보 */}
           <div className="lp-info-card">
-            <div className="lp-card-title"><span>📡 위치 정보</span></div>
+            <div className="lp-card-title"><span>위치 정보</span></div>
             <div className="lp-info-row">
               <div className="lp-info-key"><Clock size={13} /> 마지막 갱신</div>
               <div className="lp-info-val">{lastUpdate}</div>
@@ -360,7 +384,7 @@ export default function LocationPage() {
 
           {/* 안전 반경 */}
           <div className="lp-range-card">
-            <div className="lp-card-title"><span>🛡 안전 반경 설정</span></div>
+            <div className="lp-card-title"><span>안전 반경 설정</span></div>
             <div className="lp-safe-zone-place">
               <strong>{safeZone.name}</strong>
               <span>{safeZone.address}</span>
@@ -371,7 +395,7 @@ export default function LocationPage() {
                 <div className="lp-range-unit">미터 (m)</div>
               </div>
               <div className={`lp-range-badge ${isInRange ? "safe" : "out"}`}>
-                {isInRange ? "✅ 반경 내" : "🚨 이탈"}
+                {isInRange ? "반경 내" : "이탈"}
               </div>
             </div>
             <div className="lp-range-desc">

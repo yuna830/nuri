@@ -26,6 +26,13 @@ export function readAlert(alertId) {
   });
 }
 
+export function createCallRequestAlert({ seniorId, latitude, longitude }) {
+  return request("/api/alerts/call", {
+    method: "POST",
+    body: JSON.stringify({ seniorId, latitude, longitude }),
+  });
+}
+
 export function getMissingReports() {
   return request("/api/missing-reports");
 }
