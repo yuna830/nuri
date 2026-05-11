@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { STT_API_URL } from "../services/serverConfig";
+import { STT_API_URL } from "../services/voiceSttApi";
 
 const categories = [
   {

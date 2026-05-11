@@ -118,6 +118,7 @@ export default function ChatAssistant() {
         : await createSchedule(payload);
       const savedSchedule = scheduleFromApi(saved);
 
+      setSelectedScheduleDate(savedSchedule.date);
       setSavedSchedules((prev) => {
         if (savedSchedule.date !== selectedScheduleDate) {
           return isEditing
@@ -182,8 +183,11 @@ export default function ChatAssistant() {
       const saved = await updateSchedule(schedule.id, payload);
       const savedSchedule = scheduleFromApi(saved);
 
+      setSelectedScheduleDate(savedSchedule.date);
       setSavedSchedules((prev) =>
-        prev.map((item) => (item.id === savedSchedule.id ? savedSchedule : item))
+        savedSchedule.date === selectedScheduleDate
+          ? prev.map((item) => (item.id === savedSchedule.id ? savedSchedule : item))
+          : prev.filter((item) => item.id !== savedSchedule.id)
       );
       setMessages((prev) => [
         ...prev,

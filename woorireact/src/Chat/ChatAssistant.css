@@ -225,7 +225,7 @@
 
 .chat-schedule-confirm div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
 }
 
@@ -244,6 +244,16 @@
   background: #86a788;
   border-color: #86a788;
   color: #ffffff;
+}
+
+.chat-schedule-confirm button.danger {
+  background: #fff1ef;
+  border-color: #ef6b58;
+  color: #b64635;
+}
+
+.pending-delete-list {
+  margin-bottom: 12px;
 }
 
 .chatbot-input input {

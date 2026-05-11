@@ -1,4 +1,5 @@
-import { OLLAMA_API_URL, OLLAMA_MODEL } from "./serverConfig";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash-lite";
 
 const CARE_ASSISTANT_SYSTEM_PROMPT = `
 너는 어르신을 돕는 한국어 돌봄 챗봇이다.
@@ -9,7 +10,9 @@ const CARE_ASSISTANT_SYSTEM_PROMPT = `
 - 꼭 필요한 서비스명이나 약어를 제외하고 외국어를 쓰지 않는다.
 - 사용자가 먼저 반말로 답하라고 요청하지 않는 한 항상 존댓말만 쓴다.
 - 알 수 없는 내용은 지어내지 말고 짧게 되묻는다.
-- 답변은 1~3문장으로 짧고 다정하게 말한다.
+- 일반 답변은 1~3문장으로 짧고 다정하게 말한다.
+- 이야기, 농담, 퀴즈, 설명을 요청하면 시작 안내만 하지 말고 바로 내용을 말한다.
+- 이야기는 4~6문장까지 써도 된다.
 - "나는 텍스트 기반이라 소리를 낼 수 없다"처럼 앱 기능과 어긋나는 변명은 하지 않는다.
 `.trim();
 
@@ -37,30 +40,111 @@ JSON 형식:
 }
 `.trim();
 
-async function askOllama(messages) {
-  const response = await fetch(OLLAMA_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      stream: false,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama request failed: ${response.status}`);
+async function askGemini(messages, requestConfig = {}) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Gemini API key is missing");
   }
 
-  const data = await response.json();
-  return data.message?.content?.trim() || "";
+  const {
+    json = false,
+    options = {},
+  } = requestConfig;
+  const generationConfig = {
+    maxOutputTokens: 128,
+    temperature: 0.5,
+    ...(json ? { responseMimeType: "application/json" } : {}),
+    ...pickOptions(options, ["maxOutputTokens", "temperature", "topP", "topK"]),
+  };
+  const systemText = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content)
+    .join("\n\n");
+  const contents = messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }],
+    }));
+
+  const data = await requestGeminiWithRetry({
+    systemText,
+    contents,
+    generationConfig,
+  });
+  return data.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || "")
+    .join("")
+    .trim() || "";
+}
+
+async function requestGeminiWithRetry(payload) {
+  const retryDelays = [0, 700, 1500];
+  let lastError = null;
+
+  for (const delay of retryDelays) {
+    if (delay > 0) await sleep(delay);
+
+    try {
+      return await requestGemini(payload);
+    } catch (error) {
+      lastError = error;
+      if (!error.retryable) break;
+    }
+  }
+
+  throw lastError;
+}
+
+async function requestGemini({ systemText, contents, generationConfig }) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        ...(systemText
+          ? {
+              system_instruction: {
+                parts: [{ text: systemText }],
+              },
+            }
+          : {}),
+        contents,
+        generationConfig,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const error = new Error(
+      `Gemini request failed: ${response.status}${errorText ? ` ${errorText}` : ""}`
+    );
+    error.status = response.status;
+    error.retryable = response.status === 429 || response.status >= 500;
+    throw error;
+  }
+
+  return response.json();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function pickOptions(source, allowedKeys) {
+  return allowedKeys.reduce((picked, key) => {
+    if (source[key] !== undefined) picked[key] = source[key];
+    return picked;
+  }, {});
 }
 
 export async function extractScheduleIntent(text) {
   try {
-    const content = await askOllama([
+    const content = await askGemini([
       {
         role: "system",
         content: SCHEDULE_EXTRACT_SYSTEM_PROMPT,
@@ -69,7 +153,14 @@ export async function extractScheduleIntent(text) {
         role: "user",
         content: text,
       },
-    ]);
+    ], {
+      format: "json",
+      json: true,
+      options: {
+        maxOutputTokens: 180,
+        temperature: 0,
+      },
+    });
 
     return normalizeScheduleIntent(parseJsonObject(content));
   } catch (error) {
@@ -78,7 +169,7 @@ export async function extractScheduleIntent(text) {
   }
 }
 
-export async function createCareResponse({ text, schedules }) {
+export async function createCareResponse({ text, schedules, history = [] }) {
   if (schedules.length > 0) {
     const schedule = schedules[0];
     const dateText = schedule.date || "날짜 확인 필요";
@@ -88,22 +179,46 @@ export async function createCareResponse({ text, schedules }) {
   }
 
   try {
-    const content = await askOllama([
+    const content = await askGemini([
       {
         role: "system",
         content: CARE_ASSISTANT_SYSTEM_PROMPT,
       },
+      ...toRecentAiMessages(history),
       {
         role: "user",
         content: text,
       },
-    ]);
+    ], {
+      options: {
+        maxOutputTokens: shouldAllowLongerAnswer(text) ? 320 : 160,
+        temperature: 0.5,
+      },
+    });
 
     return normalizeCareResponse(content);
   } catch (error) {
     console.error(error);
+    if (error.message === "Gemini API key is missing") {
+      return "Gemini API 키가 설정되지 않았어요. .env.local 파일에 키를 넣고 개발 서버를 다시 시작해 주세요.";
+    }
     return "답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.";
   }
+}
+
+function toRecentAiMessages(history) {
+  return history
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .slice(-8)
+    .map((message) => ({
+      role: message.role,
+      content: String(message.content || "").trim(),
+    }))
+    .filter((message) => message.content);
+}
+
+function shouldAllowLongerAnswer(text) {
+  return /(이야기|동화|농담|퀴즈|설명|말해줘|해줄래|들려줘)/.test(text);
 }
 
 function parseJsonObject(content) {

@@ -1,13 +1,20 @@
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 const SCHEDULE_INTENT_PATTERN =
-  /(일정|예약|알림|리마인드|등록|추가|잡아|넣어|기억|챙겨|복약|약|병원|검진|방문|전화|이동|운동|행사|모임|치과|내과|외과|상담|약속|산책|공원|놀이공원|외출|나들이|여행|모시기|가기|가요|가야)/;
+  /(일정|예약|알림|리마인드|등록|추가|잡아|넣어|기억|챙겨|복약|약|병원|검진|방문|전화|이동|운동|행사|모임|치과|내과|외과|상담|약속|산책|공원|놀이공원|외출|나들이|여행|모시기|가기|가요|가야|취침|기상|수면|잠|자기|식사|아침|점심|저녁)/;
+
+const SCHEDULE_COMMAND_PATTERN =
+  /(일정|예약|알림|리마인드|등록|추가|잡아|넣어|기억|챙겨|삭제|취소|지워|빼줘|없애|수정|변경|바꿔|미뤄|앞당겨|조회|확인|알려|보여)/;
 
 const CASUAL_CONTEXT_PATTERN =
-  /(힘들|피곤|아프|우울|슬프|외롭|기쁘|좋았|싫|무섭|걱정|고민|생각|기분|괜찮|그래|그냥|요즘|오늘은|내일은)/;
+  /(힘들|피곤|아프|우울|슬프|외롭|기쁘|좋았|싫|무섭|걱정|고민|생각|기분|괜찮|그래|그냥|요즘|오늘은|내일은|날씨|어때|뭐해|안녕|고마워)/;
+
+const NON_SCHEDULE_QUESTION_PATTERN =
+  /(날씨|기분|컨디션|뭐해|뭐 할까|어때|좋아|싫어|누구|이름|이야기|농담|뉴스)/;
 
 const TYPO_REPLACEMENTS = [
   [/내읿|낼|낼일|내알|내욜/g, "내일"],
+  [/담주|담\s*주/g, "다음 주"],
   [/오우|오부|오후우/g, "오후"],
   [/오저|오전ㄴ/g, "오전"],
   [/병언|병우너|병어/g, "병원"],
@@ -39,11 +46,13 @@ function addDays(baseDate, days) {
 }
 
 function parseWeekday(text, baseDate) {
+  const nextWeekOnlyMatch = text.match(/다음\s*주(?!\s*[일월화수목금토]요일?)/);
   const nextWeekMatch = text.match(/다음\s*주\s*([일월화수목금토])요일?/);
   const thisWeekMatch = text.match(/이번\s*주\s*([일월화수목금토])요일?/);
   const plainMatch = text.match(/(^|\s)([일월화수목금토])요일/);
   const match = nextWeekMatch || thisWeekMatch || plainMatch;
 
+  if (nextWeekOnlyMatch) return addDays(baseDate, 7);
   if (!match) return null;
 
   const dayName = match[match.length - 1];
@@ -86,9 +95,14 @@ export function parseDateFromText(text, baseDate = new Date()) {
 }
 
 export function parseTimeFromText(text) {
+  const time = parseTimeExpression(text);
+  return time ? time.value : "";
+}
+
+export function parseTimeExpression(text) {
   const normalized = normalizeScheduleText(text);
   const match = normalized.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
-  if (!match) return "";
+  if (!match) return null;
 
   const [, meridiem, rawHour, rawMinute] = match;
   let hour = Number(rawHour);
@@ -97,22 +111,49 @@ export function parseTimeFromText(text) {
   if (meridiem === "오후" && hour < 12) hour += 12;
   if (meridiem === "오전" && hour === 12) hour = 0;
 
-  return `${pad(hour)}:${pad(minute)}`;
+  return {
+    value: `${pad(hour)}:${pad(minute)}`,
+    meridiem: meridiem || "",
+    hour: Number(rawHour),
+    minute,
+    isAmbiguous: !meridiem && Number(rawHour) >= 1 && Number(rawHour) <= 11,
+    text: match[0],
+  };
 }
 
 function hasScheduleIntent(text) {
   return SCHEDULE_INTENT_PATTERN.test(text);
 }
 
+export function shouldUseScheduleExtraction(text) {
+  const normalized = normalizeScheduleText(text).replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+
+  const hasDate = Boolean(parseDateFromText(normalized));
+  const hasTime = Boolean(parseTimeFromText(normalized));
+  const hasIntent = hasScheduleIntent(normalized);
+  const hasCommand = SCHEDULE_COMMAND_PATTERN.test(normalized);
+
+  if (isScheduleQuestion(normalized)) return true;
+  if (NON_SCHEDULE_QUESTION_PATTERN.test(normalized) && !hasCommand && !hasIntent) return false;
+  if (hasCommand && (hasIntent || hasDate || hasTime)) return true;
+  if (hasIntent && (hasDate || hasTime)) return true;
+  if ((hasDate || hasTime) && hasIntent && !CASUAL_CONTEXT_PATTERN.test(normalized)) return true;
+
+  return false;
+}
+
 function shouldCreateScheduleCandidate({ text, date, time, title }) {
   const hasIntent = hasScheduleIntent(text);
+  const hasCommand = SCHEDULE_COMMAND_PATTERN.test(text);
+  const hasNonScheduleQuestion = NON_SCHEDULE_QUESTION_PATTERN.test(text);
 
   if (isScheduleQuestion(text)) return false;
+  if (hasNonScheduleQuestion && !hasIntent && !hasCommand) return false;
   if (date && !title && /일정/.test(text)) return false;
   if (hasIntent) return true;
-  if (date && time) return true;
-  if (date && title && !CASUAL_CONTEXT_PATTERN.test(text)) return true;
-  if (time && !CASUAL_CONTEXT_PATTERN.test(text)) return true;
+  if (hasCommand && (date || time || title)) return true;
+  if (date && time && title && !CASUAL_CONTEXT_PATTERN.test(text)) return true;
 
   return false;
 }
@@ -125,7 +166,7 @@ function cleanTitle(text) {
   return normalizeScheduleText(text)
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일\s*에?/g, "")
-    .replace(/내일\s*모레|내일모레|오늘|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?/g, "")
+    .replace(/내일\s*모레|내일모레|오늘|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?|다음\s*주/g, "")
     .replace(/(오전|오후)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?\s*에?/g, "")
     .replace(/(오전|오후)\s*에/g, "")
     .replace(/해야\s*해|해야해|일정|예약|알림|기억해줘|등록해줘|해줘/g, "")
@@ -148,10 +189,12 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
     .map((sourceText) => {
       const item = normalizeScheduleText(sourceText);
       const date = parseDateFromText(item, baseDate);
-      const time = parseTimeFromText(item);
+      const timeExpression = parseTimeExpression(item);
+      const time = timeExpression?.isAmbiguous ? "" : timeExpression?.value || "";
       const title = cleanTitle(item);
+      const candidateTime = time || timeExpression?.value || "";
 
-      if (!shouldCreateScheduleCandidate({ text: item, date, time, title })) {
+      if (!shouldCreateScheduleCandidate({ text: item, date, time: candidateTime, title })) {
         return null;
       }
 
@@ -160,6 +203,12 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
         title: title || item,
         date,
         time,
+        ambiguousTime: timeExpression?.isAmbiguous
+          ? {
+              hour: timeExpression.hour,
+              minute: timeExpression.minute,
+            }
+          : null,
         sourceText,
         createdAt: new Date().toISOString(),
       };
