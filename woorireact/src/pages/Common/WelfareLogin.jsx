@@ -16,7 +16,7 @@ const WELFARE_WORKERS_STORAGE_KEY = "welfareWorkers";
 
 const FEATURES = [
   { icon: "관리", title: "대상자 상태 확인", desc: "SOS, 일자리 요청, 위치 상태를 한 화면에서 확인합니다" },
-  { icon: "판단", title: "복지사 판단 기록", desc: "적합, 보류, 부적합 판단과 사유를 상세 화면에서 처리합니다" },
+  { icon: "소견", title: "복지사 소견 기록", desc: "적합, 보류, 부적합 소견과 사유를 상세 화면에서 처리합니다" },
   { icon: "검색", title: "필터와 검색", desc: "요청 상태별로 대상자를 빠르게 찾고 정리합니다" },
   { icon: "상세", title: "상세정보 확인", desc: "상담 기록과 마지막 GPS 정보를 대상자별로 확인합니다" },
 ];
