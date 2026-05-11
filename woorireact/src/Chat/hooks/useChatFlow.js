@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createCareResponse, extractScheduleIntent } from "../services/aiCareService";
+import { getNearbyPlaceChatAnswer } from "../services/nearbyPlaceChatApi";
 import { getWeatherChatAnswer } from "../services/weatherChatApi";
 import {
   normalizeScheduleText,
@@ -39,6 +40,12 @@ export function useChatFlow({
       const weatherAnswer = await getWeatherChatAnswer(text);
       if (weatherAnswer) {
         answer(weatherAnswer, options);
+        return;
+      }
+
+      const nearbyPlaceAnswer = await getNearbyPlaceChatAnswer(text);
+      if (nearbyPlaceAnswer) {
+        answer(nearbyPlaceAnswer, options);
         return;
       }
 
