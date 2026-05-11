@@ -145,6 +145,34 @@
   animation: up-blink 2s ease-in-out infinite;
 }
 
+.up-care-team {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.up-care-team div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.up-care-team span {
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
+.up-care-team strong {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
 @keyframes up-blink {
   0%,
   100% {

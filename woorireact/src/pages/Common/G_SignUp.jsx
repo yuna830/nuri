@@ -43,17 +43,24 @@ export default function GuardianSignUp() {
     const keyword = form.seniorKeyword.trim();
 
     if (keyword.length < 2) {
-      setError("사용자 이름이나 전화번호를 2글자 이상 입력해주세요.");
+      alert("사용자 이름이나 전화번호를 2글자 이상 입력해주세요.");
       return;
     }
 
     try {
       setError("");
       setIsSearching(true);
-      const response = await fetch(`http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(keyword)}`);
+
+      const response = await fetch(
+        `http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(keyword)}`
+      );
+
       const data = response.ok ? await response.json() : [];
-      setSeniorResults(Array.isArray(data) ? data : []);
-      if (!response.ok || data.length === 0) {
+      const results = Array.isArray(data) ? data : [];
+
+      setSeniorResults(results);
+
+      if (!response.ok || results.length === 0) {
         setError("검색된 사용자가 없습니다. 사용자 회원가입을 먼저 완료해주세요.");
       }
     } catch (searchError) {
@@ -72,8 +79,9 @@ export default function GuardianSignUp() {
 
   const handleSubmit = async () => {
     const validationMessage = validate();
+
     if (validationMessage) {
-      setError(validationMessage);
+      alert(validationMessage);
       return;
     }
 
@@ -95,14 +103,14 @@ export default function GuardianSignUp() {
       });
 
       if (!response.ok) {
-        setError("회원가입에 실패했습니다. 이미 가입된 이메일인지 확인해주세요.");
+        alert("회원가입에 실패했습니다. 이미 가입된 이메일인지 확인해주세요.");
         return;
       }
 
       navigate("/glogin");
     } catch (submitError) {
       console.error("보호자 회원가입 실패:", submitError);
-      setError("서버에 연결할 수 없습니다.");
+      alert("서버에 연결할 수 없습니다.");
     } finally {
       setSaving(false);
     }
@@ -111,8 +119,20 @@ export default function GuardianSignUp() {
   return (
     <div className="su-root">
       <nav className="su-nav">
-        <div className="su-nav-logo">🌿 우리 woori</div>
-        <div className="su-nav-step">보호자 계정 등록</div>
+        <div className="su-nav-inner">
+          <div className="su-nav-logo">🌿 우리 woori</div>
+
+          <div className="su-nav-actions">
+            <span className="su-nav-step">보호자 계정 등록</span>
+            <button
+              className="su-nav-login"
+              type="button"
+              onClick={() => navigate("/glogin")}
+            >
+              로그인
+            </button>
+          </div>
+        </div>
       </nav>
 
       <div className="su-layout">
@@ -121,28 +141,36 @@ export default function GuardianSignUp() {
         <section className="su-section">
           <div className="su-section-title">보호자 회원가입</div>
 
-          <div className="su-field">
-            <label className="su-label">이름 <span className="su-required">*</span></label>
-            <input
-              className="su-input"
-              value={form.name}
-              onChange={(event) => set("name", event.target.value)}
-              placeholder="예: 김민지"
-            />
+          <div className="su-row">
+            <div className="su-field">
+              <label className="su-label">
+                이름 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.name}
+                onChange={(event) => set("name", event.target.value)}
+                placeholder="예: 김민지"
+              />
+            </div>
+
+            <div className="su-field">
+              <label className="su-label">
+                연락처 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.phone}
+                onChange={(event) => set("phone", formatPhoneNumber(event.target.value))}
+                placeholder="예: 010-0000-0000"
+              />
+            </div>
           </div>
 
           <div className="su-field">
-            <label className="su-label">연락처 <span className="su-required">*</span></label>
-            <input
-              className="su-input"
-              value={form.phone}
-              onChange={(event) => set("phone", formatPhoneNumber(event.target.value))}
-              placeholder="예: 010-0000-0000"
-            />
-          </div>
-
-          <div className="su-field">
-            <label className="su-label">이메일 <span className="su-required">*</span></label>
+            <label className="su-label">
+              이메일 <span className="su-required">*</span>
+            </label>
             <input
               className="su-input"
               value={form.email}
@@ -153,7 +181,9 @@ export default function GuardianSignUp() {
 
           <div className="su-row">
             <div className="su-field">
-              <label className="su-label">비밀번호 <span className="su-required">*</span></label>
+              <label className="su-label">
+                비밀번호 <span className="su-required">*</span>
+              </label>
               <input
                 className="su-input"
                 type="password"
@@ -164,7 +194,9 @@ export default function GuardianSignUp() {
             </div>
 
             <div className="su-field">
-              <label className="su-label">비밀번호 확인 <span className="su-required">*</span></label>
+              <label className="su-label">
+                비밀번호 확인 <span className="su-required">*</span>
+              </label>
               <input
                 className="su-input"
                 type="password"
@@ -178,10 +210,15 @@ export default function GuardianSignUp() {
 
         <section className="su-section">
           <div className="su-section-title">관리할 사용자 연결</div>
-          <div className="su-hint">사용자 회원가입이 먼저 되어 있어야 건강정보, 위치정보, SOS 알림이 보호자 화면에 같이 연결됩니다.</div>
+
+          <div className="su-hint">
+            사용자 회원가입이 먼저 되어 있어야 건강정보, 위치정보, SOS 알림이 보호자 화면에 같이 연결됩니다.
+          </div>
 
           <div className="su-field">
-            <label className="su-label">사용자 검색 <span className="su-required">*</span></label>
+            <label className="su-label">
+              사용자 검색 <span className="su-required">*</span>
+            </label>
             <div className="su-search-row">
               <input
                 className="su-input"
@@ -205,6 +242,7 @@ export default function GuardianSignUp() {
               {seniorResults.map((profile) => {
                 const senior = profile.senior;
                 const isSelected = String(form.selectedSeniorId) === String(senior.id);
+
                 return (
                   <button
                     key={senior.id}
@@ -228,7 +266,9 @@ export default function GuardianSignUp() {
           )}
 
           <div className="su-field">
-            <label className="su-label">관계 <span className="su-required">*</span></label>
+            <label className="su-label">
+              관계 <span className="su-required">*</span>
+            </label>
             <input
               className="su-input"
               value={form.seniorRelation}
@@ -238,12 +278,13 @@ export default function GuardianSignUp() {
           </div>
         </section>
 
-        <div className="su-btn-row">
-          <button className="su-btn-prev" type="button" onClick={() => navigate("/glogin")}>
-            로그인으로
-          </button>
-
-          <button className="su-btn-next" type="button" onClick={handleSubmit} disabled={saving}>
+        <div className="su-btn-row su-btn-row-end">
+          <button
+            className="su-btn-next"
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+          >
             {saving ? "가입 중..." : "보호자 가입 완료"}
           </button>
         </div>

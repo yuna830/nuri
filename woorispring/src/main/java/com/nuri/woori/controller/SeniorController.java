@@ -1,6 +1,5 @@
 package com.nuri.woori.controller;
 
-import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.JobPreference;
 import com.nuri.woori.entity.Senior;
@@ -9,6 +8,7 @@ import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -91,7 +91,7 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference);
+        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
     }
 
     @GetMapping
@@ -118,11 +118,10 @@ public class SeniorController {
     public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
         return guardianSeniorRepository.findByGuardianId(guardianId)
                 .stream()
-                .map(GuardianSenior::getSeniorId)
-                .map(seniorRepository::findById)
+                .map(link -> seniorRepository.findById(link.getSeniorId())
+                        .map(senior -> toProfileResponse(senior, link.getRelation())))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
-                .map(this::toProfileResponse)
                 .toList();
     }
 
@@ -136,10 +135,88 @@ public class SeniorController {
 
     @PostMapping("/login")
     public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
-        Senior senior = seniorRepository.findByNameAndPhone(request.name(), request.phone())
+        String name = request.name() == null ? "" : request.name().trim();
+        String phone = request.phone() == null ? "" : request.phone().replaceAll("[^0-9]", "");
+
+        Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         return toProfileResponse(senior);
+    }
+
+    @PostMapping("/find-name")
+    public ResponseEntity<FindNameResponse> findName(@RequestBody FindNameRequest request) {
+        String phone = normalizePhone(request.phone());
+
+        return seniorRepository.findByNormalizedPhone(phone)
+                .map(senior -> ResponseEntity.ok(new FindNameResponse(maskName(senior.getName()))))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/find-phone")
+    public ResponseEntity<FindPhoneResponse> findPhone(@RequestBody FindPhoneRequest request) {
+        String name = request.name() == null ? "" : request.name().trim();
+        String region = request.region() == null ? "" : request.region().trim();
+
+        List<Senior> seniors = seniorRepository.findByNameAndRegion(name, region);
+
+        if (seniors.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Senior senior = seniors.get(0);
+        return ResponseEntity.ok(new FindPhoneResponse(maskPhone(senior.getPhone())));
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            return "";
+        }
+
+        return phone.replaceAll("[^0-9]", "");
+    }
+
+    private String maskName(String name) {
+        if (name == null || name.isBlank()) {
+            return "";
+        }
+
+        if (name.length() <= 2) {
+            return name.charAt(0) + "*";
+        }
+
+        return name.charAt(0) + "*" + name.substring(2);
+    }
+
+    private String maskPhone(String phone) {
+        String digits = normalizePhone(phone);
+
+        if (digits.length() < 8) {
+            return phone == null ? "" : phone;
+        }
+
+        return digits.substring(0, 3) + "-****-" + digits.substring(digits.length() - 4);
+    }
+
+    public record FindNameRequest(
+            String phone
+    ) {
+    }
+
+    public record FindNameResponse(
+            String name
+    ) {
+    }
+
+    public record FindPhoneRequest(
+            String name,
+            String region
+    ) {
+    }
+
+    public record FindPhoneResponse(
+            String phone
+    ) {
     }
 
     @PutMapping("/{id}")
@@ -208,17 +285,36 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference);
+        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
+    }
+
+    private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        return new SeniorProfileResponse(
+                senior,
+                healthInfo,
+                jobPreference,
+                relation == null || relation.isBlank() ? "보호 대상자" : relation
+        );
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
-        HealthInfo healthInfo = healthInfoRepository.findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        JobPreference jobPreference = jobPreferenceRepository.findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        return new SeniorProfileResponse(senior, healthInfo, jobPreference);
+        return new SeniorProfileResponse(senior, healthInfo, jobPreference, "보호 대상자");
     }
 
     private Integer toInteger(String value) {
@@ -300,7 +396,8 @@ public class SeniorController {
     public record SeniorProfileResponse(
             Senior senior,
             HealthInfo healthInfo,
-            JobPreference jobPreference
+            JobPreference jobPreference,
+            String relation
     ) {
     }
 }

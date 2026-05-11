@@ -8,7 +8,7 @@ import {
   Polyline,
   useMap,
 } from "react-leaflet";
-import { RefreshCw } from "lucide-react";
+import { Lock, RefreshCw, Unlock } from "lucide-react";
 import L from "leaflet";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -29,6 +29,46 @@ function RecenterMap({ center }) {
   useEffect(() => {
     map.setView(center, map.getZoom());
   }, [center, map]);
+
+  return null;
+}
+
+function MapLockController({ locked }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (locked) {
+      map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.boxZoom.disable();
+      map.keyboard.disable();
+
+      if (map.tap) {
+        map.tap.disable();
+      }
+
+      if (map.touchZoom) {
+        map.touchZoom.disable();
+      }
+
+      return;
+    }
+
+    map.dragging.enable();
+    map.scrollWheelZoom.enable();
+    map.doubleClickZoom.enable();
+    map.boxZoom.enable();
+    map.keyboard.enable();
+
+    if (map.tap) {
+      map.tap.enable();
+    }
+
+    if (map.touchZoom) {
+      map.touchZoom.enable();
+    }
+  }, [locked, map]);
 
   return null;
 }
@@ -62,26 +102,14 @@ function LocationPanel({
           >
             <RefreshCw size={18} strokeWidth={2.2} />
           </button>
-
-          <button className="subtle-button" type="button">
-            전체화면
-          </button>
+          
         </div>
       </div>
 
       <div className="real-map-area">
-        <MapContainer
-          center={mapCenter}
-          zoom={16}
-          scrollWheelZoom={!isMapLocked}
-          dragging={!isMapLocked}
-          touchZoom={!isMapLocked}
-          doubleClickZoom={!isMapLocked}
-          boxZoom={!isMapLocked}
-          keyboard={!isMapLocked}
-          className="leaflet-map"
-        >
+        <MapContainer center={mapCenter} zoom={16} scrollWheelZoom className="leaflet-map">
           <RecenterMap center={mapCenter} />
+          <MapLockController locked={isMapLocked} />
 
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
@@ -130,8 +158,8 @@ function LocationPanel({
         <button
           className={`map-lock-button ${isMapLocked ? "locked" : ""}`}
           type="button"
-          aria-label={isMapLocked ? "지도 고정 해제" : "지도 고정"}
-          title={isMapLocked ? "지도 고정 해제" : "지도 고정"}
+          aria-label={isMapLocked ? "잠금 해제" : "잠그기"}
+          title={isMapLocked ? "잠금 해제" : "잠그기"}
           onMouseDown={(event) => event.stopPropagation()}
           onDoubleClick={(event) => event.stopPropagation()}
           onClick={(event) => {
@@ -139,7 +167,11 @@ function LocationPanel({
             setIsMapLocked((prev) => !prev);
           }}
         >
-          {isMapLocked ? "고정" : "잠금"}
+          {isMapLocked ? (
+            <Unlock size={17} strokeWidth={2.4} />
+          ) : (
+            <Lock size={17} strokeWidth={2.4} />
+          )}
         </button>
       </div>
     </section>
