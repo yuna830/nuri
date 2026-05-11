@@ -1,23 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BriefcaseBusiness, Search, UserPlus, X } from "lucide-react";
 import { WELFARE_DEMO_SENIORS } from "../../data/welfareSeniorDemoData";
-
-const WELFARE_SENIOR_API_URL = "http://localhost:8083/api/welfare/seniors";
-const WELFARE_DECISION_STORAGE_KEY = "welfareDecisions";
-const WELFARE_DECISION_DETAIL_STORAGE_KEY = "welfareDecisionDetails";
-const ADDED_SENIORS_STORAGE_KEY = "welfareAddedSeniors";
-const LAST_ACCESS_ALERT_HOURS = 4;
-const NIGHT_START_HOUR = 22;
-const NIGHT_END_HOUR = 6;
+import { WELFARE_SENIOR_API_URL, ADDED_SENIORS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
+import { getSavedAddedSeniors } from "../../utils/welfare/welfareStorage";
+import {
+    getJobRequestGroup,
+    getJobRequestStatus,
+    normalizeSenior,
+    applySavedWelfareDecisions,
+    formatAgeGender,
+    formatSeniorId,
+} from "../../utils/welfare/welfareSenior";
+import { shouldHideLastAccess, shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
+import WelfareHeader from "./WelfareHeader";
+import "../../css/welfare/WelfareDashboard.css";
 
 const FILTER_GROUPS = [
     { key : "healthStatus", label : "건강 상태", options : ["양호", "주의", "위험"] },
     { key : "locationStatus", label : "위치 상태", options : ["정상", "안전구역 이탈"] },
     { key : "alertStatus", label : "알림 상태", options : ["없음", "SOS 요청", "일자리 요청"] },
-    { key : "workRequestStatus", label : "근로 요청 상태", options : ["검토", "미검토"] },
-    { key : "jobRequestGroup", label : "일자리 요청", options : ["요청 있음", "미요청"] },
-    { key : "jobMatchingStatus", label : "판단 단계", options : ["적합", "검토중", "보류", "부적합"] },
+    { key : "regionDistrict", label : "거주 지역", options : [] },
+    { key : "jobMatchingStatus", label : "소견 단계", options : ["적합", "검토중", "보류", "부적합"] },
 ];
 
 const ADD_SENIOR_INITIAL_FORM = {
@@ -40,111 +44,6 @@ const createEmptyFilters = () =>
         [group.key] : [],
     }), {});
 
-const readJsonStorage = (key, fallback) => {
-    try {
-        return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-    } catch {
-        return fallback;
-    }
-};
-
-const getSavedWelfareDecisions = () => readJsonStorage(WELFARE_DECISION_STORAGE_KEY, {});
-const getSavedWelfareDecisionDetails = () => readJsonStorage(WELFARE_DECISION_DETAIL_STORAGE_KEY, {});
-const getSavedAddedSeniors = () => readJsonStorage(ADDED_SENIORS_STORAGE_KEY, []);
-
-const getJobRequestGroup = (senior) =>
-    Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
-        ? "요청 있음"
-        : "미요청";
-
-const getJobRequestStatus = (count) =>
-    Number(count || 0) > 0 ? `요청 ${Number(count)}건` : "미요청";
-
-const normalizeAlertStatus = (status) => {
-    return ["없음", "SOS 요청", "일자리 요청"].includes(status) ? status : "없음";
-};
-
-const normalizeSenior = (senior) => {
-    const jobRequestCount = Number(senior.jobRequestCount ?? (senior.jobStatus === "미추천" ? 0 : 1));
-    const welfareDecision = senior.welfareDecision || "미검토";
-
-    return {
-        ...senior,
-        alertStatus : normalizeAlertStatus(senior.alertStatus),
-        workRequestStatus : senior.workRequestStatus || (welfareDecision === "미검토" ? "미검토" : "검토"),
-        jobRequestCount,
-        jobRequestStatus : senior.jobRequestStatus || getJobRequestStatus(jobRequestCount),
-        jobMatchingStatus : senior.jobMatchingStatus || (welfareDecision === "미검토" ? "검토중" : welfareDecision),
-        welfareDecision,
-        welfareDecisionReason : senior.welfareDecisionReason || "",
-        safeZone : senior.safeZone || {
-            placeName : `${senior.name || "대상자"} 자택`,
-            radiusMeter : 500,
-        },
-        lastGps : senior.lastGps || {
-            address : senior.region || "위치 미확인",
-            latitude : 37.5665,
-            longitude : 126.978,
-            recordedAt : "기록 없음",
-        },
-    };
-};
-
-const applySavedWelfareDecisions = (seniors) => {
-    const savedDecisions = getSavedWelfareDecisions();
-    const savedDecisionDetails = getSavedWelfareDecisionDetails();
-
-    return seniors.map((senior) => {
-        const savedDetail = savedDecisionDetails[senior.id];
-        const savedDecision = savedDetail?.decision || savedDecisions[senior.id];
-
-        return normalizeSenior({
-            ...senior,
-            welfareDecision : savedDecision || senior.welfareDecision,
-            jobMatchingStatus : savedDecision || senior.jobMatchingStatus,
-            welfareDecisionReason : savedDetail?.reason ?? senior.welfareDecisionReason,
-        });
-    });
-};
-
-const getLastAccessHours = (lastAccess) => {
-    if (!lastAccess) {
-        return null;
-    }
-
-    const hourMatch = String(lastAccess).match(/(\d+)\s*시간/);
-
-    if (hourMatch) {
-        return Number(hourMatch[1]);
-    }
-
-    const minuteMatch = String(lastAccess).match(/(\d+)\s*분/);
-
-    if (minuteMatch) {
-        return Number(minuteMatch[1]) / 60;
-    }
-
-    return null;
-};
-
-const isNightTime = () => {
-    const currentHour = new Date().getHours();
-
-    return currentHour >= NIGHT_START_HOUR || currentHour < NIGHT_END_HOUR;
-};
-
-const shouldHideLastAccess = (lastAccess) => {
-    const lastAccessHours = getLastAccessHours(lastAccess);
-
-    return lastAccessHours != null && lastAccessHours <= LAST_ACCESS_ALERT_HOURS;
-};
-
-const shouldNotifyLastAccessDelay = (lastAccess) => {
-    const lastAccessHours = getLastAccessHours(lastAccess);
-
-    return !isNightTime() && lastAccessHours != null && lastAccessHours > LAST_ACCESS_ALERT_HOURS;
-};
-
 function WelfareDashboard(){
     const navigate = useNavigate();
     const currentWorker = JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
@@ -152,6 +51,8 @@ function WelfareDashboard(){
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [dismissedNotifications, setDismissedNotifications] = useState([]);
+    const notificationRef = useRef(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
@@ -185,7 +86,7 @@ function WelfareDashboard(){
                 }
             } catch {
                 if (!ignore) {
-                    setSeniorLoadError("");
+                    setSeniorLoadError("서버 연결 실패 — 데모 데이터로 표시 중입니다.");
                     setSeniors(applySavedWelfareDecisions([...WELFARE_DEMO_SENIORS, ...getSavedAddedSeniors()]));
                 }
             } finally {
@@ -202,16 +103,59 @@ function WelfareDashboard(){
         };
     }, []);
 
+    useEffect(() => {
+        if (!isNotificationOpen) {
+            return;
+        }
+
+        const handleClickOutside = (event) => {
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setIsNotificationOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isNotificationOpen]);
+
+    const getRegionDistrict = (region) => {
+        const match = String(region || "").match(/[가-힣]+구/);
+        return match ? match[0] : "기타";
+    };
+
+    const regionOptions = (() => {
+        const allDistricts = [
+            "강남구", "강동구", "강북구", "강서구", "관악구",
+            "광진구", "구로구", "금천구", "노원구", "도봉구",
+            "동대문구", "동작구", "마포구", "서대문구", "서초구",
+            "성동구", "성북구", "송파구", "양천구", "영등포구",
+            "용산구", "은평구", "종로구", "중구", "중랑구",
+        ];
+        return ["서울 전체", ...allDistricts];
+    })();
+
     const getSeniorFilterValue = (senior, filterKey) => {
         if (filterKey === "jobRequestGroup") {
             return getJobRequestGroup(senior);
         }
 
+        if (filterKey === "regionDistrict") {
+            return getRegionDistrict(senior.region);
+        }
+
         return senior[filterKey];
     };
 
-    const isFilterMatched = (filterKey, selectedValues, senior) =>
-        selectedValues.length === 0 || selectedValues.includes(getSeniorFilterValue(senior, filterKey));
+    const isFilterMatched = (filterKey, selectedValues, senior) => {
+        if (selectedValues.length === 0 || selectedValues.includes("서울 전체")) {
+            return true;
+        }
+
+        return selectedValues.includes(getSeniorFilterValue(senior, filterKey));
+    };
 
     const filteredSeniors = seniors.filter((senior) => {
         const isMatchedByFilters = FILTER_GROUPS.every((group) =>
@@ -277,12 +221,34 @@ function WelfareDashboard(){
         return 7;
     }
 
-    const activeFilterGroup =
-        FILTER_GROUPS.find((group) => group.key === activeFilterKey) || FILTER_GROUPS[0];
+    const activeFilterGroup = (() => {
+        const group = FILTER_GROUPS.find((g) => g.key === activeFilterKey) || FILTER_GROUPS[0];
+
+        if (group.key === "regionDistrict") {
+            return { ...group, options : regionOptions };
+        }
+
+        return group;
+    })();
 
     const toggleDraftFilter = (filterKey, option) => {
         setDraftFilters((previousFilters) => {
             const selectedValues = previousFilters[filterKey];
+
+            if (filterKey === "regionDistrict") {
+                if (option === "서울 전체") {
+                    const nextValues = selectedValues.includes("서울 전체") ? [] : ["서울 전체"];
+                    return { ...previousFilters, [filterKey] : nextValues };
+                }
+
+                const withoutAll = selectedValues.filter((v) => v !== "서울 전체");
+                const nextValues = withoutAll.includes(option)
+                    ? withoutAll.filter((v) => v !== option)
+                    : [...withoutAll, option];
+
+                return { ...previousFilters, [filterKey] : nextValues };
+            }
+
             const nextValues = selectedValues.includes(option)
                 ? selectedValues.filter((value) => value !== option)
                 : [...selectedValues, option];
@@ -294,8 +260,13 @@ function WelfareDashboard(){
         });
     };
 
-    const getFilterOptionCount = (filterKey, option) =>
-        seniors.filter((senior) => getSeniorFilterValue(senior, filterKey) === option).length;
+    const getFilterOptionCount = (filterKey, option) => {
+        if (option === "서울 전체") {
+            return seniors.length;
+        }
+
+        return seniors.filter((senior) => getSeniorFilterValue(senior, filterKey) === option).length;
+    };
 
     const cloneFilters = (targetFilters) =>
         FILTER_GROUPS.reduce((nextFilters, group) => ({
@@ -306,6 +277,16 @@ function WelfareDashboard(){
     const applyFilters = () => {
         setFilters(cloneFilters(draftFilters));
         setSearchKeyword(draftSearchKeyword.trim());
+        setCurrentPage(1);
+    };
+
+    const resetFilters = () => {
+        const emptyFilters = createEmptyFilters();
+
+        setDraftFilters(emptyFilters);
+        setFilters(cloneFilters(emptyFilters));
+        setDraftSearchKeyword("");
+        setSearchKeyword("");
         setCurrentPage(1);
     };
 
@@ -369,16 +350,14 @@ function WelfareDashboard(){
         return notifications;
     });
 
-    const visibleNotifications = welfareNotifications.slice(0, 6);
+    const activeNotifications = welfareNotifications.filter(
+        (notification) => !dismissedNotifications.includes(notification.id)
+    );
+    const visibleNotifications = activeNotifications.slice(0, 6);
 
-    const formatAgeGender = (senior) => {
-        const ageText = senior.age == null ? "나이 미입력" : `${senior.age}세`;
-        const genderText = senior.gender || "성별 미입력";
-
-        return `${ageText} / ${genderText}`;
+    const dismissNotification = (notificationId) => {
+        setDismissedNotifications((prev) => [...prev, notificationId]);
     };
-
-    const formatSeniorId = (seniorId) => `ID ${String(seniorId).padStart(4, "0")}`;
 
     const handleLogout = () => {
         sessionStorage.removeItem("currentWelfareWorker");
@@ -469,72 +448,41 @@ function WelfareDashboard(){
         setCurrentPage(1);
     };
 
-    const getBadgeStyle = (type, value) => {
-        const badgeColors = {
-            health : {
-                "양호" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
-                "주의" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-                "위험" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
-            },
-            alert : {
-                "없음" : { backgroundColor : "#eeeeee", color : "#555" },
-                "SOS 요청" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
-                "일자리 요청" : { backgroundColor : "#dff3ff", color : "#176b92" },
-            },
-            workRequest : {
-                "검토" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
-                "미검토" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-            },
-            jobRequest : {
-                "미요청" : { backgroundColor : "#eeeeee", color : "#555" },
-                "요청 있음" : { backgroundColor : "#dff3ff", color : "#176b92" },
-            },
-            matching : {
-                "미검토" : { backgroundColor : "#eeeeee", color : "#555" },
-                "검토중" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-                "적합" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
-                "보류" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-                "부적합" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
-            },
+    const getBadgeClass = (type, value) => {
+        const classMap = {
+            health : { "양호" : "health-good", "주의" : "health-caution", "위험" : "health-danger" },
+            alert : { "없음" : "alert-none", "SOS 요청" : "alert-sos", "일자리 요청" : "alert-job" },
+            workRequest : { "검토" : "work-reviewed", "미검토" : "work-unreviewed" },
+            jobRequest : { "미요청" : "job-none", "요청 있음" : "job-requested" },
+            matching : { "미검토" : "match-unreviewed", "검토중" : "match-reviewing", "적합" : "match-suitable", "보류" : "match-hold", "부적합" : "match-unsuitable" },
         };
 
-        return {
-            ...styles.badge,
-            ...(badgeColors[type]?.[value] || {
-                backgroundColor : "#eeeeee",
-                color : "#555",
-            }),
-        };
+        return `wd-badge ${classMap[type]?.[value] || "alert-none"}`;
     };
 
     return (
         <div style = {styles.page}>
-            <header style = {styles.topHeader}>
-                <div style = {styles.brandArea}>
-                    <div style = {styles.logoBox}>우리</div>
-                    <strong style = {styles.serviceName}>우리</strong>
-                    <span style = {styles.headerPageName}>복지사 대상자 관리</span>
-                </div>
-
+            <WelfareHeader pageName = "복지사 대상자 관리">
                 {currentWorker && (
                     <div style = {styles.workerArea}>
                         <span style = {styles.workerName}>
                             {currentWorker.name} 복지사
                         </span>
-                        {currentWorker.workerId && (
-                            <span style = {styles.workerIdText}>{currentWorker.workerId}</span>
+                        {currentWorker.center && (
+                            <span style = {styles.workerIdText}>{currentWorker.center}</span>
                         )}
-                        <div style = {styles.notificationWrap}>
+                        <div style = {styles.notificationWrap} ref = {notificationRef}>
                             <button
                                 type = "button"
                                 style = {styles.notificationButton}
                                 onClick = {() => setIsNotificationOpen((previousValue) => !previousValue)}
                                 aria-label = "알림"
+                                aria-expanded = {isNotificationOpen}
                             >
                                 <Bell size = {17} />
-                                {welfareNotifications.length > 0 && (
+                                {activeNotifications.length > 0 && (
                                     <span style = {styles.notificationBadge}>
-                                        {welfareNotifications.length}
+                                        {activeNotifications.length}
                                     </span>
                                 )}
                             </button>
@@ -544,7 +492,7 @@ function WelfareDashboard(){
                                     <div style = {styles.notificationHeader}>
                                         <h2 style = {styles.notificationTitle}>알림</h2>
                                         <span style = {styles.notificationCountText}>
-                                            {welfareNotifications.length}건
+                                            {activeNotifications.length}건
                                         </span>
                                     </div>
 
@@ -553,22 +501,37 @@ function WelfareDashboard(){
                                     ) : (
                                         <div style = {styles.notificationList}>
                                             {visibleNotifications.map((notification) => (
-                                                <button
-                                                    type = "button"
+                                                <div
                                                     key = {notification.id}
                                                     style = {styles.notificationItem}
-                                                    onClick = {() => {
-                                                        setIsNotificationOpen(false);
-                                                        navigate(`/welfare/seniors/${notification.seniorId}`);
-                                                    }}
                                                 >
-                                                    <strong style = {styles.notificationItemTitle}>
-                                                        {notification.title}
-                                                    </strong>
-                                                    <span style = {styles.notificationItemMessage}>
-                                                        {notification.message}
-                                                    </span>
-                                                </button>
+                                                    <button
+                                                        type = "button"
+                                                        style = {styles.notificationDismiss}
+                                                        onClick = {(event) => {
+                                                            event.stopPropagation();
+                                                            dismissNotification(notification.id);
+                                                        }}
+                                                        aria-label = "알림 삭제"
+                                                    >
+                                                        <X size = {14} />
+                                                    </button>
+                                                    <button
+                                                        type = "button"
+                                                        style = {styles.notificationItemContent}
+                                                        onClick = {() => {
+                                                            setIsNotificationOpen(false);
+                                                            navigate(`/welfare/seniors/${notification.seniorId}`);
+                                                        }}
+                                                    >
+                                                        <strong style = {styles.notificationItemTitle}>
+                                                            {notification.title}
+                                                        </strong>
+                                                        <span style = {styles.notificationItemMessage}>
+                                                            {notification.message}
+                                                        </span>
+                                                    </button>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
@@ -584,13 +547,12 @@ function WelfareDashboard(){
                         </button>
                     </div>
                 )}
-            </header>
+            </WelfareHeader>
 
             <main style = {styles.content}>
                 <div style = {styles.actionHeader}>
                     <div>
                         <h1 style = {styles.pageTitle}>대상자 목록</h1>
-                        <p style = {styles.pageDescription}>SOS와 일자리 요청을 기준으로 확인할 대상을 정리합니다.</p>
                     </div>
                     <div style = {styles.headerButtonGroup}>
                         <Link to = "/welfare/jobs" style = {styles.jobShortcutButton}>
@@ -628,7 +590,31 @@ function WelfareDashboard(){
                 </div>
 
                 <section style = {styles.filterArea}>
-                    <div style = {styles.filterBox}>
+                    <div style = {styles.searchRow}>
+                        <input
+                            id = "senior-keyword-search"
+                            type = "search"
+                            value = {draftSearchKeyword}
+                            placeholder = "이름, 거주 지역, 요청 상태 검색"
+                            style = {styles.keywordInput}
+                            onChange = {(event) => setDraftSearchKeyword(event.target.value)}
+                            onKeyDown = {(event) => {
+                                if (event.key === "Enter") {
+                                    applyFilters();
+                                }
+                            }}
+                        />
+                        <button
+                            type = "button"
+                            style = {styles.searchButton}
+                            onClick = {applyFilters}
+                        >
+                            <Search size = {15} />
+                            검색
+                        </button>
+                    </div>
+
+                    <div style = {styles.filterTopRow}>
                         <div style = {styles.filterTabs}>
                             {FILTER_GROUPS.map((group) => {
                                 const isActive = activeFilterKey === group.key;
@@ -659,64 +645,41 @@ function WelfareDashboard(){
                                 );
                             })}
                         </div>
+                        <button
+                            type = "button"
+                            style = {styles.filterResetButton}
+                            onClick = {resetFilters}
+                        >
+                            초기화
+                        </button>
+                    </div>
 
-                        <div style = {styles.checkboxPanel}>
-                            <div style = {styles.checkboxPanelHeader}>
-                                <strong style = {styles.checkboxPanelTitle}>{activeFilterGroup.label}</strong>
-                                <span style = {styles.checkboxPanelHint}>선택하지 않으면 전체가 표시됩니다.</span>
-                            </div>
+                    <div style = {styles.checkboxPanel}>
+                        <div style = {styles.checkboxPanelHeader}>
+                            <strong style = {styles.checkboxPanelTitle}>{activeFilterGroup.label}</strong>
+                        </div>
 
-                            <div style = {styles.checkboxGrid}>
-                                {activeFilterGroup.options.map((option) => (
-                                    <label
-                                        key = {option}
-                                        style = {styles.checkboxLabel}
-                                    >
-                                        <input
-                                            type = "checkbox"
-                                            checked = {draftFilters[activeFilterGroup.key].includes(option)}
-                                            onChange = {() => toggleDraftFilter(activeFilterGroup.key, option)}
-                                            style = {styles.checkboxInput}
-                                        />
-                                        <span>{option}</span>
-                                        <span style = {styles.checkboxCount}>
-                                            ({getFilterOptionCount(activeFilterGroup.key, option)})
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
+                        <div style = {styles.checkboxGrid}>
+                            {activeFilterGroup.options.map((option) => (
+                                <label
+                                    key = {option}
+                                    style = {styles.checkboxLabel}
+                                >
+                                    <input
+                                        type = "checkbox"
+                                        checked = {draftFilters[activeFilterGroup.key].includes(option)}
+                                        onChange = {() => toggleDraftFilter(activeFilterGroup.key, option)}
+                                        style = {styles.checkboxInput}
+                                    />
+                                    <span>{option}</span>
+                                    <span style = {styles.checkboxCount}>
+                                        ({getFilterOptionCount(activeFilterGroup.key, option)})
+                                    </span>
+                                </label>
+                            ))}
                         </div>
                     </div>
 
-                    <div style = {styles.searchRow}>
-                        <label
-                            htmlFor = "senior-keyword-search"
-                            style = {styles.keywordLabel}
-                        >
-                            검색어
-                        </label>
-                        <input
-                            id = "senior-keyword-search"
-                            type = "search"
-                            value = {draftSearchKeyword}
-                            placeholder = "이름, 거주 지역, 요청 상태 검색"
-                            style = {styles.keywordInput}
-                            onChange = {(event) => setDraftSearchKeyword(event.target.value)}
-                            onKeyDown = {(event) => {
-                                if (event.key === "Enter") {
-                                    applyFilters();
-                                }
-                            }}
-                        />
-                        <button
-                            type = "button"
-                            style = {styles.searchButton}
-                            onClick = {applyFilters}
-                        >
-                            <Search size = {15} />
-                            검색
-                        </button>
-                    </div>
                 </section>
 
                 {isLoadingSeniors && (
@@ -724,13 +687,13 @@ function WelfareDashboard(){
                 )}
 
                 {seniorLoadError && (
-                    <p style = {{ ...styles.dataMessage, color : "#b66b6b" }}>
+                    <p style = {{ ...styles.dataMessage, color : "#6b5b12", backgroundColor : "#fff3c4", padding : "10px 14px", borderRadius : "8px" }}>
                         {seniorLoadError}
                     </p>
                 )}
 
                 <div style = {styles.tableBox}>
-                    <table style = {styles.table}>
+                    <table style = {styles.table} aria-label = "대상자 목록">
                         <thead>
                             <tr>
                                 <th style = {styles.th}>ID</th>
@@ -740,9 +703,7 @@ function WelfareDashboard(){
                                 <th style = {styles.th}>건강 상태</th>
                                 <th style = {styles.th}>위치 상태</th>
                                 <th style = {styles.th}>알림 상태</th>
-                                <th style = {styles.th}>근로 요청 상태</th>
-                                <th style = {styles.th}>일자리 요청 상태</th>
-                                <th style = {styles.th}>판단 단계</th>
+                                <th style = {styles.th}>소견 단계</th>
                                 <th style = {styles.th}>마지막 접속</th>
                             </tr>
                         </thead>
@@ -758,36 +719,50 @@ function WelfareDashboard(){
                                             {senior.name}
                                         </Link>
                                     </td>
-                                    <td style = {styles.td}>{formatAgeGender(senior)}</td>
-                                    <td style = {styles.td}>{senior.region}</td>
                                     <td style = {styles.td}>
-                                        <span style = {getBadgeStyle("health", senior.healthStatus)}>
-                                            {senior.healthStatus}
-                                        </span>
-                                    </td>
-                                    <td style = {styles.td}>{senior.locationStatus}</td>
-                                    <td style = {styles.td}>
-                                        <span style = {getBadgeStyle("alert", senior.alertStatus)}>
-                                            {senior.alertStatus}
-                                        </span>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "기본 정보" }} style = {styles.cellLink}>
+                                            {formatAgeGender(senior)}
+                                        </Link>
                                     </td>
                                     <td style = {styles.td}>
-                                        <span style = {getBadgeStyle("workRequest", senior.workRequestStatus)}>
-                                            {senior.workRequestStatus}
-                                        </span>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "기본 정보" }} style = {styles.cellLink}>
+                                            {senior.region}
+                                        </Link>
                                     </td>
                                     <td style = {styles.td}>
-                                        <span style = {getBadgeStyle("jobRequest", getJobRequestGroup(senior))}>
-                                            {senior.jobRequestStatus}
-                                        </span>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "건강 정보" }} style = {styles.cellLink}>
+                                            <span className = {getBadgeClass("health", senior.healthStatus)}>
+                                                {senior.healthStatus}
+                                            </span>
+                                        </Link>
                                     </td>
                                     <td style = {styles.td}>
-                                        <span style = {getBadgeStyle("matching", senior.jobMatchingStatus)}>
-                                            {senior.jobMatchingStatus}
-                                        </span>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "안심구역 관리" }} style = {styles.cellLink}>
+                                            {senior.locationStatus}
+                                        </Link>
                                     </td>
                                     <td style = {styles.td}>
-                                        {shouldHideLastAccess(senior.lastAccess) ? "" : senior.lastAccess}
+                                        <Link
+                                            to = {`/welfare/seniors/${senior.id}`}
+                                            state = {{ category : senior.alertStatus === "SOS 요청" ? "안심구역 관리" : "일자리 요청 상태" }}
+                                            style = {styles.cellLink}
+                                        >
+                                            <span className = {getBadgeClass("alert", senior.alertStatus)}>
+                                                {senior.alertStatus}
+                                            </span>
+                                        </Link>
+                                    </td>
+                                    <td style = {styles.td}>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "복지사 소견" }} style = {styles.cellLink}>
+                                            <span className = {getBadgeClass("matching", senior.jobMatchingStatus)}>
+                                                {senior.jobMatchingStatus}
+                                            </span>
+                                        </Link>
+                                    </td>
+                                    <td style = {styles.td}>
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "기본 정보" }} style = {styles.cellLink}>
+                                            {shouldHideLastAccess(senior.lastAccess) ? "" : senior.lastAccess}
+                                        </Link>
                                     </td>
                                 </tr>
                             ))}
@@ -833,11 +808,11 @@ function WelfareDashboard(){
 
             {isAddModalOpen && (
                 <div style = {styles.modalBackdrop}>
-                    <div style = {styles.modalBox}>
+                    <div style = {styles.modalBox} role = "dialog" aria-modal = "true" aria-labelledby = "add-senior-title">
                         <div style = {styles.modalHeader}>
                             <div>
-                                <h2 style = {styles.modalTitle}>대상자 추가</h2>
-                                <p style = {styles.modalSubText}>복지사가 관리할 대상자 기본 정보와 안심구역 기준을 등록합니다.</p>
+                                <h2 style = {styles.modalTitle} id = "add-senior-title">대상자 추가</h2>
+                                <p style = {styles.modalSubText}>기존 사용자를 검색해서 연결하거나 새로 등록합니다.</p>
                             </div>
                             <button
                                 type = "button"
@@ -849,18 +824,32 @@ function WelfareDashboard(){
                             </button>
                         </div>
 
+                        <div style = {styles.addSearchRow}>
+                            <input
+                                style = {styles.addSearchInput}
+                                value = {addSeniorForm.name}
+                                onChange = {(event) => setAddFormValue("name", event.target.value)}
+                                placeholder = "이름 또는 연락처로 검색"
+                                onKeyDown = {(event) => {
+                                    if (event.key === "Enter") {
+                                        handleAddSenior();
+                                    }
+                                }}
+                            />
+                            <button
+                                type = "button"
+                                style = {styles.primaryButton}
+                                onClick = {handleAddSenior}
+                            >
+                                검색
+                            </button>
+                        </div>
+
                         {addSeniorError && <p style = {styles.formError}>{addSeniorError}</p>}
 
+                        <p style = {styles.addSearchHint}>대상자의 이름이나 연락처를 입력한 뒤 검색해주세요.</p>
+
                         <div style = {styles.formGrid}>
-                            <label style = {styles.formLabel}>
-                                이름
-                                <input
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.name}
-                                    onChange = {(event) => setAddFormValue("name", event.target.value)}
-                                    placeholder = "대상자 이름"
-                                />
-                            </label>
                             <label style = {styles.formLabel}>
                                 나이
                                 <input
@@ -883,90 +872,6 @@ function WelfareDashboard(){
                                     <option value = "남성">남성</option>
                                 </select>
                             </label>
-                            <label style = {styles.formLabel}>
-                                거주 지역
-                                <input
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.region}
-                                    onChange = {(event) => setAddFormValue("region", event.target.value)}
-                                    placeholder = "서울시 동작구 상도동"
-                                />
-                            </label>
-                            <label style = {styles.formLabel}>
-                                건강 상태
-                                <select
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.healthStatus}
-                                    onChange = {(event) => setAddFormValue("healthStatus", event.target.value)}
-                                >
-                                    <option value = "양호">양호</option>
-                                    <option value = "주의">주의</option>
-                                    <option value = "위험">위험</option>
-                                </select>
-                            </label>
-                            <label style = {styles.formLabel}>
-                                위치 상태
-                                <select
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.locationStatus}
-                                    onChange = {(event) => setAddFormValue("locationStatus", event.target.value)}
-                                >
-                                    <option value = "정상">정상</option>
-                                    <option value = "안전구역 이탈">안전구역 이탈</option>
-                                </select>
-                            </label>
-                            <label style = {styles.formLabel}>
-                                알림 상태
-                                <select
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.alertStatus}
-                                    onChange = {(event) => setAddFormValue("alertStatus", event.target.value)}
-                                >
-                                    <option value = "없음">없음</option>
-                                    <option value = "SOS 요청">SOS 요청</option>
-                                    <option value = "일자리 요청">일자리 요청</option>
-                                </select>
-                            </label>
-                            <label style = {styles.formLabel}>
-                                근로 요청 상태
-                                <select
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.workRequestStatus}
-                                    onChange = {(event) => setAddFormValue("workRequestStatus", event.target.value)}
-                                >
-                                    <option value = "미검토">미검토</option>
-                                    <option value = "검토">검토</option>
-                                </select>
-                            </label>
-                            <label style = {styles.formLabel}>
-                                일자리 요청 건수
-                                <input
-                                    style = {styles.formInput}
-                                    type = "number"
-                                    min = "0"
-                                    value = {addSeniorForm.jobRequestCount}
-                                    onChange = {(event) => setAddFormValue("jobRequestCount", event.target.value)}
-                                />
-                            </label>
-                            <label style = {styles.formLabel}>
-                                안심구역 장소명
-                                <input
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.safeZonePlaceName}
-                                    onChange = {(event) => setAddFormValue("safeZonePlaceName", event.target.value)}
-                                    placeholder = "자택"
-                                />
-                            </label>
-                            <label style = {styles.formLabel}>
-                                안심구역 반경(m)
-                                <input
-                                    style = {styles.formInput}
-                                    type = "number"
-                                    min = "1"
-                                    value = {addSeniorForm.safeZoneRadius}
-                                    onChange = {(event) => setAddFormValue("safeZoneRadius", event.target.value)}
-                                />
-                            </label>
                         </div>
 
                         <div style = {styles.modalActionRow}>
@@ -982,7 +887,7 @@ function WelfareDashboard(){
                                 style = {styles.primaryButton}
                                 onClick = {handleAddSenior}
                             >
-                                추가
+                                대상자 등록
                             </button>
                         </div>
                     </div>
@@ -998,47 +903,6 @@ const styles = {
         backgroundColor : "var(--bg-color)",
         color : "var(--text-color)",
         boxSizing : "border-box",
-    },
-    topHeader : {
-        height : "64px",
-        padding : "0 max(28px, calc((100% - 1280px) / 2 + 28px))",
-        borderBottom : "1px solid var(--border-color)",
-        backgroundColor : "white",
-        display : "flex",
-        alignItems : "center",
-        justifyContent : "space-between",
-        boxSizing : "border-box",
-    },
-    brandArea : {
-        display : "flex",
-        alignItems : "center",
-        gap : "12px",
-        minWidth : 0,
-    },
-    logoBox : {
-        width : "34px",
-        height : "34px",
-        borderRadius : "7px",
-        backgroundColor : "var(--main-color)",
-        color : "white",
-        display : "grid",
-        placeItems : "center",
-        fontSize : "15px",
-        fontWeight : "800",
-        lineHeight : "1",
-        flexShrink : 0,
-    },
-    serviceName : {
-        fontSize : "22px",
-        fontWeight : "800",
-        color : "var(--text-color)",
-    },
-    headerPageName : {
-        paddingLeft : "16px",
-        borderLeft : "1px solid var(--border-color)",
-        color : "#4B5563",
-        fontSize : "15px",
-        whiteSpace : "nowrap",
     },
     workerArea : {
         display : "flex",
@@ -1136,11 +1000,35 @@ const styles = {
         gap : "8px",
     },
     notificationItem : {
+        position : "relative",
         width : "100%",
         border : "1px solid var(--border-color)",
         borderRadius : "8px",
         backgroundColor : "#fffef7",
         padding : "10px",
+        textAlign : "left",
+    },
+    notificationDismiss : {
+        position : "absolute",
+        top : "6px",
+        right : "6px",
+        width : "22px",
+        height : "22px",
+        borderRadius : "4px",
+        border : "none",
+        backgroundColor : "transparent",
+        color : "#999",
+        display : "grid",
+        placeItems : "center",
+        cursor : "pointer",
+        padding : 0,
+    },
+    notificationItemContent : {
+        display : "block",
+        width : "100%",
+        border : "none",
+        backgroundColor : "transparent",
+        padding : 0,
         textAlign : "left",
         cursor : "pointer",
     },
@@ -1243,11 +1131,30 @@ const styles = {
         padding : "16px",
         marginBottom : "14px",
     },
+    filterTopRow : {
+        display : "flex",
+        alignItems : "flex-start",
+        justifyContent : "space-between",
+        gap : "12px",
+        marginBottom : "14px",
+    },
     filterTabs : {
         display : "flex",
         flexWrap : "wrap",
         gap : "8px",
-        marginBottom : "14px",
+        flex : "1 1 auto",
+    },
+    filterResetButton : {
+        minHeight : "40px",
+        padding : "0 12px",
+        borderRadius : "7px",
+        border : "1px solid var(--border-color)",
+        backgroundColor : "white",
+        color : "#555",
+        fontSize : "12px",
+        fontWeight : "800",
+        cursor : "pointer",
+        whiteSpace : "nowrap",
     },
     filterTab : {
         minHeight : "40px",
@@ -1287,11 +1194,9 @@ const styles = {
     },
     checkboxPanel : {
         padding : "2px 0 0",
-        marginBottom : "14px",
     },
     checkboxPanelHeader : {
         display : "flex",
-        justifyContent : "space-between",
         alignItems : "center",
         gap : "12px",
         marginBottom : "12px",
@@ -1301,6 +1206,7 @@ const styles = {
         fontWeight : "800",
     },
     checkboxPanelHint : {
+        margin : "10px 0 0",
         fontSize : "12px",
         color : "#666",
     },
@@ -1334,6 +1240,7 @@ const styles = {
         alignItems : "center",
         gap : "8px",
         flexWrap : "wrap",
+        marginBottom : "14px",
     },
     keywordLabel : {
         display : "inline-flex",
@@ -1429,13 +1336,10 @@ const styles = {
         fontWeight : "800",
         textDecoration : "none",
     },
-    badge : {
-        display : "inline-block",
-        padding : "5px 9px",
-        borderRadius : "999px",
-        fontSize : "12px",
-        fontWeight : "800",
-        whiteSpace : "nowrap",
+    cellLink : {
+        color : "inherit",
+        textDecoration : "none",
+        cursor : "pointer",
     },
     pager : {
         display : "flex",
@@ -1500,6 +1404,30 @@ const styles = {
         placeItems : "center",
         cursor : "pointer",
         flexShrink : 0,
+    },
+    addSearchRow : {
+        display : "flex",
+        alignItems : "center",
+        gap : "8px",
+        marginBottom : "14px",
+    },
+    addSearchInput : {
+        flex : "1 1 auto",
+        height : "44px",
+        boxSizing : "border-box",
+        border : "1px solid var(--border-color)",
+        borderRadius : "8px",
+        padding : "0 14px",
+        fontSize : "15px",
+        color : "var(--text-color)",
+        backgroundColor : "white",
+        outline : "none",
+    },
+    addSearchHint : {
+        margin : "0 0 16px",
+        fontSize : "13px",
+        color : "#666",
+        textAlign : "center",
     },
     formError : {
         margin : "0 0 12px",

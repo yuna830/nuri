@@ -1,124 +1,25 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import {
     findWelfareDemoCounselingRecords,
-    findWelfareDemoSchedules,
     findWelfareDemoSenior,
 } from "../../data/welfareSeniorDemoData";
-
-const WELFARE_SENIOR_API_URL = "http://localhost:8083/api/welfare/seniors";
-const COUNSELING_RECORDS_STORAGE_KEY = "welfareCounselingRecords";
-const SOS_REQUESTS_STORAGE_KEY = "welfareSosRequests";
-const WELFARE_DECISION_STORAGE_KEY = "welfareDecisions";
-const WELFARE_DECISION_DETAIL_STORAGE_KEY = "welfareDecisionDetails";
-const ADDED_SENIORS_STORAGE_KEY = "welfareAddedSeniors";
-
-const readJsonStorage = (key, fallback) => {
-    try {
-        return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-    } catch {
-        return fallback;
-    }
-};
-
-const getSavedAddedSeniors = () => readJsonStorage(ADDED_SENIORS_STORAGE_KEY, []);
-const getSavedWelfareDecisions = () => readJsonStorage(WELFARE_DECISION_STORAGE_KEY, {});
-const getSavedWelfareDecisionDetails = () => readJsonStorage(WELFARE_DECISION_DETAIL_STORAGE_KEY, {});
-const getSavedCounselingRecords = () => readJsonStorage(COUNSELING_RECORDS_STORAGE_KEY, {});
-
-const getJobRequestStatus = (count) =>
-    Number(count || 0) > 0 ? `요청 ${Number(count)}건` : "미요청";
-
-const normalizeAlertStatus = (status) => {
-    return ["없음", "SOS 요청", "일자리 요청"].includes(status) ? status : "없음";
-};
-
-const normalizeSenior = (senior) => {
-    if (!senior) {
-        return senior;
-    }
-
-    const jobRequestCount = Number(senior.jobRequestCount ?? (senior.jobStatus === "미추천" ? 0 : 1));
-    const welfareDecision = senior.welfareDecision || "미검토";
-
-    return {
-        ...senior,
-        alertStatus : normalizeAlertStatus(senior.alertStatus),
-        workRequestStatus : senior.workRequestStatus || (welfareDecision === "미검토" ? "미검토" : "검토"),
-        jobRequestCount,
-        jobRequestStatus : senior.jobRequestStatus || getJobRequestStatus(jobRequestCount),
-        jobMatchingStatus : senior.jobMatchingStatus || (welfareDecision === "미검토" ? "검토중" : welfareDecision),
-        welfareDecision,
-        welfareDecisionReason : senior.welfareDecisionReason || "",
-        preferredWorkTime : senior.preferredWorkTime || "하루 3시간",
-        safeZone : senior.safeZone || {
-            placeName : `${senior.name || "대상자"} 자택`,
-            radiusMeter : 500,
-        },
-        lastGps : senior.lastGps || {
-            address : senior.region || "위치 미확인",
-            latitude : 37.5665,
-            longitude : 126.978,
-            recordedAt : "기록 없음",
-        },
-    };
-};
-
-const applySavedWelfareDecision = (target) => {
-    if (!target) {
-        return target;
-    }
-
-    const savedDecisions = getSavedWelfareDecisions();
-    const savedDecisionDetails = getSavedWelfareDecisionDetails();
-    const savedDetail = savedDecisionDetails[target.id];
-    const savedDecision = savedDetail?.decision || savedDecisions[target.id];
-
-    return normalizeSenior({
-        ...target,
-        welfareDecision : savedDecision || target.welfareDecision,
-        jobMatchingStatus : savedDecision || target.jobMatchingStatus,
-        welfareDecisionReason : savedDetail?.reason ?? target.welfareDecisionReason,
-    });
-};
-
-const saveWelfareDecision = (seniorId, decision, reason) => {
-    const savedDecisions = getSavedWelfareDecisions();
-    const savedDecisionDetails = getSavedWelfareDecisionDetails();
-
-    localStorage.setItem(
-        WELFARE_DECISION_STORAGE_KEY,
-        JSON.stringify({
-            ...savedDecisions,
-            [seniorId] : decision,
-        })
-    );
-    localStorage.setItem(
-        WELFARE_DECISION_DETAIL_STORAGE_KEY,
-        JSON.stringify({
-            ...savedDecisionDetails,
-            [seniorId] : {
-                decision,
-                reason,
-                deliveredAt : new Date().toISOString(),
-            },
-        })
-    );
-};
+import { WELFARE_SENIOR_API_URL, SOS_REQUESTS_STORAGE_KEY, COUNSELING_RECORDS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
+import { getSavedAddedSeniors, getSavedCounselingRecords, readJsonStorage, saveWelfareDecision } from "../../utils/welfare/welfareStorage";
+import {
+    normalizeSenior,
+    applySavedWelfareDecision,
+    formatAgeGender,
+    formatGps,
+} from "../../utils/welfare/welfareSenior";
+import WelfareHeader from "./WelfareHeader";
 
 const findSavedSenior = (seniorId) =>
     getSavedAddedSeniors().find((senior) => String(senior.id) === String(seniorId));
 
-const formatGps = (gps) => {
-    if (!gps) {
-        return "GPS 위치 정보 없음";
-    }
-
-    return `${gps.address} (${gps.latitude}, ${gps.longitude})`;
-};
-
 function WelfareSeniorDetail(){
     const { id } = useParams();
+    const location = useLocation();
     const [senior, setSenior] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState("");
@@ -132,6 +33,9 @@ function WelfareSeniorDetail(){
     const [draftDecision, setDraftDecision] = useState("미검토");
     const [draftRejectionReason, setDraftRejectionReason] = useState("");
     const [decisionStatusMessage, setDecisionStatusMessage] = useState("");
+    const [activeCategory, setActiveCategory] = useState(location.state?.category || "기본 정보");
+
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "복지사 소견", "전화 및 상담기록"];
 
     const applyLoadedSenior = (loadedSenior) => {
         const nextSenior = applySavedWelfareDecision(loadedSenior);
@@ -201,9 +105,6 @@ function WelfareSeniorDetail(){
     );
 
     const detail = getDetail(senior);
-    const schedules = senior
-        ? senior.schedules || findWelfareDemoSchedules(senior.id)
-        : [];
     const detailSections = senior
         ? [
             {
@@ -213,6 +114,7 @@ function WelfareSeniorDetail(){
                     { label : "나이/성별", value : formatAgeGender(senior) },
                     { label : "연락처", value : detail.phone },
                     { label : "주소", value : detail.address },
+                    { label : "마지막 접속", value : senior.lastAccess || "기록 없음" },
                 ],
             },
             {
@@ -246,9 +148,9 @@ function WelfareSeniorDetail(){
                 title : "일자리 요청 상태",
                 items : [
                     { label : "요청 건수", value : senior.jobRequestStatus },
-                    { label : "근로 요청 상태", value : senior.workRequestStatus },
+                    { label : "검토 여부", value : senior.workRequestStatus },
                     { label : "일자리 매칭 단계", value : senior.jobMatchingStatus },
-                    { label : "복지사 판단", value : senior.welfareDecision },
+                    { label : "복지사 소견", value : senior.welfareDecision },
                     { label : "부적합 사유", value : senior.welfareDecisionReason || "등록된 사유 없음" },
                 ],
             },
@@ -308,7 +210,7 @@ function WelfareSeniorDetail(){
         setDecisionStatusMessage(
             draftDecision === "부적합"
                 ? "부적합 사유가 저장되어 전달 항목에 반영되었습니다."
-                : "복지사 판단이 저장되었습니다."
+                : "복지사 소견이 저장되었습니다."
         );
     }
 
@@ -326,7 +228,7 @@ function WelfareSeniorDetail(){
             return;
         }
 
-        const nextContent = draftCounselingMemo.trim() || "상담 기록이 없습니다.";
+        const nextContent = draftCounselingMemo.trim() || "전화 및 상담기록이 없습니다.";
         const nextRecords = [
             {
                 id : `${senior.id}-${selectedCounselingDate}`,
@@ -348,7 +250,7 @@ function WelfareSeniorDetail(){
         setCounselingRecords(nextRecords);
         setDraftCounselingMemo(nextContent);
         setIsMemoEditing(false);
-        setMemoStatusMessage("상담 기록이 저장되었습니다.");
+        setMemoStatusMessage("전화 및 상담기록이 저장되었습니다.");
     };
 
     const handleCounselingMemoCancel = () => {
@@ -383,17 +285,6 @@ function WelfareSeniorDetail(){
         setSosStatusMessage(`${agency} 신고 확인이 완료되었습니다. 실제 신고는 시연용으로 전송되지 않습니다.`);
         setIsSosModalOpen(false);
     };
-
-    function formatAgeGender(target) {
-        if (!target) {
-            return "-";
-        }
-
-        const ageText = target.age == null ? "나이 미입력" : `${target.age}세`;
-        const genderText = target.gender || "성별 미입력";
-
-        return `${ageText} / ${genderText}`;
-    }
 
     function getDetail(target) {
         if (!target) {
@@ -446,29 +337,9 @@ function WelfareSeniorDetail(){
         };
     };
 
-    const getScheduleStatusStyle = (status) => {
-        const statusColors = {
-            "예정" : { backgroundColor : "#dff3ff", color : "#176b92" },
-            "완료" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
-            "보류" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-            "취소" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
-        };
-
-        return {
-            ...styles.scheduleStatus,
-            ...(statusColors[status] || statusColors["취소"]),
-        };
-    };
-
     return (
         <div style = {styles.page}>
-            <header style = {styles.topHeader}>
-                <div style = {styles.brandArea}>
-                    <div style = {styles.logoBox}>우리</div>
-                    <strong style = {styles.serviceName}>우리</strong>
-                    <span style = {styles.headerPageName}>대상자 상세정보</span>
-                </div>
-            </header>
+            <WelfareHeader pageName = "대상자 상세정보" />
 
             <main style = {styles.content}>
                 <div style = {styles.detailHeader}>
@@ -501,207 +372,180 @@ function WelfareSeniorDetail(){
                                 SOS 조치
                             </button>
                         </div>
-                        <div style = {styles.detailList}>
-                            {detailSections.map((section) => (
-                                <section
-                                    key = {section.title}
-                                    style = {styles.detailSection}
-                                >
-                                    <h2 style = {styles.sectionTitle}>{section.title}</h2>
-                                    <div style = {styles.sectionFields}>
-                                        {section.items.map((item) => (
-                                            <div
-                                                key = {`${section.title}-${item.label}`}
-                                                style = {styles.detailRow}
-                                            >
-                                                <span style = {styles.detailLabel}>{item.label}</span>
-                                                <strong style = {styles.detailValue}>{item.value}</strong>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {section.title === "일자리 요청 상태" && (
-                                        <div style = {styles.jobActionRow}>
-                                            <Link
-                                                to = {`/welfare/seniors/${senior.id}/jobs`}
-                                                style = {styles.jobLinkButton}
-                                            >
-                                                추천 공고 보기
-                                            </Link>
-                                            <Link
-                                                to = "/welfare/jobs"
-                                                style = {styles.secondaryJobLinkButton}
-                                            >
-                                                전체 공고 보기
-                                            </Link>
-                                        </div>
-                                    )}
-                                </section>
-                            ))}
-                        </div>
 
-                        <section style = {styles.decisionSection}>
-                            <div style = {styles.memoHeader}>
-                                <div>
-                                    <h2 style = {styles.sectionTitle}>복지사 판단</h2>
-                                    <p style = {styles.memoSubText}>일자리 매칭 단계와 부적합 사유를 상세 화면에서 관리합니다.</p>
-                                </div>
-                            </div>
-
-                            <div style = {styles.decisionOptionRow}>
-                                {["적합", "보류", "부적합"].map((decision) => (
+                        <div style = {styles.categoryLayout}>
+                            <nav style = {styles.categorySidebar}>
+                                {CATEGORY_LIST.map((category) => (
                                     <button
                                         type = "button"
-                                        key = {decision}
+                                        key = {category}
                                         style = {{
-                                            ...styles.decisionOptionButton,
-                                            ...(draftDecision === decision ? styles.activeDecisionOptionButton : {}),
+                                            ...styles.categoryItem,
+                                            ...(activeCategory === category ? styles.activeCategoryItem : {}),
                                         }}
-                                        onClick = {() => setDraftDecision(decision)}
+                                        onClick = {() => setActiveCategory(category)}
                                     >
-                                        {decision}
+                                        {category}
                                     </button>
                                 ))}
-                            </div>
+                            </nav>
 
-                            {draftDecision === "부적합" && (
-                                <textarea
-                                    value = {draftRejectionReason}
-                                    onChange = {(event) => setDraftRejectionReason(event.target.value)}
-                                    style = {styles.reasonTextarea}
-                                    placeholder = "부적합 사유를 작성하면 대상자/보호자 전달 항목에 반영됩니다."
-                                />
-                            )}
-
-                            <div style = {styles.memoActionRow}>
-                                <button
-                                    type = "button"
-                                    style = {styles.smallButton}
-                                    onClick = {handleDecisionSave}
-                                >
-                                    판단 저장
-                                </button>
-                            </div>
-
-                            {decisionStatusMessage && (
-                                <p style = {styles.memoStatusMessage}>{decisionStatusMessage}</p>
-                            )}
-                        </section>
-
-                        <section style = {styles.scheduleSection}>
-                            <div style = {styles.scheduleHeader}>
-                                <h2 style = {{ ...styles.sectionTitle, margin : 0 }}>일정 현황</h2>
-                                <span style = {styles.scheduleCount}>{schedules.length}건</span>
-                            </div>
-
-                            {schedules.length === 0 ? (
-                                <p style = {styles.emptyScheduleText}>등록된 일정이 없습니다.</p>
-                            ) : (
-                                <div style = {styles.scheduleList}>
-                                    {schedules.map((schedule) => (
-                                        <article
-                                            key = {schedule.id}
-                                            style = {styles.scheduleItem}
+                            <div style = {styles.categoryContent}>
+                                {detailSections
+                                    .filter((section) => section.title === activeCategory)
+                                    .map((section) => (
+                                        <section
+                                            key = {section.title}
+                                            style = {styles.detailSection}
                                         >
-                                            <div style = {styles.scheduleTopLine}>
-                                                <span style = {getScheduleStatusStyle(schedule.status)}>
-                                                    {schedule.status}
-                                                </span>
-                                                <span style = {styles.scheduleType}>{schedule.type}</span>
+                                            <h2 style = {styles.sectionTitle}>{section.title}</h2>
+                                            <div style = {styles.sectionFields}>
+                                                {section.items.map((item) => (
+                                                    <div
+                                                        key = {`${section.title}-${item.label}`}
+                                                        style = {styles.detailRow}
+                                                    >
+                                                        <span style = {styles.detailLabel}>{item.label}</span>
+                                                        <strong style = {styles.detailValue}>{item.value}</strong>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <strong style = {styles.scheduleTitle}>{schedule.title}</strong>
-                                            <div style = {styles.scheduleMeta}>
-                                                <span>{schedule.scheduledAt}</span>
-                                                <span>{schedule.place}</span>
+                                            {section.title === "일자리 요청 상태" && (
+                                                <div style = {styles.jobActionRow}>
+                                                    <Link
+                                                        to = {`/welfare/seniors/${senior.id}/jobs`}
+                                                        style = {styles.jobLinkButton}
+                                                    >
+                                                        추천 공고 보기
+                                                    </Link>
+                                                    <Link
+                                                        to = "/welfare/jobs"
+                                                        style = {styles.secondaryJobLinkButton}
+                                                    >
+                                                        전체 공고 보기
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </section>
+                                    ))
+                                }
+
+                                {activeCategory === "복지사 소견" && (
+                                    <section style = {styles.detailSection}>
+                                        <h2 style = {styles.sectionTitle}>복지사 소견</h2>
+
+                                        <div style = {styles.decisionOptionRow}>
+                                            {["적합", "보류", "부적합"].map((decision) => (
+                                                <button
+                                                    type = "button"
+                                                    key = {decision}
+                                                    style = {{
+                                                        ...styles.decisionOptionButton,
+                                                        ...(draftDecision === decision ? styles.activeDecisionOptionButton : {}),
+                                                    }}
+                                                    onClick = {() => setDraftDecision(decision)}
+                                                >
+                                                    {decision}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {draftDecision === "부적합" && (
+                                            <textarea
+                                                value = {draftRejectionReason}
+                                                onChange = {(event) => setDraftRejectionReason(event.target.value)}
+                                                style = {styles.reasonTextarea}
+                                                placeholder = "부적합 사유를 작성하면 대상자/보호자 전달 항목에 반영됩니다."
+                                            />
+                                        )}
+
+                                        <div style = {styles.memoActionRow}>
+                                            <button
+                                                type = "button"
+                                                style = {styles.smallButton}
+                                                onClick = {handleDecisionSave}
+                                            >
+                                                소견 저장
+                                            </button>
+                                        </div>
+
+                                        {decisionStatusMessage && (
+                                            <p style = {styles.memoStatusMessage}>{decisionStatusMessage}</p>
+                                        )}
+                                    </section>
+                                )}
+
+                                {activeCategory === "전화 및 상담기록" && (
+                                    <section style = {styles.detailSection}>
+                                        <div style = {styles.memoHeader}>
+                                            <div>
+                                                <h2 style = {styles.sectionTitle}>전화 및 상담기록</h2>
                                             </div>
-                                        </article>
-                                    ))}
-                                </div>
-                            )}
-                        </section>
 
-                        <section style = {styles.memoSection}>
-                            <div style = {styles.memoHeader}>
-                                <div>
-                                    <h2 style = {styles.sectionTitle}>상담 기록</h2>
-                                    <p style = {styles.memoSubText}>날짜 기준으로 상담 내용을 조회하고 수정합니다.</p>
-                                </div>
+                                            {!isMemoEditing && (
+                                                <button
+                                                    type = "button"
+                                                    style = {styles.smallButton}
+                                                    onClick = {() => {
+                                                        setIsMemoEditing(true);
+                                                        setMemoStatusMessage("");
+                                                    }}
+                                                >
+                                                    수정
+                                                </button>
+                                            )}
+                                        </div>
 
-                                {!isMemoEditing && (
-                                    <button
-                                        type = "button"
-                                        style = {styles.smallButton}
-                                        onClick = {() => {
-                                            setIsMemoEditing(true);
-                                            setMemoStatusMessage("");
-                                        }}
-                                    >
-                                        수정
-                                    </button>
+                                        <div style = {styles.dateSearchRow}>
+                                            <label style = {styles.dateLabel}>
+                                                조회 날짜
+                                                <input
+                                                    type = "date"
+                                                    value = {selectedCounselingDate}
+                                                    onChange = {(event) => handleCounselingDateChange(event.target.value)}
+                                                    style = {styles.dateInput}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        {isMemoEditing ? (
+                                            <>
+                                                <textarea
+                                                    value = {draftCounselingMemo}
+                                                    onChange = {(event) => setDraftCounselingMemo(event.target.value)}
+                                                    style = {styles.memoTextarea}
+                                                    placeholder = "전화 및 상담기록을 입력하세요."
+                                                />
+                                                <div style = {styles.memoActionRow}>
+                                                    <button
+                                                        type = "button"
+                                                        style = {styles.smallButton}
+                                                        onClick = {handleCounselingMemoSave}
+                                                    >
+                                                        저장
+                                                    </button>
+                                                    <button
+                                                        type = "button"
+                                                        style = {styles.holdButton}
+                                                        onClick = {handleCounselingMemoCancel}
+                                                    >
+                                                        취소
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p style = {styles.memoText}>
+                                            {selectedCounselingRecord?.content || "해당 날짜의 전화 및 상담기록이 없습니다."}
+                                            </p>
+                                        )}
+
+                                        {memoStatusMessage && (
+                                            <p style = {styles.memoStatusMessage}>{memoStatusMessage}</p>
+                                        )}
+                                    </section>
                                 )}
                             </div>
-
-                            <div style = {styles.dateSearchRow}>
-                                <label style = {styles.dateLabel}>
-                                    조회 날짜
-                                    <input
-                                        type = "date"
-                                        value = {selectedCounselingDate}
-                                        onChange = {(event) => handleCounselingDateChange(event.target.value)}
-                                        style = {styles.dateInput}
-                                    />
-                                </label>
-                                <div style = {styles.dateChipRow}>
-                                    {counselingRecords.map((record) => (
-                                        <button
-                                            type = "button"
-                                            key = {record.id}
-                                            style = {{
-                                                ...styles.dateChip,
-                                                ...(selectedCounselingDate === record.date ? styles.activeDateChip : {}),
-                                            }}
-                                            onClick = {() => handleCounselingDateChange(record.date)}
-                                        >
-                                            {record.date}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {isMemoEditing ? (
-                                <>
-                                    <textarea
-                                        value = {draftCounselingMemo}
-                                        onChange = {(event) => setDraftCounselingMemo(event.target.value)}
-                                        style = {styles.memoTextarea}
-                                        placeholder = "상담 기록을 입력하세요."
-                                    />
-                                    <div style = {styles.memoActionRow}>
-                                        <button
-                                            type = "button"
-                                            style = {styles.smallButton}
-                                            onClick = {handleCounselingMemoSave}
-                                        >
-                                            저장
-                                        </button>
-                                        <button
-                                            type = "button"
-                                            style = {styles.holdButton}
-                                            onClick = {handleCounselingMemoCancel}
-                                        >
-                                            취소
-                                        </button>
-                                    </div>
-                                </>
-                            ) : (
-                                <p style = {styles.memoText}>
-                                    {selectedCounselingRecord?.content || "해당 날짜의 상담 기록이 없습니다."}
-                                </p>
-                            )}
-
-                            {memoStatusMessage && (
-                                <p style = {styles.memoStatusMessage}>{memoStatusMessage}</p>
-                            )}
-                        </section>
+                        </div>
                     </>
                 )}
             </main>
@@ -756,49 +600,49 @@ const styles = {
         color : "var(--text-color)",
         boxSizing : "border-box",
     },
-    topHeader : {
-        height : "64px",
-        padding : "0 max(28px, calc((100% - 1280px) / 2 + 28px))",
-        borderBottom : "1px solid var(--border-color)",
-        backgroundColor : "white",
-        display : "flex",
-        alignItems : "center",
-        boxSizing : "border-box",
-    },
-    brandArea : {
-        display : "flex",
-        alignItems : "center",
-        gap : "12px",
-    },
-    logoBox : {
-        width : "34px",
-        height : "34px",
-        borderRadius : "7px",
-        backgroundColor : "var(--main-color)",
-        color : "white",
-        display : "grid",
-        placeItems : "center",
-        fontSize : "15px",
-        fontWeight : "800",
-        lineHeight : "1",
-    },
-    serviceName : {
-        fontSize : "22px",
-        fontWeight : "800",
-        color : "var(--text-color)",
-    },
-    headerPageName : {
-        paddingLeft : "16px",
-        borderLeft : "1px solid var(--border-color)",
-        color : "#4B5563",
-        fontSize : "15px",
-    },
     content : {
         width : "100%",
         maxWidth : "1280px",
         margin : "0 auto",
         padding : "28px",
         boxSizing : "border-box",
+    },
+    categoryLayout : {
+        display : "grid",
+        gridTemplateColumns : "200px 1fr",
+        gap : "20px",
+        alignItems : "flex-start",
+    },
+    categorySidebar : {
+        display : "flex",
+        flexDirection : "column",
+        gap : "4px",
+        position : "sticky",
+        top : "92px",
+        backgroundColor : "white",
+        border : "1px solid var(--border-color)",
+        borderRadius : "8px",
+        padding : "12px",
+    },
+    categoryItem : {
+        width : "100%",
+        padding : "10px 14px",
+        borderRadius : "7px",
+        border : "none",
+        backgroundColor : "transparent",
+        color : "var(--text-color)",
+        fontSize : "14px",
+        fontWeight : "700",
+        textAlign : "left",
+        cursor : "pointer",
+    },
+    activeCategoryItem : {
+        backgroundColor : "var(--main-color)",
+        color : "white",
+    },
+    categoryContent : {
+        flex : 1,
+        minWidth : 0,
     },
     detailHeader : {
         display : "flex",

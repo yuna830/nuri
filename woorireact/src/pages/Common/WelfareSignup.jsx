@@ -6,6 +6,19 @@ import "../../css/common/Login.css";
 const WELFARE_WORKERS_STORAGE_KEY = "welfareWorkers";
 const DEMO_WORKER_ID = "welfare01";
 
+const SEOUL_WELFARE_CENTERS = [
+  "강남구립행복요양원", "강남노인복지관", "강동노인종합복지관",
+  "강북노인종합복지관", "강서노인종합복지관", "관악노인종합복지관",
+  "광진노인종합복지관", "구로노인종합복지관", "금천노인종합복지관",
+  "노원노인종합복지관", "도봉노인종합복지관", "동대문노인종합복지관",
+  "동작노인종합복지관", "마포노인종합복지관", "서대문노인복지관",
+  "서초노인종합복지관", "성동노인종합복지관", "성북노인종합복지관",
+  "송파노인종합복지관", "양천노인종합복지관", "영등포노인복지관",
+  "용산노인종합복지관", "은평노인종합복지관", "종로노인종합복지관",
+  "중구노인종합복지관", "중랑노인종합복지관",
+  "서울시립어르신돌봄센터", "서울시복지재단", "우리복지센터",
+];
+
 const FEATURES = [
   { icon: "계정", title: "복지사 계정 생성", desc: "복지사 아이디와 비밀번호로 전용 계정을 만듭니다" },
   { icon: "관리", title: "대상자 관리 접근", desc: "가입 후 바로 복지사 대상자 관리 화면으로 이동합니다" },
@@ -158,12 +171,57 @@ export default function WelfareSignup() {
           />
 
           <label className="login-label">소속 기관</label>
-          <input
-            className="login-input"
-            value={form.center}
-            onChange={(event) => set("center", event.target.value)}
-            placeholder="우리복지센터"
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              className="login-input"
+              value={form.center}
+              onChange={(event) => set("center", event.target.value)}
+              placeholder="복지관 이름 검색"
+            />
+            {form.center.trim().length > 0 && !SEOUL_WELFARE_CENTERS.includes(form.center.trim()) && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                maxHeight: "160px",
+                overflowY: "auto",
+                backgroundColor: "white",
+                border: "1px solid #DCD8CC",
+                borderRadius: "8px",
+                marginTop: "4px",
+                zIndex: 10,
+              }}>
+                {SEOUL_WELFARE_CENTERS
+                  .filter((c) => c.includes(form.center.trim()))
+                  .map((center) => (
+                    <button
+                      type="button"
+                      key={center}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: "10px 14px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                        textAlign: "left",
+                        fontSize: "14px",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => set("center", center)}
+                    >
+                      {center}
+                    </button>
+                  ))
+                }
+                {SEOUL_WELFARE_CENTERS.filter((c) => c.includes(form.center.trim())).length === 0 && (
+                  <p style={{ margin: 0, padding: "10px 14px", color: "#666", fontSize: "13px" }}>
+                    검색 결과가 없습니다. 직접 입력해주세요.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <label className="login-label">비밀번호</label>
           <input

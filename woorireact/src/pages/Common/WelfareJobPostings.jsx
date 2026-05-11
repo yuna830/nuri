@@ -1,22 +1,23 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Search } from "lucide-react";
 import {
     findWelfareDemoSenior,
     WELFARE_DEMO_JOBS,
 } from "../../data/welfareSeniorDemoData";
+import { getSavedAddedSeniors } from "../../utils/welfare/welfareStorage";
+import WelfareHeader from "./WelfareHeader";
 
-const ADDED_SENIORS_STORAGE_KEY = "welfareAddedSeniors";
-
-const getSavedAddedSeniors = () => {
-    try {
-        return JSON.parse(localStorage.getItem(ADDED_SENIORS_STORAGE_KEY) || "[]");
-    } catch {
-        return [];
-    }
-};
+const JOB_CATEGORIES = [
+    { key : "전체", label : "전체" },
+    { key : "안내", label : "안내" },
+    { key : "환경 정비", label : "환경 정비" },
+    { key : "실내 보조", label : "실내 보조" },
+    { key : "복지 보조", label : "복지 보조" },
+];
 
 const getRegionDistrict = (region = "") => {
     const districtMatch = String(region).match(/[가-힣]+구/);
-
     return districtMatch ? districtMatch[0] : "";
 };
 
@@ -26,7 +27,6 @@ const findWelfareSenior = (seniorId) =>
 
 const findRecommendedJobs = (senior) => {
     const district = getRegionDistrict(senior.region);
-
     return WELFARE_DEMO_JOBS.filter((job) =>
         job.deadlineStatus !== "마감" &&
         district !== "" &&
@@ -38,107 +38,94 @@ const findRecommendedJobs = (senior) => {
 function WelfareJobPostings(){
     const { id } = useParams();
     const senior = id ? findWelfareSenior(id) : null;
-    const jobs = senior ? findRecommendedJobs(senior) : WELFARE_DEMO_JOBS;
-    const pageTitle = senior ? `${senior.name} 추천 공고` : "전체 일자리 공고";
-    const pageDescription = senior
-        ? `${senior.region} 기준으로 마감되지 않은 추천 공고를 확인합니다.`
-        : "노인일자리 API 연동 전까지 임시 공고 데이터로 화면 흐름을 확인합니다.";
+    const allJobs = senior ? findRecommendedJobs(senior) : WELFARE_DEMO_JOBS;
+    const [activeCategory, setActiveCategory] = useState("전체");
+    const [searchKeyword, setSearchKeyword] = useState("");
 
-    const getStatusStyle = (status) => ({
-        ...styles.statusBadge,
-        ...(status === "마감"
-            ? { backgroundColor : "#eeeeee", color : "#555" }
-            : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" }),
+    const filteredJobs = allJobs.filter((job) => {
+        const matchCategory = activeCategory === "전체" || job.jobType === activeCategory;
+        const keyword = searchKeyword.trim().toLowerCase();
+        const matchKeyword = keyword === "" || [
+            job.title, job.organization, job.workPlace,
+        ].some((v) => String(v).toLowerCase().includes(keyword));
+        return matchCategory && matchKeyword;
     });
+
+    const pageTitle = senior ? `${senior.name} 추천 공고` : "전체 일자리 공고";
 
     return (
         <div style = {styles.page}>
-            <header style = {styles.topHeader}>
-                <div style = {styles.brandArea}>
-                    <div style = {styles.logoBox}>우리</div>
-                    <strong style = {styles.serviceName}>우리</strong>
-                    <span style = {styles.headerPageName}>노인일자리 공고</span>
-                </div>
-            </header>
+            <WelfareHeader pageName = "노인일자리 공고" />
 
             <main style = {styles.content}>
                 <div style = {styles.headerRow}>
-                    <div>
-                        <Link
-                            to = {senior ? `/welfare/seniors/${senior.id}` : "/welfare"}
-                            style = {styles.backLink}
-                        >
-                            {senior ? "상세정보로" : "목록으로"}
-                        </Link>
-                        <h1 style = {styles.title}>{pageTitle}</h1>
-                        <p style = {styles.subText}>{pageDescription}</p>
-                    </div>
-
-                    {senior && (
-                        <Link to = "/welfare/jobs" style = {styles.secondaryButton}>
-                            전체 공고 보기
-                        </Link>
-                    )}
+                    <Link
+                        to = {senior ? `/welfare/seniors/${senior.id}` : "/welfare"}
+                        style = {styles.backLink}
+                    >
+                        {senior ? "상세정보로" : "목록으로"}
+                    </Link>
                 </div>
 
-                {senior && jobs.length === 0 && (
-                    <section style = {styles.emptyBox}>
-                        <strong style = {styles.emptyTitle}>추천 가능한 공고가 없습니다.</strong>
-                        <p style = {styles.emptyText}>
-                            현재는 거주 지역, 마감 여부, 건강 상태 기준으로만 임시 추천을 계산합니다.
+                <div style = {styles.layout}>
+                    <nav style = {styles.sidebar}>
+                        <strong style = {styles.sidebarTitle}>직종 분류</strong>
+                        {JOB_CATEGORIES.map((cat) => (
+                            <button
+                                type = "button"
+                                key = {cat.key}
+                                style = {{
+                                    ...styles.sidebarItem,
+                                    ...(activeCategory === cat.key ? styles.activeSidebarItem : {}),
+                                }}
+                                onClick = {() => setActiveCategory(cat.key)}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
+                    </nav>
+
+                    <div style = {styles.mainArea}>
+                        <div style = {styles.searchRow}>
+                            <Search size = {16} style = {{ color : "#999", flexShrink : 0 }} />
+                            <input
+                                type = "search"
+                                value = {searchKeyword}
+                                onChange = {(e) => setSearchKeyword(e.target.value)}
+                                placeholder = "공고명, 기업명, 근무지 검색..."
+                                style = {styles.searchInput}
+                            />
+                        </div>
+
+                        <p style = {styles.resultCount}>
+                            {activeCategory === "전체" ? pageTitle : activeCategory} · {filteredJobs.length}건
                         </p>
-                    </section>
-                )}
 
-                <div style = {styles.jobList}>
-                    {jobs.map((job) => (
-                        <article key = {job.jobId} style = {styles.jobCard}>
-                            <div style = {styles.jobHeader}>
-                                <div>
-                                    <div style = {styles.badgeRow}>
-                                        <span style = {getStatusStyle(job.deadlineStatus)}>
-                                            {job.deadlineStatus}
-                                        </span>
-                                        <span style = {styles.typeBadge}>{job.employmentType}</span>
+                        {filteredJobs.length === 0 && (
+                            <p style = {styles.emptyText}>검색 결과가 없습니다.</p>
+                        )}
+
+                        <div style = {styles.jobList}>
+                            {filteredJobs.map((job) => (
+                                <article key = {job.jobId} style = {styles.jobCard}>
+                                    <div style = {styles.jobCardTop}>
+                                        <div>
+                                            <h2 style = {styles.jobTitle}>{job.title}</h2>
+                                            <p style = {styles.organization}>{job.organization}</p>
+                                        </div>
+                                        <div style = {styles.badgeRow}>
+                                            <span style = {styles.jobTypeBadge}>{job.jobType}</span>
+                                            <span style = {styles.employmentBadge}>{job.employmentType}</span>
+                                        </div>
                                     </div>
-                                    <h2 style = {styles.jobTitle}>{job.title}</h2>
-                                    <p style = {styles.organization}>{job.organization}</p>
-                                </div>
-
-                                <div style = {styles.scoreBox}>
-                                    <span style = {styles.scoreLabel}>적합도</span>
-                                    <strong style = {styles.scoreValue}>{job.suitabilityScore}점</strong>
-                                </div>
-                            </div>
-
-                            <div style = {styles.infoGrid}>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>근무지</span>
-                                    <strong style = {styles.infoValue}>{job.workPlace}</strong>
-                                </div>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>직종</span>
-                                    <strong style = {styles.infoValue}>{job.jobType}</strong>
-                                </div>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>근무 시간</span>
-                                    <strong style = {styles.infoValue}>{job.workDays} / {job.workTime}</strong>
-                                </div>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>임금</span>
-                                    <strong style = {styles.infoValue}>{job.wage}</strong>
-                                </div>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>접수 일정</span>
-                                    <strong style = {styles.infoValue}>{job.recruitPeriod}</strong>
-                                </div>
-                                <div style = {styles.infoItem}>
-                                    <span style = {styles.infoLabel}>공고 ID</span>
-                                    <strong style = {styles.infoValue}>{job.jobId}</strong>
-                                </div>
-                            </div>
-                        </article>
-                    ))}
+                                    <div style = {styles.jobMeta}>
+                                        <span style = {styles.metaItem}>📍 {job.workPlace}</span>
+                                        <span style = {styles.metaItem}>📅 {job.recruitPeriod}</span>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -152,43 +139,6 @@ const styles = {
         color : "var(--text-color)",
         boxSizing : "border-box",
     },
-    topHeader : {
-        height : "64px",
-        padding : "0 max(28px, calc((100% - 1280px) / 2 + 28px))",
-        borderBottom : "1px solid var(--border-color)",
-        backgroundColor : "white",
-        display : "flex",
-        alignItems : "center",
-        boxSizing : "border-box",
-    },
-    brandArea : {
-        display : "flex",
-        alignItems : "center",
-        gap : "12px",
-    },
-    logoBox : {
-        width : "34px",
-        height : "34px",
-        borderRadius : "7px",
-        backgroundColor : "var(--main-color)",
-        color : "white",
-        display : "grid",
-        placeItems : "center",
-        fontSize : "15px",
-        fontWeight : "800",
-        lineHeight : "1",
-    },
-    serviceName : {
-        fontSize : "22px",
-        fontWeight : "800",
-        color : "var(--text-color)",
-    },
-    headerPageName : {
-        paddingLeft : "16px",
-        borderLeft : "1px solid var(--border-color)",
-        color : "#4B5563",
-        fontSize : "15px",
-    },
     content : {
         width : "100%",
         maxWidth : "1280px",
@@ -197,159 +147,151 @@ const styles = {
         boxSizing : "border-box",
     },
     headerRow : {
-        display : "flex",
-        justifyContent : "space-between",
-        alignItems : "flex-start",
-        gap : "16px",
         marginBottom : "18px",
     },
     backLink : {
-        display : "inline-block",
-        marginBottom : "10px",
         color : "var(--main-color)",
         fontSize : "14px",
         fontWeight : "700",
         textDecoration : "none",
     },
-    title : {
-        margin : 0,
-        fontSize : "28px",
+    layout : {
+        display : "grid",
+        gridTemplateColumns : "200px 1fr",
+        gap : "20px",
+        alignItems : "flex-start",
     },
-    subText : {
-        margin : "6px 0 0",
-        color : "#666",
-        fontSize : "15px",
-    },
-    secondaryButton : {
-        height : "38px",
-        padding : "0 14px",
-        borderRadius : "8px",
-        border : "1px solid var(--main-color)",
-        color : "var(--main-color)",
-        backgroundColor : "white",
-        display : "inline-flex",
-        alignItems : "center",
-        justifyContent : "center",
-        fontSize : "14px",
-        fontWeight : "800",
-        textDecoration : "none",
-        whiteSpace : "nowrap",
-    },
-    emptyBox : {
+    sidebar : {
+        display : "flex",
+        flexDirection : "column",
+        gap : "4px",
         backgroundColor : "white",
         border : "1px solid var(--border-color)",
         borderRadius : "8px",
-        padding : "22px 24px",
+        padding : "14px",
+        position : "sticky",
+        top : "92px",
+    },
+    sidebarTitle : {
+        fontSize : "13px",
+        fontWeight : "800",
+        color : "#666",
+        marginBottom : "8px",
+    },
+    sidebarItem : {
+        width : "100%",
+        padding : "10px 14px",
+        borderRadius : "7px",
+        border : "none",
+        backgroundColor : "transparent",
+        color : "var(--text-color)",
+        fontSize : "14px",
+        fontWeight : "700",
+        textAlign : "left",
+        cursor : "pointer",
+    },
+    activeSidebarItem : {
+        backgroundColor : "var(--main-color)",
+        color : "white",
+    },
+    mainArea : {
+        minWidth : 0,
+    },
+    searchRow : {
+        display : "flex",
+        alignItems : "center",
+        gap : "10px",
+        padding : "0 14px",
+        height : "44px",
+        backgroundColor : "white",
+        border : "1px solid var(--border-color)",
+        borderRadius : "8px",
         marginBottom : "14px",
     },
-    emptyTitle : {
-        display : "block",
-        fontSize : "20px",
-        fontWeight : "800",
-        marginBottom : "6px",
+    searchInput : {
+        flex : 1,
+        height : "100%",
+        border : "none",
+        outline : "none",
+        fontSize : "14px",
+        color : "var(--text-color)",
+        backgroundColor : "transparent",
+    },
+    resultCount : {
+        margin : "0 0 14px",
+        fontSize : "14px",
+        fontWeight : "700",
+        color : "#555",
     },
     emptyText : {
-        margin : 0,
         color : "#666",
-        fontSize : "15px",
-        lineHeight : "1.6",
+        fontSize : "14px",
+        textAlign : "center",
+        padding : "40px 0",
     },
     jobList : {
-        display : "grid",
-        gridTemplateColumns : "1fr",
-        gap : "14px",
+        display : "flex",
+        flexDirection : "column",
+        gap : "12px",
     },
     jobCard : {
         backgroundColor : "white",
         border : "1px solid var(--border-color)",
         borderRadius : "8px",
-        padding : "22px 24px",
-        boxSizing : "border-box",
+        padding : "18px 22px",
     },
-    jobHeader : {
+    jobCardTop : {
         display : "flex",
         justifyContent : "space-between",
-        gap : "16px",
         alignItems : "flex-start",
-        marginBottom : "16px",
-    },
-    badgeRow : {
-        display : "flex",
-        flexWrap : "wrap",
-        gap : "6px",
-        marginBottom : "8px",
-    },
-    statusBadge : {
-        display : "inline-block",
-        padding : "5px 9px",
-        borderRadius : "999px",
-        fontSize : "12px",
-        fontWeight : "800",
-    },
-    typeBadge : {
-        display : "inline-block",
-        padding : "5px 9px",
-        borderRadius : "999px",
-        backgroundColor : "#fff3c4",
-        color : "#6b5b12",
-        fontSize : "12px",
-        fontWeight : "800",
+        gap : "12px",
+        marginBottom : "10px",
     },
     jobTitle : {
         margin : 0,
-        color : "var(--text-color)",
-        fontSize : "24px",
+        fontSize : "17px",
         fontWeight : "800",
-        lineHeight : "1.35",
-        wordBreak : "keep-all",
+        color : "var(--text-color)",
+        lineHeight : "1.4",
     },
     organization : {
-        margin : "6px 0 0",
-        color : "#666",
-        fontSize : "15px",
-        fontWeight : "700",
-    },
-    scoreBox : {
-        minWidth : "90px",
-        textAlign : "right",
-    },
-    scoreLabel : {
-        display : "block",
-        color : "#666",
-        fontSize : "12px",
-        fontWeight : "700",
-    },
-    scoreValue : {
-        display : "block",
-        marginTop : "4px",
-        color : "var(--main-color)",
-        fontSize : "24px",
-        fontWeight : "900",
-    },
-    infoGrid : {
-        display : "grid",
-        gridTemplateColumns : "repeat(auto-fit, minmax(220px, 1fr))",
-        gap : "12px",
-        borderTop : "1px solid var(--border-color)",
-        paddingTop : "16px",
-    },
-    infoItem : {
-        display : "flex",
-        flexDirection : "column",
-        gap : "5px",
-        minWidth : 0,
-    },
-    infoLabel : {
-        color : "#666",
+        margin : "4px 0 0",
         fontSize : "13px",
+        color : "#666",
         fontWeight : "700",
     },
-    infoValue : {
-        color : "var(--text-color)",
-        fontSize : "16px",
+    badgeRow : {
+        display : "flex",
+        gap : "6px",
+        flexShrink : 0,
+    },
+    jobTypeBadge : {
+        padding : "4px 9px",
+        borderRadius : "999px",
+        backgroundColor : "rgba(134, 167, 136, 0.22)",
+        color : "#48644b",
+        fontSize : "12px",
         fontWeight : "800",
-        lineHeight : "1.45",
-        wordBreak : "keep-all",
+        whiteSpace : "nowrap",
+    },
+    employmentBadge : {
+        padding : "4px 9px",
+        borderRadius : "999px",
+        backgroundColor : "#eeeeee",
+        color : "#555",
+        fontSize : "12px",
+        fontWeight : "800",
+        whiteSpace : "nowrap",
+    },
+    jobMeta : {
+        display : "flex",
+        flexWrap : "wrap",
+        gap : "8px 16px",
+        fontSize : "13px",
+        color : "#666",
+    },
+    metaItem : {
+        whiteSpace : "nowrap",
     },
 };
 
