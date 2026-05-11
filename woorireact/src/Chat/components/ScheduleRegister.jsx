@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { STT_API_URL } from "../services/voiceSttApi";
 import { parseDateFromText, parseTimeExpression } from "../services/scheduleParser";
 
@@ -164,14 +165,16 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
 
   return (
     <section className="schedule-register-page">
+      <UserCommonHeader />
+      <UserSubHeader
+        title="AI 일정 도우미"
+        onBack={onBack}
+        backLabel="← 채팅으로"
+      />
+
       <header className="schedule-register-header">
-        <button type="button" onClick={onBack}>
-          채팅으로
-        </button>
-        <div>
-          <p>AI 일정 도우미</p>
-          <h1>{isEditing ? "일정을 수정하세요" : "일정을 쉽게 등록하세요"}</h1>
-        </div>
+        <p>AI 일정 도우미</p>
+        <h1>{isEditing ? "일정을 수정하세요" : "일정을 쉽게 등록하세요"}</h1>
       </header>
 
       <main className="schedule-register-layout">

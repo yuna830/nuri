@@ -16,7 +16,7 @@
 .jp-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1200px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -71,7 +71,7 @@
 }
 
 .jp-top-sticky-inner {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0.8rem 2rem;
 }
@@ -218,7 +218,7 @@
 
 /* 레이아웃 */
 .jp-layout {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 2rem 2rem 2rem;
   display: grid;
@@ -581,6 +581,10 @@
 
 /* 반응형 */
 @media (max-width: 900px) {
+  .jp-nav {
+    padding: 0 1rem;
+  }
+
   .jp-top-sticky-inner {
     padding: 0.8rem 1rem;
   }

@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { useChatFlow } from "../hooks/useChatFlow";
 import { useVoiceInput } from "../hooks/useVoiceInput";
-import { formatTodayKorean } from "../utils/scheduleText";
 import DeleteScheduleBox from "./DeleteScheduleBox";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
@@ -60,26 +60,17 @@ export default function ChatView({
 
   return (
     <section className="chatbot-page">
-      <nav className="chatbot-global-nav">
-        <button className="chatbot-nav-logo" type="button" onClick={() => navigate("/user")}>
-          우리 woori
-        </button>
-        <div className="chatbot-nav-right">
-          <span className="chatbot-nav-date">{formatTodayKorean()}</span>
-        </div>
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        title="AI 챗봇"
+        right={<button className="chatbot-sub-action" type="button" onClick={onScheduleOpen}>일정 등록하기</button>}
+        onBack={() => navigate("/user")}
+        backLabel="← 홈으로"
+      />
 
       <header className="chatbot-header">
-        <div className="chatbot-title-wrap">
-          <button className="chatbot-back-inline" type="button" onClick={() => navigate("/user")}>
-            ← 홈으로
-          </button>
-          <div>
-            <p>AI 챗봇</p>
-            <h1>무엇을 도와드릴까요?</h1>
-          </div>
-        </div>
-        <button type="button" onClick={onScheduleOpen}>일정 등록하기</button>
+        <p>AI 챗봇</p>
+        <h1>무엇을 도와드릴까요?</h1>
       </header>
 
       <main className="chatbot-layout">

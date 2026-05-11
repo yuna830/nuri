@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
   SAFE_RADIUS,
@@ -198,17 +199,17 @@ export default function LocationPage() {
 
   return (
     <div className="lp-root">
-      <nav className="lp-nav">
-        <button className="lp-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-        <div className="lp-nav-title">내 위치</div>
-        <div className="lp-nav-right">
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="📍 내 위치"
+        onBack={() => navigate("/user")}
+        right={(
           <button className="lp-refresh-btn" type="button" onClick={getLocation}>
             <RefreshCw size={13} /> 새로고침
           </button>
-        </div>
-      </nav>
+        )}
+      />
 
       <div className="lp-layout">
         <div className="lp-map-section">
