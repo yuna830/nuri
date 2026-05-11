@@ -107,6 +107,51 @@ public class AlertController {
         return alertRepository.save(alert);
     }
 
+    @PostMapping("/camera")
+    public List<Alert> createCameraAlert(@RequestBody CameraAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String title = switch (request.type()) {
+            case "FACE_MATCH" -> "실종자 얼굴 감지";
+            case "PERSON_DETECTED" -> "사람 감지";
+            case "FALL_RISK" -> "낙상 의심";
+            default -> "카메라 감지 알림";
+        };
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType(request.type());
+                    alert.setTitle(title);
+                    alert.setMessage(senior.getName() + "님 관련 카메라 알림: " + request.message());
+                    alert.setLatitude(request.latitude());
+                    alert.setLongitude(request.longitude());
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record CameraAlertRequest(
+            Long seniorId,
+            String type,
+            String message,
+            Double latitude,
+            Double longitude
+    ) {
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getGuardianAlerts, readAlert, createMissingReport, uploadImage } from "../../api/guardianApi";
+import {
+  getGuardianAlerts,
+  readAlert,
+  createMissingReport,
+  uploadImage,
+  getPoliceMissingAlerts,
+} from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
@@ -244,6 +250,8 @@ function GuardianPage() {
   const [isMedicineAlertOpen, setIsMedicineAlertOpen] = useState(false);
   const [medicineMessage, setMedicineMessage] = useState("");
   const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
+
+  const [policeAlerts, setPoliceAlerts] = useState([]);
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -526,6 +534,16 @@ function GuardianPage() {
   const unreadAlertCount = displayedAlerts.filter(
     (alert) => alert.status === "미확인"
   ).length;
+
+  useEffect(() => {
+    getPoliceMissingAlerts()
+      .then((alerts) => {
+        setPoliceAlerts(Array.isArray(alerts) ? alerts : []);
+      })
+      .catch((error) => {
+        console.error("경찰청 실종경보 조회 실패:", error);
+      });
+  }, []);
 
   useEffect(() => {
     if (!selectedElder?.currentLocation) {
@@ -1210,8 +1228,8 @@ function GuardianPage() {
           isOutsideSafeZone={isOutsideSafeZone}
           distance={distance}
           location={location}
-          lastNormalLocation={lastNormalLocation}
           safeZoneForm={safeZoneForm}
+          lastNormalLocation={lastNormalLocation}
           formatShortAddress={formatShortAddress}
           formatSafeZoneAddress={formatSafeZoneAddress}
           isSafeZoneOpen={isSafeZoneOpen}
@@ -1251,9 +1269,12 @@ function GuardianPage() {
         <EmergencyPanel
           selectedElder={selectedElder}
           displayedAlerts={displayedAlerts}
+          policeAlerts={policeAlerts}
           routeHistory={routeHistory}
           selectedRouteDate={selectedRouteDate}
+          safeZoneForm={safeZoneForm}
           onRouteDateChange={handleRouteDateChange}
+          distance={distance}
           lastNormalLocation={lastNormalLocation}
           isAlertPanelOpen={isAlertPanelOpen}
           isMissingReportOpen={isMissingReportOpen}

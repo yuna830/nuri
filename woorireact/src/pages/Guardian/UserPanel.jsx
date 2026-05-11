@@ -235,7 +235,16 @@ function UserPanel({
   };
 
   const handleSelectSafeZone = (place) => {
-    onSelectSafeZonePlace(place);
+    onSelectSafeZonePlace({
+      display_name:
+        place.display_name ||
+        place.road_address_name ||
+        place.address_name ||
+        place.place_name,
+      lat: place.lat || place.y,
+      lon: place.lon || place.x,
+    });
+
     setSafeZoneKeyword("");
     setSafeZoneResults([]);
   };
@@ -288,18 +297,13 @@ function UserPanel({
 
             <p className={`status-line ${!hasCurrentLocation ? "muted" : isOutsideSafeZone ? "danger" : "normal"}`}>
               <span />
-              {!hasCurrentLocation ? "미수신" : isOutsideSafeZone ? "이탈" : "정상"}
+              {!hasCurrentLocation
+                ? "미수신"
+                : isOutsideSafeZone
+                  ? `이탈 (${distance}m)`
+                  : "정상"}
             </p>
           </div>
-
-          <p className="status-message">
-            {!hasCurrentLocation
-              ? "최근 위치를 아직 수신하지 못했습니다"
-              : isOutsideSafeZone
-                ? "안전 반경 밖에 있습니다"
-                : "현재 안전 반경 안에 있습니다"}
-          </p>
-          <small>{hasCurrentLocation ? `${distance}m 거리` : "위치 미수신"}</small>
 
           <dl className="status-profile-list">
             <div>
@@ -315,14 +319,6 @@ function UserPanel({
               <dd>{selectedElder.age}</dd>
             </div>
             <div>
-              <dt>성별</dt>
-              <dd>{selectedElder.gender}</dd>
-            </div>
-            <div>
-              <dt>주소</dt>
-              <dd>{selectedElder.address}</dd>
-            </div>
-            <div>
               <dt>담당 복지사</dt>
               <dd>
                 {selectedElder.socialWorkerName || "미지정"}
@@ -332,45 +328,54 @@ function UserPanel({
             <div className="condition-row">
               <dt>주요 질환</dt>
               <dd>
-                <button
-                  className="condition-alert-button"
-                  type="button"
-                  onClick={onOpenMedicineAlert}
-                >
-                  <ul className="condition-list">
-                    {(selectedElder.condition || "등록된 건강정보 없음")
-                      .split(", ")
-                      .map((condition) => (
-                        <li key={condition}>{condition}</li>
-                      ))}
-                  </ul>
-                  <span className="condition-alert-hint"></span>
-                </button>
+                {(() => {
+                  const conditions = (selectedElder.condition || "")
+                    .split(", ")
+                    .map((condition) => condition.split(":")[0].trim())
+                    .filter(Boolean);
+
+                  if (conditions.length === 0) {
+                    return "등록 없음";
+                  }
+
+                  return (
+                    <>
+                      {conditions.slice(0, 2).join(" · ")}
+                      {conditions.length > 2 ? ` 외 ${conditions.length - 2}` : ""}
+                    </>
+                  );
+                })()}
               </dd>
             </div>
             <div className="condition-row">
               <dt>복약 정보</dt>
               <dd>
-                {selectedElder.medications?.length ? (
-                  <ul className="condition-list">
-                    {selectedElder.medications.map((medicine, index) => (
-                      <li key={`${medicine.name}-${index}`}>
-                        {[
-                          medicine.name,
-                          medicine.ongoing
-                            ? `${medicine.startDate || "시작일 미입력"}부터 계속 복용`
-                            : [medicine.startDate, medicine.endDate].filter(Boolean).join(" ~ "),
-                          medicine.interval ? `${medicine.interval}시간마다` : "",
-                          medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" / ")}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  selectedElder.medicineCount || "없음"
-                )}
+                <button
+                  className="medicine-info-text-button"
+                  type="button"
+                  onClick={onOpenMedicineAlert}
+                >
+                  {selectedElder.medications?.length ? (
+                    <ul className="condition-list">
+                      {selectedElder.medications.map((medicine, index) => (
+                        <li key={`${medicine.name}-${index}`}>
+                          {[
+                            medicine.name,
+                            medicine.ongoing
+                              ? `${medicine.startDate || "시작일 미입력"}부터 계속 복용`
+                              : [medicine.startDate, medicine.endDate].filter(Boolean).join(" ~ "),
+                            medicine.interval ? `${medicine.interval}시간마다` : "",
+                            medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" / ")}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    selectedElder.medicineCount || "없음"
+                  )}
+                </button>
               </dd>
             </div>
           </dl>
@@ -391,18 +396,23 @@ function UserPanel({
         <section className="card location-summary">
           <div className="summary-row">
             <span>현재 위치</span>
-            <strong>{hasCurrentLocation ? formatShortAddress(location.address) : "위치 미수신"}</strong>
+            <strong>
+              {hasCurrentLocation ? formatShortAddress(location.address) : "위치 미수신"}
+            </strong>
           </div>
 
           <div className="summary-row">
             <span>마지막 정상 위치</span>
             <strong>
-              {selectedElder.lastNormalLocation ? formatShortAddress(lastNormalLocation.address) : "기록 없음"}
+              {selectedElder.lastNormalLocation
+                ? formatShortAddress(lastNormalLocation.address)
+                : "기록 없음"}
             </strong>
           </div>
 
           <div className="summary-row safe-zone-summary">
             <span>안전 반경 중심</span>
+
             <button
               className={`safe-zone-trigger ${isSafeZoneOpen ? "active" : ""}`}
               type="button"
@@ -410,18 +420,19 @@ function UserPanel({
             >
               <span className="safe-zone-top">
                 <span className="safe-zone-name-row">
-                  <span className="safe-zone-name">{safeZoneForm.name}</span>
+                  <span className="safe-zone-name">{safeZoneForm?.name || "기본구역"}</span>
                   <span className="safe-zone-edit">수정</span>
                 </span>
 
-                {safeZoneForm.address && (
+                {safeZoneForm?.address && (
                   <span className="safe-zone-address">
-                    {formatShortAddress(safeZoneForm.address)}
+                    {formatSafeZoneAddress(safeZoneForm.address)}
                   </span>
                 )}
               </span>
+
               <span className="safe-zone-radius">
-                반경 {safeZoneForm.radiusMeters}m 설정
+                반경 {safeZoneForm?.radiusMeters ?? 500}m 설정
               </span>
             </button>
           </div>
@@ -433,7 +444,11 @@ function UserPanel({
 
             <label>
               장소 이름
-              <input name="name" value={safeZoneForm.name} onChange={onSafeZoneChange} />
+              <input
+                name="name"
+                value={safeZoneForm.name}
+                onChange={onSafeZoneChange}
+              />
             </label>
 
             <label>
@@ -442,7 +457,7 @@ function UserPanel({
                 name="address"
                 value={safeZoneForm.address || ""}
                 onChange={onSafeZoneChange}
-                placeholder="예: 서울특별시 서초구 서초중앙로"
+                placeholder="예: 서울특별시 광진구 자양동"
               />
             </label>
 
@@ -452,9 +467,14 @@ function UserPanel({
                 <input
                   value={safeZoneKeyword}
                   onChange={(event) => setSafeZoneKeyword(event.target.value)}
-                  placeholder={safeZoneForm.address || "예: 서울 서초구 서초중앙로"}
-                  onKeyDown={(event) => event.key === "Enter" && handleSearchSafeZone()}
+                  placeholder={safeZoneForm.address || "예: 자양고등학교"}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      handleSearchSafeZone();
+                    }
+                  }}
                 />
+
                 <button type="button" onClick={handleSearchSafeZone}>
                   {isSearchingSafeZone ? "검색 중" : "검색"}
                 </button>
@@ -463,13 +483,16 @@ function UserPanel({
 
             {safeZoneResults.length > 0 && (
               <div className="safe-zone-results">
-                {safeZoneResults.map((place) => (
+                {safeZoneResults.map((place, index) => (
                   <button
-                    key={`${place.place_id}-${place.lat}-${place.lon}`}
+                    key={`${place.place_id || place.id || index}-${place.lat || place.y}-${place.lon || place.x}`}
                     type="button"
                     onClick={() => handleSelectSafeZone(place)}
                   >
-                    {place.display_name}
+                    {place.display_name ||
+                      place.place_name ||
+                      place.road_address_name ||
+                      place.address_name}
                   </button>
                 ))}
               </div>
@@ -477,7 +500,11 @@ function UserPanel({
 
             <label>
               반경
-              <select name="radiusMeters" value={safeZoneForm.radiusMeters} onChange={onSafeZoneChange}>
+              <select
+                name="radiusMeters"
+                value={safeZoneForm.radiusMeters}
+                onChange={onSafeZoneChange}
+              >
                 <option value={300}>300m</option>
                 <option value={500}>500m</option>
                 <option value={1000}>1km</option>

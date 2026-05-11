@@ -1,11 +1,30 @@
-import { formatCityAddress } from "../../utils/guardian/location";
+import { formatShortAddress } from "../../utils/guardian/location";
 
+const formatPoliceOccurredDate = (value) => {
+  if (!value) {
+    return "실종 일시 정보 없음";
+  }
+
+  const digits = String(value).replace(/\D/g, "");
+
+  if (digits.length >= 12) {
+    return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)} ${digits.slice(8, 10)}:${digits.slice(10, 12)}`;
+  }
+
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)}`;
+  }
+
+  return value;
+};
 
 function EmergencyPanel({
   selectedElder,
   displayedAlerts,
+  policeAlerts,
   routeHistory,
   lastNormalLocation,
+  safeZoneForm,
   isAlertPanelOpen,
   isMissingReportOpen,
   missingDescription,
@@ -14,12 +33,10 @@ function EmergencyPanel({
   setMissingDescription,
   missingImagePreview,
   isSubmittingMissingReport,
-  onOpenAlertPanel,
   onCloseAlertPanel,
   onReadAlert,
   onCallAlert,
   onOpenEmergencyReport,
-  onOpenMissingReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
@@ -31,29 +48,6 @@ function EmergencyPanel({
   return (
     <>
       <aside className="right-panel">
-        <section className="card recent-alerts">
-          <div className="card-header">
-            <h2>최근 알림</h2>
-            <button className="text-button" type="button" onClick={onOpenAlertPanel}>
-              전체보기
-            </button>
-          </div>
-
-          <div className="alert-list">
-            {displayedAlerts.length === 0 ? (
-              <p className="alert-empty">최근 알림이 없습니다.</p>
-            ) : (
-              displayedAlerts.map((alert) => (
-                <article key={alert.id} className="alert-item warning">
-                  <strong>{alert.time}</strong>
-                  <span>{alert.message}</span>
-                  <em>{alert.status}</em>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-
         <section className="card route-card">
           <div className="card-header">
             <h2>
@@ -95,29 +89,89 @@ function EmergencyPanel({
           </ol>
         </section>
 
-        <section className="card report-card">
-          <div className="report-header">
-            <h2>실종 신고</h2>
-            <button className="outline-danger-button" type="button" onClick={onOpenMissingReport}>
-              상세 입력
-            </button>
+        <section className="card safe182-card">
+          <div className="card-header">
+            <h2>안전드림 연계</h2>
           </div>
 
-          <p className="last-seen-label">마지막 목격</p>
-          <strong className="last-seen-place">
-            {selectedElder.lastNormalLocation ? lastNormalLocation.address : "기록 없음"}
-          </strong>
+          <div className="safe182-body">
+            <p>
+              현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
+            </p>
 
-          <button
-            className="report-button"
-            type="button"
-            onClick={async () => {
-              await onCreateMissingReport();
-              window.open("https://www.safe182.go.kr", "_blank");
-            }}
-          >
-            안전드림 연계 신고
-          </button>
+            <div className="safe182-actions">
+              <button
+                type="button"
+                onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
+              >
+                안전드림 열기
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const reportText = [
+                    "[안전드림 신고 참고 정보]",
+                    `대상자: ${selectedElder.name} (${selectedElder.relation})`,
+                    `나이/성별: ${selectedElder.age}세 / ${selectedElder.gender}`,
+                    `연락처: ${selectedElder.phone || "없음"}`,
+                    `현재 위치: ${selectedElder.currentLocation?.address || "위치 미수신"}`,
+                    `마지막 정상 위치: ${lastNormalLocation?.address || "기록 없음"}`,
+                    `안전 반경 중심: ${safeZoneForm?.address || selectedElder.address || "기록 없음"}`,
+                    `안전 반경: ${safeZoneForm?.radiusMeters ?? selectedElder.radius ?? 0}m`,
+                    `현재 상태: ${
+                      selectedElder.currentLocation
+                        ? `안전 반경 이탈 감지 (${distance}m)`
+                        : "위치 미수신"
+                    }`,
+                    `주요 질환: ${selectedElder.condition || "등록 없음"}`,
+                    `복약 정보: ${selectedElder.medicineCount || "없음"}`,
+                    "",
+                    "위 정보는 보호자 앱에서 자동 정리한 신고 참고 정보입니다.",
+                  ].join("\n");
+
+                  navigator.clipboard.writeText(reportText);
+                  alert("안전드림 신고 참고 정보가 복사되었습니다.");
+                }}
+              >
+                신고 정보 복사
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card police-missing-card">
+          <div className="card-header">
+            <h2>경찰청 실종경보</h2>
+          </div>
+
+          <div className="police-missing-list">
+            {!policeAlerts || policeAlerts.length === 0 ? (
+              <p className="alert-empty">등록된 경찰청 실종경보가 없습니다.</p>
+            ) : (
+              policeAlerts.slice(0, 3).map((alert) => (
+                <article key={alert.id} className="police-missing-item">
+                  {alert.photoUrl && (
+                    <img
+                      src={`data:image/jpeg;base64,${alert.photoUrl.replace(/\s/g, "")}`}
+                      alt={`${alert.name} 실종경보 사진`}
+                    />
+                  )}
+
+                  <div>
+                    <strong>{alert.name}</strong>
+                    <span>
+                      {alert.gender}
+                      {alert.ageNow ? ` · 현재 ${alert.ageNow}세` : ""}
+                    </span>
+                    <em>실종 일시: {formatPoliceOccurredDate(alert.occurredDate)}</em>
+                    <em>{alert.occurredAddress || "실종 장소 정보 없음"}</em>
+                    <small>자료 출처: 경찰청</small>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
       </aside>
 
