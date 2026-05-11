@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { STT_API_URL } from "../services/voiceSttApi";
+import { parseDateFromText, parseTimeExpression } from "../services/scheduleParser";
 
 const categories = [
   {
@@ -37,46 +38,6 @@ const categories = [
 
 const hours = Array.from({ length: 12 }, (_, index) => index + 1);
 const minutes = ["00", "30"];
-
-function pad(value) {
-  return String(value).padStart(2, "0");
-}
-
-function todayValue() {
-  const today = new Date();
-  return formatDate(today);
-}
-
-function formatDate(date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function formatDateLabel(dateValue) {
-  if (!dateValue) return "날짜 미선택";
-
-  const date = new Date(`${dateValue}T00:00:00`);
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-}
-
-function timeToFields(time) {
-  if (!time) return { period: "오전", hour: 9, minute: "00" };
-
-  const [rawHour, rawMinute = "00"] = time.split(":");
-  const hour24 = Number(rawHour);
-  const period = hour24 >= 12 ? "오후" : "오전";
-  const hour12 = hour24 % 12 || 12;
-
-  return {
-    period,
-    hour: hour12,
-    minute: rawMinute === "30" ? "30" : "00",
-  };
-}
-
-function getInitialCategoryId(schedule) {
-  const category = categories.find((item) => item.label === schedule?.category);
-  return category?.id || "hospital";
-}
 
 export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
   const initialTime = timeToFields(initialSchedule?.time);
@@ -335,13 +296,18 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
             >
               {recording ? "녹음 종료" : "말로 일정 채우기"}
             </button>
-            {voiceText && <p className="voice-result">인식된 말: {voiceText}</p>}
+            {voiceText && <p className="voice-result">인식한 말: {voiceText}</p>}
             {voiceError && <p className="voice-error">{voiceError}</p>}
           </div>
         </aside>
       </main>
     </section>
   );
+}
+
+function getInitialCategoryId(schedule) {
+  const category = categories.find((item) => item.label === schedule?.category);
+  return category?.id || "hospital";
 }
 
 function getSupportedAudioMimeType() {
@@ -358,43 +324,21 @@ function getSupportedAudioMimeType() {
 function parseVoiceSchedule(text) {
   return {
     date: parseDateFromText(text),
-    ...parseTimeFromText(text),
+    ...parseTimeFromVoice(text),
     categoryId: inferCategoryId(text),
     detail: cleanDetail(text),
   };
 }
 
-function parseDateFromText(text) {
-  const today = new Date();
-  const normalized = text.replace(/\s+/g, " ");
+function parseTimeFromVoice(text) {
+  const parsed = parseTimeExpression(text);
+  if (!parsed) return {};
 
-  if (normalized.includes("모레")) return formatDate(addDays(today, 2));
-  if (normalized.includes("내일")) return formatDate(addDays(today, 1));
-  if (normalized.includes("오늘")) return formatDate(today);
-
-  const monthDayMatch = normalized.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);
-  if (!monthDayMatch) return "";
-
-  const [, month, day] = monthDayMatch;
-  const candidate = new Date(today.getFullYear(), Number(month) - 1, Number(day));
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-  if (candidate < todayStart) candidate.setFullYear(candidate.getFullYear() + 1);
-  return formatDate(candidate);
-}
-
-function parseTimeFromText(text) {
-  const match = text.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
-  if (!match) return {};
-
-  const [, meridiem, rawHour, rawMinute] = match;
-  const hourNumber = Number(rawHour);
-  const minuteNumber = Number(rawMinute || 0);
-
+  const hour24 = Number(parsed.value.slice(0, 2));
   return {
-    period: meridiem || (hourNumber >= 8 && hourNumber <= 11 ? "오전" : "오후"),
-    hour: hourNumber > 12 ? hourNumber - 12 : hourNumber,
-    minute: minuteNumber >= 15 && minuteNumber < 45 ? "30" : "00",
+    period: hour24 >= 12 ? "오후" : "오전",
+    hour: hour24 % 12 || 12,
+    minute: parsed.minute >= 15 && parsed.minute < 45 ? "30" : "00",
   };
 }
 
@@ -409,17 +353,45 @@ function inferCategoryId(text) {
 
 function cleanDetail(text) {
   return text
-    .replace(/오늘|내일|모레/g, "")
+    .replace(/오늘|내일|낼|모레|다음\s*주|이번\s*주|[일월화수목금토]요일/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, "")
-    .replace(/(오전|오후)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, "")
+    .replace(/(오전|오후|아침|저녁|밤|새벽)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, "")
     .replace(/일정|등록|해줘|해주세요|예약해줘|알려줘/g, "")
     .replace(/[,.]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function timeToFields(time) {
+  if (!time) return { period: "오전", hour: 9, minute: "00" };
+
+  const [rawHour, rawMinute = "00"] = time.split(":");
+  const hour24 = Number(rawHour);
+  const period = hour24 >= 12 ? "오후" : "오전";
+  const hour12 = hour24 % 12 || 12;
+
+  return {
+    period,
+    hour: hour12,
+    minute: rawMinute === "30" ? "30" : "00",
+  };
+}
+
+function todayValue() {
+  return formatDate(new Date());
+}
+
+function formatDateLabel(dateValue) {
+  if (!dateValue) return "날짜 미선택";
+
+  const date = new Date(`${dateValue}T00:00:00`);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function formatDate(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function pad(value) {
+  return String(value).padStart(2, "0");
 }

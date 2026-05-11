@@ -181,6 +181,7 @@
   line-height: 1.55;
   word-break: keep-all;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .chat-message.assistant {

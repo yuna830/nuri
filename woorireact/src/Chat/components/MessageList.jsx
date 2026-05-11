@@ -13,7 +13,7 @@ const MessageList = forwardRef(function MessageList(
       ))}
 
       {isLoading && (
-        <div className="chat-message assistant">내용을 확인하는 중이에요...</div>
+        <div className="chat-message assistant">확인하는 중이에요...</div>
       )}
 
       <div ref={messagesEndRef} />

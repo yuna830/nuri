@@ -14,6 +14,7 @@ export default function ChatView({
   messages,
   setMessages,
   savedSchedules,
+  chatSchedules,
   selectedScheduleDate,
   onScheduleDateChange,
   onScheduleOpen,
@@ -42,17 +43,13 @@ export default function ChatView({
   } = useChatFlow({
     messages,
     setMessages,
-    savedSchedules,
+    savedSchedules: chatSchedules,
     onScheduleSave,
     onScheduleUpdate,
     onScheduleDelete,
     speak,
   });
-  const {
-    recording,
-    startRecording,
-    stopRecording,
-  } = useVoiceInput({
+  const { recording, startRecording, stopRecording } = useVoiceInput({
     onRecognized: (recognizedText) => sendMessage(recognizedText, { speak: true }),
     onError: addAssistantMessage,
   });

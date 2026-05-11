@@ -8,6 +8,7 @@ import {
   formatCurrentTimeKorean,
   formatDateKorean,
   formatScheduleBrief,
+  formatScheduleList,
   formatTodayKorean,
   pad,
   scheduleToText,
@@ -40,168 +41,122 @@ export function scheduleFromExtractedIntent(extracted) {
     date,
     time,
     ambiguousTime: timeExpression?.isAmbiguous
-      ? {
-          hour: timeExpression.hour,
-          minute: timeExpression.minute,
-        }
+      ? { hour: timeExpression.hour, minute: timeExpression.minute }
       : null,
     sourceText: extracted.normalizedText,
     createdAt: new Date().toISOString(),
   };
 }
 
-export function getScheduleLookupAnswer(text, savedSchedules) {
-  const normalizedText = normalizeScheduleText(text);
-  if (!isScheduleLookupRequest(normalizedText)) return null;
-
-  const date = parseDateFromText(normalizedText) || todayValue();
-  const matches = savedSchedules.filter((schedule) => schedule.date === date);
-
-  return matches.length > 0
-    ? `${formatDateKorean(date)} 일정은 ${matches.map(formatScheduleBrief).join(", ")}입니다.`
-    : `${formatDateKorean(date)}에는 등록된 일정이 없어요.`;
-}
-
 export function getExtractedScheduleAction(extracted, savedSchedules) {
   if (!extracted || extracted.confidence < 0.65) return null;
 
   if (extracted.intent === "lookup_schedule") {
-    const date =
-      parseDateFromText(extracted.dateText) ||
-      parseDateFromText(extracted.normalizedText) ||
-      todayValue();
-    const matches = savedSchedules.filter((schedule) => schedule.date === date);
-    const answer =
-      matches.length > 0
-        ? `${formatDateKorean(date)} 일정은 ${matches.map(formatScheduleBrief).join(", ")}입니다.`
-        : `${formatDateKorean(date)}에는 등록된 일정이 없어요.`;
-
-    return { type: "answer", answer };
+    return getLookupAction(extracted.normalizedText || extracted.dateText, savedSchedules);
   }
 
   if (extracted.intent === "delete_schedule") {
-    const target = findScheduleByText(
-      savedSchedules,
-      `${extracted.title} ${extracted.normalizedText}`
-    );
-
-    return target
-      ? { type: "delete", target }
-      : {
-          type: "answer",
-          answer: "삭제할 일정을 찾지 못했어요. 일정 이름을 조금 더 정확히 말씀해 주세요.",
-        };
+    return getDeleteAction(`${extracted.title} ${extracted.normalizedText}`, savedSchedules);
   }
 
   if (extracted.intent === "update_schedule") {
-    const target = findScheduleByText(
-      savedSchedules,
-      `${extracted.title} ${extracted.normalizedText}`
+    return getUpdateAction(
+      `${extracted.title} ${extracted.normalizedText} ${extracted.timeText}`,
+      savedSchedules
     );
-    const time =
-      parseTimeFromText(extracted.timeText) ||
-      parseLooseTime(extracted.timeText, target?.time);
-
-    if (!target) {
-      return {
-        type: "answer",
-        answer: "수정할 일정을 찾지 못했어요. 어떤 일정을 바꿀지 다시 말씀해 주세요.",
-      };
-    }
-
-    if (!time) {
-      return {
-        type: "answer",
-        answer: "몇 시로 바꿀지 다시 말씀해 주세요.",
-      };
-    }
-
-    return {
-      type: "update",
-      schedule: {
-        ...target,
-        time,
-        text: scheduleToText({ ...target, time }),
-      },
-    };
   }
 
   return null;
 }
 
-export function getScheduleCommandAction({
-  text,
-  pendingSchedule,
-  savedSchedules,
-}) {
+export function getScheduleCommandAction({ text, pendingSchedule, savedSchedules }) {
   const normalizedText = normalizeScheduleText(text);
-  const timeAnswer = getCurrentDateTimeAnswer(normalizedText);
-  if (timeAnswer) return { type: "answer", answer: timeAnswer };
+  const dateTimeAnswer = getCurrentDateTimeAnswer(normalizedText);
+  if (dateTimeAnswer) return { type: "answer", answer: dateTimeAnswer };
 
-  if (pendingSchedule && isTimeSkipRequest(text)) {
+  if (pendingSchedule && isTimeSkipRequest(normalizedText)) {
     return { type: "savePending", schedule: pendingSchedule };
   }
 
   if (pendingSchedule) {
-    const requestedTime = parseTimeFromText(text);
+    const requestedTime = parseTimeFromText(normalizedText);
     if (requestedTime) {
       return {
         type: "savePending",
-        schedule: {
-          ...pendingSchedule,
-          time: requestedTime,
-        },
+        schedule: { ...pendingSchedule, time: requestedTime, ambiguousTime: null },
       };
     }
   }
 
   if (isScheduleDeleteRequest(normalizedText)) {
-    const dateDeleteAction = getDateDeleteAction(normalizedText, savedSchedules);
-    if (dateDeleteAction) return dateDeleteAction;
-
-    const target = findScheduleByText(savedSchedules, normalizedText);
-    return target
-      ? { type: "delete", target }
-      : {
-          type: "answer",
-          answer: "삭제할 일정을 찾지 못했어요. 일정 이름을 조금 더 정확히 말씀해 주세요.",
-    };
+    return getDeleteAction(normalizedText, savedSchedules);
   }
 
   if (isScheduleUpdateRequest(normalizedText)) {
-    const update = parseScheduleTimeUpdate(normalizedText, savedSchedules);
-    if (!update.target) {
-      return {
-        type: "answer",
-        answer: "수정할 일정을 찾지 못했어요. 어떤 일정을 바꿀지 다시 말씀해 주세요.",
-      };
-    }
-    if (!update.time) {
-      return {
-        type: "answer",
-        answer: "몇 시로 바꿀지 다시 말씀해 주세요.",
-      };
-    }
-
-    return {
-      type: "update",
-      schedule: {
-        ...update.target,
-        time: update.time,
-        text: scheduleToText({ ...update.target, time: update.time }),
-      },
-    };
+    return getUpdateAction(normalizedText, savedSchedules);
   }
 
-  const lookupAnswer = getScheduleLookupAnswer(normalizedText, savedSchedules);
-  if (lookupAnswer) return { type: "answer", answer: lookupAnswer };
+  if (isScheduleLookupRequest(normalizedText)) {
+    return getLookupAction(normalizedText, savedSchedules);
+  }
 
   return null;
 }
 
+function getLookupAction(text, savedSchedules) {
+  const date = parseDateFromText(text) || todayValue();
+  const matches = schedulesByDate(savedSchedules, date);
+
+  return {
+    type: "answer",
+    answer:
+      matches.length > 0
+        ? `${formatDateKorean(date)} 일정입니다.\n${formatScheduleList(matches)}`
+        : `${formatDateKorean(date)}에는 등록된 일정이 없어요.`,
+  };
+}
+
+function getDeleteAction(text, savedSchedules) {
+  const dateDeleteAction = getDateDeleteAction(text, savedSchedules);
+  if (dateDeleteAction) return dateDeleteAction;
+
+  const target = findScheduleByText(savedSchedules, text);
+  return target
+    ? { type: "delete", target }
+    : {
+        type: "answer",
+        answer: "삭제할 일정을 찾지 못했어요. 일정 이름을 조금 더 정확히 말해주세요.",
+      };
+}
+
+function getUpdateAction(text, savedSchedules) {
+  const update = parseScheduleTimeUpdate(text, savedSchedules);
+  if (!update.target) {
+    return {
+      type: "answer",
+      answer: "수정할 일정을 찾지 못했어요. 어떤 일정을 바꿀지 다시 말해주세요.",
+    };
+  }
+  if (!update.time) {
+    return {
+      type: "answer",
+      answer: "몇 시로 바꿀지 다시 말해주세요.",
+    };
+  }
+
+  return {
+    type: "update",
+    schedule: {
+      ...update.target,
+      time: update.time,
+      text: scheduleToText({ ...update.target, time: update.time }),
+    },
+  };
+}
+
 function getCurrentDateTimeAnswer(text) {
   const asksTime = /(지금|현재)?\s*(몇\s*시|시간|시각)/.test(text);
-  const asksToday = /(오늘|현재)?\s*(날짜|며칠|몇\s*일|무슨\s*요일)/.test(text);
+  const asksToday = /(오늘|현재)?\s*(날짜|며칠|무슨\s*요일)/.test(text);
 
   if (asksTime) return `지금은 ${formatCurrentTimeKorean()}입니다.`;
   if (asksToday) return `오늘은 ${formatTodayKorean()}입니다.`;
@@ -211,9 +166,9 @@ function getCurrentDateTimeAnswer(text) {
 
 function getDateDeleteAction(text, savedSchedules) {
   const date = parseDateFromText(text);
-  if (!date || !/일정|거|것/.test(text)) return null;
+  if (!date || !/(일정|거|것)/.test(text)) return null;
 
-  const matches = savedSchedules.filter((schedule) => schedule.date === date);
+  const matches = schedulesByDate(savedSchedules, date);
   if (matches.length === 0) {
     return {
       type: "answer",
@@ -232,13 +187,20 @@ function getDateDeleteAction(text, savedSchedules) {
   };
 }
 
+function schedulesByDate(schedules, date) {
+  return schedules
+    .filter((schedule) => schedule.date === date)
+    .slice()
+    .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+}
+
 function isTimeSkipRequest(text) {
-  return /시간\s*없이|시간은\s*없|그냥\s*등록|바로\s*등록/.test(text);
+  return /시간\s*없이|시간은\s*없어|그냥\s*등록|바로\s*등록/.test(text);
 }
 
 function isScheduleLookupRequest(text) {
   return /일정/.test(text) && (
-    /(뭐|뭐야|있어|알려|확인|보여|브리핑|언제|어떻게)/.test(text) ||
+    /(뭐|뭐야|있어|알려|확인|보여|브리핑|언제|어떻게|요약)/.test(text) ||
     Boolean(parseDateFromText(text))
   );
 }
@@ -267,7 +229,7 @@ function findScheduleByText(schedules, text) {
 }
 
 function parseScheduleTimeUpdate(text, schedules) {
-  const timeMatches = [...text.matchAll(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/g)];
+  const timeMatches = [...text.matchAll(/(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/g)];
   const oldTimeText = timeMatches[0]?.[0] || "";
   const newTimeText = timeMatches[1]?.[0] || oldTimeText;
   const rawOldTime = oldTimeText ? parseTimeFromText(oldTimeText) : "";
@@ -289,8 +251,9 @@ function parseScheduleTimeUpdate(text, schedules) {
 
 function extractScheduleKeywords(text) {
   return text
-    .replace(/(오전|오후)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, " ")
-    .replace(/일정|예약|취소|삭제|지워|빼줘|없애|수정|변경|바꿔|말고|으로|로|해줘|해주세요|줘/g, " ")
+    .replace(/(오전|오후|아침|저녁|밤|새벽)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, " ")
+    .replace(/오늘|내일|모레|다음\s*주|이번\s*주|[일월화수목금토]요일/g, " ")
+    .replace(/일정|예약|취소|삭제|지워|빼줘|없애|수정|변경|바꿔|말고|으로|로|해줘|줘|요약/g, " ")
     .replace(/[,.!?]/g, " ")
     .split(/\s+/)
     .map((word) => word.trim())
@@ -302,19 +265,17 @@ function scheduleToSearchText(schedule) {
 }
 
 function parseLooseTime(text, referenceTime = "") {
-  const match = text.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
-  if (!match) return "";
+  const time = parseTimeExpression(text);
+  if (!time) return "";
 
-  const [, meridiem, rawHour, rawMinute] = match;
-  let hour = Number(rawHour);
-  const minute = Number(rawMinute || 0);
-  const referenceHour = Number(referenceTime.slice(0, 2));
+  if (!time.meridiem && referenceTime) {
+    const referenceHour = Number(referenceTime.slice(0, 2));
+    if (referenceHour >= 12 && time.hour < 12) {
+      return `${pad(time.hour + 12)}:${pad(time.minute)}`;
+    }
+  }
 
-  if (meridiem === "오후" && hour < 12) hour += 12;
-  if (meridiem === "오전" && hour === 12) hour = 0;
-  if (!meridiem && referenceHour >= 12 && hour < 12) hour += 12;
-
-  return `${pad(hour)}:${pad(minute)}`;
+  return time.value;
 }
 
 function isSameLooseTime(scheduleTime, requestedTime) {

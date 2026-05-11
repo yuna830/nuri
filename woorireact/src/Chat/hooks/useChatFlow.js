@@ -2,8 +2,8 @@ import { useState } from "react";
 import { createCareResponse, extractScheduleIntent } from "../services/aiCareService";
 import { getWeatherChatAnswer } from "../services/weatherChatApi";
 import {
-  parseKoreanSchedules,
   normalizeScheduleText,
+  parseKoreanSchedules,
   shouldUseScheduleExtraction,
 } from "../services/scheduleParser";
 import {
@@ -70,42 +70,31 @@ export function useChatFlow({
       }
 
       if (firstSchedule && isPastSchedule(firstSchedule)) {
-        answer(
-          "지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말씀해 주세요.",
-          options
-        );
+        answer("지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말해주세요.", options);
         setPendingSchedule(null);
         return;
       }
 
       if (firstSchedule?.ambiguousTime) {
-        answer(
-          `${scheduleToText(firstSchedule)} 일정으로 이해했어요. 오전과 오후 중 언제인가요?`,
-          options
-        );
+        answer(`${scheduleToText(firstSchedule)} 일정으로 이해했어요. 오전과 오후 중 언제인가요?`, options);
         setPendingSchedule(firstSchedule);
         return;
       }
 
-      if (firstSchedule && !firstSchedule.time) {
-        answer(
-          `${scheduleToText(firstSchedule)} 일정으로 이해했어요. 몇 시로 등록할까요? 시간 없이 등록하시려면 "시간 없이 등록"이라고 말씀해 주세요.`,
-          options
-        );
-        setPendingSchedule(firstSchedule);
+      if (firstSchedule) {
+        await savePendingSchedule(firstSchedule, options);
         return;
       }
 
       const response = await createCareResponse({
         text,
-        schedules: parsedSchedules,
+        schedules: [],
         history: messages,
       });
       answer(response, options);
-      setPendingSchedule(firstSchedule);
     } catch (error) {
       console.error("채팅 응답 오류:", error);
-      answer("응답을 가져오지 못했어요. 잠시 후 다시 시도해주세요.", options);
+      answer("답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.", options);
     } finally {
       setIsLoading(false);
     }
@@ -154,7 +143,7 @@ export function useChatFlow({
     setPendingSchedule(null);
 
     if (options.speak) {
-      speak(`${scheduleToText(schedule)} 일정을 등록했어요.`);
+      speak(`${scheduleToText(schedule)} 일정이 등록됐어요.`);
     }
   }
 
@@ -226,7 +215,7 @@ export function useChatFlow({
 function parseMeridiemChoice(text) {
   const normalized = normalizeScheduleText(text);
   if (/오전|아침|새벽/.test(normalized)) return "오전";
-  if (/오후|저녁|밤|낮/.test(normalized)) return "오후";
+  if (/오후|저녁|밤/.test(normalized)) return "오후";
   return "";
 }
 
