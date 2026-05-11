@@ -158,6 +158,110 @@
   border-bottom: 2px solid #b8d4ba;
 }
 
+.pr-photo-field {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  padding: 1rem;
+  margin-bottom: 1.4rem;
+  border: 1px solid #d4e8d6;
+  border-radius: 14px;
+  background: #fbfdf8;
+}
+
+.pr-photo-picker {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d4e8d6;
+  background: #eef6ef;
+  color: #7a9a7c;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.pr-photo-picker:hover {
+  border-color: #86a788;
+  box-shadow: 0 0 0 4px rgba(134, 167, 136, 0.12);
+  transform: translateY(-1px);
+}
+
+.pr-photo-picker::after {
+  content: "변경";
+  position: absolute;
+  inset: auto 0 0;
+  padding: 0.32rem 0;
+  background: rgba(30, 42, 31, 0.58);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pr-photo-picker:hover::after {
+  opacity: 1;
+}
+
+.pr-photo-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pr-photo-picker input {
+  display: none;
+}
+
+.pr-photo-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-photo-copy strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #1e2a1f;
+  margin-bottom: 0.25rem;
+}
+
+.pr-photo-copy p {
+  font-size: 0.8rem;
+  color: #7a9a7c;
+  line-height: 1.5;
+}
+
+.pr-photo-uploading {
+  color: #48694b;
+  font-weight: 700;
+}
+
+.pr-photo-remove {
+  margin-top: 0.65rem;
+  border: 1px solid #d4e8d6;
+  background: #ffffff;
+  color: #7a9a7c;
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.pr-photo-remove:hover {
+  background: #eef6ef;
+}
+
 .pr-field {
   margin-bottom: 1.1rem;
 }
@@ -293,4 +397,53 @@
   color: #7a9a7c;
   line-height: 1.6;
   margin-bottom: 1.2rem;
+}
+
+.pr-medication-card {
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  background: #fbfdf8;
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.pr-medication-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.pr-medication-head button,
+.pr-add-line-btn {
+  border: 1px solid #d4e8d6;
+  background: #ffffff;
+  color: #7a9a7c;
+  border-radius: 8px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.pr-medication-head button:hover,
+.pr-add-line-btn:hover {
+  background: #eef6ef;
+}
+
+.pr-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: -0.15rem 0 0.9rem;
+  color: #5f7d61;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.pr-inline-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #86a788;
 }

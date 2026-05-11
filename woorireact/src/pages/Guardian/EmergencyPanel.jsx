@@ -14,12 +14,22 @@ function EmergencyPanel({
   onOpenAlertPanel,
   onCloseAlertPanel,
   onReadAlert,
+  onCallAlert,
   onOpenEmergencyReport,
   onOpenMissingReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
+  isCallResultOpen,
+  onCallResolved,
+  onCallNeedsReport,
+  onCloseCallResult,
 }) {
+  const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
+  const lastSeenAddress = selectedElder.lastNormalLocation
+    ? lastNormalLocation.address
+    : "기록 없음";
+
   return (
     <>
       <aside className="right-panel">
@@ -35,8 +45,8 @@ function EmergencyPanel({
             {displayedAlerts.length === 0 ? (
               <p className="alert-empty">최근 알림이 없습니다.</p>
             ) : (
-              displayedAlerts.slice(0, 3).map((alert) => (
-                <article key={alert.id} className="alert-item warning">
+              displayedAlerts.map((alert) => (
+                <article key={alert.id} className={`alert-item ${alert.isSafeZone ? "danger" : "warning"}`}>
                   <strong>{alert.time}</strong>
                   <span>{alert.message}</span>
                   <em>{alert.status}</em>
@@ -48,12 +58,7 @@ function EmergencyPanel({
 
         <section className="card route-card">
           <div className="card-header">
-            <h2>
-              {selectedRouteDate === new Date().toISOString().slice(0, 10)
-                ? "오늘 이동 경로"
-                : "선택 날짜 이동 경로"}
-            </h2>
-
+            <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
             <input
               className="route-date-input"
               type="date"
@@ -96,9 +101,7 @@ function EmergencyPanel({
           </div>
 
           <p className="last-seen-label">마지막 목격</p>
-          <strong className="last-seen-place">
-            {selectedElder.lastNormalLocation ? lastNormalLocation.address : "기록 없음"}
-          </strong>
+          <strong className="last-seen-place">{lastSeenAddress}</strong>
 
           <button
             className="report-button"
@@ -119,7 +122,6 @@ function EmergencyPanel({
             <div className="alert-panel-header">
               <div>
                 <h2>전체 알림</h2>
-                <p>그동안 도착한 보호자 알림입니다.</p>
               </div>
 
               <button className="alert-panel-close" type="button" onClick={onCloseAlertPanel}>
@@ -132,7 +134,7 @@ function EmergencyPanel({
                 <p className="alert-empty">도착한 알림이 없습니다.</p>
               ) : (
                 displayedAlerts.map((alert) => (
-                  <article key={alert.id} className="alert-panel-item">
+                  <article key={alert.id} className={`alert-panel-item ${alert.isSafeZone ? "danger" : ""}`}>
                     <div>
                       <strong>{alert.message}</strong>
                       <span>{alert.time}</span>
@@ -142,11 +144,11 @@ function EmergencyPanel({
                       alert.isSos ? (
                         <div className="alert-actions">
                           <button
-                            className="alert-read-button"
+                            className="alert-call-button"
                             type="button"
-                            onClick={() => onReadAlert(alert.id)}
+                            onClick={() => onCallAlert(alert)}
                           >
-                            조치 완료
+                            전화
                           </button>
 
                           <button
@@ -159,7 +161,7 @@ function EmergencyPanel({
                         </div>
                       ) : (
                         <button
-                          className="alert-read-button"
+                          className={`alert-confirm-button ${alert.isSafeZone ? "danger" : ""}`}
                           type="button"
                           onClick={() => onReadAlert(alert.id)}
                         >
@@ -167,11 +169,42 @@ function EmergencyPanel({
                         </button>
                       )
                     ) : (
-                      <em className="read">확인됨</em>
+                      <em className={alert.status === "신고 완료" ? "reported" : "read"}>
+                        {alert.status}
+                      </em>
                     )}
                   </article>
                 ))
               )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isCallResultOpen && (
+        <div className="call-result-backdrop" onClick={onCloseCallResult}>
+          <section className="call-result-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="call-result-header">
+              <h2>통화 후 상태 선택</h2>
+              <button type="button" onClick={onCloseCallResult}>
+                닫기
+              </button>
+            </div>
+
+            <p className="call-result-text">
+              보호 대상자와 연락이 되었나요?
+              <br />
+              추가 조치가 필요 없다면 확인됨으로 처리하고, 연락이 닿지 않거나 위험 상황이면 긴급 신고를 진행하세요.
+            </p>
+
+            <div className="call-result-actions">
+              <button className="call-resolved-button" type="button" onClick={onCallResolved}>
+                확인됨
+              </button>
+
+              <button className="call-report-button" type="button" onClick={onCallNeedsReport}>
+                긴급 신고
+              </button>
             </div>
           </section>
         </div>
@@ -199,10 +232,7 @@ function EmergencyPanel({
 
               <label>
                 마지막 목격 위치
-                <input
-                  value={selectedElder.lastNormalLocation ? lastNormalLocation.address : "기록 없음"}
-                  readOnly
-                />
+                <input value={lastSeenAddress} readOnly />
               </label>
 
               <label>

@@ -46,6 +46,38 @@ public class AlertController {
 
     @PostMapping("/sos")
     public List<Alert> createSosAlert(@RequestBody SosAlertRequest request) {
+        return createGuardianAlerts(request, "SOS", "SOS 요청", "님이 SOS를 요청했습니다.");
+    }
+
+    @PostMapping("/sos/cancel")
+    public List<Alert> createSosCancelAlert(@RequestBody SosAlertRequest request) {
+        return createGuardianAlerts(request, "SOS_CANCEL", "SOS 잘못 누름", "님이 SOS를 잘못 눌렀다고 알렸습니다.");
+    }
+
+
+    @PostMapping("/call")
+    public List<Alert> createCallAlert(@RequestBody SosAlertRequest request) {
+        return createGuardianAlerts(request, "CALL_REQUEST", "전화 요청", "님에게 보호자가 전화를 요청했습니다.");
+    }
+    @PostMapping("/safe-zone")
+    public List<Alert> createSafeZoneAlert(@RequestBody SosAlertRequest request) {
+        String address = request.address() == null || request.address().isBlank()
+                ? "현재 위치 확인 필요"
+                : request.address();
+        return createGuardianAlerts(
+                request,
+                "SAFE_ZONE",
+                "안전 구역 이탈",
+                "님이 안전 구역을 벗어났습니다. 현재 위치: " + address
+        );
+    }
+
+    private List<Alert> createGuardianAlerts(
+            SosAlertRequest request,
+            String type,
+            String title,
+            String messageSuffix
+    ) {
         Senior senior = seniorRepository.findById(request.seniorId())
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
@@ -61,9 +93,9 @@ public class AlertController {
                     Alert alert = new Alert();
                     alert.setSeniorId(request.seniorId());
                     alert.setGuardianId(link.getGuardianId());
-                    alert.setType("SOS");
-                    alert.setTitle("SOS 도움 요청");
-                    alert.setMessage(senior.getName() + "님이 SOS 도움을 요청했습니다.");
+                    alert.setType(type);
+                    alert.setTitle(title);
+                    alert.setMessage(senior.getName() + messageSuffix);
                     alert.setLatitude(request.latitude());
                     alert.setLongitude(request.longitude());
                     alert.setIsRead(false);
@@ -85,7 +117,9 @@ public class AlertController {
     public record SosAlertRequest(
             Long seniorId,
             Double latitude,
-            Double longitude
+            Double longitude,
+            String address
     ) {
     }
 }
+

@@ -1,37 +1,45 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../../css/user/ProfilePage.css";
+
+import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
+import { uploadProfileImage } from "../../api/userPageApi.js";
+import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
-  WORK_TYPES,
   DAYS,
-  JOB_TYPES,
+  DISABILITY_GRADES,
+  DISABILITY_TYPES,
   JOB_CONDITIONS,
+  JOB_TYPES,
+  MEDICINE_COUNTS,
+  NONE,
   SECTIONS,
-  defaultForm,
-  profileToForm,
-  formToProfile,
+  WORK_TYPES,
   calcBMI,
+  createMedicine,
+  defaultForm,
+  normalizeForm,
+  profileToForm,
+  syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
+import "../../css/user/ProfilePage.css";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [form, setForm] = useState(defaultForm);
   const [saved, setSaved] = useState(false);
   const [activeSection, setActiveSection] = useState("personal");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const savedCurrentSenior = sessionStorage.getItem("currentSenior");
-
         if (savedCurrentSenior) {
           const cachedProfile = JSON.parse(savedCurrentSenior);
           const seniorId = cachedProfile?.senior?.id;
-
           if (seniorId) {
-            const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`);
-
+            const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
             if (response.ok) {
               const freshProfile = await response.json();
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
@@ -41,15 +49,11 @@ export default function ProfilePage() {
           }
         }
 
-        const response = await fetch("http://localhost:8181/api/seniors");
-
+        const response = await fetch("http://localhost:8080/api/seniors");
         if (!response.ok) return;
-
         const profiles = await response.json();
         const latestProfile = profiles[profiles.length - 1];
-
         if (!latestProfile) return;
-
         sessionStorage.setItem("currentSenior", JSON.stringify(latestProfile));
         setForm(profileToForm(latestProfile));
       } catch (error) {
@@ -60,98 +64,245 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  const set = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const toggleArr = (key, value) => {
     setForm((prev) => {
       const arr = prev[key] || [];
-
-      return {
-        ...prev,
-        [key]: arr.includes(value)
-          ? arr.filter((item) => item !== value)
-          : [...arr, value],
-      };
+      return { ...prev, [key]: arr.includes(value) ? arr.filter((item) => item !== value) : [...arr, value] };
     });
+  };
+
+  const setMedicine = (index, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      medications: prev.medications.map((medicine, currentIndex) =>
+        currentIndex === index ? { ...medicine, [key]: value } : medicine
+      ),
+    }));
+  };
+
+  const addMedicine = () => setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] }));
+  const removeMedicine = (index) =>
+    setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
+
+  const handleMedicineCountChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      medicineCount: value,
+      medications: syncMedicationsWithCount(prev.medications, value),
+    }));
   };
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
 
+  const saveProfile = async (nextForm) => {
+    const savedCurrentSenior = sessionStorage.getItem("currentSenior");
+    if (!savedCurrentSenior) throw new Error("수정할 사용자 정보를 찾을 수 없습니다.");
+
+    const profile = JSON.parse(savedCurrentSenior);
+    const seniorId = profile?.senior?.id;
+    if (!seniorId) throw new Error("사용자 ID를 찾을 수 없습니다.");
+
+    const payload = normalizeForm(nextForm);
+    const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error("프로필 수정 실패");
+    const updatedProfile = await response.json();
+    sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+    setForm(profileToForm(updatedProfile));
+    return updatedProfile;
+  };
+
+  const handleProfileImageChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingPhoto(true);
+      const { imageUrl } = await uploadProfileImage(file);
+      const nextForm = { ...form, profileImageUrl: imageUrl };
+      setForm(nextForm);
+      await saveProfile(nextForm);
+    } catch (error) {
+      console.error("프로필 사진 업로드 실패:", error);
+      alert("프로필 사진 업로드에 실패했습니다.");
+    } finally {
+      setUploadingPhoto(false);
+      event.target.value = "";
+    }
+  };
+
   const handleSave = async () => {
     try {
-      const savedCurrentSenior = sessionStorage.getItem("currentSenior");
-
-      if (!savedCurrentSenior) {
-        alert("수정할 사용자 정보를 찾을 수 없습니다.");
-        return;
-      }
-
-      const profile = JSON.parse(savedCurrentSenior);
-      const seniorId = profile?.senior?.id;
-
-      if (!seniorId) {
-        alert("사용자 ID를 찾을 수 없습니다.");
-        return;
-      }
-
-      const response = await fetch(`http://localhost:8181/api/seniors/${seniorId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (!response.ok) {
-        throw new Error("프로필 수정 실패");
-      }
-
-      const updatedProfile = await response.json();
-
-      sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+      await saveProfile(form);
       setSaved(true);
-
-      setTimeout(() => {
-        navigate("/user");
-      }, 700);
+      setTimeout(() => navigate("/user"), 700);
     } catch (error) {
       console.error("프로필 수정 실패:", error);
-      alert("정보 수정에 실패했습니다.");
+      alert(error.message || "정보 수정에 실패했습니다.");
     }
   };
 
-  const handleReset = () => {
-    if (window.confirm("입력한 정보를 모두 초기화하시겠습니까?")) {
-      setForm(defaultForm);
-    }
-  };
+  const renderSection = () => {
+    switch (activeSection) {
+      case "personal":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">인적사항</div>
+            <ProfilePhotoPicker
+              classPrefix="pr"
+              imageUrl={form.profileImageUrl}
+              uploading={uploadingPhoto}
+              onChange={handleProfileImageChange}
+              onRemove={() => set("profileImageUrl", "")}
+              alt="프로필 사진"
+            />
+            <InputField label="이름" value={form.name} onChange={(value) => set("name", value)} />
+            <div className="pr-row">
+              <InputField label="나이" type="number" value={form.age} onChange={(value) => set("age", value)} />
+              <SelectField label="성별" value={form.gender} options={["", "여성", "남성", "기타"]} labels={{ "": "선택" }} onChange={(value) => set("gender", value)} />
+            </div>
+            <div className="pr-row">
+              <InputField label="시/도" value={form.city} onChange={(value) => set("city", value)} />
+              <InputField label="구/군" value={form.district} onChange={(value) => set("district", value)} />
+            </div>
+            <div className="pr-row">
+              <InputField label="동" value={form.dong} onChange={(value) => set("dong", value)} />
+              <InputField label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} />
+            </div>
+            <div className="pr-row">
+              <InputField label="연락처" value={form.phone} onChange={(value) => set("phone", formatPhoneNumber(value))} />
+              <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} onChange={(value) => set("disabilityGrade", value)} />
+            </div>
+            <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} onChange={(value) => set("disabilityType", value)} />
+          </section>
+        );
 
-  const scrollTo = (id) => {
-    setActiveSection(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      case "body":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">신체정보</div>
+            <div className="pr-row">
+              <InputField label="키(cm)" type="number" value={form.height} onChange={(value) => set("height", value)} />
+              <InputField label="몸무게(kg)" type="number" value={form.weight} onChange={(value) => set("weight", value)} />
+            </div>
+            {bmi && (
+              <div className="pr-bmi-box">
+                <div><div className="pr-bmi-label">BMI</div><div className="pr-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
+                <div><div className="pr-bmi-label">판정</div><div className="pr-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
+              </div>
+            )}
+            <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
+            <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+          </section>
+        );
+
+      case "medication":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">복약정보</div>
+            <ChipField label="현재 복용 중인 약 개수" value={form.medicineCount} options={MEDICINE_COUNTS} onSelect={handleMedicineCountChange} />
+            {form.medications.map((medicine, index) => (
+              <div className="pr-medication-card" key={`medicine-${index}`}>
+                <div className="pr-medication-head">
+                  <strong>복용 약 {index + 1}</strong>
+                  <button type="button" onClick={() => removeMedicine(index)}>삭제</button>
+                </div>
+                <InputField label="약 이름" value={medicine.name} onChange={(value) => setMedicine(index, "name", value)} />
+                <div className="pr-row">
+                  <InputField label="복용 시작일" type="date" value={medicine.startDate} onChange={(value) => setMedicine(index, "startDate", value)} />
+                  <InputField label="복용 종료일" type="date" value={medicine.endDate} onChange={(value) => setMedicine(index, "endDate", value)} disabled={medicine.ongoing} />
+                </div>
+                <label className="pr-inline-check">
+                  <input
+                    type="checkbox"
+                    checked={medicine.ongoing}
+                    onChange={(event) => {
+                      setMedicine(index, "ongoing", event.target.checked);
+                      if (event.target.checked) setMedicine(index, "endDate", "");
+                    }}
+                  />
+                  <span>계속 복용 중이라 종료일이 없어요</span>
+                </label>
+                <div className="pr-row">
+                  <InputField label="복용 간격(시간)" type="number" value={medicine.interval} onChange={(value) => setMedicine(index, "interval", value)} />
+                  <InputField label="하루 복용 횟수" type="number" value={medicine.dailyCount} onChange={(value) => setMedicine(index, "dailyCount", value)} />
+                </div>
+              </div>
+            ))}
+            <button className="pr-add-line-btn" type="button" onClick={addMedicine}>+ 복용 약 추가</button>
+          </section>
+        );
+
+      case "chronic":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">만성질환</div>
+            <div className="pr-hint">의학적 등급보다 실제 생활 기준에 맞춰 선택해주세요.</div>
+            {CHRONIC.map(({ key, label, levels }) => (
+              <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
+            ))}
+          </section>
+        );
+
+      case "mobility":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">거동/인지/감각</div>
+            <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} onSelect={(value) => set("walkingAid", value)} />
+            <ChipField label="치매/인지 어려움" value={form.dementia} options={[NONE, "경도", "중증"]} onSelect={(value) => set("dementia", value)} />
+            <ChipField label="시력 어려움" value={form.vision} options={[NONE, "경도", "중증", "실명"]} onSelect={(value) => set("vision", value)} />
+            <ChipField label="청력 어려움" value={form.hearing} options={[NONE, "경도", "중증"]} onSelect={(value) => set("hearing", value)} />
+            <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
+            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} onSelect={(value) => set("hasSurgery", value)} />
+            {form.hasSurgery === "있음" && <TextareaField label="수술 내용" value={form.surgeryDetail} onChange={(value) => set("surgeryDetail", value)} />}
+            <TextareaField label="기타 건강 참고사항" value={form.otherDisease} onChange={(value) => set("otherDisease", value)} />
+          </section>
+        );
+
+      case "activity":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">활동 조건</div>
+            <div className="pr-row">
+              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} onChange={(value) => set("maxDistance", value)} />
+            </div>
+            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+          </section>
+        );
+
+      case "job":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">일자리 희망 조건</div>
+            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+            <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
+            <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
+            <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />
+            <TextareaField label="기타 희망사항" value={form.memo} onChange={(value) => set("memo", value)} rows={4} />
+          </section>
+        );
+
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="pr-root">
       <nav className="pr-nav">
-        <button className="pr-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-
+        <button className="pr-nav-back" type="button" onClick={() => navigate("/user")}>돌아가기</button>
         <div className="pr-nav-title">내 정보 관리</div>
-
         <div className="pr-nav-actions">
           {saved && <div className="pr-saved-badge">저장되었습니다</div>}
-
-          <button className="pr-reset-btn" type="button" onClick={handleReset}>
-            초기화
-          </button>
-
-          <button className="pr-save-btn" type="button" onClick={handleSave}>
-            저장하기
-          </button>
+          <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>초기화</button>
+          <button className="pr-save-btn" type="button" onClick={handleSave}>저장하기</button>
         </div>
       </nav>
 
@@ -159,318 +310,69 @@ export default function ProfilePage() {
         <aside>
           <div className="pr-sidenav">
             {SECTIONS.map((section) => (
-              <button
-                key={section.id}
-                className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""}`}
-                type="button"
-                onClick={() => scrollTo(section.id)}
-              >
+              <button key={section.id} className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""}`} type="button" onClick={() => setActiveSection(section.id)}>
                 {section.label}
               </button>
             ))}
           </div>
         </aside>
 
-        <main className="pr-main">
-          <section id="personal" className="pr-section">
-            <div className="pr-section-title">인적사항</div>
+        <main className="pr-main">{renderSection()}</main>
+      </div>
+    </div>
+  );
+}
 
-            <div className="pr-field">
-              <label className="pr-label">이름</label>
-              <input className="pr-input" value={form.name} onChange={(event) => set("name", event.target.value)} />
-            </div>
+function InputField({ label, value, onChange, type = "text", readOnly = false, disabled = false }) {
+  return (
+    <div className="pr-field">
+      <label className="pr-label">{label}</label>
+      <input className="pr-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} readOnly={readOnly} disabled={disabled} />
+    </div>
+  );
+}
 
-            <div className="pr-row">
-              <div className="pr-field">
-                <label className="pr-label">나이</label>
-                <input className="pr-input" type="number" value={form.age} onChange={(event) => set("age", event.target.value)} />
-              </div>
+function TextareaField({ label, value, onChange, rows = 3 }) {
+  return (
+    <div className="pr-field">
+      <label className="pr-label">{label}</label>
+      <textarea className="pr-input pr-textarea" value={value} onChange={(event) => onChange(event.target.value)} rows={rows} />
+    </div>
+  );
+}
 
-              <div className="pr-field">
-                <label className="pr-label">성별</label>
-                <select className="pr-select" value={form.gender} onChange={(event) => set("gender", event.target.value)}>
-                  <option value="">선택</option>
-                  <option value="남성">남성</option>
-                  <option value="여성">여성</option>
-                </select>
-              </div>
-            </div>
+function SelectField({ label, value, options, labels = {}, onChange }) {
+  return (
+    <div className="pr-field">
+      <label className="pr-label">{label}</label>
+      <select className="pr-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => <option key={option} value={option}>{labels[option] ?? option}</option>)}
+      </select>
+    </div>
+  );
+}
 
-            <div className="pr-field">
-              <label className="pr-label">거주지 (시·군·구)</label>
-              <input className="pr-input" value={form.region} onChange={(event) => set("region", event.target.value)} />
-            </div>
+function ChipField({ label, value, options, onSelect }) {
+  return (
+    <div className="pr-field">
+      <label className="pr-label">{label}</label>
+      <div className="pr-chip-group">
+        {options.map((option) => (
+          <button key={option} className={`pr-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(option)}>{option}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-            <div className="pr-row">
-              <div className="pr-field">
-                <label className="pr-label">연락처</label>
-                <input className="pr-input" value={form.phone} onChange={(event) => set("phone", event.target.value)} />
-              </div>
-
-              <div className="pr-field">
-                <label className="pr-label">장애 등급 (해당 시)</label>
-                <div className="pr-chip-group">
-                  {["없음", "1급", "2급", "3급", "4급", "5급", "6급"].map((value) => (
-                    <button
-                      key={value}
-                      className={`pr-chip ${form.disabilityGrade === value ? "on" : ""}`}
-                      type="button"
-                      onClick={() => set("disabilityGrade", value)}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="body" className="pr-section">
-            <div className="pr-section-title">기본 신체정보</div>
-
-            <div className="pr-row">
-              <div className="pr-field">
-                <label className="pr-label">키 (cm)</label>
-                <input className="pr-input" type="number" value={form.height} onChange={(event) => set("height", event.target.value)} />
-              </div>
-
-              <div className="pr-field">
-                <label className="pr-label">체중 (kg)</label>
-                <input className="pr-input" type="number" value={form.weight} onChange={(event) => set("weight", event.target.value)} />
-              </div>
-            </div>
-
-            {bmi && (
-              <div className="pr-bmi-box">
-                <div>
-                  <div className="pr-bmi-label">BMI 지수</div>
-                  <div className="pr-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div>
-                </div>
-
-                <div>
-                  <div className="pr-bmi-label">판정</div>
-                  <div className="pr-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div>
-                </div>
-
-                <div className="pr-bmi-guide">
-                  저체중: 18.5 미만<br />
-                  정상: 18.5 ~ 22.9<br />
-                  과체중: 23 ~ 24.9<br />
-                  비만: 25 이상
-                </div>
-              </div>
-            )}
-
-            <div className="pr-row pr-row-spaced">
-              <div className="pr-field">
-                <label className="pr-label">흡연 여부</label>
-                <div className="pr-chip-group">
-                  {["없음 (비흡연)", "과거 흡연 (현재 금연)", "흡연 중"].map((value) => (
-                    <button key={value} className={`pr-chip ${form.smoking === value ? "on" : ""}`} type="button" onClick={() => set("smoking", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pr-field">
-                <label className="pr-label">음주 여부</label>
-                <div className="pr-chip-group">
-                  {["없음 (금주)", "가끔 (월 1~2회)", "자주 (주 1회 이상)"].map((value) => (
-                    <button key={value} className={`pr-chip ${form.drinking === value ? "on" : ""}`} type="button" onClick={() => set("drinking", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">현재 복용 중인 약 개수</label>
-              <div className="pr-chip-group">
-                {["없음", "1~2개", "3~5개", "6개 이상"].map((value) => (
-                  <button key={value} className={`pr-chip ${form.medicineCount === value ? "on" : ""}`} type="button" onClick={() => set("medicineCount", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section id="chronic" className="pr-section">
-            <div className="pr-section-title">만성질환 여부</div>
-            <div className="pr-hint">
-              해당하는 항목의 정도를 선택해주세요. 잘 모르시면 경증을 선택하시고, 의사 진단을 기준으로 선택해주세요.
-            </div>
-
-            {CHRONIC.map(({ key, label, levels }) => (
-              <div key={key} className="pr-disease-row">
-                <span className="pr-disease-label">{label}</span>
-
-                <div className="pr-chip-group">
-                  {levels.map((level) => (
-                    <button key={level} className={`pr-chip ${form[key] === level ? "on" : ""}`} type="button" onClick={() => set(key, level)}>
-                      {level}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
-
-          <section id="mobility" className="pr-section">
-            <div className="pr-section-title">거동 · 인지 · 감각</div>
-
-            {[
-              { key: "walkingAid", label: "보행 보조기구 사용", options: ["없음 (스스로 보행 가능)", "지팡이", "보행기", "휠체어"] },
-              { key: "dementia", label: "치매 · 인지장애", options: ["없음", "경도인지장애 (건망증 심함)", "치매 초기", "치매 중증"] },
-              { key: "vision", label: "시력 이상", options: ["없음", "경증 (안경·렌즈 착용)", "중증 (일상생활 불편)", "실명"] },
-              { key: "hearing", label: "청력 이상", options: ["없음", "경증 (보청기 착용)", "중증 (대화 어려움)"] },
-            ].map(({ key, label, options }) => (
-              <div key={key} className="pr-disease-row">
-                <span className="pr-disease-label">{label}</span>
-
-                <div className="pr-chip-group">
-                  {options.map((value) => (
-                    <button key={value} className={`pr-chip ${form[key] === value ? "on" : ""}`} type="button" onClick={() => set(key, value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
-
-          <section id="surgery" className="pr-section">
-            <div className="pr-section-title">낙상 · 수술 이력</div>
-
-            <div className="pr-disease-row">
-              <span className="pr-disease-label">최근 1년 내 낙상 경험</span>
-              <div className="pr-chip-group">
-                {["없음", "1회", "2~3회", "4회 이상"].map((value) => (
-                  <button key={value} className={`pr-chip ${form.recentFall === value ? "on" : ""}`} type="button" onClick={() => set("recentFall", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pr-disease-row">
-              <span className="pr-disease-label">수술을 받으신 적이 있으신가요?</span>
-              <div className="pr-chip-group">
-                {["없음", "있음"].map((value) => (
-                  <button key={value} className={`pr-chip ${form.hasSurgery === value ? "on" : ""}`} type="button" onClick={() => set("hasSurgery", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {form.hasSurgery === "있음" && (
-              <div className="pr-field">
-                <label className="pr-label">어떤 수술을 받으셨나요?</label>
-                <textarea className="pr-input pr-textarea" value={form.surgeryDetail} onChange={(event) => set("surgeryDetail", event.target.value)} rows={3} />
-              </div>
-            )}
-
-            <div className="pr-field">
-              <label className="pr-label">기타 특이사항</label>
-              <textarea className="pr-input pr-textarea" value={form.otherDisease} onChange={(event) => set("otherDisease", event.target.value)} rows={2} />
-            </div>
-          </section>
-
-          <section id="activity" className="pr-section">
-            <div className="pr-section-title">활동 조건</div>
-
-            <div className="pr-row">
-              <div className="pr-field">
-                <label className="pr-label">하루 최대 활동 가능 시간</label>
-                <select className="pr-select" value={form.maxHours} onChange={(event) => set("maxHours", event.target.value)}>
-                  <option value="">선택해주세요</option>
-                  <option value="2">2시간 이내</option>
-                  <option value="4">4시간 이내</option>
-                  <option value="6">6시간 이내</option>
-                  <option value="8">8시간 이내</option>
-                </select>
-              </div>
-
-              <div className="pr-field">
-                <label className="pr-label">이동 가능 거리</label>
-                <select className="pr-select" value={form.maxDistance} onChange={(event) => set("maxDistance", event.target.value)}>
-                  <option value="">선택해주세요</option>
-                  <option value="도보 10분">도보 10분 이내</option>
-                  <option value="도보 30분">도보 30분 이내</option>
-                  <option value="대중교통 30분">대중교통 30분 이내</option>
-                  <option value="대중교통 1시간">대중교통 1시간 이내</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">하기 어려운 작업 유형</label>
-              <div className="pr-chip-group">
-                {WORK_TYPES.map((value) => (
-                  <button key={value} className={`pr-chip ${(form.disabledWork || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("disabledWork", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section id="job" className="pr-section">
-            <div className="pr-section-title">일자리 희망 조건</div>
-
-            <div className="pr-field">
-              <label className="pr-label">희망 급여 형태</label>
-              <div className="pr-chip-group">
-                {["무관", "시급", "월급", "일당"].map((value) => (
-                  <button key={value} className={`pr-chip ${form.payType === value ? "on" : ""}`} type="button" onClick={() => set("payType", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">희망 근무 요일</label>
-              <div className="pr-chip-group">
-                {DAYS.map((value) => (
-                  <button key={value} className={`pr-chip ${(form.hopeDays || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeDays", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">희망 직종</label>
-              <div className="pr-chip-group">
-                {JOB_TYPES.map((value) => (
-                  <button key={value} className={`pr-chip ${(form.hopeJobType || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeJobType", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">희망 근무 형태</label>
-              <div className="pr-chip-group">
-                {JOB_CONDITIONS.map((value) => (
-                  <button key={value} className={`pr-chip ${(form.hopeCondition || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeCondition", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pr-field">
-              <label className="pr-label">기타 희망 사항</label>
-              <textarea className="pr-input pr-textarea" value={form.memo} onChange={(event) => set("memo", event.target.value)} rows={4} />
-            </div>
-          </section>
-        </main>
+function MultiChipField({ label, values, options, onToggle }) {
+  return (
+    <div className="pr-field">
+      <label className="pr-label">{label}</label>
+      <div className="pr-chip-group">
+        {options.map((option) => (
+          <button key={option} className={`pr-chip ${(values || []).includes(option) ? "on" : ""}`} type="button" onClick={() => onToggle(option)}>{option}</button>
+        ))}
       </div>
     </div>
   );

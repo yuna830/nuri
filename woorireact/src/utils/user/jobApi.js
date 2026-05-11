@@ -1,6 +1,9 @@
 const SERVICE_KEY =
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
+const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+const jobListCache = new Map();
+
 export const EMPL_MAP = {
   CM0101: "정규직",
   CM0102: "계약직",
@@ -17,13 +20,57 @@ export const EMPL_COLOR = {
   CM0105: { bg: "#f0f0f0", color: "#555555" },
 };
 
-export const FILTERS = [
-  { label: "전체", value: "" },
-  { label: "정규직", value: "CM0101" },
-  { label: "계약직", value: "CM0102" },
-  { label: "시간제", value: "CM0103" },
-  { label: "일당직", value: "CM0104" },
+export const JOB_CATEGORY_FILTERS = [
+  { label: "전체", value: "", keywords: [] },
+  { label: "환경미화", value: "환경미화", keywords: ["미화", "청소", "환경"] },
+  { label: "경비·보안", value: "경비", keywords: ["경비", "보안", "안전"] },
+  { label: "요양·돌봄", value: "요양", keywords: ["요양", "돌봄", "간병", "보호"] },
+  { label: "사무보조", value: "사무보조", keywords: ["사무", "행정", "전산", "문서"] },
+  { label: "생산·제조", value: "생산", keywords: ["생산", "제조", "포장", "조립"] },
+  { label: "운전·배달", value: "운전", keywords: ["운전", "배송", "배달", "택배"] },
+  { label: "조리·식품", value: "조리", keywords: ["조리", "급식", "식당", "주방"] },
+  { label: "물류·유통", value: "물류", keywords: ["물류", "유통", "매장", "판매"] },
+  { label: "기타", value: "기타", keywords: [] },
 ];
+
+const readJobCache = (cacheKey) => {
+  const memoryCached = jobListCache.get(cacheKey);
+  if (memoryCached && Date.now() - memoryCached.savedAt < JOB_CACHE_TTL_MS) {
+    return memoryCached.data;
+  }
+
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(`job-list:${cacheKey}`) || "null");
+    if (cached && Date.now() - cached.savedAt < JOB_CACHE_TTL_MS) {
+      jobListCache.set(cacheKey, cached);
+      return cached.data;
+    }
+  } catch {
+    // Cache is optional.
+  }
+
+  return null;
+};
+
+const writeJobCache = (cacheKey, data) => {
+  const cached = { savedAt: Date.now(), data };
+  jobListCache.set(cacheKey, cached);
+
+  try {
+    sessionStorage.setItem(`job-list:${cacheKey}`, JSON.stringify(cached));
+  } catch {
+    // Ignore storage failure.
+  }
+};
+
+export const categorizeJob = (job) => {
+  const text = `${job.recrtTitle || ""} ${job.jobclsNm || ""} ${job.detCnts || ""}`;
+  for (const category of JOB_CATEGORY_FILTERS) {
+    if (!category.keywords.length) continue;
+    if (category.keywords.some((keyword) => text.includes(keyword))) return category.label;
+  }
+  return "기타";
+};
 
 export const formatDate = (dateText) => {
   if (!dateText || dateText.length < 8) return "-";
@@ -58,28 +105,32 @@ export const parseJobList = (xmlText) => {
   };
 };
 
-export const fetchJobList = async (pageNo = 1, emplymShp = "") => {
-  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=12`;
+export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
+  const cacheKey = `${pageNo}-${emplymShp}-${numOfRows}`;
+  const cached = readJobCache(cacheKey);
+  if (cached) return cached;
 
-  if (emplymShp) {
-    url += `&emplymShp=${emplymShp}`;
-  }
+  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
+  if (emplymShp) url += `&emplymShp=${emplymShp}`;
 
   const response = await fetch(url);
-  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Job API failed: ${response.status}`);
+  }
 
-  return parseJobList(text);
+  const text = await response.text();
+  const data = parseJobList(text);
+  writeJobCache(cacheKey, data);
+  return data;
 };
 
 export const getSavedJobProfile = () => {
   try {
     const currentSenior = sessionStorage.getItem("currentSenior");
-
     if (currentSenior) {
       const profile = JSON.parse(currentSenior);
       const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
-
       return {
         maxHours: healthInfo.maxHours,
         maxDistance: healthInfo.maxDistance,

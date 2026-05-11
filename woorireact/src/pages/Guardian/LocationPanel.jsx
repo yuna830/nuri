@@ -1,37 +1,5 @@
-import { useEffect } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  Circle,
-  Polyline,
-  useMap,
-} from "react-leaflet";
 import { RefreshCw } from "lucide-react";
-import L from "leaflet";
-
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-delete L.Icon.Default.prototype._getIconUrl;
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
-
-function RecenterMap({ center }) {
-  const map = useMap();
-
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
-
-  return null;
-}
+import KakaoMap from "../../components/KakaoMap.jsx";
 
 function LocationPanel({
   selectedElder,
@@ -45,6 +13,16 @@ function LocationPanel({
   isRefreshingLocation,
   onRefreshLocation,
 }) {
+  const center = { lat: mapCenter[0], lng: mapCenter[1] };
+  const route = routeHistory.length > 1
+    ? routeHistory
+    : hasCurrentLocation
+      ? [
+          { lat: safeZoneForm.centerLatitude, lng: safeZoneForm.centerLongitude },
+          { lat: location.lat, lng: location.lng },
+        ]
+      : [];
+
   return (
     <section className="card map-card">
       <div className="card-header">
@@ -60,60 +38,32 @@ function LocationPanel({
           >
             <RefreshCw size={18} strokeWidth={2.2} />
           </button>
-
-          <button className="subtle-button" type="button">
-            전체화면
-          </button>
         </div>
       </div>
 
       <div className="real-map-area">
-        <MapContainer center={mapCenter} zoom={16} scrollWheelZoom className="leaflet-map">
-          <RecenterMap center={mapCenter} />
-
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-
-          <Circle
-            center={[safeZoneForm.centerLatitude, safeZoneForm.centerLongitude]}
-            radius={safeZoneForm.radiusMeters}
-            pathOptions={{
-              color: "#4F6F52",
-              fillColor: "#86A788",
-              fillOpacity: 0.15,
-            }}
-          />
-
-          <Marker position={[safeZoneForm.centerLatitude, safeZoneForm.centerLongitude]}>
-            <Popup>{safeZoneForm.name} 안전 반경 중심</Popup>
-          </Marker>
-
-          {hasCurrentLocation && (
-            <Marker position={[location.lat, location.lng]}>
-              <Popup>
-                {selectedElder.name} 현재 위치
-                <br />
-                {distance}m 거리
-              </Popup>
-            </Marker>
+        <KakaoMap
+          center={center}
+          zoom={4}
+          className="leaflet-map"
+          safeZone={safeZoneForm}
+          currentLocation={hasCurrentLocation ? location : null}
+          currentLabel={`${selectedElder.name} 현재 위치<br />${distance}m 거리`}
+          safeZoneLabel={`${safeZoneForm.name} 안전 반경 중심`}
+          route={route}
+          showRoute={isRouteVisible && hasCurrentLocation}
+          fallback={(
+            <div className="leaflet-map" style={{
+              display: "grid",
+              placeItems: "center",
+              background: "#eef6ef",
+              color: "#5f7d61",
+              fontWeight: 700,
+            }}>
+              카카오맵 JavaScript 키를 확인해 주세요.
+            </div>
           )}
-
-          {isRouteVisible && hasCurrentLocation && (
-            <Polyline
-              positions={
-                routeHistory.length > 1
-                  ? routeHistory.map((point) => [point.lat, point.lng])
-                  : [
-                      [safeZoneForm.centerLatitude, safeZoneForm.centerLongitude],
-                      [location.lat, location.lng],
-                    ]
-              }
-              pathOptions={{ color: "#C93A32", weight: 4 }}
-            />
-          )}
-        </MapContainer>
+        />
       </div>
     </section>
   );

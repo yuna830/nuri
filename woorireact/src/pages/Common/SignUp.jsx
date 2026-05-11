@@ -1,88 +1,28 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
+import { uploadProfileImage } from "../../api/userPageApi.js";
+import { formatPhoneNumber } from "../../utils/common/phone.js";
+import {
+  CHRONIC,
+  DAYS,
+  DISABILITY_GRADES,
+  DISABILITY_TYPES,
+  JOB_CONDITIONS,
+  JOB_TYPES,
+  MEDICINE_COUNTS,
+  NONE,
+  WORK_TYPES,
+  calcBMI,
+  createMedicine,
+  defaultForm,
+  normalizeForm,
+  syncMedicationsWithCount,
+} from "../../utils/user/profileForm.js";
 import "../../css/common/SignUp.css";
 
-const WORK_TYPES = ["장시간 서기", "야외 작업", "야간 근무", "중량물 운반", "컴퓨터 작업", "계단 이동", "반복 작업", "고객 응대"];
-const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
-const STEPS = ["인적사항", "신체 · 건강정보", "일자리 희망조건"];
-
-const CHRONIC = [
-  { key: "diabetes", label: "🩸 당뇨", levels: ["없음", "경증 (식이요법·경구약)", "중증 (인슐린 투여)"] },
-  { key: "hypertension", label: "💊 고혈압", levels: ["없음", "경증 (약 복용·조절 중)", "중증 (합병증 있음)"] },
-  { key: "heart", label: "❤️ 심장질환", levels: ["없음", "경증 (부정맥·협심증 등)", "중증 (심부전·수술 이력)"] },
-  { key: "joint", label: "🦴 관절질환 (무릎·허리)", levels: ["없음", "경증 (가끔 통증·약 복용)", "중증 (보조기구·수술 이력)"] },
-  { key: "stroke", label: "🧠 뇌졸중·중풍", levels: ["없음", "경증 (후유증 경미)", "중증 (마비·언어장애 등)"] },
-  { key: "kidney", label: "🫘 신장질환", levels: ["없음", "경증 (신기능 저하)", "중증 (투석 중)"] },
-  { key: "lung", label: "🫁 폐·호흡기 질환", levels: ["없음", "경증 (천식·만성기관지염)", "중증 (COPD·산소호흡기)"] },
-  { key: "liver", label: "🟡 간질환", levels: ["없음", "경증 (지방간·간염 보균)", "중증 (간경화·간암)"] },
-  { key: "cancer", label: "🎗 암 (과거·현재)", levels: ["없음", "완치·관리 중", "치료 중 (항암·방사선 등)"] },
-];
-
-const defaultForm = {
-  name: "",
-  age: "",
-  gender: "",
-  region: "",
-  phone: "",
-  disabilityGrade: "없음",
-  height: "",
-  weight: "",
-  smoking: "없음",
-  drinking: "없음",
-  medicineCount: "없음",
-  diabetes: "없음",
-  hypertension: "없음",
-  heart: "없음",
-  joint: "없음",
-  stroke: "없음",
-  kidney: "없음",
-  lung: "없음",
-  liver: "없음",
-  cancer: "없음",
-  walkingAid: "없음 (스스로 보행 가능)",
-  dementia: "없음",
-  vision: "없음",
-  hearing: "없음",
-  recentFall: "없음",
-  hasSurgery: "없음",
-  surgeryDetail: "",
-  otherDisease: "",
-  maxHours: "",
-  maxDistance: "",
-  disabledWork: [],
-  payType: "무관",
-  hopeDays: [],
-  hopeJobType: [],
-  hopeCondition: [],
-  memo: "",
-};
-
-const calcBMI = (height, weight) => {
-  const h = parseFloat(height) / 100;
-  const w = parseFloat(weight);
-
-  if (!h || !w) return null;
-
-  const bmi = (w / (h * h)).toFixed(1);
-  let status = "";
-  let color = "#86A788";
-
-  if (bmi < 18.5) {
-    status = "저체중";
-    color = "#f0a500";
-  } else if (bmi < 23) {
-    status = "정상";
-  } else if (bmi < 25) {
-    status = "과체중";
-    color = "#f0a500";
-  } else {
-    status = "비만";
-    color = "#e05252";
-  }
-
-  return { bmi, status, color };
-};
+const STEPS = ["기본 정보", "건강/복약", "보호/일자리"];
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -90,47 +30,82 @@ export default function SignUp() {
   const [form, setForm] = useState(() => {
     try {
       const temp = localStorage.getItem("login_temp");
-
-      if (temp) {
-        const { name, phone } = JSON.parse(temp);
-        return { ...defaultForm, name, phone };
-      }
+      if (!temp) return defaultForm;
+      const { name, phone } = JSON.parse(temp);
+      return { ...defaultForm, name: name || "", phone: phone || "" };
     } catch {
       return defaultForm;
     }
-
-    return defaultForm;
   });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  const set = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+
+  const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const toggleArr = (key, value) => {
     setForm((prev) => {
       const arr = prev[key] || [];
-
-      return {
-        ...prev,
-        [key]: arr.includes(value)
-          ? arr.filter((item) => item !== value)
-          : [...arr, value],
-      };
+      return { ...prev, [key]: arr.includes(value) ? arr.filter((item) => item !== value) : [...arr, value] };
     });
   };
 
-  const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+  const setMedicine = (index, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      medications: prev.medications.map((medicine, currentIndex) =>
+        currentIndex === index ? { ...medicine, [key]: value } : medicine
+      ),
+    }));
+  };
+
+  const addMedicine = () => setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] }));
+  const removeMedicine = (index) =>
+    setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
+
+  const handleMedicineCountChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      medicineCount: value,
+      medications: syncMedicationsWithCount(prev.medications, value),
+    }));
+  };
+
+  const handleProfileImageChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingPhoto(true);
+      setError("");
+      const { imageUrl } = await uploadProfileImage(file);
+      set("profileImageUrl", imageUrl);
+    } catch (uploadError) {
+      console.error("회원가입 사진 업로드 실패:", uploadError);
+      setError("사진 업로드에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setUploadingPhoto(false);
+      event.target.value = "";
+    }
+  };
 
   const validate = () => {
     if (step === 0) {
-      if (!form.name) return "이름을 입력해주세요.";
+      if (!form.name.trim()) return "이름을 입력해주세요.";
       if (!form.age) return "나이를 입력해주세요.";
       if (!form.gender) return "성별을 선택해주세요.";
-      if (!form.region) return "거주지를 입력해주세요.";
+      if (!form.city.trim() || !form.district.trim() || !form.dong.trim()) return "시/구/동 주소를 입력해주세요.";
+      if (!form.phone.trim()) return "전화번호를 입력해주세요.";
     }
 
     if (step === 1) {
+      if (!form.height) return "키를 입력해주세요.";
+      if (!form.weight) return "몸무게를 입력해주세요.";
+    }
+
+    if (step === 2) {
       if (!form.maxHours) return "하루 최대 활동 가능 시간을 선택해주세요.";
       if (!form.maxDistance) return "이동 가능 거리를 선택해주세요.";
     }
@@ -138,456 +113,272 @@ export default function SignUp() {
     return "";
   };
 
+  const submit = async () => {
+    try {
+      setSaving(true);
+      setError("");
+      const payload = normalizeForm(form);
+      const response = await fetch("http://localhost:8080/api/seniors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("signup failed");
+
+      const profile = await response.json();
+      sessionStorage.setItem("currentSenior", JSON.stringify(profile));
+      localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
+      localStorage.removeItem("login_temp");
+      navigate("/user");
+    } catch (submitError) {
+      console.error("사용자 회원가입 실패:", submitError);
+      alert("회원가입 저장에 실패했습니다. 서버가 켜져 있는지 확인해주세요.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleNext = async () => {
     const validationMessage = validate();
-
     if (validationMessage) {
-      setError(validationMessage);
+      alert(validationMessage);
       return;
     }
 
     setError("");
-
-    if (step < 2) {
-      setStep(step + 1);
+    if (step < STEPS.length - 1) {
+      setStep((prev) => prev + 1);
       window.scrollTo(0, 0);
       return;
     }
 
-    const response = await fetch("http://localhost:8080/api/seniors", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-
-    const data = await response.json();
-    const senior = data.senior;
-
-    if (senior?.id) {
-      localStorage.setItem("current_senior_id", String(senior.id));
-      localStorage.setItem(
-        "user_profile",
-        JSON.stringify({
-          ...form,
-          id: senior.id,
-          name: senior.name || form.name,
-          region: senior.region || form.region,
-        })
-      );
-    }
-
-    localStorage.removeItem("login_temp");
-    navigate("/user");
-
+    await submit();
+  };
 
   return (
     <div className="su-root">
       <nav className="su-nav">
-        <div className="su-nav-logo">🌿 우리 woori</div>
-        <div className="su-nav-step">정보 등록 {step + 1} / 3</div>
+        <div className="su-nav-inner">
+          <div className="su-nav-logo">우리 woori</div>
+          <div className="su-nav-actions">
+            <span className="su-nav-step">사용자 정보 등록 {step + 1} / {STEPS.length}</span>
+            <button className="su-nav-login" type="button" onClick={() => navigate("/")}>로그인</button>
+          </div>
+        </div>
       </nav>
 
-      <div className="su-stepbar">
-        <div className="su-stepbar-inner">
-          {STEPS.map((stepLabel, index) => (
-            <div
-              key={stepLabel}
-              className={`su-step-item ${index < STEPS.length - 1 ? "grow" : ""}`}
-            >
-              <div
-                className={`su-step-circle ${
-                  index < step ? "done" : index === step ? "active" : ""
-                }`}
-              >
-                {index < step ? "✓" : index + 1}
-              </div>
-
-              <span className={`su-step-label ${index === step ? "active" : ""}`}>
-                {stepLabel}
-              </span>
-
-              {index < STEPS.length - 1 && (
-                <div className={`su-step-line ${index < step ? "done" : ""}`} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="su-layout">
-        {error && <div className="su-error">⚠️ {error}</div>}
+        {error && <div className="su-error">{error}</div>}
 
         {step === 0 && (
-          <div className="su-section">
-            <div className="su-section-title">📋 인적사항</div>
+          <section className="su-section">
+            <SectionTitle step={step}>기본 정보</SectionTitle>
+            <ProfilePhotoPicker
+              classPrefix="su"
+              imageUrl={form.profileImageUrl}
+              uploading={uploadingPhoto}
+              onChange={handleProfileImageChange}
+              onRemove={() => set("profileImageUrl", "")}
+              alt="사용자 프로필 사진"
+            />
 
             <div className="su-field">
               <label className="su-label">이름 <span className="su-required">*</span></label>
-              <input className="su-input" value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="홍길동" />
+              <input className="su-input" value={form.name} onChange={(event) => set("name", event.target.value)} placeholder="예: 김영희" />
             </div>
 
             <div className="su-row">
               <div className="su-field">
                 <label className="su-label">나이 <span className="su-required">*</span></label>
-                <input className="su-input" type="number" value={form.age} onChange={(event) => set("age", event.target.value)} placeholder="65" />
+                <input className="su-input" type="number" value={form.age} onChange={(event) => set("age", event.target.value)} placeholder="예: 72" />
               </div>
-
               <div className="su-field">
                 <label className="su-label">성별 <span className="su-required">*</span></label>
                 <select className="su-select" value={form.gender} onChange={(event) => set("gender", event.target.value)}>
                   <option value="">선택</option>
-                  <option value="남성">남성</option>
                   <option value="여성">여성</option>
+                  <option value="남성">남성</option>
+                  <option value="기타">기타</option>
                 </select>
               </div>
             </div>
 
-            <div className="su-field">
-              <label className="su-label">거주지 (시·군·구) <span className="su-required">*</span></label>
-              <input className="su-input" value={form.region} onChange={(event) => set("region", event.target.value)} placeholder="서울시 송파구" />
+            <div className="su-row">
+              <AddressInput label="시/도" value={form.city} onChange={(value) => set("city", value)} placeholder="서울특별시" required />
+              <AddressInput label="구/군" value={form.district} onChange={(value) => set("district", value)} placeholder="강남구" required />
+            </div>
+            <div className="su-row">
+              <AddressInput label="동" value={form.dong} onChange={(value) => set("dong", value)} placeholder="역삼동" required />
+              <AddressInput label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} placeholder="101동 1203호" />
             </div>
 
             <div className="su-field">
-              <label className="su-label">연락처</label>
-              <input className="su-input" value={form.phone} onChange={(event) => set("phone", event.target.value)} placeholder="010-0000-0000" />
+              <label className="su-label">전화번호 <span className="su-required">*</span></label>
+              <input className="su-input" value={form.phone} onChange={(event) => set("phone", formatPhoneNumber(event.target.value))} placeholder="010-0000-0000" />
             </div>
 
-            <div className="su-field">
-              <label className="su-label">장애 등급 (해당 시)</label>
-              <div className="su-check-group">
-                {["없음", "1급", "2급", "3급", "4급", "5급", "6급"].map((value) => (
-                  <button key={value} className={`su-chip ${form.disabilityGrade === value ? "on" : ""}`} type="button" onClick={() => set("disabilityGrade", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
+            <div className="su-row">
+              <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} onChange={(value) => set("disabilityGrade", value)} />
+              <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} onChange={(value) => set("disabilityType", value)} />
             </div>
-          </div>
+          </section>
         )}
 
         {step === 1 && (
           <>
-            <div className="su-section">
-              <div className="su-section-title">📏 기본 신체정보</div>
-
+            <section className="su-section">
+              <SectionTitle step={step}>건강 정보</SectionTitle>
               <div className="su-row">
-                <div className="su-field">
-                  <label className="su-label">키 (cm)</label>
-                  <input className="su-input" type="number" value={form.height} onChange={(event) => set("height", event.target.value)} placeholder="165" />
-                </div>
-
-                <div className="su-field">
-                  <label className="su-label">체중 (kg)</label>
-                  <input className="su-input" type="number" value={form.weight} onChange={(event) => set("weight", event.target.value)} placeholder="60" />
-                </div>
+                <InputField label="키(cm)" type="number" value={form.height} onChange={(value) => set("height", value)} required />
+                <InputField label="몸무게(kg)" type="number" value={form.weight} onChange={(value) => set("weight", value)} required />
               </div>
 
               {bmi && (
                 <div className="su-bmi-box">
-                  <div>
-                    <div className="su-bmi-label">BMI 지수</div>
-                    <div className="su-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div>
-                  </div>
-
-                  <div>
-                    <div className="su-bmi-label">판정</div>
-                    <div className="su-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div>
-                  </div>
-
-                  <div className="su-bmi-guide">
-                    정상: 18.5 ~ 22.9
-                    <br />
-                    과체중: 23 ~ 24.9
-                    <br />
-                    비만: 25 이상
-                  </div>
+                  <div><div className="su-bmi-label">BMI</div><div className="su-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
+                  <div><div className="su-bmi-label">판정</div><div className="su-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
                 </div>
               )}
 
-              <div className="su-row su-row-spaced">
-                <div className="su-field">
-                  <label className="su-label">흡연 여부</label>
-                  <div className="su-check-group">
-                    {["없음 (비흡연)", "과거 흡연 (현재 금연)", "흡연 중"].map((value) => (
-                      <button key={value} className={`su-chip ${form.smoking === value ? "on" : ""}`} type="button" onClick={() => set("smoking", value)}>
-                        {value}
-                      </button>
-                    ))}
+              <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
+              <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+            </section>
+
+            <section className="su-section">
+              <div className="su-section-title">복약 정보</div>
+              <ChipField label="현재 복용 중인 약 개수" value={form.medicineCount} options={MEDICINE_COUNTS} onSelect={handleMedicineCountChange} />
+              <div className="su-medication-list">
+                {form.medications.map((medicine, index) => (
+                  <div className="su-medication-card" key={`medicine-${index}`}>
+                    <div className="su-medication-head">
+                      <strong>복용 약 {index + 1}</strong>
+                      <button type="button" onClick={() => removeMedicine(index)}>삭제</button>
+                    </div>
+                    <InputField label="약 이름" value={medicine.name} onChange={(value) => setMedicine(index, "name", value)} placeholder="혈압약" />
+                    <div className="su-row">
+                      <InputField label="복용 시작일" type="date" value={medicine.startDate} onChange={(value) => setMedicine(index, "startDate", value)} />
+                      <InputField label="복용 종료일" type="date" value={medicine.endDate} onChange={(value) => setMedicine(index, "endDate", value)} disabled={medicine.ongoing} />
+                    </div>
+                    <label className="su-inline-check">
+                      <input
+                        type="checkbox"
+                        checked={medicine.ongoing}
+                        onChange={(event) => {
+                          setMedicine(index, "ongoing", event.target.checked);
+                          if (event.target.checked) setMedicine(index, "endDate", "");
+                        }}
+                      />
+                      <span>계속 복용 중이라 종료일이 없어요</span>
+                    </label>
+                    <div className="su-row">
+                      <InputField label="복용 간격(시간)" type="number" value={medicine.interval} onChange={(value) => setMedicine(index, "interval", value)} placeholder="예: 8" />
+                      <InputField label="하루 복용 횟수" type="number" value={medicine.dailyCount} onChange={(value) => setMedicine(index, "dailyCount", value)} placeholder="2" />
+                    </div>
                   </div>
-                </div>
-
-                <div className="su-field">
-                  <label className="su-label">음주 여부</label>
-                  <div className="su-check-group">
-                    {["없음 (금주)", "가끔 (월 1~2회)", "자주 (주 1회 이상)"].map((value) => (
-                      <button key={value} className={`su-chip ${form.drinking === value ? "on" : ""}`} type="button" onClick={() => set("drinking", value)}>
-                        {value}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
+              <button className="su-add-line-btn" type="button" onClick={addMedicine}>+ 복용 약 추가</button>
+            </section>
 
-              <div className="su-field">
-                <label className="su-label">현재 복용 중인 약 개수</label>
-                <div className="su-check-group">
-                  {["없음", "1~2개", "3~5개", "6개 이상"].map((value) => (
-                    <button key={value} className={`su-chip ${form.medicineCount === value ? "on" : ""}`} type="button" onClick={() => set("medicineCount", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="su-section">
-              <div className="su-section-title">🏥 만성질환 여부</div>
-              <div className="su-hint">
-                해당하는 항목의 정도를 선택해주세요. 잘 모르시면 <b>경증</b>을 선택하시고, 의사 진단을 기준으로 선택해주세요.
-              </div>
-
+            <section className="su-section">
+              <div className="su-section-title">건강 상태</div>
+              <div className="su-hint">어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.</div>
               {CHRONIC.map(({ key, label, levels }) => (
-                <div className="su-disease-row" key={key}>
-                  <span className="su-disease-label">{label}</span>
-                  <div className="su-check-group">
-                    {levels.map((level) => (
-                      <button key={level} className={`su-chip ${form[key] === level ? "on" : ""}`} type="button" onClick={() => set(key, level)}>
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
               ))}
-            </div>
-
-            <div className="su-section">
-              <div className="su-section-title">🦽 거동 · 인지 · 감각</div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">🚶 보행 보조기구 사용</span>
-                <div className="su-check-group">
-                  {["없음 (스스로 보행 가능)", "지팡이", "보행기", "휠체어"].map((value) => (
-                    <button key={value} className={`su-chip ${form.walkingAid === value ? "on" : ""}`} type="button" onClick={() => set("walkingAid", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">🧠 치매 · 인지장애</span>
-                <div className="su-check-group">
-                  {["없음", "경도인지장애 (건망증 심함)", "치매 초기", "치매 중증"].map((value) => (
-                    <button key={value} className={`su-chip ${form.dementia === value ? "on" : ""}`} type="button" onClick={() => set("dementia", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">👁 시력 이상</span>
-                <div className="su-check-group">
-                  {["없음", "경증 (안경·렌즈 착용)", "중증 (일상생활 불편)", "실명"].map((value) => (
-                    <button key={value} className={`su-chip ${form.vision === value ? "on" : ""}`} type="button" onClick={() => set("vision", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">👂 청력 이상</span>
-                <div className="su-check-group">
-                  {["없음", "경증 (보청기 착용)", "중증 (대화 어려움)"].map((value) => (
-                    <button key={value} className={`su-chip ${form.hearing === value ? "on" : ""}`} type="button" onClick={() => set("hearing", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="su-section">
-              <div className="su-section-title">⚠️ 낙상 · 수술 이력</div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">최근 1년 내 낙상 경험</span>
-                <div className="su-check-group">
-                  {["없음", "1회", "2~3회", "4회 이상"].map((value) => (
-                    <button key={value} className={`su-chip ${form.recentFall === value ? "on" : ""}`} type="button" onClick={() => set("recentFall", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="su-disease-row">
-                <span className="su-disease-label">수술을 받으신 적이 있으신가요?</span>
-                <div className="su-check-group">
-                  {["없음", "있음"].map((value) => (
-                    <button key={value} className={`su-chip ${form.hasSurgery === value ? "on" : ""}`} type="button" onClick={() => set("hasSurgery", value)}>
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.hasSurgery === "있음" && (
-                <div className="su-field">
-                  <label className="su-label">어떤 수술을 받으셨나요? (연도 포함해서 자세히 적어주세요)</label>
-                  <textarea
-                    className="su-input su-textarea"
-                    value={form.surgeryDetail}
-                    onChange={(event) => set("surgeryDetail", event.target.value)}
-                    placeholder="예) 2020년 무릎 인공관절 수술, 2022년 백내장 수술, 2023년 담낭 절제 등"
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              <div className="su-field">
-                <label className="su-label">기타 특이사항 (선택)</label>
-                <textarea
-                  className="su-input su-textarea"
-                  value={form.otherDisease}
-                  onChange={(event) => set("otherDisease", event.target.value)}
-                  placeholder="예) 허리 디스크, 복용 중인 약 이름, 알레르기 등 추가로 알려주실 내용"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="su-section">
-              <div className="su-section-title">⚡ 활동 조건</div>
-
-              <div className="su-row">
-                <div className="su-field">
-                  <label className="su-label">하루 최대 활동 가능 시간 <span className="su-required">*</span></label>
-                  <select className="su-select" value={form.maxHours} onChange={(event) => set("maxHours", event.target.value)}>
-                    <option value="">선택해주세요</option>
-                    <option value="2">2시간 이내</option>
-                    <option value="4">4시간 이내</option>
-                    <option value="6">6시간 이내</option>
-                    <option value="8">8시간 이내</option>
-                  </select>
-                </div>
-
-                <div className="su-field">
-                  <label className="su-label">이동 가능 거리 <span className="su-required">*</span></label>
-                  <select className="su-select" value={form.maxDistance} onChange={(event) => set("maxDistance", event.target.value)}>
-                    <option value="">선택해주세요</option>
-                    <option value="도보 10분">도보 10분 이내</option>
-                    <option value="도보 30분">도보 30분 이내</option>
-                    <option value="대중교통 30분">대중교통 30분 이내</option>
-                    <option value="대중교통 1시간">대중교통 1시간 이내</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="su-field">
-                <label className="su-label">하기 어려운 작업 유형 (중복 선택 가능)</label>
-                <div className="su-check-group">
-                  {WORK_TYPES.map((workType) => (
-                    <button key={workType} className={`su-chip ${(form.disabledWork || []).includes(workType) ? "on" : ""}`} type="button" onClick={() => toggleArr("disabledWork", workType)}>
-                      {workType}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            </section>
           </>
         )}
 
         {step === 2 && (
-          <div className="su-section">
-            <div className="su-section-title">💼 일자리 희망 조건</div>
-
-            <div className="su-field">
-              <label className="su-label">희망 급여 형태</label>
-              <div className="su-check-group">
-                {["무관", "시급", "월급", "일당"].map((value) => (
-                  <button key={value} className={`su-chip ${form.payType === value ? "on" : ""}`} type="button" onClick={() => set("payType", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
+          <section className="su-section">
+            <SectionTitle step={step}>활동 및 일자리 조건</SectionTitle>
+            <div className="su-row">
+              <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => set("maxDistance", value)} required />
             </div>
-
+            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+            <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
+            <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
+            <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />
             <div className="su-field">
-              <label className="su-label">희망 근무 요일 (중복 선택 가능)</label>
-              <div className="su-check-group">
-                {DAYS.map((day) => (
-                  <button key={day} className={`su-chip ${(form.hopeDays || []).includes(day) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeDays", day)}>
-                    {day}
-                  </button>
-                ))}
-              </div>
+              <label className="su-label">기타 희망사항</label>
+              <textarea className="su-input su-textarea" value={form.memo} onChange={(event) => set("memo", event.target.value)} rows={4} />
             </div>
-
-            <div className="su-field">
-              <label className="su-label">희망 직종 (중복 선택 가능)</label>
-              <div className="su-check-group">
-                {["경비·청소", "급식·조리 보조", "사무 보조", "육아 보조", "농업·원예", "판매·안내", "환경 정비", "상관없음"].map((value) => (
-                  <button key={value} className={`su-chip ${(form.hopeJobType || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeJobType", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="su-field">
-              <label className="su-label">희망 근무 형태</label>
-              <div className="su-check-group">
-                {["실내 근무 선호", "오전 근무", "오후 근무", "주 3일 이하", "단기 가능", "장기 희망"].map((value) => (
-                  <button key={value} className={`su-chip ${(form.hopeCondition || []).includes(value) ? "on" : ""}`} type="button" onClick={() => toggleArr("hopeCondition", value)}>
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="su-field">
-              <label className="su-label">기타 희망 사항 (선택)</label>
-              <textarea
-                className="su-input su-textarea"
-                value={form.memo}
-                onChange={(event) => set("memo", event.target.value)}
-                placeholder="예) 이전 직업 경력, 특기, 자격증 등 추가로 알려주실 내용"
-                rows={4}
-              />
-            </div>
-          </div>
+          </section>
         )}
 
-        <div className="su-btn-row">
-          {step > 0 ? (
-            <button
-              className="su-btn-prev"
-              type="button"
-              onClick={() => {
-                setError("");
-                setStep(step - 1);
-                window.scrollTo(0, 0);
-              }}
-            >
-              ← 이전
-            </button>
-          ) : (
-            <button className="su-btn-prev" type="button" onClick={() => navigate("/")}>
-              ← 로그인으로
-            </button>
-          )}
-
-          <button className="su-btn-next" type="button" onClick={handleNext}>
-            {step < 2 ? "다음 →" : "✅ 등록 완료"}
+        <div className={`su-btn-row ${step === 0 ? "su-btn-row-end" : ""}`}>
+          {step > 0 && <button className="su-btn-prev" type="button" onClick={() => setStep((prev) => prev - 1)}>이전</button>}
+          <button className="su-btn-next" type="button" onClick={handleNext} disabled={saving || uploadingPhoto}>
+            {saving ? "저장 중..." : step < STEPS.length - 1 ? "다음" : "등록 완료"}
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+function SectionTitle({ children, step }) {
+  return (
+    <div className="su-section-title-row">
+      <div className="su-section-title">{children}</div>
+      <div className="su-section-progress">
+        <span className="su-section-step-circle">{step + 1}</span>
+        <span className="su-section-step-text">/ {STEPS.length}</span>
+      </div>
+    </div>
+  );
 }
 
+function InputField({ label, value, onChange, type = "text", placeholder = "", required = false, disabled = false }) {
+  return (
+    <div className="su-field">
+      <label className="su-label">{label} {required && <span className="su-required">*</span>}</label>
+      <input className="su-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} disabled={disabled} />
+    </div>
+  );
+}
+
+function AddressInput(props) {
+  return <InputField {...props} />;
+}
+
+function SelectField({ label, value, options, optionLabels = {}, onChange, required = false }) {
+  return (
+    <div className="su-field">
+      <label className="su-label">{label} {required && <span className="su-required">*</span>}</label>
+      <select className="su-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => <option key={option} value={option}>{optionLabels[option] ?? option}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function ChipField({ label, value, options, onSelect }) {
+  return (
+    <div className="su-field">
+      <label className="su-label">{label}</label>
+      <div className="su-check-group">
+        {options.map((option) => (
+          <button key={option} className={`su-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(option)}>{option}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MultiChipField({ label, values, options, onToggle }) {
+  return (
+    <div className="su-field">
+      <label className="su-label">{label}</label>
+      <div className="su-check-group">
+        {options.map((option) => (
+          <button key={option} className={`su-chip ${(values || []).includes(option) ? "on" : ""}`} type="button" onClick={() => onToggle(option)}>{option}</button>
+        ))}
+      </div>
+    </div>
+  );
+}

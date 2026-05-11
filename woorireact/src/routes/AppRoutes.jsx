@@ -18,6 +18,7 @@ import LocationPage from "../pages/User/LocationPage";
 import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
 import WeatherGraph from "../pages/User/WeatherGraph";
+import SocialWorkerManager from "../pages/SocialWorker/Manager";
 
 function RequireWelfareLogin({ children }) {
   const currentWorker = sessionStorage.getItem("currentWelfareWorker");
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="/jobs" element={<JobPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/weather-graph" element={<WeatherGraph />} />
+        <Route path="/social-worker" element={<SocialWorkerManager />} />
       </Routes>
     </BrowserRouter>
   );

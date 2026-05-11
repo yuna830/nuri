@@ -6,6 +6,7 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -44,16 +45,12 @@ public class GuardianController {
 
         Guardian savedGuardian = guardianRepository.save(guardian);
 
-        Senior senior = new Senior();
-        senior.setName(request.seniorName());
-        senior.setAddress(request.seniorAddress());
-        senior.setRegion(request.seniorAddress());
-
-        Senior savedSenior = seniorRepository.save(senior);
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         GuardianSenior guardianSenior = new GuardianSenior();
         guardianSenior.setGuardianId(savedGuardian.getId());
-        guardianSenior.setSeniorId(savedSenior.getId());
+        guardianSenior.setSeniorId(senior.getId());
         guardianSenior.setRelation(request.seniorRelation());
 
         guardianSeniorRepository.save(guardianSenior);
@@ -81,6 +78,77 @@ public class GuardianController {
                 guardian.getPhone(),
                 guardian.getEmail()
         );
+    }
+
+    @PostMapping("/find-email")
+    public ResponseEntity<FindEmailResponse> findEmail(@RequestBody FindEmailRequest request) {
+        String name = request.name() == null ? "" : request.name().trim();
+        String phone = normalizePhone(request.phone());
+
+        return guardianRepository.findByNameAndNormalizedPhone(name, phone)
+                .map(guardian -> ResponseEntity.ok(new FindEmailResponse(maskEmail(guardian.getEmail()))))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
+        String email = request.email() == null ? "" : request.email().trim();
+        String phone = normalizePhone(request.phone());
+        String newPassword = request.newPassword() == null ? "" : request.newPassword().trim();
+
+        if (newPassword.length() < 4) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return guardianRepository.findByEmailAndNormalizedPhone(email, phone)
+                .map(guardian -> {
+                    guardian.setPassword(hashPassword(newPassword));
+                    guardianRepository.save(guardian);
+                    return ResponseEntity.noContent().<Void>build();
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            return "";
+        }
+
+        return phone.replaceAll("[^0-9]", "");
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return "";
+        }
+
+        String[] parts = email.split("@", 2);
+        String id = parts[0];
+        String domain = parts[1];
+
+        if (id.length() <= 2) {
+            return id.charAt(0) + "***@" + domain;
+        }
+
+        return id.substring(0, 2) + "***@" + domain;
+    }
+
+    public record FindEmailRequest(
+            String name,
+            String phone
+    ) {
+    }
+
+    public record FindEmailResponse(
+            String email
+    ) {
+    }
+
+    public record ResetPasswordRequest(
+            String email,
+            String phone,
+            String newPassword
+    ) {
     }
 
     @GetMapping("/{id}")
@@ -143,6 +211,20 @@ public class GuardianController {
         return guardianSeniorRepository.save(guardianSenior);
     }
 
+    @DeleteMapping("/{guardianId}/seniors/{seniorId}")
+    public ResponseEntity<Void> disconnectSenior(
+            @PathVariable Long guardianId,
+            @PathVariable Long seniorId
+    ) {
+        GuardianSenior guardianSenior = guardianSeniorRepository
+                .findByGuardianIdAndSeniorId(guardianId, seniorId)
+                .orElseThrow(() -> new RuntimeException("Connected senior not found"));
+
+        guardianSeniorRepository.delete(guardianSenior);
+
+        return ResponseEntity.noContent().build();
+    }
+
     public record GuardianSeniorConnectRequest(
             Long seniorId,
             String relation
@@ -178,8 +260,7 @@ public class GuardianController {
             String phone,
             String email,
             String password,
-            String seniorName,
-            String seniorAddress,
+            Long seniorId,
             String seniorRelation
     ) {
     }

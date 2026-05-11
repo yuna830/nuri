@@ -1,20 +1,22 @@
+export const NONE = "없음";
+
 export const CHRONIC = [
-  { key: "diabetes", label: "당뇨", levels: ["없음", "경증 (식이요법·경구약)", "중증 (인슐린 투여)"] },
-  { key: "hypertension", label: "고혈압", levels: ["없음", "경증 (약 복용·조절 중)", "중증 (합병증 있음)"] },
-  { key: "heart", label: "심장질환", levels: ["없음", "경증 (부정맥·협심증 등)", "중증 (심부전·수술 이력)"] },
-  { key: "joint", label: "관절질환 (무릎·허리)", levels: ["없음", "경증 (가끔 통증·약 복용)", "중증 (보조기구·수술 이력)"] },
-  { key: "stroke", label: "뇌졸중·중풍", levels: ["없음", "경증 (후유증 경미)", "중증 (마비·언어장애 등)"] },
-  { key: "kidney", label: "신장질환", levels: ["없음", "경증 (신기능 저하)", "중증 (투석 중)"] },
-  { key: "lung", label: "폐·호흡기 질환", levels: ["없음", "경증 (천식·만성기관지염)", "중증 (COPD·산소호흡기)"] },
-  { key: "liver", label: "간질환", levels: ["없음", "경증 (지방간·간염 보균)", "중증 (간경화·간암)"] },
-  { key: "cancer", label: "암 (과거·현재)", levels: ["없음", "완치·관리 중", "치료 중 (항암·방사선 등)"] },
+  { key: "diabetes", label: "당뇨", levels: [NONE, "약이나 식단으로 관리 중", "최근 조절이 어렵거나 도움이 필요함"] },
+  { key: "hypertension", label: "고혈압", levels: [NONE, "약으로 관리 중", "최근 혈압 변동이 크거나 도움이 필요함"] },
+  { key: "heart", label: "심장질환", levels: [NONE, "정기 진료/약으로 관리 중", "숨참/가슴통증 등으로 활동 제한"] },
+  { key: "joint", label: "관절질환", levels: [NONE, "가끔 통증이 있으나 보행 가능", "통증 때문에 보행/작업 제한"] },
+  { key: "stroke", label: "뇌졸중", levels: [NONE, "후유증이 조금 있으나 일상 가능", "마비/언어 등으로 도움이 필요함"] },
+  { key: "kidney", label: "신장질환", levels: [NONE, "정기 진료로 관리 중", "투석/잦은 치료가 필요함"] },
+  { key: "lung", label: "호흡기질환", levels: [NONE, "가끔 숨참/기침이 있음", "호흡 문제로 활동 제한"] },
+  { key: "liver", label: "간질환", levels: [NONE, "정기 진료로 관리 중", "치료/생활 제한이 필요함"] },
+  { key: "cancer", label: "암", levels: [NONE, "완치 후 관리 중", "현재 치료 중"] },
 ];
 
 export const WORK_TYPES = [
-  "장시간 서기",
-  "야외 작업",
+  "장시간 서있기",
+  "실외 작업",
   "야간 근무",
-  "중량물 운반",
+  "무거운 물건 운반",
   "컴퓨터 작업",
   "계단 이동",
   "반복 작업",
@@ -24,62 +26,142 @@ export const WORK_TYPES = [
 export const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export const JOB_TYPES = [
-  "경비·청소",
-  "급식·조리 보조",
+  "경비/청소",
+  "급식/조리 보조",
   "사무 보조",
-  "육아 보조",
-  "농업·원예",
-  "판매·안내",
+  "돌봄 보조",
+  "작업/수공예",
+  "판매/안내",
   "환경 정비",
   "상관없음",
 ];
 
 export const JOB_CONDITIONS = [
   "실내 근무 선호",
-  "오전 근무",
+  "안전 근무",
   "오후 근무",
   "주 3일 이하",
   "단기 가능",
-  "장기 희망",
+  "앉아서 근무",
 ];
 
+export const DISABILITY_GRADES = [NONE, "1급", "2급", "3급", "4급", "5급", "6급"];
+export const DISABILITY_TYPES = [NONE, "지체장애", "시각장애", "청각장애", "언어장애", "지적장애", "정신장애", "기타"];
+export const MEDICINE_COUNTS = [NONE, "1~2개", "3~5개", "6개 이상"];
 export const SECTIONS = [
   { id: "personal", label: "인적사항" },
   { id: "body", label: "신체정보" },
+  { id: "medication", label: "복약정보" },
   { id: "chronic", label: "만성질환" },
-  { id: "mobility", label: "거동·인지·감각" },
-  { id: "surgery", label: "낙상·수술" },
-  { id: "activity", label: "활동 조건" },
-  { id: "job", label: "일자리 희망" },
+  { id: "mobility", label: "거동/인지" },
+  { id: "activity", label: "활동조건" },
+  { id: "job", label: "일자리" },
 ];
+
+export const createMedicine = () => ({
+  name: "",
+  startDate: "",
+  endDate: "",
+  ongoing: false,
+  interval: "",
+  dailyCount: "",
+});
+
+export const getMedicineMinimumCount = (medicineCount) => {
+  if (medicineCount === "1~2개") return 1;
+  if (medicineCount === "3~5개") return 3;
+  if (medicineCount === "6개 이상") return 6;
+  return 0;
+};
+
+export const syncMedicationsWithCount = (medications = [], medicineCount = NONE) => {
+  const minimumCount = getMedicineMinimumCount(medicineCount);
+  if (minimumCount === 0) return [];
+
+  const next = medications.map((medicine) => ({
+    ...createMedicine(),
+    ...medicine,
+  }));
+
+  while (next.length < minimumCount) {
+    next.push(createMedicine());
+  }
+
+  return next;
+};
+
+export const inferSeniorRelationFromGuardian = (guardianRelation = "", seniorGender = "") => {
+  const relation = guardianRelation.trim();
+
+  if (relation.includes("할머니") || relation.includes("할아버지")) {
+    return seniorGender === "여성" ? "손녀" : seniorGender === "남성" ? "손자" : "손자/손녀";
+  }
+
+  if (relation.includes("어머니") || relation.includes("아버지") || relation.includes("부모")) {
+    return "자녀";
+  }
+
+  return "";
+};
+
+export const buildRegion = ({ city = "", district = "", dong = "", detailAddress = "" }) =>
+  [city, district, dong, detailAddress].map((part) => part.trim()).filter(Boolean).join(" ");
+
+export const splitRegion = (region = "") => {
+  const parts = String(region)
+    .replaceAll(",", " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    city: parts[0] || "",
+    district: parts[1] || "",
+    dong: parts[2] || "",
+    detailAddress: parts.slice(3).join(" "),
+  };
+};
 
 export const defaultForm = {
   name: "",
   age: "",
   gender: "",
   region: "",
+  city: "",
+  district: "",
+  dong: "",
+  detailAddress: "",
   phone: "",
-  disabilityGrade: "없음",
+  profileImageUrl: "",
+  lastLoginAt: "",
+  guardianName: "",
+  guardianRelation: "",
+  seniorRelationToGuardian: "",
+  socialWorkerName: "",
+  socialWorkerPhone: "",
+  disabilityGrade: NONE,
+  disabilityType: NONE,
   height: "",
   weight: "",
-  smoking: "없음 (비흡연)",
-  drinking: "없음 (금주)",
-  medicineCount: "없음",
-  diabetes: "없음",
-  hypertension: "없음",
-  heart: "없음",
-  joint: "없음",
-  stroke: "없음",
-  kidney: "없음",
-  lung: "없음",
-  liver: "없음",
-  cancer: "없음",
-  walkingAid: "없음 (스스로 보행 가능)",
-  dementia: "없음",
-  vision: "없음",
-  hearing: "없음",
-  recentFall: "없음",
-  hasSurgery: "없음",
+  smoking: NONE,
+  drinking: NONE,
+  medicineCount: NONE,
+  medications: [],
+  diabetes: NONE,
+  hypertension: NONE,
+  heart: NONE,
+  joint: NONE,
+  stroke: NONE,
+  kidney: NONE,
+  lung: NONE,
+  liver: NONE,
+  cancer: NONE,
+  walkingAid: NONE,
+  dementia: NONE,
+  vision: NONE,
+  hearing: NONE,
+  recentFall: NONE,
+  hasSurgery: NONE,
   surgeryDetail: "",
   otherDisease: "",
   maxHours: "",
@@ -101,50 +183,88 @@ export const splitCsv = (value) => {
     .filter(Boolean);
 };
 
-export const profileToForm = (profile) => {
+const readMedications = (healthInfo = {}) => {
+  const normalize = (medicine) => ({
+    ...createMedicine(),
+    ...medicine,
+    startDate: medicine.startDate ?? "",
+    endDate: medicine.endDate ?? "",
+    ongoing: Boolean(medicine.ongoing),
+  });
+
+  if (Array.isArray(healthInfo.medications)) {
+    return healthInfo.medications.map(normalize);
+  }
+  if (typeof healthInfo.medicationsJson === "string") {
+    try {
+      const parsed = JSON.parse(healthInfo.medicationsJson);
+      return Array.isArray(parsed) ? parsed.map(normalize) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+export const profileToForm = (profile = {}) => {
   const senior = profile.senior ?? {};
   const healthInfo = profile.healthInfo ?? {};
   const jobPreference = profile.jobPreference ?? {};
+  const medications = readMedications(healthInfo);
+  const savedRegion = senior.region ?? senior.address ?? "";
+  const splitAddress = splitRegion(savedRegion);
+  const city = senior.city ?? splitAddress.city;
+  const district = senior.district ?? splitAddress.district;
+  const dong = senior.dong ?? splitAddress.dong;
+  const detailAddress = senior.detailAddress ?? splitAddress.detailAddress;
+  const region = savedRegion || buildRegion({ city, district, dong, detailAddress });
 
   return {
     ...defaultForm,
     name: senior.name ?? "",
     age: senior.age ? String(senior.age) : "",
     gender: senior.gender ?? "",
-    region: senior.region ?? senior.address ?? "",
+    region,
+    city,
+    district,
+    dong,
+    detailAddress,
     phone: senior.phone ?? "",
-    disabilityGrade: senior.disabilityGrade ?? "없음",
-
+    profileImageUrl: senior.profileImageUrl ?? "",
+    lastLoginAt: senior.lastLoginAt ?? profile.lastLoginAt ?? "",
+    guardianName: senior.guardianName ?? profile.guardianName ?? "",
+    guardianRelation: senior.guardianRelation ?? profile.relation ?? "",
+    seniorRelationToGuardian: senior.seniorRelationToGuardian ?? "",
+    socialWorkerName: senior.socialWorkerName ?? profile.socialWorkerName ?? "",
+    socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
+    disabilityGrade: senior.disabilityGrade ?? NONE,
+    disabilityType: senior.disabilityType ?? NONE,
     height: healthInfo.height ? String(healthInfo.height) : "",
     weight: healthInfo.weight ? String(healthInfo.weight) : "",
-    smoking: healthInfo.smoking ?? "없음 (비흡연)",
-    drinking: healthInfo.drinking ?? "없음 (금주)",
-    medicineCount: healthInfo.medicineCount ?? "없음",
-
-    diabetes: healthInfo.diabetes ?? "없음",
-    hypertension: healthInfo.hypertension ?? "없음",
-    heart: healthInfo.heartDisease ?? "없음",
-    joint: healthInfo.jointDisease ?? "없음",
-    stroke: healthInfo.stroke ?? "없음",
-    kidney: healthInfo.kidneyDisease ?? "없음",
-    lung: healthInfo.lungDisease ?? "없음",
-    liver: healthInfo.liverDisease ?? "없음",
-    cancer: healthInfo.cancer ?? "없음",
-
-    walkingAid: healthInfo.walkingAid ?? "없음 (스스로 보행 가능)",
-    dementia: healthInfo.dementia ?? "없음",
-    vision: healthInfo.vision ?? "없음",
-    hearing: healthInfo.hearing ?? "없음",
-
-    recentFall: healthInfo.recentFall ?? "없음",
-    hasSurgery: healthInfo.hasSurgery ?? "없음",
+    smoking: healthInfo.smoking ?? NONE,
+    drinking: healthInfo.drinking ?? NONE,
+    medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
+    medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
+    diabetes: healthInfo.diabetes ?? NONE,
+    hypertension: healthInfo.hypertension ?? NONE,
+    heart: healthInfo.heartDisease ?? NONE,
+    joint: healthInfo.jointDisease ?? NONE,
+    stroke: healthInfo.stroke ?? NONE,
+    kidney: healthInfo.kidneyDisease ?? NONE,
+    lung: healthInfo.lungDisease ?? NONE,
+    liver: healthInfo.liverDisease ?? NONE,
+    cancer: healthInfo.cancer ?? NONE,
+    walkingAid: healthInfo.walkingAid ?? NONE,
+    dementia: healthInfo.dementia ?? NONE,
+    vision: healthInfo.vision ?? NONE,
+    hearing: healthInfo.hearing ?? NONE,
+    recentFall: healthInfo.recentFall ?? NONE,
+    hasSurgery: healthInfo.hasSurgery ?? NONE,
     surgeryDetail: healthInfo.surgeryDetail ?? "",
     otherDisease: healthInfo.otherDisease ?? "",
-
     maxHours: healthInfo.maxHours ?? "",
     maxDistance: healthInfo.maxDistance ?? "",
     disabledWork: splitCsv(healthInfo.disabledWork),
-
     payType: jobPreference.payType ?? "무관",
     hopeDays: splitCsv(jobPreference.hopeDays),
     hopeJobType: splitCsv(jobPreference.hopeJobType),
@@ -153,55 +273,93 @@ export const profileToForm = (profile) => {
   };
 };
 
-export const formToProfile = (profile, form) => ({
-  ...profile,
-  senior: {
-    ...profile.senior,
-    name: form.name,
-    age: form.age ? Number(form.age) : null,
-    gender: form.gender,
-    region: form.region,
-    address: form.region,
-    phone: form.phone,
-    disabilityGrade: form.disabilityGrade,
-  },
-  healthInfo: {
-    ...profile.healthInfo,
-    height: form.height,
-    weight: form.weight,
-    smoking: form.smoking,
-    drinking: form.drinking,
-    medicineCount: form.medicineCount,
-    diabetes: form.diabetes,
-    hypertension: form.hypertension,
-    heartDisease: form.heart,
-    jointDisease: form.joint,
-    stroke: form.stroke,
-    kidneyDisease: form.kidney,
-    lungDisease: form.lung,
-    liverDisease: form.liver,
-    cancer: form.cancer,
-    walkingAid: form.walkingAid,
-    dementia: form.dementia,
-    vision: form.vision,
-    hearing: form.hearing,
-    recentFall: form.recentFall,
-    hasSurgery: form.hasSurgery,
-    surgeryDetail: form.surgeryDetail,
-    otherDisease: form.otherDisease,
-    maxHours: form.maxHours,
-    maxDistance: form.maxDistance,
-    disabledWork: form.disabledWork.join(","),
-  },
-  jobPreference: {
-    ...profile.jobPreference,
-    payType: form.payType,
-    hopeDays: form.hopeDays.join(","),
-    hopeJobType: form.hopeJobType.join(","),
-    hopeCondition: form.hopeCondition.join(","),
-    memo: form.memo,
-  },
-});
+export const normalizeForm = (form) => {
+  const region = buildRegion(form) || form.region;
+  const guardianRelation = form.guardianRelation || "";
+  const seniorRelationToGuardian =
+    form.seniorRelationToGuardian ||
+    inferSeniorRelationFromGuardian(guardianRelation, form.gender);
+
+  return {
+    ...form,
+    region,
+    address: region,
+    guardianRelation,
+    seniorRelationToGuardian,
+    medications: syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
+      Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
+    ),
+    lastLoginAt: form.lastLoginAt || new Date().toISOString(),
+  };
+};
+
+export const formToProfile = (profile, form) => {
+  const normalized = normalizeForm(form);
+
+  return {
+    ...profile,
+    senior: {
+      ...profile.senior,
+      name: normalized.name,
+      age: normalized.age ? Number(normalized.age) : null,
+      gender: normalized.gender,
+      region: normalized.region,
+      address: normalized.region,
+      city: normalized.city,
+      district: normalized.district,
+      dong: normalized.dong,
+      detailAddress: normalized.detailAddress,
+      phone: normalized.phone,
+      profileImageUrl: normalized.profileImageUrl,
+      lastLoginAt: normalized.lastLoginAt,
+      guardianName: normalized.guardianName,
+      guardianRelation: normalized.guardianRelation,
+      seniorRelationToGuardian: normalized.seniorRelationToGuardian,
+      socialWorkerName: normalized.socialWorkerName,
+      socialWorkerPhone: normalized.socialWorkerPhone,
+      disabilityGrade: normalized.disabilityGrade,
+      disabilityType: normalized.disabilityType,
+    },
+    healthInfo: {
+      ...profile.healthInfo,
+      height: normalized.height,
+      weight: normalized.weight,
+      smoking: normalized.smoking,
+      drinking: normalized.drinking,
+      medicineCount: normalized.medicineCount,
+      medications: normalized.medications,
+      medicationsJson: JSON.stringify(normalized.medications),
+      diabetes: normalized.diabetes,
+      hypertension: normalized.hypertension,
+      heartDisease: normalized.heart,
+      jointDisease: normalized.joint,
+      stroke: normalized.stroke,
+      kidneyDisease: normalized.kidney,
+      lungDisease: normalized.lung,
+      liverDisease: normalized.liver,
+      cancer: normalized.cancer,
+      walkingAid: normalized.walkingAid,
+      dementia: normalized.dementia,
+      vision: normalized.vision,
+      hearing: normalized.hearing,
+      recentFall: normalized.recentFall,
+      hasSurgery: normalized.hasSurgery,
+      surgeryDetail: normalized.surgeryDetail,
+      otherDisease: normalized.otherDisease,
+      maxHours: normalized.maxHours,
+      maxDistance: normalized.maxDistance,
+      disabledWork: normalized.disabledWork.join(","),
+    },
+    jobPreference: {
+      ...profile.jobPreference,
+      payType: normalized.payType,
+      hopeDays: normalized.hopeDays.join(","),
+      hopeJobType: normalized.hopeJobType.join(","),
+      hopeCondition: normalized.hopeCondition.join(","),
+      memo: normalized.memo,
+    },
+  };
+};
 
 export const calcBMI = (height, weight) => {
   const hm = parseFloat(height) / 100;
@@ -211,22 +369,9 @@ export const calcBMI = (height, weight) => {
     return null;
   }
 
-  const bmi = (kg / (hm * hm)).toFixed(1);
-  let status = "정상";
-  let color = "#86A788";
-
-  if (bmi < 18.5) {
-    status = "저체중";
-    color = "#f0a500";
-  } else if (bmi < 23) {
-    status = "정상";
-  } else if (bmi < 25) {
-    status = "과체중";
-    color = "#f0a500";
-  } else {
-    status = "비만";
-    color = "#e05252";
-  }
-
-  return { bmi, status, color };
+  const bmi = Number((kg / (hm * hm)).toFixed(1));
+  if (bmi < 18.5) return { bmi, status: "저체중", color: "#4f8fb8" };
+  if (bmi < 23) return { bmi, status: "정상", color: "#5f9f72" };
+  if (bmi < 25) return { bmi, status: "과체중", color: "#d89b2b" };
+  return { bmi, status: "비만", color: "#d95757" };
 };
