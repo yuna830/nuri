@@ -202,6 +202,20 @@ export default function SignUp() {
     await submit();
   };
 
+  const SectionTitleWithStep = ({ children }) => (
+    <div className="su-section-title-row">
+      <div className="su-section-title">{children}</div>
+
+      <div className="su-section-progress">
+        <span className="su-section-step-circle">{step + 1}</span>
+        <span className="su-section-step-text">
+          {/* {step + 1} / {STEPS.length} */}
+          / {STEPS.length}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="su-root">
       <nav className="su-nav">
@@ -219,53 +233,32 @@ export default function SignUp() {
         </div>
       </nav>
 
-      <div className="su-stepbar">
-        <div className="su-stepbar-inner">
-          {STEPS.map((stepLabel, index) => (
-            <div
-              key={stepLabel}
-              className={`su-step-item ${index < STEPS.length - 1 ? "grow" : ""}`}
-            >
-              <div className={`su-step-circle ${index < step ? "done" : index === step ? "active" : ""}`}>
-                {index < step ? "✓" : index + 1}
-              </div>
-              <span className={`su-step-label ${index === step ? "active" : ""}`}>
-                {stepLabel}
-              </span>
-              {index < STEPS.length - 1 && (
-                <div className={`su-step-line ${index < step ? "done" : ""}`} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="su-layout">
         {error && <div className="su-error">⚠️ {error}</div>}
 
         {step === 0 && (
           <section className="su-section">
-            <div className="su-section-title">👤 기본 정보</div>
+            <SectionTitleWithStep>👤 기본 정보</SectionTitleWithStep>
 
-            <div className="su-photo-row">
-              <div className="su-photo-preview">
+            <div className="su-photo-field">
+              <label className="su-photo-picker">
                 {form.profileImageUrl ? (
                   <img src={resolveUploadUrl(form.profileImageUrl)} alt="사용자 사진" />
                 ) : (
                   <span>사진</span>
                 )}
-              </div>
 
-              <div className="su-photo-actions">
-                <label className="su-photo-btn">
-                  {uploadingPhoto ? "업로드 중..." : "사진 선택"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfileImageChange}
-                    disabled={uploadingPhoto}
-                  />
-                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageChange}
+                  disabled={uploadingPhoto}
+                />
+              </label>
+
+              <div className="su-photo-copy">
+                <strong>프로필 사진</strong>
+                <p>사진 영역을 눌러 등록하거나 변경할 수 있습니다.</p>
 
                 {form.profileImageUrl && (
                   <button
@@ -367,7 +360,7 @@ export default function SignUp() {
         {step === 1 && (
           <>
             <section className="su-section">
-              <div className="su-section-title">🩺 신체 정보</div>
+              <SectionTitleWithStep>🩺 신체 정보</SectionTitleWithStep>
 
               <div className="su-row">
                 <div className="su-field">
@@ -523,7 +516,7 @@ export default function SignUp() {
 
         {step === 2 && (
           <section className="su-section">
-            <div className="su-section-title">💼 활동과 일자리 조건</div>
+            <SectionTitleWithStep>💼 활동과 일자리 조건</SectionTitleWithStep>
 
             <div className="su-row">
               <div className="su-field">
@@ -632,7 +625,7 @@ export default function SignUp() {
                 window.scrollTo(0, 0);
               }}
             >
-              ← 이전
+              이전
             </button>
           )}
 

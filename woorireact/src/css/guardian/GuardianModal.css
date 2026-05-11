@@ -269,6 +269,11 @@
   color: #6D7664;
 }
 
+.alert-panel-item em.reported {
+  color: #a6463e;
+  font-weight: 800;
+}
+
 .alert-read-button {
   flex: 0 0 auto;
   border-radius: 6px;
@@ -299,18 +304,127 @@
   align-items: center;
 }
 
-.alert-emergency-button {
+.alert-call-button,
+.alert-emergency-button,
+.alert-confirm-button {
   border: none;
   border-radius: 8px;
-  background: #B94A42;
-  color: #FFFFFF;
   padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.alert-call-button {
+  background: #86a788;
+  color: #ffffff;
+}
+
+.alert-call-button:hover {
+  background: #6f9272;
+}
+
+.call-result-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 24, 20, 0.38);
+}
+
+.call-result-modal {
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 24px;
+  box-shadow: 0 18px 50px rgba(20, 24, 20, 0.22);
+}
+
+.call-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.call-result-header h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e2a1f;
+}
+
+.call-result-header button {
+  border: none;
+  border-radius: 8px;
+  background: #f3f5f2;
+  color: #596f5b;
+  padding: 8px 10px;
   font-weight: 700;
   cursor: pointer;
 }
 
+.call-result-text {
+  color: #596f5b;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.call-result-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.call-resolved-button,
+.call-report-button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 14px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.call-resolved-button {
+  background: #86a788;
+  color: #ffffff;
+}
+
+.call-resolved-button:hover {
+  background: #6f9272;
+}
+
+.call-report-button {
+  background: #a6463e;
+  color: #ffffff;
+}
+
+.call-report-button:hover {
+  background: #8f382f;
+}
+
+.alert-emergency-button {
+  background: #a6463e;
+  color: #ffffff;
+}
+
 .alert-emergency-button:hover {
-  background: #9F372F;
+  background: #8f382f;
+}
+
+.alert-confirm-button {
+  border: 1px solid #d4e8d6;
+  background: #f7fbf7;
+  color: #5f7d61;
+}
+
+.alert-confirm-button:hover {
+  background: #eef6ef;
 }
 
 .missing-modal-backdrop {

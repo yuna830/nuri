@@ -17,11 +17,16 @@ function EmergencyPanel({
   onOpenAlertPanel,
   onCloseAlertPanel,
   onReadAlert,
+  onCallAlert,
   onOpenEmergencyReport,
   onOpenMissingReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
+  isCallResultOpen,
+  onCallResolved,
+  onCallNeedsReport,
+  onCloseCallResult,
 }) {
   return (
     <>
@@ -122,7 +127,6 @@ function EmergencyPanel({
             <div className="alert-panel-header">
               <div>
                 <h2>전체 알림</h2>
-                <p>그동안 도착한 보호자 알림입니다.</p>
               </div>
 
               <button className="alert-panel-close" type="button" onClick={onCloseAlertPanel}>
@@ -145,11 +149,11 @@ function EmergencyPanel({
                       alert.isSos ? (
                         <div className="alert-actions">
                           <button
-                            className="alert-read-button"
+                            className="alert-call-button"
                             type="button"
-                            onClick={() => onReadAlert(alert.id)}
+                            onClick={() => onCallAlert(alert)}
                           >
-                            조치 완료
+                            전화
                           </button>
 
                           <button
@@ -162,7 +166,7 @@ function EmergencyPanel({
                         </div>
                       ) : (
                         <button
-                          className="alert-read-button"
+                          className="alert-confirm-button"
                           type="button"
                           onClick={() => onReadAlert(alert.id)}
                         >
@@ -170,11 +174,42 @@ function EmergencyPanel({
                         </button>
                       )
                     ) : (
-                      <em className="read">확인됨</em>
+                      <em className={alert.status === "신고 완료" ? "reported" : "read"}>
+                        {alert.status}
+                      </em>
                     )}
                   </article>
                 ))
               )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isCallResultOpen && (
+        <div className="call-result-backdrop" onClick={onCloseCallResult}>
+          <section className="call-result-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="call-result-header">
+              <h2>통화 후 상태 선택</h2>
+              <button type="button" onClick={onCloseCallResult}>
+                닫기
+              </button>
+            </div>
+
+            <p className="call-result-text">
+              보호 대상자와 연락이 되었나요?
+              <br />
+              추가 조치가 필요 없다면 확인됨으로 처리하고, 연락이 닿지 않거나 위험 상황이면 긴급 신고를 진행하세요.
+            </p>
+
+            <div className="call-result-actions">
+              <button className="call-resolved-button" type="button" onClick={onCallResolved}>
+                확인됨
+              </button>
+
+              <button className="call-report-button" type="button" onClick={onCallNeedsReport}>
+                긴급 신고
+              </button>
             </div>
           </section>
         </div>

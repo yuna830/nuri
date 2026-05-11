@@ -35,7 +35,7 @@ const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => 
     return [];
   }
 
-  return locations
+  const routeHistory = locations
     .filter((location) => location?.latitude && location?.longitude)
     .map((location) => ({
       lat: location.latitude,
@@ -43,6 +43,25 @@ const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => 
       address: location.address || fallbackAddress,
       receivedAt: location.receivedAt || new Date().toISOString(),
     }));
+
+  return routeHistory.filter((point, index, list) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const previous = list[index - 1];
+    const movedMeters = Math.sqrt(
+      Math.pow((point.lat - previous.lat) * 111000, 2) +
+        Math.pow(
+          (point.lng - previous.lng) *
+            111000 *
+            Math.cos(point.lat * Math.PI / 180),
+          2
+        )
+    );
+
+    return movedMeters >= 50;
+  });
 };
 
 const getDefaultSafeZone = (elder) => ({
@@ -98,6 +117,17 @@ function GuardianPage() {
 
   const [apiAlerts, setApiAlerts] = useState([]);
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
+  const [reportingAlertId, setReportingAlertId] = useState(null);
+  const [reportedAlertIds, setReportedAlertIds] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("reportedAlertIds") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [callingAlert, setCallingAlert] = useState(null);
+  const [isCallResultOpen, setIsCallResultOpen] = useState(false);  
+
   const [isMissingReportOpen, setIsMissingReportOpen] = useState(false);
   const [missingDescription, setMissingDescription] = useState("");
   const [missingImageFile, setMissingImageFile] = useState(null);
@@ -187,6 +217,60 @@ function GuardianPage() {
     }
   }, [loadGuardianSeniorsWithLocation]);
 
+  const refreshLatestLocations = useCallback(async () => {
+    const nextElders = await Promise.all(
+      elders.map(async (elder) => {
+        const response = await fetch(
+          `http://localhost:8080/api/locations/senior/${elder.id}/latest`
+        );
+
+        if (!response.ok || response.status === 204) {
+          return elder;
+        }
+
+        const latestLocation = await response.json();
+
+        if (!latestLocation?.latitude || !latestLocation?.longitude) {
+          return elder;
+        }
+
+        const realLocation = {
+          lat: latestLocation.latitude,
+          lng: latestLocation.longitude,
+          address: latestLocation.address || elder.address,
+          receivedAt: latestLocation.receivedAt || new Date().toISOString(),
+        };
+
+        const lastRoutePoint = elder.routeHistory?.[elder.routeHistory.length - 1];
+
+        const movedMeters = lastRoutePoint
+          ? Math.sqrt(
+              Math.pow((realLocation.lat - lastRoutePoint.lat) * 111000, 2) +
+                Math.pow(
+                  (realLocation.lng - lastRoutePoint.lng) *
+                    111000 *
+                    Math.cos(realLocation.lat * Math.PI / 180),
+                  2
+                )
+            )
+          : Infinity;
+
+        const isSameLocation = movedMeters < 50;
+
+        return {
+          ...elder,
+          currentLocation: realLocation,
+          lastNormalLocation: realLocation,
+          routeHistory: isSameLocation
+            ? elder.routeHistory || []
+            : [...(elder.routeHistory || []), realLocation],
+        };
+      })
+    );
+
+    setElders(nextElders);
+  }, [elders]);
+
   const loadGuardianAlerts = useCallback(() => {
     const guardianId = getCurrentGuardianId();
 
@@ -218,6 +302,20 @@ function GuardianPage() {
   }, [reloadGuardianSeniors]);
 
   useEffect(() => {
+    if (elders.length === 0) {
+      return;
+    }
+
+    const locationRefreshIntervalId = setInterval(() => {
+      refreshLatestLocations().catch((error) => {
+        console.error("최신 위치 자동 갱신 실패:", error);
+      });
+    }, 10000);
+
+    return () => clearInterval(locationRefreshIntervalId);
+  }, [elders.length, refreshLatestLocations]);
+
+  useEffect(() => {
     loadGuardianAlerts();
   }, [loadGuardianAlerts]);
 
@@ -227,24 +325,60 @@ function GuardianPage() {
     setSelectedRouteDate(getDateValue());
   }, [selectedElderId]);
 
-  const displayedAlerts = apiAlerts.map((alert) => ({
-    id: alert.id,
-    seniorId: alert.seniorId,
-    type: alert.type,
-    latitude: alert.latitude,
-    longitude: alert.longitude,
-    time: alert.createdAt
-      ? new Date(alert.createdAt).toLocaleString("ko-KR", {
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "",
-    message: alert.message ?? alert.title ?? "알림 내용이 없습니다.",
-    status: alert.isRead ? "확인됨" : "미확인",
-    isSos: alert.type === "SOS",
-  }));
+  const formatAlertMessage = (alert) => {
+    const originalMessage = alert.message ?? alert.title ?? "";
+
+    if (!originalMessage) {
+      return "알림 내용이 없습니다.";
+    }
+
+    const nameMatch = originalMessage.match(/^(.+?)님/);
+    const seniorName = nameMatch?.[1] || alert.seniorName || alert.name || "보호 대상자";
+
+    const isSosCancel =
+      originalMessage.includes("잘못") ||
+      originalMessage.includes("취소") ||
+      originalMessage.includes("실수");
+
+    if (isSosCancel) {
+      return `${seniorName}님 SOS 취소 알림`;
+    }
+
+    const isSosRequest =
+      alert.type === "SOS" ||
+      originalMessage.includes("SOS 도움") ||
+      originalMessage.includes("SOS를 요청") ||
+      originalMessage.includes("SOS 요청");
+
+    if (isSosRequest) {
+      return `${seniorName}님 SOS 요청`;
+    }
+
+    return originalMessage;
+  };
+
+  const displayedAlerts = apiAlerts.map((alert) => {
+    const isReported = reportedAlertIds.includes(String(alert.id));
+
+    return {
+      id: alert.id,
+      seniorId: alert.seniorId,
+      type: alert.type,
+      latitude: alert.latitude,
+      longitude: alert.longitude,
+      time: alert.createdAt
+        ? new Date(alert.createdAt).toLocaleString("ko-KR", {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "",
+      message: formatAlertMessage(alert),
+      status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
+      isSos: alert.type === "SOS",
+    };
+  });
 
   const unreadAlertCount = displayedAlerts.filter(
     (alert) => alert.status === "미확인"
@@ -638,6 +772,43 @@ function GuardianPage() {
     }
   };
 
+  const handleCallAlert = (targetAlert) => {
+    const targetElder = targetAlert?.seniorId
+      ? elders.find((elder) => String(elder.id) === String(targetAlert.seniorId))
+      : selectedElder;
+
+    const phone = targetElder?.phone;
+
+    if (!phone) {
+      window.alert("전화번호 정보가 없습니다.");
+      return;
+    }
+
+    setCallingAlert(targetAlert);
+    setIsCallResultOpen(true);
+    window.location.href = `tel:${phone}`;
+  };
+
+  const handleCallResolved = async () => {
+    if (callingAlert?.id) {
+      await handleReadAlert(callingAlert.id);
+    }
+
+    setCallingAlert(null);
+    setIsCallResultOpen(false);
+  };
+
+  const handleCallNeedsReport = () => {
+    const targetAlert = callingAlert;
+
+    setCallingAlert(null);
+    setIsCallResultOpen(false);
+
+    if (targetAlert) {
+      handleOpenEmergencyReport(targetAlert);
+    }
+  };
+
   const handleOpenEmergencyReport = (alert = null) => {
     const targetElder =
       alert?.seniorId
@@ -653,6 +824,7 @@ function GuardianPage() {
     );
 
     setIsAlertPanelOpen(false);
+    setReportingAlertId(alert?.id ?? null);
     setIsMissingReportOpen(true);
   };
 
@@ -693,6 +865,12 @@ function GuardianPage() {
         imageUrl,
       });
 
+      if (reportingAlertId) {
+        markAlertReported(reportingAlertId);
+        await handleReadAlert(reportingAlertId);
+        setReportingAlertId(null);
+      }
+
       loadGuardianAlerts();
 
       alert("실종 신고가 등록되었습니다.");
@@ -706,6 +884,18 @@ function GuardianPage() {
     } finally {
       setIsSubmittingMissingReport(false);
     }
+  };
+
+  const markAlertReported = (alertId) => {
+    if (!alertId) return;
+
+    setReportedAlertIds((prev) => {
+      const id = String(alertId);
+      const next = prev.includes(id) ? prev : [...prev, id];
+
+      sessionStorage.setItem("reportedAlertIds", JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
@@ -841,11 +1031,19 @@ function GuardianPage() {
           onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
           onCloseAlertPanel={() => setIsAlertPanelOpen(false)}
           onReadAlert={handleReadAlert}
+          onCallAlert={handleCallAlert}
           onOpenEmergencyReport={handleOpenEmergencyReport}
           onOpenMissingReport={() => setIsMissingReportOpen(true)}
           onCloseMissingReport={() => setIsMissingReportOpen(false)}
           onMissingImageChange={handleMissingImageChange}
           onCreateMissingReport={handleCreateMissingReport}
+          isCallResultOpen={isCallResultOpen}
+          onCallResolved={handleCallResolved}
+          onCallNeedsReport={handleCallNeedsReport}
+          onCloseCallResult={() => {
+            setCallingAlert(null);
+            setIsCallResultOpen(false);
+          }}
         />
       </section>
     </main>

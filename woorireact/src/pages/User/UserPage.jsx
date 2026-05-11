@@ -158,6 +158,8 @@ export default function UserPage() {
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
+  // 보호자 페이지 이동 경로에서 위치가 1분마다 계속 저장되는 것 방지
+  const lastSavedLocationRef = useRef(null);
 
   const [weather, setWeather] = useState(null);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
@@ -334,6 +336,7 @@ export default function UserPage() {
 
   const updateLocation = async (lat, lon) => {
     setCurrentPos({ lat, lon });
+
     const capturedAt = new Date();
     setCurrentLocationTime(
       capturedAt.toLocaleTimeString("ko-KR", {
@@ -342,38 +345,70 @@ export default function UserPage() {
         second: "2-digit",
       })
     );
+
     const resolvedAddress = await reverseGeocode(lat, lon).catch(() => "현재 위치");
     setCurrentAddress(resolvedAddress);
 
-    // 주소 변환
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`
       );
       const d = await res.json();
       const addr = d?.address;
-      const address = addr?.suburb || addr?.neighbourhood || addr?.city_district || addr?.city || "현재 위치";
-      setCurrentAddress(resolvedAddress || address);
+      const address =
+        addr?.suburb ||
+        addr?.neighbourhood ||
+        addr?.city_district ||
+        addr?.city ||
+        "현재 위치";
 
-      // 서버에 위치 저장
+      const displayAddress = resolvedAddress || address;
+      setCurrentAddress(displayAddress);
+
       const seniorId = getCurrentSeniorId(initialSenior);
-      if (seniorId) {
+
+      const lastSavedLocation = lastSavedLocationRef.current;
+      const movedMeters = lastSavedLocation
+        ? Math.sqrt(
+            Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
+              Math.pow(
+                (lon - lastSavedLocation.lon) *
+                  111000 *
+                  Math.cos(lat * Math.PI / 180),
+                2
+              )
+          )
+        : Infinity;
+      // 가만히 있어도 찍힘 => 50미터로
+      if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: resolvedAddress || address }),
+          body: JSON.stringify({
+            seniorId,
+            latitude: lat,
+            longitude: lon,
+            address: displayAddress,
+          }),
         }).catch(() => {});
+
+        lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
       setCurrentAddress("현재 위치");
     }
 
-    // 안전 반경 확인
     if (safeZone) {
       const dist = Math.sqrt(
         Math.pow((lat - safeZone.centerLatitude) * 111000, 2) +
-        Math.pow((lon - safeZone.centerLongitude) * 111000 * Math.cos(lat * Math.PI / 180), 2)
+          Math.pow(
+            (lon - safeZone.centerLongitude) *
+              111000 *
+              Math.cos(lat * Math.PI / 180),
+            2
+          )
       );
+
       setIsInRange(dist <= safeZone.radiusMeters);
     }
   };
@@ -409,19 +444,26 @@ export default function UserPage() {
     fetchWeatherAlerts();
     startLocationTracking();
     weatherAlertIntervalRef.current = setInterval(fetchWeatherAlerts, 60 * 1000);
+
     let safeZoneIntervalId;
     let jobsIntervalId;
     let seniorIntervalId;
 
     const seniorId = getCurrentSeniorId(initialSenior);
+
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
+
       fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
         .then((response) => response.ok ? response.json() : null)
-        .then((data) => { if (data) setSafeZone(data); })
+        .then((data) => {
+          if (data) setSafeZone(data);
+        })
         .catch(() => {});
     };
+
     loadSafeZoneForHome();
+
     if (seniorId) {
       safeZoneIntervalId = setInterval(loadSafeZoneForHome, 60 * 1000);
     }
@@ -429,25 +471,36 @@ export default function UserPage() {
     const checkNewJobs = async () => {
       const result = await fetchJobList(1, "").catch(() => null);
       const latestJobId = result?.list?.[0]?.jobId;
+
       if (!latestJobId) return;
+
       const seenJobId = localStorage.getItem("jobs_last_seen_job_id");
       setJobHasNew(Boolean(seenJobId && seenJobId !== latestJobId));
-      if (!seenJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+
+      if (!seenJobId) {
+        localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+      }
+
       localStorage.setItem("jobs_latest_job_id", latestJobId);
     };
+
     checkNewJobs();
     jobsIntervalId = setInterval(checkNewJobs, 5 * 60 * 1000);
 
     const loadCurrentSenior = async () => {
       try {
         const saved = sessionStorage.getItem("currentSenior");
+
         if (saved) {
           const profile = JSON.parse(saved);
           const cachedSeniorId = profile?.senior?.id;
+
           if (cachedSeniorId) {
             const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
+
             if (response.ok) {
               const freshProfile = await response.json();
+
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
               setUserName(freshProfile?.senior?.name || "사용자");
               setUserRegion(freshProfile?.senior?.region || freshProfile?.senior?.address || "");
@@ -456,6 +509,7 @@ export default function UserPage() {
               return;
             }
           }
+
           setUserName(profile?.senior?.name || "사용자");
           setUserRegion(profile?.senior?.region || profile?.senior?.address || "");
           setProfileImageUrl(profile?.senior?.profileImageUrl || "");
@@ -465,9 +519,12 @@ export default function UserPage() {
 
         const response = await fetch("http://localhost:8080/api/seniors");
         if (!response.ok) return;
+
         const profiles = await response.json();
         const latest = profiles[profiles.length - 1];
+
         if (!latest) return;
+
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
         setUserName(latest?.senior?.name || "사용자");
@@ -478,12 +535,22 @@ export default function UserPage() {
         console.error("사용자 정보 조회 실패:", error);
       }
     };
+
     loadCurrentSenior();
     seniorIntervalId = setInterval(loadCurrentSenior, 60 * 1000);
 
     const currentDate = new Date();
     const days = ["일", "월", "화", "수", "목", "금", "토"];
-    setDateStr(currentDate.getFullYear() + "년 " + (currentDate.getMonth() + 1) + "월 " + currentDate.getDate() + "일(" + days[currentDate.getDay()] + ")");
+    setDateStr(
+      currentDate.getFullYear() +
+        "년 " +
+        (currentDate.getMonth() + 1) +
+        "월 " +
+        currentDate.getDate() +
+        "일(" +
+        days[currentDate.getDay()] +
+        ")"
+    );
 
     return () => {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);

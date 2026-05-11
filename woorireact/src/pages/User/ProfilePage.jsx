@@ -136,21 +136,35 @@ export default function ProfilePage() {
         return (
           <section className="pr-section">
             <div className="pr-section-title">인적사항</div>
-            <div className="pr-photo-row">
-              <div className="pr-photo-preview">
+            <div className="pr-photo-field">
+              <label className="pr-photo-picker">
                 {form.profileImageUrl ? (
                   <img src={resolveUploadUrl(form.profileImageUrl)} alt="프로필 사진" />
                 ) : (
                   <span>사진</span>
                 )}
-              </div>
-              <div className="pr-photo-actions">
-                <label className="pr-photo-btn">
-                  {uploadingPhoto ? "업로드 중..." : "사진 선택"}
-                  <input type="file" accept="image/*" onChange={handleProfileImageChange} disabled={uploadingPhoto} />
-                </label>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageChange}
+                  disabled={uploadingPhoto}
+                />
+              </label>
+
+              <div className="pr-photo-copy">
+                <strong>프로필 사진</strong>
+                <p>
+                  사진 영역을 눌러 등록하거나 변경할 수 있습니다.
+                  {uploadingPhoto && <span className="pr-photo-uploading"> 업로드 중...</span>}
+                </p>
+
                 {form.profileImageUrl && (
-                  <button className="pr-photo-remove" type="button" onClick={() => set("profileImageUrl", "")}>
+                  <button
+                    className="pr-photo-remove"
+                    type="button"
+                    onClick={() => set("profileImageUrl", "")}
+                  >
                     사진 삭제
                   </button>
                 )}

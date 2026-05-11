@@ -80,6 +80,77 @@ public class GuardianController {
         );
     }
 
+    @PostMapping("/find-email")
+    public ResponseEntity<FindEmailResponse> findEmail(@RequestBody FindEmailRequest request) {
+        String name = request.name() == null ? "" : request.name().trim();
+        String phone = normalizePhone(request.phone());
+
+        return guardianRepository.findByNameAndNormalizedPhone(name, phone)
+                .map(guardian -> ResponseEntity.ok(new FindEmailResponse(maskEmail(guardian.getEmail()))))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
+        String email = request.email() == null ? "" : request.email().trim();
+        String phone = normalizePhone(request.phone());
+        String newPassword = request.newPassword() == null ? "" : request.newPassword().trim();
+
+        if (newPassword.length() < 4) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return guardianRepository.findByEmailAndNormalizedPhone(email, phone)
+                .map(guardian -> {
+                    guardian.setPassword(hashPassword(newPassword));
+                    guardianRepository.save(guardian);
+                    return ResponseEntity.noContent().<Void>build();
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            return "";
+        }
+
+        return phone.replaceAll("[^0-9]", "");
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return "";
+        }
+
+        String[] parts = email.split("@", 2);
+        String id = parts[0];
+        String domain = parts[1];
+
+        if (id.length() <= 2) {
+            return id.charAt(0) + "***@" + domain;
+        }
+
+        return id.substring(0, 2) + "***@" + domain;
+    }
+
+    public record FindEmailRequest(
+            String name,
+            String phone
+    ) {
+    }
+
+    public record FindEmailResponse(
+            String email
+    ) {
+    }
+
+    public record ResetPasswordRequest(
+            String email,
+            String phone,
+            String newPassword
+    ) {
+    }
+
     @GetMapping("/{id}")
     public GuardianResponse getGuardian(@PathVariable Long id) {
         Guardian guardian = guardianRepository.findById(id)
