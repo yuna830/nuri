@@ -74,6 +74,63 @@ export const getHealthItems = (profile, temp, pty) => {
 // 자외선 지수 (기상청)
 // ────────────────────────────────────────────
 const UV_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const CACHE_TTL = 30 * 60 * 1000;
+const RATE_LIMIT_COOLDOWN = 10 * 60 * 1000;
+
+const readCache = (key) => {
+  try {
+    const saved = sessionStorage.getItem(key);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (key, data) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {
+    // Storage can fail in private mode; the API should still work.
+  }
+};
+
+const fetchJsonWithCache = async (url, cacheKey, ttl = CACHE_TTL) => {
+  const cached = readCache(cacheKey);
+  const globalCooldown = readCache("weather-api:global-cooldown");
+
+  if (cached && Date.now() - cached.savedAt < ttl) {
+    return cached.data;
+  }
+
+  if (globalCooldown && Date.now() - globalCooldown.savedAt < RATE_LIMIT_COOLDOWN) {
+    return cached?.data ?? null;
+  }
+
+  const cooldown = readCache(`${cacheKey}:cooldown`);
+  if (cooldown && Date.now() - cooldown.savedAt < RATE_LIMIT_COOLDOWN) {
+    return cached?.data ?? null;
+  }
+
+  try {
+    const response = await fetch(url);
+
+    if (response.status === 429) {
+      writeCache(`${cacheKey}:cooldown`, true);
+      writeCache("weather-api:global-cooldown", true);
+      return cached?.data ?? null;
+    }
+
+    if (!response.ok) {
+      return cached?.data ?? null;
+    }
+
+    const data = await response.json();
+    writeCache(cacheKey, data);
+    return data;
+  } catch {
+    return cached?.data ?? null;
+  }
+};
 
 const uvLevel = (v) => {
   if (v >= 11) return "위험";
@@ -92,8 +149,8 @@ export const fetchUVIndex = async (lat, lon) => {
     const url = `/weather-api/1360000/LivingWthrIdxServiceV4/getUVIdxV4`
       + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
       + `&areaNo=${areaNo}&time=${time}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchJsonWithCache(url, `weather:uv:${areaNo}:${time}`);
+    if (!data) return null;
     const item = data?.response?.body?.items?.item?.[0];
     if (!item) return null;
     const value = parseInt(item.h0 || item.h3 || 0);
@@ -126,8 +183,8 @@ export const fetchAirQuality = async (lat, lon) => {
     const airUrl = `/airkorea/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`
       + `?serviceKey=${UV_KEY}&returnType=json&numOfRows=1&pageNo=1`
       + `&stationName=${encodeURIComponent(station)}&dataTerm=DAILY&ver=1.3`;
-    const airRes = await fetch(airUrl);
-    const airData = await airRes.json();
+    const airData = await fetchJsonWithCache(airUrl, `weather:air:${station}`);
+    if (!airData) return null;
     const item = airData?.response?.body?.items?.[0];
     if (!item) return null;
     const pm10 = parseInt(item.pm10Value || 0);
@@ -160,15 +217,24 @@ export const fetchPollenIndex = async (lat, lon) => {
     const areaNo = "1100000000";
 
     const [pineRes, oakRes, weedsRes] = await Promise.all([
-      fetch(`/health/1360000/HealthWthrIdxServiceV3/getPinePollenRiskIdxV3`
-        + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
-        + `&areaNo=${areaNo}&time=${time}`).then(r => r.json()).catch(() => null),
-      fetch(`/health/1360000/HealthWthrIdxServiceV3/getOakPollenRiskIdxV3`
-        + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
-        + `&areaNo=${areaNo}&time=${time}`).then(r => r.json()).catch(() => null),
-      fetch(`/health/1360000/HealthWthrIdxServiceV3/getWeedsPollenRiskndxV3`
-        + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
-        + `&areaNo=${areaNo}&time=${time}`).then(r => r.json()).catch(() => null),
+      fetchJsonWithCache(
+        `/health/1360000/HealthWthrIdxServiceV3/getPinePollenRiskIdxV3`
+          + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
+          + `&areaNo=${areaNo}&time=${time}`,
+        `weather:pollen:pine:${areaNo}:${time}`
+      ),
+      fetchJsonWithCache(
+        `/health/1360000/HealthWthrIdxServiceV3/getOakPollenRiskIdxV3`
+          + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
+          + `&areaNo=${areaNo}&time=${time}`,
+        `weather:pollen:oak:${areaNo}:${time}`
+      ),
+      fetchJsonWithCache(
+        `/health/1360000/HealthWthrIdxServiceV3/getWeedsPollenRiskndxV3`
+          + `?ServiceKey=${UV_KEY}&pageNo=1&numOfRows=10&dataType=JSON`
+          + `&areaNo=${areaNo}&time=${time}`,
+        `weather:pollen:weeds:${areaNo}:${time}`
+      ),
     ]);
 
     const parseItem = (data) => {

@@ -1,5 +1,8 @@
+import { reverseGeocodeByKakao } from "./kakaoLocalApi.js";
+
 const API_BASE = "http://localhost:8080";
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 
 export const toWeatherGrid = (lat, lon) => {
   const RE = 6371.00877;
@@ -81,12 +84,41 @@ export const fetchTodayForecast = async (lat, lon) => {
   const now = new Date();
   const today = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
   const currentHour = now.getHours();
+  const cacheKey = `today-forecast:${baseDate}:${baseTime}:${nx}:${ny}`;
   const url = `/weather-api/1360000/VilageFcstInfoService_2.0/getVilageFcst`
     + `?ServiceKey=${WEATHER_SERVICE_KEY}&pageNo=1&numOfRows=1000&dataType=JSON`
     + `&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
 
-  const response = await fetch(url);
-  const data = await response.json();
+  let data;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+    if (cached && Date.now() - cached.savedAt < WEATHER_CACHE_TTL) {
+      data = cached.data;
+    }
+  } catch {
+    data = null;
+  }
+
+  if (!data) {
+    const response = await fetch(url);
+
+    if (response.status === 429) {
+      throw new Error("Weather API rate limited");
+    }
+
+    if (!response.ok) {
+      throw new Error("Weather API failed");
+    }
+
+    data = await response.json();
+
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch {
+      // Ignore storage failure.
+    }
+  }
+
   const items = data?.response?.body?.items?.item || [];
   const hourly = normalizeItems(Array.isArray(items) ? items : [items])
     .filter((item) => item.date === today)
@@ -115,18 +147,73 @@ export const fetchTodayForecast = async (lat, lon) => {
 };
 
 export const reverseGeocode = async (lat, lon) => {
+  const roundedLat = Number(lat).toFixed(4);
+  const roundedLon = Number(lon).toFixed(4);
+  const cacheKey = `reverse-geocode:${roundedLat}:${roundedLon}`;
+  const cooldownKey = "reverse-geocode:cooldown";
+
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+    if (cached && Date.now() - cached.savedAt < 30 * 60 * 1000) {
+      return cached.address;
+    }
+
+    const cooldown = JSON.parse(sessionStorage.getItem(cooldownKey) || "null");
+    if (cooldown && Date.now() - cooldown.savedAt < 10 * 60 * 1000) {
+      return cached?.address || "현재 위치";
+    }
+  } catch {
+    // sessionStorage can fail; continue with a normal request.
+  }
+
+  try {
+    const kakaoAddress = await reverseGeocodeByKakao(lat, lon);
+    if (kakaoAddress) {
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), address: kakaoAddress }));
+      } catch {
+        // Ignore storage failure.
+      }
+      return kakaoAddress;
+    }
+  } catch {
+    // Fall back to Nominatim when Kakao is unavailable.
+  }
+
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`
+      `/nominatim/reverse?lat=${roundedLat}&lon=${roundedLon}&format=json&accept-language=ko`
     );
+
+    if (response.status === 429) {
+      try {
+        sessionStorage.setItem(cooldownKey, JSON.stringify({ savedAt: Date.now() }));
+      } catch {
+        // Ignore storage failure.
+      }
+      return "현재 위치";
+    }
+
+    if (!response.ok) {
+      return "현재 위치";
+    }
+
     const data = await response.json();
     const address = data?.address || {};
     const city = address.city || address.province || address.state || address.county;
     const district = address.city_district || address.borough || address.suburb || address.town || address.county;
     const dong = address.neighbourhood || address.quarter || address.village;
-    return [city, district, dong].filter(Boolean).filter((part, index, arr) => arr.indexOf(part) === index).slice(0, 3).join(" ")
+    const resolved = [city, district, dong].filter(Boolean).filter((part, index, arr) => arr.indexOf(part) === index).slice(0, 3).join(" ")
       || data?.display_name
       || "현재 위치";
+
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), address: resolved }));
+    } catch {
+      // Ignore storage failure.
+    }
+
+    return resolved;
   } catch {
     return "현재 위치";
   }

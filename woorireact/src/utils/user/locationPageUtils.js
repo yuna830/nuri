@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { reverseGeocode } from "../../api/userPageApi.js";
 
 export const SAFE_RADIUS = 500;
 
@@ -36,23 +37,4 @@ export const getNow = () => {
   return `${hours}:${minutes}`;
 };
 
-export const getAddress = async (lat, lon) => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`
-    );
-    const data = await response.json();
-    const address = data.address ?? {};
-
-    const parts = [
-      address.city || address.province || address.state,
-      address.city_district || address.suburb || address.borough,
-      address.road || address.neighbourhood,
-    ].filter(Boolean);
-
-    return parts.join(" ") || data.display_name || "주소 정보 없음";
-  } catch {
-    return "주소 불러오기 실패";
-  }
-};
-
+export const getAddress = async (lat, lon) => reverseGeocode(lat, lon);

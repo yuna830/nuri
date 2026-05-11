@@ -1,5 +1,37 @@
 const SERVICE_KEY =
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const jobListCache = new Map();
+const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const readJobCache = (cacheKey) => {
+  const memoryCached = jobListCache.get(cacheKey);
+  if (memoryCached && Date.now() - memoryCached.savedAt < JOB_CACHE_TTL_MS) {
+    return memoryCached.data;
+  }
+
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(`job-list:${cacheKey}`) || "null");
+    if (cached && Date.now() - cached.savedAt < JOB_CACHE_TTL_MS) {
+      jobListCache.set(cacheKey, cached);
+      return cached.data;
+    }
+  } catch {
+    // Cache is optional.
+  }
+
+  return null;
+};
+
+const writeJobCache = (cacheKey, data) => {
+  const cached = { savedAt: Date.now(), data };
+  jobListCache.set(cacheKey, cached);
+
+  try {
+    sessionStorage.setItem(`job-list:${cacheKey}`, JSON.stringify(cached));
+  } catch {
+    // Ignore storage failure.
+  }
+};
 
 export const EMPL_MAP = {
   CM0101: "정규직",
@@ -72,14 +104,24 @@ export const parseJobList = (xmlText) => {
   };
 };
 
-export const fetchJobList = async (pageNo = 1, emplymShp = "") => {
-  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=100`;
+export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
+  const cacheKey = `${pageNo}-${emplymShp}-${numOfRows}`;
+  const cached = readJobCache(cacheKey);
+  if (cached) return cached;
+
+  let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
 
   if (emplymShp) url += `&emplymShp=${emplymShp}`;
 
   const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Job API failed: ${response.status}`);
+  }
+
   const text = await response.text();
-  return parseJobList(text);
+  const data = parseJobList(text);
+  writeJobCache(cacheKey, data);
+  return data;
 };
 
 export const getSavedJobProfile = () => {

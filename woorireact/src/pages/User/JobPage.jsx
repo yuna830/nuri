@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   EMPL_COLOR,
@@ -12,7 +12,7 @@ import {
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
-const API_PAGE_SIZE = 100;
+const API_PAGE_SIZE = 200;
 
 export default function JobPage() {
   const navigate = useNavigate();
@@ -28,6 +28,7 @@ export default function JobPage() {
   const [selected, setSelected] = useState(null);
   const [profile, setProfile] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
+  const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
     setProfile(getSavedJobProfile());
@@ -56,13 +57,13 @@ export default function JobPage() {
   }, [category]);
 
   const matchesSearch = useCallback((job) => {
-    if (!search.trim()) return true;
-    const keyword = search.trim();
+    if (!deferredSearch.trim()) return true;
+    const keyword = deferredSearch.trim();
     return job.recrtTitle?.includes(keyword)
       || job.oranNm?.includes(keyword)
       || job.workPlcNm?.includes(keyword)
       || job.jobclsNm?.includes(keyword);
-  }, [search]);
+  }, [deferredSearch]);
 
   const filterJobs = useCallback((list) => {
     return list.filter((job) => {
@@ -86,7 +87,7 @@ export default function JobPage() {
       let shouldContinue = true;
 
       while (shouldContinue) {
-        const result = await fetchJobList(nextPage, "");
+        const result = await fetchJobList(nextPage, "", API_PAGE_SIZE);
         nextTotal = result.total || nextTotal;
         const merged = new Map(nextJobs.map((job) => [job.jobId, job]));
         result.list.forEach((job) => merged.set(job.jobId, job));
@@ -114,12 +115,24 @@ export default function JobPage() {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-    setJobs([]);
-    setLoadedPage(0);
-    setHasMoreSource(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [category, deferredSearch, hideExpired]);
+
+  useEffect(() => {
     loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
-  }, [category, search, hideExpired]);
+  }, []);
+
+  useEffect(() => {
+    if (loading || jobs.length === 0 || filtered.length >= PAGE_SIZE || !hasMoreSource) {
+      return;
+    }
+
+    loadUntilEnough({
+      startPage: loadedPage + 1,
+      targetCount: PAGE_SIZE,
+      replace: false,
+    });
+  }, [category, deferredSearch, filtered.length, hasMoreSource, hideExpired, jobs.length, loadedPage, loading, loadUntilEnough]);
 
   const handleCategoryClick = (value) => {
     setCategory(value);
