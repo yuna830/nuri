@@ -17,6 +17,7 @@ import LocationPage from "../pages/User/LocationPage";
 import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
 import WeatherGraph from "../pages/User/WeatherGraph";
+import SocialWorkerManager from "../pages/SocialWorker/Manager";
 
 
 function AppRoutes() {
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route path="/weather-graph" element={<WeatherGraph />} />
+        <Route path="/social-worker" element={<SocialWorkerManager />} />
         
       </Routes>
     </BrowserRouter>

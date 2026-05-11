@@ -8,6 +8,7 @@ import {
   getWeatherItems,
   getHealthItems,
 } from "../../utils/user/weatherAdvice";
+import { reverseGeocode } from "../../api/userPageApi.js";
 
 const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
@@ -68,6 +69,8 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
     items.push({ icon: "😷", title: "미세먼지 보통", desc: "민감한 분들은 마스크를 챙기세요. 장시간 야외 활동은 자제하는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (airData?.pm10?.level === "좋음")
     items.push({ icon: "😷", title: "미세먼지 좋음", desc: "오늘 미세먼지는 좋아요. 환기하기 좋은 날이에요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
+  else if (!airData)
+    items.push({ icon: "😷", title: "미세먼지 정보 확인 중", desc: "에어코리아 응답을 기다리는 중이에요. 수치가 확인되기 전까지는 민감하신 분은 마스크를 챙겨주세요.", color: C.textMuted, bg: C.greenPale, border: C.border });
 
   if (airData?.pm25?.level === "매우나쁨")
     items.push({ icon: "🫁", title: "초미세먼지 매우나쁨", desc: "호흡기·심혈관 질환이 있으신 분은 절대 외출하지 마세요. KF94 마스크 착용 필수입니다.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
@@ -77,6 +80,17 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
     items.push({ icon: "🫁", title: "초미세먼지 보통", desc: "호흡기가 약하신 분들은 마스크를 착용하는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
   else if (airData?.pm25?.level === "좋음")
     items.push({ icon: "🫁", title: "초미세먼지 좋음", desc: "오늘 초미세먼지는 좋아요. 맑은 공기를 마음껏 마시세요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
+  else if (!airData)
+    items.push({ icon: "🫁", title: "초미세먼지 정보 확인 중", desc: "초미세먼지 수치를 확인하는 중이에요. 호흡기가 약하시면 실외 활동 전 마스크를 준비해주세요.", color: C.textMuted, bg: C.greenPale, border: C.border });
+
+  if (airData?.pm10?.value >= 150)
+    items.push({ icon: "🌫️", title: "황사 주의", desc: "미세먼지 농도가 높아 황사 영향 가능성이 있어요. 외출을 줄이고 KF94 마스크를 착용해주세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
+  else if (airData?.pm10?.value >= 80)
+    items.push({ icon: "🌫️", title: "황사 관심", desc: "먼지 농도가 평소보다 높을 수 있어요. 장시간 야외 활동은 줄이는 것이 좋아요.", color: "#f0a500", bg: "#fff8e6", border: "#f0d080" });
+  else if (airData)
+    items.push({ icon: "🌫️", title: "황사 낮음", desc: "현재 황사 영향은 낮아 보여요. 그래도 외출 전 미세먼지 변화는 한 번 더 확인해주세요.", color: C.blue, bg: C.bluePale, border: C.blueLight });
+  else
+    items.push({ icon: "🌫️", title: "황사 정보 확인 중", desc: "황사 판단에 필요한 미세먼지 값을 확인하는 중이에요. 수치가 들어오면 자동으로 반영됩니다.", color: C.textMuted, bg: C.greenPale, border: C.border });
 
   if (pollenData?.pine?.value >= 4)
     items.push({ icon: "🌲", title: "소나무 꽃가루 매우높음", desc: "알레르기 비염이나 천식이 있으시면 마스크를 착용하고 외출 후 세안과 샤워를 꼭 하세요.", color: "#e05252", bg: "#fdf0f0", border: "#f5c6c6" });
@@ -98,6 +112,55 @@ const getEnvAdviceItems = (uvData, airData, pollenData) => {
 
   return items;
 };
+
+const readSessionCache = (key, ttl) => {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(key) || "null");
+    return cached && Date.now() - cached.savedAt < ttl ? cached.data : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeSessionCache = (key, data) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {
+    // Ignore storage failure.
+  }
+};
+
+const isSameJson = (first, second) => JSON.stringify(first) === JSON.stringify(second);
+
+const setChanged = (setter, nextValue) => {
+  setter((prevValue) => (isSameJson(prevValue, nextValue) ? prevValue : nextValue));
+};
+
+function EnvRow({ icon, label, value, color, hasBorder = true }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0.65rem 0",
+      borderBottom: hasBorder ? `1px solid ${C.border}` : "none",
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        fontSize: "0.85rem",
+        color: C.textMuted,
+      }}>
+        <span>{icon}</span>
+        <span>{label}</span>
+      </div>
+      <span style={{ fontSize: "0.85rem", fontWeight: "700", color }}>
+        {value}
+      </span>
+    </div>
+  );
+}
 
 export default function WeatherGraph() {
   const navigate = useNavigate();
@@ -143,9 +206,17 @@ export default function WeatherGraph() {
       const url = `/weather-api/1360000/VilageFcstInfoService_2.0/getVilageFcst`
         + `?ServiceKey=${SERVICE_KEY}&pageNo=1&numOfRows=1000&dataType=JSON`
         + `&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
+      const cacheKey = `weather-graph-hourly:${baseDate}:${baseTime}:${nx}:${ny}`;
 
-      const res = await fetch(url);
-      const data = await res.json();
+      let data = readSessionCache(cacheKey, 10 * 60 * 1000);
+
+      if (!data) {
+        const res = await fetch(url);
+        if (res.status === 429) throw new Error("날씨 API 요청이 잠시 제한되었습니다.");
+        if (!res.ok) throw new Error("날씨 API 요청 실패");
+        data = await res.json();
+        writeSessionCache(cacheKey, data);
+      }
       const items = data?.response?.body?.items?.item || [];
 
       const grouped = {};
@@ -178,23 +249,23 @@ export default function WeatherGraph() {
           };
         });
 
-      setHourlyData(todayData);
+      setChanged(setHourlyData, todayData);
       const nowData = todayData.find(d => d.isNow) || todayData[0];
 
       if (nowData) {
-        setCurrent(nowData);
+        setChanged(setCurrent, nowData);
         const weatherItems = getWeatherItems(nowData.temp, nowData.pty, nowData.wsd, nowData.humid);
         const healthItems  = getHealthItems(profile, nowData.temp, nowData.pty);
-        setAdviceItems([...weatherItems, ...healthItems]);
+        setChanged(setAdviceItems, [...weatherItems, ...healthItems]);
 
         const [uv, pollen, air] = await Promise.all([
           fetchUVIndex(lat, lon),
           fetchPollenIndex(lat, lon),
           fetchAirQuality(lat, lon),
         ]);
-        if (uv)     setUvData(uv);
-        if (pollen) setPollenData(pollen);
-        if (air)    setAirData(air);
+        if (uv)     setChanged(setUvData, uv);
+        if (pollen) setChanged(setPollenData, pollen);
+        if (air)    setChanged(setAirData, air);
       }
 
       setLoading(false);
@@ -210,22 +281,13 @@ export default function WeatherGraph() {
       navigator.geolocation.getCurrentPosition(
         async pos => {
           const { latitude: lat, longitude: lon } = pos.coords;
-          try {
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`
-            );
-            const d = await res.json();
-            const addr = d?.address;
-            setAddress(addr?.suburb || addr?.neighbourhood || addr?.city_district || addr?.city || "현재 위치");
-          } catch {
-            setAddress("현재 위치");
-          }
+          setChanged(setAddress, await reverseGeocode(lat, lon));
           fetchHourly(lat, lon);
         },
-        () => { setAddress("서울"); fetchHourly(37.5665, 126.9780); }
+        () => { setChanged(setAddress, "서울"); fetchHourly(37.5665, 126.9780); }
       );
     } else {
-      setAddress("서울");
+      setChanged(setAddress, "서울");
       fetchHourly(37.5665, 126.9780);
     }
   }, []);
@@ -298,6 +360,7 @@ export default function WeatherGraph() {
   };
 
   const envAdviceItems = getEnvAdviceItems(uvData, airData, pollenData);
+  const dustLevel = airData?.pm10?.value >= 150 ? "주의" : airData?.pm10?.value >= 80 ? "관심" : airData ? "낮음" : "정보 확인 중";
 
   return (
     <div className="wg-root">
@@ -361,7 +424,69 @@ export default function WeatherGraph() {
               </div>
             )}
 
-            {(uvData || airData || pollenData) && (
+            <div className="wg-chart-card">
+              <div className="wg-chart-title">🌍 환경 지수</div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {uvData && (
+                  <div style={{
+                    display: "flex", alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.65rem 0", borderBottom: `1px solid ${C.border}`,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem",
+                      fontSize: "0.85rem", color: C.textMuted }}>
+                      <span>☀️</span><span>자외선 지수</span>
+                    </div>
+                    <span style={{ fontSize: "0.85rem", fontWeight: "700",
+                      color: envLevelColor(uvData.level) }}>
+                      {uvData.value} — {uvData.level}
+                    </span>
+                  </div>
+                )}
+                <EnvRow
+                  icon="😷"
+                  label="미세먼지 PM10"
+                  value={airData ? `${airData.pm10.value}㎍/㎥ — ${airData.pm10.level}` : "정보 확인 중"}
+                  color={airData ? envLevelColor(airData.pm10.level) : C.textMuted}
+                />
+                <EnvRow
+                  icon="🫁"
+                  label="초미세먼지 PM2.5"
+                  value={airData ? `${airData.pm25.value}㎍/㎥ — ${airData.pm25.level}` : "정보 확인 중"}
+                  color={airData ? envLevelColor(airData.pm25.level) : C.textMuted}
+                />
+                <EnvRow
+                  icon="🌫️"
+                  label="황사"
+                  value={dustLevel}
+                  color={dustLevel === "주의" ? C.danger : dustLevel === "관심" ? "#f0a500" : airData ? C.blue : C.textMuted}
+                />
+                {airData && (
+                  <div style={{ fontSize: "0.7rem", color: C.textMuted, padding: "0.3rem 0" }}>
+                    측정소: {airData.station} · 에어코리아
+                  </div>
+                )}
+                {pollenData?.pine && (
+                  <EnvRow
+                    icon="🌲"
+                    label="소나무 꽃가루"
+                    value={pollenData.pine.text}
+                    color={envLevelColor(pollenData.pine.text)}
+                  />
+                )}
+                {pollenData?.oak && (
+                  <EnvRow
+                    icon="🌳"
+                    label="참나무 꽃가루"
+                    value={pollenData.oak.text}
+                    color={envLevelColor(pollenData.oak.text)}
+                    hasBorder={false}
+                  />
+                )}
+              </div>
+            </div>
+
+            {false && (uvData || airData || pollenData) && (
               <div className="wg-chart-card">
                 <div className="wg-chart-title">🌍 환경 지수</div>
                 <div style={{ display: "flex", flexDirection: "column" }}>

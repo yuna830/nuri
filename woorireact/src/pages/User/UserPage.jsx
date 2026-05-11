@@ -151,10 +151,38 @@ function getCurrentSeniorId(initialSenior) {
   return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
 }
 
+const formatDongAddress = (address = "") => {
+  const parts = String(address)
+    .replaceAll(",", " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.slice(0, 3).join(" ");
+};
+
+const getLocalCareTeam = (seniorId) => {
+  if (!seniorId) return null;
+
+  try {
+    const careTeamMap = JSON.parse(localStorage.getItem("seniorCareTeamMap") || "{}");
+    return careTeamMap[String(seniorId)] || null;
+  } catch {
+    return null;
+  }
+};
+
+const isSameJson = (first, second) => JSON.stringify(first) === JSON.stringify(second);
+
+const setChanged = (setter, nextValue) => {
+  setter((prevValue) => (isSameJson(prevValue, nextValue) ? prevValue : nextValue));
+};
+
 export default function UserPage() {
   const navigate = useNavigate();
   const initialProfile = getInitialSeniorProfile();
   const initialSenior = initialProfile?.senior;
+  const initialLocalCareTeam = getLocalCareTeam(initialSenior?.id);
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
@@ -169,6 +197,11 @@ export default function UserPage() {
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [careTeam, setCareTeam] = useState({
+    guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
+    guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
+    socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
+  });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
@@ -187,16 +220,13 @@ export default function UserPage() {
 
   const fetchWeather = async (lat, lon) => {
     try {
-      const [forecast, region] = await Promise.all([
-        fetchTodayForecast(lat, lon),
-        reverseGeocode(lat, lon),
-      ]);
+      const forecast = await fetchTodayForecast(lat, lon);
 
-      setWeather({
+      setChanged(setWeather, {
         temp: forecast.temp === "--" ? "--" : Math.round(Number(forecast.temp)),
         status: forecast.status,
         icon: forecast.icon,
-        region,
+        region: currentAddress && currentAddress !== "위치 불러오는 중..." ? currentAddress : "현재 위치",
         humid: forecast.humid && forecast.humid !== "--" ? forecast.humid + "%" : "-",
       });
     } catch {
@@ -314,18 +344,18 @@ export default function UserPage() {
 
       const latestTwoAlerts = merged.slice(0, 2);
       if (latestTwoAlerts.length > 0) {
-        setWeatherAlerts(latestTwoAlerts);
+        setChanged(setWeatherAlerts, latestTwoAlerts);
         return;
       }
 
-      setWeatherAlerts([{
+      setChanged(setWeatherAlerts, [{
         type: "안전",
         color: COLORS.green,
         msg: "현재 확인된 기후 위험 알림이 없습니다.",
         time: currentDateTime,
       }]);
     } catch {
-      setWeatherAlerts([{
+      setChanged(setWeatherAlerts, [{
         type: "안전",
         color: COLORS.green,
         msg: "기후 알림을 확인하는 중입니다.",
@@ -335,7 +365,7 @@ export default function UserPage() {
   };
 
   const updateLocation = async (lat, lon, accuracy) => {
-    setCurrentPos({ lat, lon });
+    setChanged(setCurrentPos, { lat, lon });
 
     const capturedAt = new Date();
     setCurrentLocationTime(
@@ -346,51 +376,45 @@ export default function UserPage() {
       })
     );
 
-    const resolvedAddress = await reverseGeocode(lat, lon).catch(() => "현재 위치");
-    setCurrentAddress(resolvedAddress);
+    const lastSavedLocation = lastSavedLocationRef.current;
+    const movedMeters = lastSavedLocation
+      ? Math.sqrt(
+          Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
+            Math.pow(
+              (lon - lastSavedLocation.lon) *
+                111000 *
+                Math.cos((lat * Math.PI) / 180),
+              2
+            )
+        )
+      : Infinity;
+
+    const shouldResolveAddress =
+      movedMeters >= 50 ||
+      !currentAddress ||
+      currentAddress === "위치 불러오는 중..." ||
+      currentAddress === "현재 위치";
+
+    const resolvedAddress = shouldResolveAddress
+      ? await reverseGeocode(lat, lon).catch(() => "현재 위치")
+      : currentAddress;
+
+    const displayAddress = resolvedAddress || "현재 위치";
+    setChanged(setCurrentAddress, displayAddress);
 
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`
-      );
-      const d = await res.json();
-      const addr = d?.address;
-      const address =
-        addr?.suburb ||
-        addr?.neighbourhood ||
-        addr?.city_district ||
-        addr?.city ||
-        "현재 위치";
-
-      const displayAddress = resolvedAddress || address;
-      setCurrentAddress(displayAddress);
-
       const seniorId = getCurrentSeniorId(initialSenior);
-
-      const lastSavedLocation = lastSavedLocationRef.current;
-      const movedMeters = lastSavedLocation
-        ? Math.sqrt(
-            Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
-              Math.pow(
-                (lon - lastSavedLocation.lon) *
-                  111000 *
-                  Math.cos(lat * Math.PI / 180),
-                2
-              )
-          )
-        : Infinity;
 
       if (accuracy && accuracy > 1000) {
         console.warn("위치 정확도가 낮아 저장하지 않음:", accuracy);
         return;
       }
-      // 위치 잘못 찍힘 방지 
+
       if (lastSavedLocation && movedMeters > 3000) {
         console.warn("비정상 위치 튐 감지, 저장하지 않음:", movedMeters);
         return;
       }
 
-      // 가만히 있어도 찍힘 => 50미터로
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
@@ -406,7 +430,7 @@ export default function UserPage() {
         lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
-      setCurrentAddress("현재 위치");
+      setChanged(setCurrentAddress, "현재 위치");
     }
 
     if (safeZone) {
@@ -415,12 +439,12 @@ export default function UserPage() {
           Math.pow(
             (lon - safeZone.centerLongitude) *
               111000 *
-              Math.cos(lat * Math.PI / 180),
+              Math.cos((lat * Math.PI) / 180),
             2
           )
       );
 
-      setIsInRange(dist <= safeZone.radiusMeters);
+      setChanged(setIsInRange, dist <= safeZone.radiusMeters);
     }
   };
 
@@ -458,7 +482,7 @@ export default function UserPage() {
   useEffect(() => {
     fetchWeatherAlerts();
     startLocationTracking();
-    weatherAlertIntervalRef.current = setInterval(fetchWeatherAlerts, 60 * 1000);
+    weatherAlertIntervalRef.current = setInterval(fetchWeatherAlerts, 10 * 60 * 1000);
 
     let safeZoneIntervalId;
     let jobsIntervalId;
@@ -502,6 +526,23 @@ export default function UserPage() {
     checkNewJobs();
     jobsIntervalId = setInterval(checkNewJobs, 5 * 60 * 1000);
 
+    const updateCareTeam = (profile) => {
+      const senior = profile?.senior ?? {};
+      const guardian = profile?.guardian ?? profile?.matchedGuardian ?? null;
+      const socialWorker = profile?.socialWorker ?? profile?.matchedSocialWorker ?? null;
+      const localCareTeam = getLocalCareTeam(senior.id);
+
+      setChanged(setCareTeam, {
+        guardianName: guardian?.name || profile?.guardianName || senior.guardianName || localCareTeam?.guardianName || "",
+        guardianRelation: profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
+        socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
+      });
+    };
+
+    const loadMatchedCareTeam = async (seniorId, fallbackProfile) => {
+      updateCareTeam(fallbackProfile);
+    };
+
     const loadCurrentSenior = async () => {
       try {
         const saved = sessionStorage.getItem("currentSenior");
@@ -517,18 +558,20 @@ export default function UserPage() {
               const freshProfile = await response.json();
 
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
-              setUserName(freshProfile?.senior?.name || "사용자");
-              setUserRegion(freshProfile?.senior?.region || freshProfile?.senior?.address || "");
-              setProfileImageUrl(freshProfile?.senior?.profileImageUrl || "");
-              setHealthScores(getHealthScoresFromProfile(freshProfile));
+              setChanged(setUserName, freshProfile?.senior?.name || "사용자");
+              setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
+              setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
+              loadMatchedCareTeam(cachedSeniorId, freshProfile);
+              setChanged(setHealthScores, getHealthScoresFromProfile(freshProfile));
               return;
             }
           }
 
-          setUserName(profile?.senior?.name || "사용자");
-          setUserRegion(profile?.senior?.region || profile?.senior?.address || "");
-          setProfileImageUrl(profile?.senior?.profileImageUrl || "");
-          setHealthScores(getHealthScoresFromProfile(profile));
+          setChanged(setUserName, profile?.senior?.name || "사용자");
+          setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
+          setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
+          loadMatchedCareTeam(cachedSeniorId, profile);
+          setChanged(setHealthScores, getHealthScoresFromProfile(profile));
           return;
         }
 
@@ -542,10 +585,11 @@ export default function UserPage() {
 
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
-        setUserName(latest?.senior?.name || "사용자");
-        setUserRegion(latest?.senior?.region || latest?.senior?.address || "");
-        setProfileImageUrl(latest?.senior?.profileImageUrl || "");
-        setHealthScores(getHealthScoresFromProfile(latest));
+        setChanged(setUserName, latest?.senior?.name || "사용자");
+        setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
+        setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
+        loadMatchedCareTeam(latest?.senior?.id, latest);
+        setChanged(setHealthScores, getHealthScoresFromProfile(latest));
       } catch (error) {
         console.error("사용자 정보 조회 실패:", error);
       }
@@ -585,12 +629,12 @@ export default function UserPage() {
       .then(data => {
         const list = Array.isArray(data) ? data : data?.content ?? [];
         const mapped = list.map(scheduleFromApi);
-        setScheduleList(mapped);
+        setChanged(setScheduleList, mapped);
         if (selectedScheduleDate === todayValue()) {
-          setTodaySchedules(mapped);
+          setChanged(setTodaySchedules, mapped);
         }
       })
-      .catch(() => setScheduleList([]));
+      .catch(() => setChanged(setScheduleList, []));
     loadSelectedDateSchedules();
     const scheduleIntervalId = setInterval(loadSelectedDateSchedules, 60 * 1000);
     return () => clearInterval(scheduleIntervalId);
@@ -604,9 +648,9 @@ export default function UserPage() {
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         const list = Array.isArray(data) ? data : data?.content ?? [];
-        setTodaySchedules(list.map(scheduleFromApi));
+        setChanged(setTodaySchedules, list.map(scheduleFromApi));
       })
-      .catch(() => setTodaySchedules([]));
+      .catch(() => setChanged(setTodaySchedules, []));
     loadTodaySchedules();
     const todayScheduleIntervalId = setInterval(loadTodaySchedules, 60 * 1000);
     return () => clearInterval(todayScheduleIntervalId);
@@ -618,7 +662,7 @@ export default function UserPage() {
       Math.pow((currentPos.lat - safeZone.centerLatitude) * 111000, 2)
       + Math.pow((currentPos.lon - safeZone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
     );
-    setIsInRange(dist <= safeZone.radiusMeters);
+    setChanged(setIsInRange, dist <= safeZone.radiusMeters);
   }, [currentPos, safeZone]);
 
   const confirmSOS = async () => {
@@ -704,9 +748,23 @@ export default function UserPage() {
             </div>
             <div className="up-profile-name">{userName}님</div>
             <div className="up-profile-sub">우리 돌봄 서비스</div>
-            {userRegion && <div className="up-profile-region">📍 {userRegion}</div>}
+            {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
               <div className="up-dot" /> 디바이스 연결됨
+            </div>
+            <div className="up-care-team">
+              <div>
+                <span>보호자</span>
+                <strong>
+                  {careTeam.guardianName
+                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                    : "매칭 전"}
+                </strong>
+              </div>
+              <div>
+                <span>복지사</span>
+                <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+              </div>
             </div>
           </div>
 

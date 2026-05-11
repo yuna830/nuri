@@ -278,6 +278,50 @@ export default function LocationPage() {
               </div>
             </div>
           )}
+
+          <div className="lp-history-card lp-history-card-wide">
+            <div className="lp-card-title">
+              <span>🗺 이동 이력</span>
+            </div>
+
+            <div style={{ marginBottom: "0.8rem" }}>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d4e8d6",
+                  borderRadius: "8px",
+                  padding: "0.4rem 0.7rem",
+                  fontSize: "0.82rem",
+                  fontFamily: "Noto Sans KR, sans-serif",
+                  color: "#1e2a1f",
+                  background: "#fff",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              />
+            </div>
+
+            <div className="lp-history-list">
+              {currentHistory.length === 0 ? (
+                <div className="lp-history-empty">
+                  {selectedDate === todayStr()
+                    ? "오늘 이동 이력이 없습니다"
+                    : "해당 날짜 이력이 없습니다"}
+                </div>
+              ) : (
+                currentHistory.map((item, index) => (
+                  <div key={`${item.time}-${index}`} className="lp-history-row">
+                    <div className="lp-history-time">{item.time}</div>
+                    <div className="lp-history-dot" />
+                    <div className="lp-history-place">{item.place}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         <aside className="lp-sidebar">
@@ -335,50 +379,6 @@ export default function LocationPage() {
             </div>
           </div>
 
-          {/* 날짜별 이동 이력 */}
-          <div className="lp-history-card">
-            <div className="lp-card-title">
-              <span>🗺 이동 이력</span>
-            </div>
-
-            <div style={{ marginBottom: "0.8rem" }}>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                style={{
-                  width: "100%",
-                  border: "1px solid #d4e8d6",
-                  borderRadius: "8px",
-                  padding: "0.4rem 0.7rem",
-                  fontSize: "0.82rem",
-                  fontFamily: "Noto Sans KR, sans-serif",
-                  color: "#1e2a1f",
-                  background: "#fff",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              />
-            </div>
-
-            <div className="lp-history-list">
-              {currentHistory.length === 0 ? (
-                <div className="lp-history-empty">
-                  {selectedDate === todayStr()
-                    ? "오늘 이동 이력이 없습니다"
-                    : "해당 날짜 이력이 없습니다"}
-                </div>
-              ) : (
-                currentHistory.map((item, index) => (
-                  <div key={`${item.time}-${index}`} className="lp-history-row">
-                    <div className="lp-history-time">{item.time}</div>
-                    <div className="lp-history-dot" />
-                    <div className="lp-history-place">{item.place}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </aside>
       </div>
     </div>

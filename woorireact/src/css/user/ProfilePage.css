@@ -398,3 +398,52 @@
   line-height: 1.6;
   margin-bottom: 1.2rem;
 }
+
+.pr-medication-card {
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  background: #fbfdf8;
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.pr-medication-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.pr-medication-head button,
+.pr-add-line-btn {
+  border: 1px solid #d4e8d6;
+  background: #ffffff;
+  color: #7a9a7c;
+  border-radius: 8px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.pr-medication-head button:hover,
+.pr-add-line-btn:hover {
+  background: #eef6ef;
+}
+
+.pr-inline-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: -0.15rem 0 0.9rem;
+  color: #5f7d61;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.pr-inline-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #86a788;
+}
