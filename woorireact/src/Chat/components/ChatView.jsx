@@ -62,7 +62,7 @@ export default function ChatView({
     <section className="chatbot-page">
       <UserCommonHeader />
       <UserSubHeader
-        title="AI 챗봇"
+        title=""
         right={<button className="chatbot-sub-action" type="button" onClick={onScheduleOpen}>일정 등록하기</button>}
         onBack={() => navigate("/user")}
         backLabel="← 홈으로"

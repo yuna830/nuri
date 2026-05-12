@@ -18,9 +18,10 @@
   margin: 0 auto 20px;
   padding: 28px 2rem 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
 }
 
 .chatbot-title-wrap {
@@ -516,6 +517,29 @@ button.selected {
   font-weight: 700;
 }
 
+.scroll-top-button {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 20;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5f7f63;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(56, 72, 57, 0.14);
+  cursor: pointer;
+}
+
+.scroll-top-button:hover {
+  background: #86a788;
+  color: #ffffff;
+}
+
 @media (max-width: 900px) {
   .chatbot-page,
   .schedule-register-page {
@@ -564,5 +588,13 @@ button.selected {
   .chatbot-header h1,
   .schedule-register-header h1 {
     font-size: 28px;
+  }
+
+  .scroll-top-button {
+    right: 16px;
+    bottom: 16px;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 15px;
   }
 }
