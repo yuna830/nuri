@@ -28,5 +28,6 @@ public class Senior {
     private String disabilityType;
     private String profileImageUrl;
 
+    private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt = LocalDateTime.now();
 }

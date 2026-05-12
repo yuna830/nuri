@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -142,7 +143,10 @@ public class SeniorController {
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
-        return toProfileResponse(senior);
+        senior.setLastLoginAt(LocalDateTime.now());
+        Senior savedSenior = seniorRepository.save(senior);
+
+        return toProfileResponse(savedSenior);
     }
 
     @PostMapping("/find-name")
