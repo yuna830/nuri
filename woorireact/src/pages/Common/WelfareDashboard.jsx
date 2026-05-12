@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, BriefcaseBusiness, Search, UserPlus, X } from "lucide-react";
+import { Bell, BriefcaseBusiness, Search, UserPlus, UserRound, X } from "lucide-react";
 import { WELFARE_DEMO_SENIORS } from "../../data/welfareSeniorDemoData";
 import { WELFARE_SENIOR_API_URL, ADDED_SENIORS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
 import { getSavedAddedSeniors } from "../../utils/welfare/welfareStorage";
@@ -21,13 +21,14 @@ const FILTER_GROUPS = [
     { key : "locationStatus", label : "위치 상태", options : ["정상", "안전구역 이탈"] },
     { key : "alertStatus", label : "알림 상태", options : ["없음", "SOS 요청", "일자리 요청"] },
     { key : "regionDistrict", label : "거주 지역", options : [] },
-    { key : "jobMatchingStatus", label : "소견 단계", options : ["적합", "검토중", "보류", "부적합"] },
+    { key : "workRequestStatus", label : "확인여부", options : ["검토", "미검토"] },
 ];
+
+const WORK_REQUEST_STATUS_STORAGE_KEY = "welfareWorkRequestStatus";
+const DISMISSED_NOTIFICATIONS_STORAGE_KEY = "welfareDismissedNotifications";
 
 const ADD_SENIOR_INITIAL_FORM = {
     name : "",
-    age : "",
-    gender : "여성",
     region : "",
     healthStatus : "양호",
     locationStatus : "정상",
@@ -44,6 +45,74 @@ const createEmptyFilters = () =>
         [group.key] : [],
     }), {});
 
+const getKeywordTokens = (keyword) =>
+    keyword
+        .toLowerCase()
+        .split(/[\s,，]+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+
+const formatPhoneNumber = (digits) => {
+    if (digits.length === 11) {
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+
+    if (digits.length === 10) {
+        return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    return digits;
+};
+
+const parseAddSeniorIdentity = (value) => {
+    const tokens = value.trim().split(/[\s,，]+/).filter(Boolean);
+    const nameParts = [];
+    const phoneParts = [];
+
+    tokens.forEach((token) => {
+        const digits = token.replace(/\D/g, "");
+
+        if (digits && /^[\d+\-().]+$/.test(token)) {
+            phoneParts.push(digits);
+            return;
+        }
+
+        nameParts.push(token);
+    });
+
+    const phoneDigits = phoneParts.join("");
+
+    return {
+        name : nameParts.join(" ").trim(),
+        phone : phoneDigits.length >= 9 ? formatPhoneNumber(phoneDigits) : "",
+        phoneDigits,
+    };
+};
+
+const getSeniorPhoneDigits = (senior) => {
+    const phone = senior.phone || `010-1000-${String(senior.id).padStart(4, "0")}`;
+
+    return phone.replace(/\D/g, "");
+};
+
+const readSavedWorkRequestStatus = () => {
+    try {
+        return JSON.parse(localStorage.getItem(WORK_REQUEST_STATUS_STORAGE_KEY) || "{}");
+    } catch {
+        return {};
+    }
+};
+
+const readDismissedNotifications = () => {
+    try {
+        const savedIds = JSON.parse(localStorage.getItem(DISMISSED_NOTIFICATIONS_STORAGE_KEY) || "[]");
+
+        return Array.isArray(savedIds) ? savedIds : [];
+    } catch {
+        return [];
+    }
+};
+
 function WelfareDashboard(){
     const navigate = useNavigate();
     const currentWorker = JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
@@ -51,7 +120,7 @@ function WelfareDashboard(){
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-    const [dismissedNotifications, setDismissedNotifications] = useState([]);
+    const [dismissedNotifications, setDismissedNotifications] = useState(readDismissedNotifications);
     const notificationRef = useRef(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
@@ -62,7 +131,19 @@ function WelfareDashboard(){
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [addSeniorForm, setAddSeniorForm] = useState(ADD_SENIOR_INITIAL_FORM);
     const [addSeniorError, setAddSeniorError] = useState("");
+    const [addSeniorSearchMessage, setAddSeniorSearchMessage] = useState("");
     const itemPerPage = 10;
+    const addSeniorIdentity = parseAddSeniorIdentity(addSeniorForm.name);
+    const hasEnglishInAddSeniorIdentity = /[A-Za-z]/.test(addSeniorForm.name);
+    const isAddSeniorIdentityComplete =
+        Boolean(addSeniorIdentity.name && addSeniorIdentity.phone) && !hasEnglishInAddSeniorIdentity;
+    const savedWorkRequestStatus = readSavedWorkRequestStatus();
+    const matchedAddSenior = isAddSeniorIdentityComplete
+        ? seniors.find((senior) =>
+            senior.name === addSeniorIdentity.name &&
+            getSeniorPhoneDigits(senior) === addSeniorIdentity.phoneDigits
+        )
+        : null;
 
     useEffect(() => {
         let ignore = false;
@@ -146,8 +227,15 @@ function WelfareDashboard(){
             return getRegionDistrict(senior.region);
         }
 
+        if (filterKey === "workRequestStatus") {
+            return getSeniorReviewStatus(senior);
+        }
+
         return senior[filterKey];
     };
+
+    const getSeniorReviewStatus = (senior) =>
+        savedWorkRequestStatus[senior.id] || senior.workRequestStatus || "미검토";
 
     const isFilterMatched = (filterKey, selectedValues, senior) => {
         if (selectedValues.length === 0 || selectedValues.includes("서울 전체")) {
@@ -161,11 +249,12 @@ function WelfareDashboard(){
         const isMatchedByFilters = FILTER_GROUPS.every((group) =>
             isFilterMatched(group.key, filters[group.key], senior)
         );
-        const normalizedKeyword = searchKeyword.trim().toLowerCase();
+        const keywordTokens = getKeywordTokens(searchKeyword);
         const searchableValues = [
             senior.id,
             `ID ${String(senior.id).padStart(4, "0")}`,
             senior.name,
+            senior.phone,
             senior.age,
             senior.gender,
             senior.region,
@@ -173,16 +262,17 @@ function WelfareDashboard(){
             senior.lastAccess,
             senior.locationStatus,
             senior.alertStatus,
-            senior.workRequestStatus,
+            getSeniorReviewStatus(senior),
             senior.jobRequestStatus,
             senior.jobMatchingStatus,
             senior.welfareDecision,
         ];
+        const searchableText = searchableValues
+            .map((value) => String(value ?? "").toLowerCase())
+            .join(" ");
         const matchKeyword =
-            normalizedKeyword === "" ||
-            searchableValues.some((value) =>
-                String(value ?? "").toLowerCase().includes(normalizedKeyword)
-            );
+            keywordTokens.length === 0 ||
+            keywordTokens.every((token) => searchableText.includes(token));
 
         return isMatchedByFilters && matchKeyword;
     });
@@ -210,7 +300,7 @@ function WelfareDashboard(){
             return 4;
         }
 
-        if (senior.workRequestStatus === "미검토") {
+        if (getSeniorReviewStatus(senior) === "미검토") {
             return 5;
         }
 
@@ -296,7 +386,7 @@ function WelfareDashboard(){
         jobRequest : seniors.reduce((totalCount, senior) => (
             totalCount + Number(senior.jobRequestCount || 0)
         ), 0),
-        unreviewed : seniors.filter((senior) => senior.workRequestStatus === "미검토").length,
+        unreviewed : seniors.filter((senior) => getSeniorReviewStatus(senior) === "미검토").length,
     };
 
     const welfareNotifications = seniors.flatMap((senior) => {
@@ -307,17 +397,21 @@ function WelfareDashboard(){
                 id : `${senior.id}-sos`,
                 seniorId : senior.id,
                 title : "SOS 요청",
-                message : `${senior.name} 대상자의 마지막 GPS 위치 확인이 필요합니다.`,
+                message : `${senior.name} 대상자가 SOS 도움을 요청했습니다. 즉시 확인이 필요합니다.`,
+                detailCategory : "안심구역 관리",
             });
         }
 
         if (senior.alertStatus === "일자리 요청") {
-            notifications.push({
-                id : `${senior.id}-job-request`,
-                seniorId : senior.id,
-                title : "일자리 요청",
-                message : `${senior.name} 대상자가 ${senior.jobRequestStatus}을 보냈습니다.`,
-            });
+            if (getSeniorReviewStatus(senior) !== "검토") {
+                notifications.push({
+                    id : `${senior.id}-job-request`,
+                    seniorId : senior.id,
+                    title : "일자리 요청",
+                    message : `${senior.name} 대상자가 ${senior.jobRequestStatus}을 보냈습니다.`,
+                    detailCategory : "일자리 요청 상태",
+                });
+            }
         }
 
         if (senior.locationStatus === "안전구역 이탈") {
@@ -326,6 +420,7 @@ function WelfareDashboard(){
                 seniorId : senior.id,
                 title : "위치 상태 확인",
                 message : `${senior.name} 대상자가 안전구역을 이탈했습니다.`,
+                detailCategory : "안심구역 관리",
             });
         }
 
@@ -335,6 +430,7 @@ function WelfareDashboard(){
                 seniorId : senior.id,
                 title : "건강 상태 위험",
                 message : `${senior.name} 대상자의 건강 상태가 위험입니다.`,
+                detailCategory : "건강 정보",
             });
         }
 
@@ -344,27 +440,52 @@ function WelfareDashboard(){
                 seniorId : senior.id,
                 title : "접속 확인 필요",
                 message : `${senior.name} 대상자가 4시간 넘게 접속하지 않았습니다.`,
+                detailCategory : "기본 정보",
             });
         }
 
         return notifications;
     });
 
-    const activeNotifications = welfareNotifications.filter(
+    const callRequests = JSON.parse(localStorage.getItem("welfareCallRequests") || "[]");
+    const callNotifications = callRequests.map((req) => ({
+        id : `call-${req.id}`,
+        seniorId : req.seniorId || null,
+        title : "📞 전화 요청",
+        message : `${req.seniorName} 대상자가 전화를 요청했습니다.`,
+        phone : req.phone || null,
+    }));
+
+    const allNotifications = [...callNotifications, ...welfareNotifications];
+
+    const activeNotifications = allNotifications.filter(
         (notification) => !dismissedNotifications.includes(notification.id)
     );
-    const visibleNotifications = activeNotifications.slice(0, 6);
+    const visibleNotifications = activeNotifications.slice(0, 10);
 
     const dismissNotification = (notificationId) => {
-        setDismissedNotifications((prev) => [...prev, notificationId]);
-    };
+        setDismissedNotifications((prev) => {
+            if (prev.includes(notificationId)) {
+                return prev;
+            }
 
-    const handleLogout = () => {
-        sessionStorage.removeItem("currentWelfareWorker");
-        navigate("/welfare-login");
+            const nextDismissedNotifications = [...prev, notificationId];
+            localStorage.setItem(
+                DISMISSED_NOTIFICATIONS_STORAGE_KEY,
+                JSON.stringify(nextDismissedNotifications)
+            );
+
+            return nextDismissedNotifications;
+        });
     };
 
     const setAddFormValue = (key, value) => {
+        setAddSeniorError(
+            key === "name" && /[A-Za-z]/.test(value)
+                ? "이름은 한글로 입력해주세요. 영문은 사용할 수 없습니다."
+                : ""
+        );
+        setAddSeniorSearchMessage("");
         setAddSeniorForm((previousForm) => ({
             ...previousForm,
             [key] : value,
@@ -374,28 +495,50 @@ function WelfareDashboard(){
     const openAddModal = () => {
         setAddSeniorForm(ADD_SENIOR_INITIAL_FORM);
         setAddSeniorError("");
+        setAddSeniorSearchMessage("");
         setIsAddModalOpen(true);
     };
 
+    const validateAddSeniorIdentity = () => {
+        if (hasEnglishInAddSeniorIdentity) {
+            setAddSeniorError("이름은 한글로 입력해주세요. 영문은 사용할 수 없습니다.");
+            return false;
+        }
+
+        if (!addSeniorIdentity.name || !addSeniorIdentity.phone) {
+            setAddSeniorError("이름과 연락처를 모두 입력해주세요. 쉼표(,) 또는 공백으로 구분할 수 있습니다.");
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleAddSeniorSearch = () => {
+        if (!validateAddSeniorIdentity()) {
+            return;
+        }
+
+        setAddSeniorError("");
+        setAddSeniorSearchMessage(
+            matchedAddSenior
+                ? `${matchedAddSenior.name} 대상자가 이미 등록되어 있습니다.`
+                : "일치하는 대상자가 없습니다. 신규 등록해주세요."
+        );
+    };
+
     const handleAddSenior = () => {
-        const name = addSeniorForm.name.trim();
-        const region = addSeniorForm.region.trim();
-        const age = Number(addSeniorForm.age);
+        if (!validateAddSeniorIdentity()) {
+            return;
+        }
+
+        const name = addSeniorIdentity.name;
+        const phone = addSeniorIdentity.phone;
+        const region = addSeniorForm.region.trim() || "거주 지역 미입력";
         const jobRequestCount = Number(addSeniorForm.jobRequestCount);
         const safeZoneRadius = Number(addSeniorForm.safeZoneRadius);
 
-        if (!name) {
-            setAddSeniorError("대상자 이름을 입력해주세요.");
-            return;
-        }
-
-        if (!Number.isFinite(age) || age <= 0) {
-            setAddSeniorError("나이를 숫자로 입력해주세요.");
-            return;
-        }
-
-        if (!region) {
-            setAddSeniorError("거주 지역을 입력해주세요.");
+        if (matchedAddSenior) {
+            setAddSeniorError("이미 등록된 대상자입니다.");
             return;
         }
 
@@ -412,8 +555,7 @@ function WelfareDashboard(){
         const newSenior = normalizeSenior({
             id : nextId,
             name,
-            age,
-            gender : addSeniorForm.gender,
+            phone,
             region,
             healthStatus : addSeniorForm.healthStatus,
             lastAccess : "방금 전",
@@ -465,12 +607,15 @@ function WelfareDashboard(){
             <WelfareHeader pageName = "복지사 대상자 관리">
                 {currentWorker && (
                     <div style = {styles.workerArea}>
-                        <span style = {styles.workerName}>
-                            {currentWorker.name} 복지사
-                        </span>
+                        <span style = {styles.workerName}>{currentWorker.name} 복지사</span>
                         {currentWorker.center && (
                             <span style = {styles.workerIdText}>{currentWorker.center}</span>
                         )}
+                        <Link to = "/welfare/mypage" style = {styles.myPageButton}>
+                            <UserRound size = {14} />
+                            마이페이지
+                        </Link>
+
                         <div style = {styles.notificationWrap} ref = {notificationRef}>
                             <button
                                 type = "button"
@@ -481,9 +626,7 @@ function WelfareDashboard(){
                             >
                                 <Bell size = {17} />
                                 {activeNotifications.length > 0 && (
-                                    <span style = {styles.notificationBadge}>
-                                        {activeNotifications.length}
-                                    </span>
+                                    <span style = {styles.notificationBadge}>{activeNotifications.length}</span>
                                 )}
                             </button>
 
@@ -516,21 +659,43 @@ function WelfareDashboard(){
                                                     >
                                                         <X size = {14} />
                                                     </button>
-                                                    <button
-                                                        type = "button"
-                                                        style = {styles.notificationItemContent}
-                                                        onClick = {() => {
-                                                            setIsNotificationOpen(false);
-                                                            navigate(`/welfare/seniors/${notification.seniorId}`);
-                                                        }}
-                                                    >
-                                                        <strong style = {styles.notificationItemTitle}>
-                                                            {notification.title}
-                                                        </strong>
-                                                        <span style = {styles.notificationItemMessage}>
-                                                            {notification.message}
-                                                        </span>
-                                                    </button>
+                                                    {notification.phone ? (
+                                                        <div style = {styles.notificationItemContent}>
+                                                            <strong style = {styles.notificationItemTitle}>
+                                                                {notification.title}
+                                                            </strong>
+                                                            <span style = {styles.notificationItemMessage}>
+                                                                {notification.message}
+                                                            </span>
+                                                            <a
+                                                                href = {`tel:${notification.phone}`}
+                                                                style = {styles.callButton}
+                                                                onClick = {(event) => event.stopPropagation()}
+                                                            >
+                                                                📞 {notification.phone} 전화 걸기
+                                                            </a>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type = "button"
+                                                            style = {styles.notificationItemContent}
+                                                            onClick = {() => {
+                                                                dismissNotification(notification.id);
+                                                                setIsNotificationOpen(false);
+                                                                navigate(
+                                                                    `/welfare/seniors/${notification.seniorId}`,
+                                                                    { state : { category : notification.detailCategory || "기본 정보" } }
+                                                                );
+                                                            }}
+                                                        >
+                                                            <strong style = {styles.notificationItemTitle}>
+                                                                {notification.title}
+                                                            </strong>
+                                                            <span style = {styles.notificationItemMessage}>
+                                                                {notification.message}
+                                                            </span>
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -538,13 +703,10 @@ function WelfareDashboard(){
                                 </div>
                             )}
                         </div>
-                        <button
-                            type = "button"
-                            style = {styles.logoutButton}
-                            onClick = {handleLogout}
-                        >
-                            로그아웃
-                        </button>
+
+                        <a href = "tel:119" style = {styles.emergencyHeaderButton}>
+                            긴급 신고
+                        </a>
                     </div>
                 )}
             </WelfareHeader>
@@ -703,7 +865,7 @@ function WelfareDashboard(){
                                 <th style = {styles.th}>건강 상태</th>
                                 <th style = {styles.th}>위치 상태</th>
                                 <th style = {styles.th}>알림 상태</th>
-                                <th style = {styles.th}>소견 단계</th>
+                                <th style = {styles.th}>확인여부</th>
                                 <th style = {styles.th}>마지막 접속</th>
                             </tr>
                         </thead>
@@ -747,15 +909,25 @@ function WelfareDashboard(){
                                             state = {{ category : senior.alertStatus === "SOS 요청" ? "안심구역 관리" : "일자리 요청 상태" }}
                                             style = {styles.cellLink}
                                         >
-                                            <span className = {getBadgeClass("alert", senior.alertStatus)}>
-                                                {senior.alertStatus}
+                                            <span className = {getBadgeClass("alert", (() => {
+                                                if (senior.alertStatus === "일자리 요청") {
+                                                    if (getSeniorReviewStatus(senior) === "검토") return "없음";
+                                                }
+                                                return senior.alertStatus;
+                                            })())}>
+                                                {(() => {
+                                                    if (senior.alertStatus === "일자리 요청") {
+                                                        if (getSeniorReviewStatus(senior) === "검토") return "없음";
+                                                    }
+                                                    return senior.alertStatus;
+                                                })()}
                                             </span>
                                         </Link>
                                     </td>
                                     <td style = {styles.td}>
-                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "복지사 소견" }} style = {styles.cellLink}>
-                                            <span className = {getBadgeClass("matching", senior.jobMatchingStatus)}>
-                                                {senior.jobMatchingStatus}
+                                        <Link to = {`/welfare/seniors/${senior.id}`} state = {{ category : "일자리 요청 상태" }} style = {styles.cellLink}>
+                                            <span className = {getBadgeClass("workRequest", getSeniorReviewStatus(senior))}>
+                                                {getSeniorReviewStatus(senior)}
                                             </span>
                                         </Link>
                                     </td>
@@ -829,50 +1001,41 @@ function WelfareDashboard(){
                                 style = {styles.addSearchInput}
                                 value = {addSeniorForm.name}
                                 onChange = {(event) => setAddFormValue("name", event.target.value)}
-                                placeholder = "이름 또는 연락처로 검색"
+                                placeholder = "이름과 연락처 입력 (예: 김민지, 010-0000-0000)"
                                 onKeyDown = {(event) => {
                                     if (event.key === "Enter") {
-                                        handleAddSenior();
+                                        handleAddSeniorSearch();
                                     }
                                 }}
                             />
                             <button
                                 type = "button"
-                                style = {styles.primaryButton}
-                                onClick = {handleAddSenior}
+                                style = {{
+                                    ...styles.primaryButton,
+                                    ...(!isAddSeniorIdentityComplete ? styles.disabledButton : {}),
+                                }}
+                                onClick = {handleAddSeniorSearch}
+                                disabled = {!isAddSeniorIdentityComplete}
                             >
                                 검색
                             </button>
                         </div>
 
                         {addSeniorError && <p style = {styles.formError}>{addSeniorError}</p>}
+                        {addSeniorSearchMessage && (
+                            <p
+                                style = {{
+                                    ...styles.addSearchResult,
+                                    ...(matchedAddSenior ? styles.addSearchResultFound : {}),
+                                }}
+                            >
+                                {addSeniorSearchMessage}
+                            </p>
+                        )}
 
-                        <p style = {styles.addSearchHint}>대상자의 이름이나 연락처를 입력한 뒤 검색해주세요.</p>
-
-                        <div style = {styles.formGrid}>
-                            <label style = {styles.formLabel}>
-                                나이
-                                <input
-                                    style = {styles.formInput}
-                                    type = "number"
-                                    min = "1"
-                                    value = {addSeniorForm.age}
-                                    onChange = {(event) => setAddFormValue("age", event.target.value)}
-                                    placeholder = "나이"
-                                />
-                            </label>
-                            <label style = {styles.formLabel}>
-                                성별
-                                <select
-                                    style = {styles.formInput}
-                                    value = {addSeniorForm.gender}
-                                    onChange = {(event) => setAddFormValue("gender", event.target.value)}
-                                >
-                                    <option value = "여성">여성</option>
-                                    <option value = "남성">남성</option>
-                                </select>
-                            </label>
-                        </div>
+                        <p style = {styles.addSearchHint}>
+                            이름은 한글로, 연락처는 숫자로 입력해주세요. 쉼표(,) 또는 공백으로 구분할 수 있습니다.
+                        </p>
 
                         <div style = {styles.modalActionRow}>
                             <button
@@ -884,8 +1047,12 @@ function WelfareDashboard(){
                             </button>
                             <button
                                 type = "button"
-                                style = {styles.primaryButton}
+                                style = {{
+                                    ...styles.primaryButton,
+                                    ...(!isAddSeniorIdentityComplete ? styles.disabledButton : {}),
+                                }}
                                 onClick = {handleAddSenior}
+                                disabled = {!isAddSeniorIdentityComplete}
                             >
                                 대상자 등록
                             </button>
@@ -922,16 +1089,35 @@ const styles = {
         fontWeight : "700",
         whiteSpace : "nowrap",
     },
-    logoutButton : {
+    myPageButton : {
         height : "34px",
-        padding : "0 12px",
+        padding : "0 11px",
         borderRadius : "8px",
-        border : "1px solid var(--main-color)",
+        border : "1px solid var(--border-color)",
         backgroundColor : "white",
         color : "var(--main-color)",
         fontSize : "13px",
         fontWeight : "700",
-        cursor : "pointer",
+        textDecoration : "none",
+        display : "inline-flex",
+        alignItems : "center",
+        gap : "5px",
+        whiteSpace : "nowrap",
+    },
+    emergencyHeaderButton : {
+        height : "34px",
+        padding : "0 13px",
+        borderRadius : "8px",
+        border : "1px solid #b66b6b",
+        backgroundColor : "#b66b6b",
+        color : "white",
+        fontSize : "13px",
+        fontWeight : "700",
+        textDecoration : "none",
+        display : "inline-flex",
+        alignItems : "center",
+        justifyContent : "center",
+        whiteSpace : "nowrap",
     },
     notificationWrap : {
         position : "relative",
@@ -965,7 +1151,7 @@ const styles = {
     },
     notificationPanel : {
         position : "absolute",
-        top : "42px",
+        top : "46px",
         right : 0,
         width : "320px",
         maxHeight : "360px",
@@ -1043,6 +1229,17 @@ const styles = {
         color : "#666",
         fontSize : "12px",
         lineHeight : "1.5",
+    },
+    callButton : {
+        display : "inline-block",
+        marginTop : "6px",
+        padding : "5px 10px",
+        fontSize : "12px",
+        fontWeight : "600",
+        color : "#fff",
+        backgroundColor : "#4a7c4f",
+        borderRadius : "6px",
+        textDecoration : "none",
     },
     emptyNotification : {
         margin : 0,
@@ -1159,7 +1356,7 @@ const styles = {
     filterTab : {
         minHeight : "40px",
         padding : "0 12px",
-        border : "1px solid var(--border-color)",
+        border : "1px solid #bfd4c0",
         borderRadius : "8px",
         backgroundColor : "white",
         color : "var(--text-color)",
@@ -1173,9 +1370,10 @@ const styles = {
         whiteSpace : "nowrap",
     },
     activeFilterTab : {
-        backgroundColor : "var(--main-color)",
-        color : "white",
+        backgroundColor : "white",
+        color : "var(--main-color)",
         borderColor : "var(--main-color)",
+        boxShadow : "none",
     },
     filterCount : {
         minWidth : "18px",
@@ -1189,8 +1387,8 @@ const styles = {
         textAlign : "center",
     },
     activeFilterCount : {
-        backgroundColor : "rgba(255, 255, 255, 0.24)",
-        color : "white",
+        backgroundColor : "#edf3ee",
+        color : "#777",
     },
     checkboxPanel : {
         padding : "2px 0 0",
@@ -1438,28 +1636,19 @@ const styles = {
         fontSize : "14px",
         fontWeight : "700",
     },
-    formGrid : {
-        display : "grid",
-        gridTemplateColumns : "repeat(2, minmax(0, 1fr))",
-        gap : "12px",
-    },
-    formLabel : {
-        display : "flex",
-        flexDirection : "column",
-        gap : "7px",
-        color : "#555",
-        fontSize : "13px",
-        fontWeight : "800",
-    },
-    formInput : {
-        width : "100%",
-        height : "40px",
-        border : "1px solid var(--border-color)",
+    addSearchResult : {
+        margin : "0 0 12px",
+        padding : "10px 12px",
         borderRadius : "8px",
-        backgroundColor : "white",
-        color : "var(--text-color)",
-        padding : "0 12px",
-        outline : "none",
+        backgroundColor : "#fff3c4",
+        color : "#6b5b12",
+        fontSize : "14px",
+        fontWeight : "800",
+        textAlign : "center",
+    },
+    addSearchResultFound : {
+        backgroundColor : "rgba(134, 167, 136, 0.18)",
+        color : "#48644b",
     },
     modalActionRow : {
         display : "flex",
@@ -1476,6 +1665,10 @@ const styles = {
         color : "white",
         fontWeight : "800",
         cursor : "pointer",
+    },
+    disabledButton : {
+        opacity : 0.55,
+        cursor : "not-allowed",
     },
     secondaryButton : {
         height : "38px",

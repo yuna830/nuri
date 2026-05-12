@@ -41,14 +41,16 @@ function WelfareJobPostings(){
     const allJobs = senior ? findRecommendedJobs(senior) : WELFARE_DEMO_JOBS;
     const [activeCategory, setActiveCategory] = useState("전체");
     const [searchKeyword, setSearchKeyword] = useState("");
+    const [hideClosedJobs, setHideClosedJobs] = useState(true);
 
     const filteredJobs = allJobs.filter((job) => {
         const matchCategory = activeCategory === "전체" || job.jobType === activeCategory;
+        const matchDeadline = !hideClosedJobs || job.deadlineStatus !== "마감";
         const keyword = searchKeyword.trim().toLowerCase();
         const matchKeyword = keyword === "" || [
-            job.title, job.organization, job.workPlace,
+            job.title, job.organization, job.workPlace, job.deadlineStatus,
         ].some((v) => String(v).toLowerCase().includes(keyword));
-        return matchCategory && matchKeyword;
+        return matchCategory && matchDeadline && matchKeyword;
     });
 
     const pageTitle = senior ? `${senior.name} 추천 공고` : "전체 일자리 공고";
@@ -95,6 +97,16 @@ function WelfareJobPostings(){
                                 placeholder = "공고명, 기업명, 근무지 검색..."
                                 style = {styles.searchInput}
                             />
+                            <span style = {styles.searchDivider} />
+                            <label style = {styles.hideClosedLabel}>
+                                <input
+                                    type = "checkbox"
+                                    checked = {hideClosedJobs}
+                                    onChange = {(event) => setHideClosedJobs(event.target.checked)}
+                                    style = {styles.hideClosedCheckbox}
+                                />
+                                마감 숨기기
+                            </label>
                         </div>
 
                         <p style = {styles.resultCount}>
@@ -210,12 +222,37 @@ const styles = {
     },
     searchInput : {
         flex : 1,
+        minWidth : 0,
         height : "100%",
         border : "none",
         outline : "none",
         fontSize : "14px",
         color : "var(--text-color)",
         backgroundColor : "transparent",
+    },
+    searchDivider : {
+        width : "1px",
+        height : "20px",
+        backgroundColor : "var(--border-color)",
+        flexShrink : 0,
+    },
+    hideClosedLabel : {
+        display : "inline-flex",
+        alignItems : "center",
+        gap : "6px",
+        color : "var(--main-color)",
+        fontSize : "13px",
+        fontWeight : "800",
+        whiteSpace : "nowrap",
+        cursor : "pointer",
+        flexShrink : 0,
+    },
+    hideClosedCheckbox : {
+        width : "16px",
+        height : "16px",
+        margin : 0,
+        accentColor : "var(--main-color)",
+        cursor : "pointer",
     },
     resultCount : {
         margin : "0 0 14px",

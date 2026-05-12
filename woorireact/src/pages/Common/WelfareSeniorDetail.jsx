@@ -4,8 +4,8 @@ import {
     findWelfareDemoCounselingRecords,
     findWelfareDemoSenior,
 } from "../../data/welfareSeniorDemoData";
-import { WELFARE_SENIOR_API_URL, SOS_REQUESTS_STORAGE_KEY, COUNSELING_RECORDS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
-import { getSavedAddedSeniors, getSavedCounselingRecords, readJsonStorage, saveWelfareDecision } from "../../utils/welfare/welfareStorage";
+import { WELFARE_SENIOR_API_URL, COUNSELING_RECORDS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
+import { getSavedAddedSeniors, getSavedCounselingRecords, saveWelfareDecision } from "../../utils/welfare/welfareStorage";
 import {
     normalizeSenior,
     applySavedWelfareDecision,
@@ -13,6 +13,30 @@ import {
     formatGps,
 } from "../../utils/welfare/welfareSenior";
 import WelfareHeader from "./WelfareHeader";
+
+const DECISION_COLORS = {
+    "적합" : {
+        backgroundColor : "#e8f3ea",
+        borderColor : "#86a788",
+        color : "#3f6b45",
+        activeBackgroundColor : "#86a788",
+        activeColor : "#ffffff",
+    },
+    "보류" : {
+        backgroundColor : "#fff5d6",
+        borderColor : "#e0b13f",
+        color : "#725214",
+        activeBackgroundColor : "#f0c24d",
+        activeColor : "#3e2d06",
+    },
+    "부적합" : {
+        backgroundColor : "#ffe8e8",
+        borderColor : "#d86969",
+        color : "#9a3535",
+        activeBackgroundColor : "#d86969",
+        activeColor : "#ffffff",
+    },
+};
 
 const findSavedSenior = (seniorId) =>
     getSavedAddedSeniors().find((senior) => String(senior.id) === String(seniorId));
@@ -28,17 +52,22 @@ function WelfareSeniorDetail(){
     const [draftCounselingMemo, setDraftCounselingMemo] = useState("");
     const [isMemoEditing, setIsMemoEditing] = useState(false);
     const [memoStatusMessage, setMemoStatusMessage] = useState("");
-    const [isSosModalOpen, setIsSosModalOpen] = useState(false);
-    const [sosStatusMessage, setSosStatusMessage] = useState("");
     const [draftDecision, setDraftDecision] = useState("미검토");
     const [draftRejectionReason, setDraftRejectionReason] = useState("");
     const [decisionStatusMessage, setDecisionStatusMessage] = useState("");
-    const [activeCategory, setActiveCategory] = useState(location.state?.category || "기본 정보");
+    const initialCategory = location.state?.category === "복지사 소견"
+        ? "일자리 요청 상태"
+        : location.state?.category || "기본 정보";
+    const [activeCategory, setActiveCategory] = useState(initialCategory);
 
-    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "복지사 소견", "전화 및 상담기록"];
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "전화 및 상담기록"];
 
     const applyLoadedSenior = (loadedSenior) => {
         const nextSenior = applySavedWelfareDecision(loadedSenior);
+        const savedReviews = JSON.parse(localStorage.getItem("welfareWorkRequestStatus") || "{}");
+        if (savedReviews[nextSenior.id]) {
+            nextSenior.workRequestStatus = savedReviews[nextSenior.id];
+        }
         const savedRecords = getSavedCounselingRecords();
         const nextRecords = savedRecords[nextSenior.id] || findWelfareDemoCounselingRecords(nextSenior.id);
         const sortedRecords = [...nextRecords].sort((a, b) => b.date.localeCompare(a.date));
@@ -149,8 +178,7 @@ function WelfareSeniorDetail(){
                 items : [
                     { label : "요청 건수", value : senior.jobRequestStatus },
                     { label : "검토 여부", value : senior.workRequestStatus },
-                    { label : "일자리 매칭 단계", value : senior.jobMatchingStatus },
-                    { label : "복지사 소견", value : senior.welfareDecision },
+                    { label : "적합 여부", value : senior.welfareDecision },
                     { label : "부적합 사유", value : senior.welfareDecisionReason || "등록된 사유 없음" },
                 ],
             },
@@ -158,10 +186,10 @@ function WelfareSeniorDetail(){
         : [];
 
     async function handleDecisionSave() {
-        const reason = draftDecision === "부적합" ? draftRejectionReason.trim() : draftRejectionReason.trim();
+        const reason = draftDecision === "부적합" ? draftRejectionReason.trim() : "";
 
         if (draftDecision === "부적합" && !reason) {
-            setDecisionStatusMessage("부적합일 경우 전달할 사유를 입력해주세요.");
+            setDecisionStatusMessage("부적합일 경우 사유를 입력해주세요.");
             return;
         }
 
@@ -209,8 +237,8 @@ function WelfareSeniorDetail(){
 
         setDecisionStatusMessage(
             draftDecision === "부적합"
-                ? "부적합 사유가 저장되어 전달 항목에 반영되었습니다."
-                : "복지사 소견이 저장되었습니다."
+                ? "부적합 사유가 일자리 요청 상태에 반영되었습니다."
+                : "판정 정보가 일자리 요청 상태에 저장되었습니다."
         );
     }
 
@@ -259,40 +287,13 @@ function WelfareSeniorDetail(){
         setMemoStatusMessage("");
     };
 
-    const handleSosRequest = () => {
-        if (senior) {
-            const savedRequests = readJsonStorage(SOS_REQUESTS_STORAGE_KEY, []);
-            const nextRequest = {
-                id : `${senior.id}-${Date.now()}`,
-                seniorId : senior.id,
-                seniorName : senior.name,
-                createdAt : new Date().toISOString(),
-                status : "보호자 알림 전송",
-                lastGps : senior.lastGps,
-            };
-
-            localStorage.setItem(
-                SOS_REQUESTS_STORAGE_KEY,
-                JSON.stringify([nextRequest, ...savedRequests])
-            );
-        }
-
-        setSosStatusMessage("보호자에게 SOS 조치 알림과 마지막 GPS 위치를 전송했습니다.");
-        setIsSosModalOpen(true);
-    };
-
-    const handleEmergencyReport = (agency) => {
-        setSosStatusMessage(`${agency} 신고 확인이 완료되었습니다. 실제 신고는 시연용으로 전송되지 않습니다.`);
-        setIsSosModalOpen(false);
-    };
-
     function getDetail(target) {
         if (!target) {
             return {};
         }
 
         return {
-            phone : `010-1000-${String(target.id).padStart(4, "0")}`,
+            phone : target.phone || `010-1000-${String(target.id).padStart(4, "0")}`,
             address : target.region,
             guardianName : `${target.name[0]}보호자`,
             guardianPhone : `010-2000-${String(target.id).padStart(4, "0")}`,
@@ -313,9 +314,18 @@ function WelfareSeniorDetail(){
             decision : {
                 "미검토" : { backgroundColor : "#eeeeee", color : "#555" },
                 "검토중" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-                "적합" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
-                "보류" : { backgroundColor : "#fff3c4", color : "#6b5b12" },
-                "부적합" : { backgroundColor : "#ffe1e1", color : "#8a2f2f" },
+                "적합" : {
+                    backgroundColor : DECISION_COLORS["적합"].backgroundColor,
+                    color : DECISION_COLORS["적합"].color,
+                },
+                "보류" : {
+                    backgroundColor : DECISION_COLORS["보류"].backgroundColor,
+                    color : DECISION_COLORS["보류"].color,
+                },
+                "부적합" : {
+                    backgroundColor : DECISION_COLORS["부적합"].backgroundColor,
+                    color : DECISION_COLORS["부적합"].color,
+                },
             },
             request : {
                 "검토" : { backgroundColor : "rgba(134, 167, 136, 0.22)", color : "#48644b" },
@@ -337,6 +347,18 @@ function WelfareSeniorDetail(){
         };
     };
 
+    const getDecisionOptionButtonStyle = (decision, isActive) => {
+        const colors = DECISION_COLORS[decision] || DECISION_COLORS["적합"];
+
+        return {
+            ...styles.decisionOptionButton,
+            borderColor : colors.borderColor,
+            backgroundColor : isActive ? colors.activeBackgroundColor : colors.backgroundColor,
+            color : isActive ? colors.activeColor : colors.color,
+            boxShadow : isActive ? "0 4px 10px rgba(0, 0, 0, 0.08)" : "none",
+        };
+    };
+
     return (
         <div style = {styles.page}>
             <WelfareHeader pageName = "대상자 상세정보" />
@@ -354,23 +376,13 @@ function WelfareSeniorDetail(){
 
                 {isLoading && <p style = {styles.message}>상세정보를 불러오는 중입니다.</p>}
                 {message && <p style = {{ ...styles.message, color : "#b66b6b" }}>{message}</p>}
-                {sosStatusMessage && <p style = {{ ...styles.message, color : "#b66b6b" }}>{sosStatusMessage}</p>}
 
                 {senior && (
                     <>
-                        <div style = {styles.statusActionRow}>
-                            <div style = {styles.statusGroup}>
-                                <span style = {getBadgeStyle("health", senior.healthStatus)}>{senior.healthStatus}</span>
-                                <span style = {getBadgeStyle("alert", senior.alertStatus)}>{senior.alertStatus}</span>
-                                <span style = {getBadgeStyle("decision", senior.welfareDecision)}>{senior.welfareDecision}</span>
-                            </div>
-                            <button
-                                type = "button"
-                                style = {styles.sosButton}
-                                onClick = {handleSosRequest}
-                            >
-                                SOS 조치
-                            </button>
+                        <div style = {styles.statusGroup}>
+                            <span style = {getBadgeStyle("health", senior.healthStatus)}>{senior.healthStatus}</span>
+                            <span style = {getBadgeStyle("alert", senior.alertStatus)}>{senior.alertStatus}</span>
+                            <span style = {getBadgeStyle("decision", senior.welfareDecision)}>{senior.welfareDecision}</span>
                         </div>
 
                         <div style = {styles.categoryLayout}>
@@ -406,74 +418,90 @@ function WelfareSeniorDetail(){
                                                         style = {styles.detailRow}
                                                     >
                                                         <span style = {styles.detailLabel}>{item.label}</span>
-                                                        <strong style = {styles.detailValue}>{item.value}</strong>
+                                                        {item.label === "검토 여부" ? (
+                                                            <strong style = {{
+                                                                ...styles.detailValue,
+                                                                color : senior.workRequestStatus === "검토" ? "#4a7c4f" : "#e05252",
+                                                            }}>
+                                                                {senior.workRequestStatus}
+                                                            </strong>
+                                                        ) : (
+                                                            <strong style = {styles.detailValue}>{item.value}</strong>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
                                             {section.title === "일자리 요청 상태" && (
-                                                <div style = {styles.jobActionRow}>
-                                                    <Link
-                                                        to = {`/welfare/seniors/${senior.id}/jobs`}
-                                                        style = {styles.jobLinkButton}
-                                                    >
-                                                        추천 공고 보기
-                                                    </Link>
-                                                    <Link
-                                                        to = "/welfare/jobs"
-                                                        style = {styles.secondaryJobLinkButton}
-                                                    >
-                                                        전체 공고 보기
-                                                    </Link>
-                                                </div>
+                                                <>
+                                                    <div style = {styles.decisionOptionRow}>
+                                                        {["적합", "보류", "부적합"].map((decision) => (
+                                                            <button
+                                                                type = "button"
+                                                                key = {decision}
+                                                                style = {getDecisionOptionButtonStyle(decision, draftDecision === decision)}
+                                                                onClick = {() => setDraftDecision(decision)}
+                                                            >
+                                                                {decision}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    {draftDecision === "부적합" && (
+                                                        <textarea
+                                                            value = {draftRejectionReason}
+                                                            onChange = {(event) => setDraftRejectionReason(event.target.value)}
+                                                            style = {styles.reasonTextarea}
+                                                            placeholder = "부적합 사유를 입력해주세요."
+                                                        />
+                                                    )}
+
+                                                    <div style = {styles.memoActionRow}>
+                                                        <button
+                                                            type = "button"
+                                                            style = {styles.smallButton}
+                                                            onClick = {handleDecisionSave}
+                                                        >
+                                                            판정 저장
+                                                        </button>
+                                                    </div>
+
+                                                    {decisionStatusMessage && (
+                                                        <p style = {styles.memoStatusMessage}>{decisionStatusMessage}</p>
+                                                    )}
+
+                                                    <div style = {styles.jobActionRow}>
+                                                        {senior.workRequestStatus === "미검토" && (
+                                                            <button
+                                                                type = "button"
+                                                                style = {styles.reviewSaveButton}
+                                                                onClick = {() => {
+                                                                    setSenior((prev) => ({ ...prev, workRequestStatus : "검토" }));
+                                                                    const savedReviews = JSON.parse(localStorage.getItem("welfareWorkRequestStatus") || "{}");
+                                                                    savedReviews[senior.id] = "검토";
+                                                                    localStorage.setItem("welfareWorkRequestStatus", JSON.stringify(savedReviews));
+                                                                }}
+                                                            >
+                                                                검토 완료
+                                                            </button>
+                                                        )}
+                                                        <Link
+                                                            to = {`/welfare/seniors/${senior.id}/jobs`}
+                                                            style = {styles.jobLinkButton}
+                                                        >
+                                                            추천 공고 보기
+                                                        </Link>
+                                                        <Link
+                                                            to = "/welfare/jobs"
+                                                            style = {styles.secondaryJobLinkButton}
+                                                        >
+                                                            전체 공고 보기
+                                                        </Link>
+                                                    </div>
+                                                </>
                                             )}
                                         </section>
                                     ))
                                 }
-
-                                {activeCategory === "복지사 소견" && (
-                                    <section style = {styles.detailSection}>
-                                        <h2 style = {styles.sectionTitle}>복지사 소견</h2>
-
-                                        <div style = {styles.decisionOptionRow}>
-                                            {["적합", "보류", "부적합"].map((decision) => (
-                                                <button
-                                                    type = "button"
-                                                    key = {decision}
-                                                    style = {{
-                                                        ...styles.decisionOptionButton,
-                                                        ...(draftDecision === decision ? styles.activeDecisionOptionButton : {}),
-                                                    }}
-                                                    onClick = {() => setDraftDecision(decision)}
-                                                >
-                                                    {decision}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {draftDecision === "부적합" && (
-                                            <textarea
-                                                value = {draftRejectionReason}
-                                                onChange = {(event) => setDraftRejectionReason(event.target.value)}
-                                                style = {styles.reasonTextarea}
-                                                placeholder = "부적합 사유를 작성하면 대상자/보호자 전달 항목에 반영됩니다."
-                                            />
-                                        )}
-
-                                        <div style = {styles.memoActionRow}>
-                                            <button
-                                                type = "button"
-                                                style = {styles.smallButton}
-                                                onClick = {handleDecisionSave}
-                                            >
-                                                소견 저장
-                                            </button>
-                                        </div>
-
-                                        {decisionStatusMessage && (
-                                            <p style = {styles.memoStatusMessage}>{decisionStatusMessage}</p>
-                                        )}
-                                    </section>
-                                )}
 
                                 {activeCategory === "전화 및 상담기록" && (
                                     <section style = {styles.detailSection}>
@@ -549,46 +577,6 @@ function WelfareSeniorDetail(){
                     </>
                 )}
             </main>
-
-            {isSosModalOpen && senior && (
-                <div style = {styles.modalBackdrop}>
-                    <div style = {styles.sosModal}>
-                        <h2 style = {styles.sosModalTitle}>SOS 조치</h2>
-                        <p style = {styles.sosModalText}>
-                            {senior.name} 대상자의 보호자에게 SOS 알림과 마지막 GPS 위치를 전송했습니다.
-                        </p>
-                        <div style = {styles.gpsBox}>
-                            <strong style = {styles.gpsTitle}>마지막 GPS</strong>
-                            <span>{formatGps(senior.lastGps)}</span>
-                            <span>기록 시각: {senior.lastGps.recordedAt}</span>
-                        </div>
-
-                        <div style = {styles.sosModalActions}>
-                            <button
-                                type = "button"
-                                style = {styles.report119Button}
-                                onClick = {() => handleEmergencyReport("119")}
-                            >
-                                119 신고하기
-                            </button>
-                            <button
-                                type = "button"
-                                style = {styles.report112Button}
-                                onClick = {() => handleEmergencyReport("112")}
-                            >
-                                112 신고하기
-                            </button>
-                            <button
-                                type = "button"
-                                style = {styles.cancelButton}
-                                onClick = {() => setIsSosModalOpen(false)}
-                            >
-                                닫기
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
@@ -669,9 +657,11 @@ const styles = {
     },
     statusGroup : {
         display : "flex",
-        gap : "8px",
+        alignItems : "center",
+        gap : "10px",
         flexWrap : "wrap",
         justifyContent : "flex-start",
+        margin : "16px 0 22px",
     },
     headerActions : {
         display : "flex",
@@ -679,26 +669,6 @@ const styles = {
         justifyContent : "flex-end",
         gap : "10px",
         flexWrap : "wrap",
-    },
-    statusActionRow : {
-        display : "flex",
-        alignItems : "center",
-        justifyContent : "space-between",
-        gap : "12px",
-        flexWrap : "wrap",
-        margin : "-4px 0 16px",
-    },
-    sosButton : {
-        height : "38px",
-        padding : "0 14px",
-        borderRadius : "8px",
-        border : "none",
-        backgroundColor : "#b66b6b",
-        color : "white",
-        fontSize : "14px",
-        fontWeight : "800",
-        cursor : "pointer",
-        whiteSpace : "nowrap",
     },
     detailList : {
         display : "grid",
@@ -741,6 +711,26 @@ const styles = {
         fontWeight : "700",
         lineHeight : "1.45",
         wordBreak : "keep-all",
+    },
+    reviewToggleButton : {
+        padding : "6px 16px",
+        fontSize : "15px",
+        fontWeight : "700",
+        color : "#fff",
+        border : "none",
+        borderRadius : "6px",
+        cursor : "pointer",
+        width : "fit-content",
+    },
+    reviewSaveButton : {
+        padding : "8px 18px",
+        fontSize : "14px",
+        fontWeight : "700",
+        color : "#fff",
+        backgroundColor : "#4a7c4f",
+        border : "none",
+        borderRadius : "8px",
+        cursor : "pointer",
     },
     jobActionRow : {
         display : "flex",
@@ -880,10 +870,6 @@ const styles = {
         fontWeight : "800",
         cursor : "pointer",
     },
-    activeDecisionOptionButton : {
-        backgroundColor : "var(--main-color)",
-        color : "white",
-    },
     reasonTextarea : {
         width : "100%",
         minHeight : "96px",
@@ -1008,10 +994,11 @@ const styles = {
     },
     badge : {
         display : "inline-block",
-        padding : "5px 9px",
+        padding : "6px 11px",
         borderRadius : "999px",
         fontSize : "12px",
         fontWeight : "800",
+        lineHeight : "1",
         whiteSpace : "nowrap",
     },
     smallButton : {
@@ -1036,92 +1023,6 @@ const styles = {
         margin : "0 0 12px",
         fontSize : "14px",
         color : "#666",
-    },
-    modalBackdrop : {
-        position : "fixed",
-        inset : 0,
-        backgroundColor : "rgba(0, 0, 0, 0.42)",
-        display : "flex",
-        alignItems : "center",
-        justifyContent : "center",
-        padding : "24px",
-        zIndex : 100,
-    },
-    sosModal : {
-        width : "100%",
-        maxWidth : "500px",
-        backgroundColor : "white",
-        borderRadius : "8px",
-        border : "1px solid var(--border-color)",
-        padding : "24px",
-        boxShadow : "0 18px 42px rgba(0, 0, 0, 0.24)",
-    },
-    sosModalTitle : {
-        margin : "0 0 12px",
-        color : "#8a2f2f",
-        fontSize : "24px",
-        fontWeight : "800",
-    },
-    sosModalText : {
-        margin : 0,
-        color : "var(--text-color)",
-        fontSize : "15px",
-        lineHeight : "1.7",
-    },
-    gpsBox : {
-        display : "flex",
-        flexDirection : "column",
-        gap : "6px",
-        marginTop : "14px",
-        padding : "14px",
-        border : "1px solid var(--border-color)",
-        borderRadius : "8px",
-        backgroundColor : "#fffef7",
-        color : "var(--text-color)",
-        fontSize : "14px",
-        lineHeight : "1.5",
-    },
-    gpsTitle : {
-        color : "#8a2f2f",
-        fontSize : "14px",
-        fontWeight : "800",
-    },
-    sosModalActions : {
-        display : "flex",
-        justifyContent : "flex-end",
-        flexWrap : "wrap",
-        gap : "8px",
-        marginTop : "22px",
-    },
-    report119Button : {
-        padding : "10px 14px",
-        borderRadius : "8px",
-        border : "none",
-        backgroundColor : "#b66b6b",
-        color : "white",
-        fontSize : "14px",
-        fontWeight : "800",
-        cursor : "pointer",
-    },
-    report112Button : {
-        padding : "10px 14px",
-        borderRadius : "8px",
-        border : "none",
-        backgroundColor : "#4f8fb8",
-        color : "white",
-        fontSize : "14px",
-        fontWeight : "800",
-        cursor : "pointer",
-    },
-    cancelButton : {
-        padding : "10px 14px",
-        borderRadius : "8px",
-        border : "1px solid var(--border-color)",
-        backgroundColor : "white",
-        color : "var(--text-color)",
-        fontSize : "14px",
-        fontWeight : "700",
-        cursor : "pointer",
     },
 };
 

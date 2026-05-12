@@ -404,6 +404,47 @@
   margin-bottom: 0;
 }
 
+.su-suggest-wrap {
+  position: relative;
+}
+
+.su-suggest-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(134, 167, 136, 0.16);
+  z-index: 20;
+}
+
+.su-suggest-item {
+  width: 100%;
+  padding: 0.75rem 0.95rem;
+  border: none;
+  background: transparent;
+  color: #1e2a1f;
+  text-align: left;
+  font-size: 0.88rem;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.su-suggest-item:hover {
+  background: #eef6ef;
+}
+
+.su-suggest-empty {
+  margin: 0;
+  padding: 0.75rem 0.95rem;
+  color: #7a9a7c;
+  font-size: 0.82rem;
+}
+
 .su-search-btn {
   border: none;
   border-radius: 8px;

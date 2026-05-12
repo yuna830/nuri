@@ -1,30 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import "../../css/common/Login.css";
+import "../../css/common/SignUp.css";
+import { SEOUL_WELFARE_CENTERS, WELFARE_WORKERS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
 
-const WELFARE_WORKERS_STORAGE_KEY = "welfareWorkers";
 const DEMO_WORKER_ID = "welfare01";
-
-const SEOUL_WELFARE_CENTERS = [
-  "강남구립행복요양원", "강남노인복지관", "강동노인종합복지관",
-  "강북노인종합복지관", "강서노인종합복지관", "관악노인종합복지관",
-  "광진노인종합복지관", "구로노인종합복지관", "금천노인종합복지관",
-  "노원노인종합복지관", "도봉노인종합복지관", "동대문노인종합복지관",
-  "동작노인종합복지관", "마포노인종합복지관", "서대문노인복지관",
-  "서초노인종합복지관", "성동노인종합복지관", "성북노인종합복지관",
-  "송파노인종합복지관", "양천노인종합복지관", "영등포노인복지관",
-  "용산노인종합복지관", "은평노인종합복지관", "종로노인종합복지관",
-  "중구노인종합복지관", "중랑노인종합복지관",
-  "서울시립어르신돌봄센터", "서울시복지재단", "우리복지센터",
-];
-
-const FEATURES = [
-  { icon: "계정", title: "복지사 계정 생성", desc: "복지사 아이디와 비밀번호로 전용 계정을 만듭니다" },
-  { icon: "관리", title: "대상자 관리 접근", desc: "가입 후 바로 복지사 대상자 관리 화면으로 이동합니다" },
-  { icon: "연동", title: "추후 API 전환", desc: "현재는 브라우저 저장소를 사용하고 API 연동 구조를 유지합니다" },
-  { icon: "보관", title: "로컬 저장", desc: "저장된 계정은 현재 브라우저에서만 사용할 수 있습니다" },
-];
 
 export default function WelfareSignup() {
   const navigate = useNavigate();
@@ -125,140 +105,134 @@ export default function WelfareSignup() {
   };
 
   return (
-    <main className="login-root">
-      <section className="login-left">
-        <div className="login-logo">우리 woori</div>
-        <div className="login-tagline">복지사 회원가입</div>
+    <div className="su-root">
+      <nav className="su-nav">
+        <div className="su-nav-inner">
+          <div className="su-nav-logo">🌿 우리 woori</div>
 
-        <div className="login-features">
-          {FEATURES.map((feature) => (
-            <div key={feature.title} className="login-feature">
-              <div className="login-feature-icon">{feature.icon}</div>
-              <div>
-                <div className="login-feature-title">{feature.title}</div>
-                <div className="login-feature-desc">{feature.desc}</div>
-              </div>
-            </div>
-          ))}
+          <div className="su-nav-actions">
+            <span className="su-nav-step">복지사 회원가입</span>
+            <button
+              className="su-nav-login"
+              type="button"
+              onClick={() => navigate("/welfare-login")}
+            >
+              로그인
+            </button>
+          </div>
         </div>
-      </section>
+      </nav>
 
-      <section className="login-right">
-        <div className="login-box">
-          <div className="login-title">복지사 회원가입</div>
-          <div className="login-sub">
-            복지사 아이디 기반 계정을 만들고
-            <br />
-            대상자 관리 화면으로 이동합니다.
+      <div className="su-layout">
+        {error && <div className="su-error">⚠️ {error}</div>}
+
+        <section className="su-section">
+          <div className="su-section-title">복지사 회원가입</div>
+
+          <div className="su-row">
+            <div className="su-field">
+              <label className="su-label">
+                이름 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.name}
+                onChange={(event) => set("name", event.target.value)}
+                placeholder="예: 김복지"
+              />
+            </div>
+
+            <div className="su-field">
+              <label className="su-label">
+                복지사 아이디 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                value={form.workerId}
+                onChange={(event) => set("workerId", event.target.value)}
+                placeholder="예: worker01"
+              />
+            </div>
           </div>
 
-          {error && <div className="login-error">{error}</div>}
+          <div className="su-row">
+            <div className="su-field">
+              <label className="su-label">
+                비밀번호 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                type="password"
+                value={form.password}
+                onChange={(event) => set("password", event.target.value)}
+                placeholder="비밀번호"
+              />
+            </div>
 
-          <label className="login-label">이름</label>
-          <input
-            className="login-input"
-            value={form.name}
-            onChange={(event) => set("name", event.target.value)}
-            placeholder="김복지"
-          />
+            <div className="su-field">
+              <label className="su-label">
+                비밀번호 확인 <span className="su-required">*</span>
+              </label>
+              <input
+                className="su-input"
+                type="password"
+                value={form.passwordConfirm}
+                onChange={(event) => set("passwordConfirm", event.target.value)}
+                placeholder="비밀번호 확인"
+                onKeyDown={(event) => event.key === "Enter" && handleSignup()}
+              />
+            </div>
+          </div>
+        </section>
 
-          <label className="login-label">복지사 아이디</label>
-          <input
-            className="login-input"
-            value={form.workerId}
-            onChange={(event) => set("workerId", event.target.value)}
-            placeholder="worker01"
-          />
+        <section className="su-section">
+          <div className="su-section-title">소속 기관 정보</div>
 
-          <label className="login-label">소속 기관</label>
-          <div style={{ position: "relative" }}>
+          <div className="su-hint">
+            소속 기관을 입력하면 복지사 계정 정보에 함께 저장됩니다. 검색 결과가 없으면 직접 입력할 수 있습니다.
+          </div>
+
+          <div className="su-field su-suggest-wrap">
+            <label className="su-label">
+              소속 기관 <span className="su-required">*</span>
+            </label>
             <input
-              className="login-input"
+              className="su-input"
               value={form.center}
               onChange={(event) => set("center", event.target.value)}
-              placeholder="복지관 이름 검색"
+              placeholder="예: 우리복지센터"
             />
             {form.center.trim().length > 0 && !SEOUL_WELFARE_CENTERS.includes(form.center.trim()) && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                maxHeight: "160px",
-                overflowY: "auto",
-                backgroundColor: "white",
-                border: "1px solid #DCD8CC",
-                borderRadius: "8px",
-                marginTop: "4px",
-                zIndex: 10,
-              }}>
+              <div className="su-suggest-list">
                 {SEOUL_WELFARE_CENTERS
-                  .filter((c) => c.includes(form.center.trim()))
+                  .filter((center) => center.includes(form.center.trim()))
                   .map((center) => (
                     <button
                       type="button"
                       key={center}
-                      style={{
-                        display: "block",
-                        width: "100%",
-                        padding: "10px 14px",
-                        border: "none",
-                        backgroundColor: "transparent",
-                        textAlign: "left",
-                        fontSize: "14px",
-                        cursor: "pointer",
-                      }}
+                      className="su-suggest-item"
                       onClick={() => set("center", center)}
                     >
                       {center}
                     </button>
                   ))
                 }
-                {SEOUL_WELFARE_CENTERS.filter((c) => c.includes(form.center.trim())).length === 0 && (
-                  <p style={{ margin: 0, padding: "10px 14px", color: "#666", fontSize: "13px" }}>
+                {SEOUL_WELFARE_CENTERS.filter((center) => center.includes(form.center.trim())).length === 0 && (
+                  <p className="su-suggest-empty">
                     검색 결과가 없습니다. 직접 입력해주세요.
                   </p>
                 )}
               </div>
             )}
           </div>
+        </section>
 
-          <label className="login-label">비밀번호</label>
-          <input
-            className="login-input"
-            type="password"
-            value={form.password}
-            onChange={(event) => set("password", event.target.value)}
-            placeholder="비밀번호"
-          />
-
-          <label className="login-label">비밀번호 확인</label>
-          <input
-            className="login-input"
-            type="password"
-            value={form.passwordConfirm}
-            onChange={(event) => set("passwordConfirm", event.target.value)}
-            placeholder="비밀번호 확인"
-            onKeyDown={(event) => event.key === "Enter" && handleSignup()}
-          />
-
-          <button className="login-btn" type="button" onClick={handleSignup}>
-            회원가입
+        <div className="su-btn-row su-btn-row-end">
+          <button className="su-btn-next" type="button" onClick={handleSignup}>
+            복지사 가입 완료
           </button>
-
-          <button
-            className="login-btn-outline"
-            type="button"
-            onClick={() => navigate("/welfare-login")}
-          >
-            로그인으로 돌아가기
-          </button>
-
-          <div className="login-footer">
-            저장된 계정은 현재 브라우저에서만 사용할 수 있습니다.
-          </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

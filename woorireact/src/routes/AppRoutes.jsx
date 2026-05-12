@@ -3,13 +3,13 @@ import WelfareDashboard from "../pages/Common/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Common/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Common/WelfareJobPostings";
 import WelfareLogin from "../pages/Common/WelfareLogin";
+import WelfareMyPage from "../pages/Common/WelfareMyPage";
 import WelfareSignup from "../pages/Common/WelfareSignup";
 import Login from "../pages/Common/Login";
 import SignUp from "../pages/Common/SignUp";
 import G_Login from "../pages/Common/G_Login";
 import G_SignUp from "../pages/Common/G_SignUp";
 import { ChatAssistant } from "../Chat";
-import STTServer from "../Chat/STTServer";
 import GuardianPage from "../pages/Guardian/GuardianPage";
 import UserPage from "../pages/User/UserPage";
 import WeatherAlert from "../pages/User/WeatherAlert";
@@ -62,6 +62,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/welfare/mypage"
+          element={
+            <RequireWelfareLogin>
+              <WelfareMyPage />
+            </RequireWelfareLogin>
+          }
+        />
+        <Route
           path="/welfare/seniors/:id/jobs"
           element={
             <RequireWelfareLogin>
@@ -76,7 +84,6 @@ function AppRoutes() {
         <Route path="/gsignup" element={<G_SignUp />} />
 
         <Route path="/chat" element={<ChatAssistant />} />
-        <Route path="/stt" element={<STTServer />} />
 
         <Route path="/guardian" element={<GuardianPage />} />
 
@@ -87,7 +94,14 @@ function AppRoutes() {
         <Route path="/jobs" element={<JobPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/weather-graph" element={<WeatherGraph />} />
-        <Route path="/social-worker" element={<SocialWorkerManager />} />
+        <Route
+          path="/social-worker"
+          element={
+            <RequireWelfareLogin>
+              <SocialWorkerManager />
+            </RequireWelfareLogin>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

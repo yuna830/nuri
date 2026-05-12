@@ -1,12 +1,8 @@
-import { Link } from "react-router-dom";
-
-function WelfareHeader({ pageName, children }) {
+function WelfareHeader({ children }) {
     return (
         <header style = {styles.topHeader}>
             <div style = {styles.brandArea}>
-                <div style = {styles.logoBox}>우리</div>
-                <strong style = {styles.serviceName}>우리</strong>
-                <span style = {styles.headerPageName}>{pageName}</span>
+                <strong style = {styles.serviceName}>우리 woori</strong>
             </div>
             {children}
         </header>
@@ -27,32 +23,12 @@ const styles = {
     brandArea : {
         display : "flex",
         alignItems : "center",
-        gap : "12px",
         minWidth : 0,
     },
-    logoBox : {
-        width : "34px",
-        height : "34px",
-        borderRadius : "7px",
-        backgroundColor : "var(--main-color)",
-        color : "white",
-        display : "grid",
-        placeItems : "center",
-        fontSize : "15px",
-        fontWeight : "800",
-        lineHeight : "1",
-        flexShrink : 0,
-    },
     serviceName : {
-        fontSize : "22px",
-        fontWeight : "800",
-        color : "var(--text-color)",
-    },
-    headerPageName : {
-        paddingLeft : "16px",
-        borderLeft : "1px solid var(--border-color)",
-        color : "#4B5563",
-        fontSize : "15px",
+        fontSize : "20px",
+        fontWeight : "700",
+        color : "#86a788",
         whiteSpace : "nowrap",
     },
 };
