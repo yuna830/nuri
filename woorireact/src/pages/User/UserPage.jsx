@@ -406,6 +406,7 @@ export default function UserPage() {
             latitude: lat,
             longitude: lon,
             address: displayAddress,
+            accuracy,
           }),
         }).catch(() => {});
 

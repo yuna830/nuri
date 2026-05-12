@@ -46,8 +46,9 @@ function LocationPanel({
     if (!location?.receivedAt) {
       return "위치 수신 대기 중 · 휴대폰 GPS";
     }
-
-    const accuracyText = location.accuracy
+    
+    // 실제 위치가 현재 좌표를 중심으로 대략 반경 안에 있을 가능성
+    const accuracyText = location.accuracy != null
       ? `정확도 ±${Math.round(location.accuracy)}m`
       : "정확도 확인 중";
 
