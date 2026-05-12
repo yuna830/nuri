@@ -519,6 +519,28 @@
   font-size: 0.85rem;
 }
 
+.medicine-alert-field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 700;
+}
+
+.medicine-alert-empty {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8f8f3;
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .medicine-alert-close {
   border: none;
   background: #eef6ef;

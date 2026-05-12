@@ -20,4 +20,5 @@ public class LocationStatus {
     private Double longitude;
     private String address;
     private LocalDateTime receivedAt = LocalDateTime.now();
+    private Double accuracy;
 }

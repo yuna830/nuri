@@ -53,29 +53,6 @@ function EmergencyPanel({
   return (
     <>
       <aside className="right-panel">
-        <section className="card recent-alerts">
-          <div className="card-header">
-            <h2>최근 알림</h2>
-            <button className="text-button" type="button" onClick={onOpenAlertPanel}>
-              전체보기
-            </button>
-          </div>
-
-          <div className="alert-list">
-            {displayedAlerts.length === 0 ? (
-              <p className="alert-empty">최근 알림이 없습니다.</p>
-            ) : (
-              displayedAlerts.map((alert) => (
-                <article key={alert.id} className={`alert-item ${alert.isSafeZone ? "danger" : "warning"}`}>
-                  <strong>{alert.time}</strong>
-                  <span>{alert.message}</span>
-                  <em>{alert.status}</em>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-
         <section className="card route-card">
           <div className="card-header">
             <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
@@ -121,9 +98,6 @@ function EmergencyPanel({
             <p>
               현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
             </p>
-
-            <p className="last-seen-label">마지막 목격</p>
-            <strong className="last-seen-place">{lastSeenAddress}</strong>
 
             <div className="safe182-actions">
               <button

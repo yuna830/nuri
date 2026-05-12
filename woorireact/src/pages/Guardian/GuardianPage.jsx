@@ -133,6 +133,7 @@ const fetchLatestLocation = async (seniorId, fallbackAddress) => {
     lng: latestLocation.longitude,
     address: latestLocation.address || fallbackAddress,
     receivedAt: latestLocation.receivedAt || new Date().toISOString(),
+    accuracy: latestLocation.accuracy,
   };
 };
 
@@ -220,6 +221,7 @@ function GuardianPage() {
   const [safeZoneForms, setSafeZoneForms] = useState({});
   const [isSafeZoneOpen, setIsSafeZoneOpen] = useState(false);
   const [isRouteVisible, setIsRouteVisible] = useState(true);
+  const didInitialCenterRef = useRef(false);
 
   const [apiAlerts, setApiAlerts] = useState([]);
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -250,6 +252,7 @@ function GuardianPage() {
 
   const [isMedicineAlertOpen, setIsMedicineAlertOpen] = useState(false);
   const [medicineMessage, setMedicineMessage] = useState("");
+  const [selectedMedicineIndex, setSelectedMedicineIndex] = useState("");
   const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
 
   const [policeAlerts, setPoliceAlerts] = useState([]);
@@ -260,6 +263,43 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  const mergeElderProfile = (freshElder, previousElder) => ({
+    ...freshElder,
+    relation: previousElder?.relation || freshElder.relation,
+    currentLocation: previousElder?.currentLocation ?? freshElder.currentLocation,
+    lastNormalLocation: previousElder?.lastNormalLocation ?? freshElder.lastNormalLocation,
+    routeHistory: previousElder?.routeHistory ?? freshElder.routeHistory,
+    alerts: previousElder?.alerts ?? freshElder.alerts,
+    battery: previousElder?.battery ?? freshElder.battery,
+    status: previousElder?.status ?? freshElder.status,
+  });
+
+  const fetchSeniorProfile = async (seniorId) => {
+    const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
+
+    if (!response.ok) {
+      throw new Error("사용자 정보 조회 실패");
+    }
+
+    const profile = await response.json();
+    return mapSeniorProfileToElder(profile);
+  };
+
+  // 최신 프로필 갱신 함수 
+  const refreshSeniorProfile = useCallback(async (seniorId) => {
+    const freshElder = await fetchSeniorProfile(seniorId);
+
+    setElders((prev) =>
+      prev.map((elder) =>
+        elder.id === seniorId
+          ? mergeElderProfile(freshElder, elder)
+          : elder
+      )
+    );
+
+    return freshElder;
+  }, []);
 
   const attachLatestLocation = async (profile) => {
     const elder = mapSeniorProfileToElder(profile);
@@ -593,6 +633,20 @@ function GuardianPage() {
     setApiAlerts((prev) => [localAlert, ...prev]);
     setSafeZoneAlertedKeys((prev) => [...prev, alertKey]);
   }, [safeZoneAlertedKeys, safeZoneForms, selectedElder]);
+
+  useEffect(() => {
+    if (!activeElderId) {
+      return;
+    }
+
+    const profileRefreshIntervalId = setInterval(() => {
+      refreshSeniorProfile(activeElderId).catch((error) => {
+        console.error("사용자 정보 자동 갱신 실패:", error);
+      });
+    }, 30000);
+
+    return () => clearInterval(profileRefreshIntervalId);
+  }, [activeElderId, refreshSeniorProfile]);
 
   if (isLoadingElders) {
     return (
@@ -1117,8 +1171,63 @@ function GuardianPage() {
     });
   };
 
+  const isMedicineActiveToday = (medicine) => {
+    if (!medicine?.name?.trim()) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = medicine.startDate ? new Date(medicine.startDate) : null;
+    const endDate = medicine.endDate ? new Date(medicine.endDate) : null;
+
+    if (startDate) {
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    if (startDate && today < startDate) {
+      return false;
+    }
+
+    if (!medicine.ongoing && endDate && today > endDate) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const getActiveMedicines = (elder) => {
+    return (elder?.medications || []).filter(isMedicineActiveToday);
+  };
+
+  const getMedicineScheduleText = (medicine) => {
+    return [
+      medicine.interval ? `${medicine.interval}시간마다` : "",
+      medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
+    ].filter(Boolean).join(", ");
+  };
+
+  const makeMedicineMessage = (elder, medicine) => {
+    if (!medicine) {
+      return `${elder.name}님, 복용 중인 약을 확인하고 제때 복용해주세요.`;
+    }
+
+    const scheduleText = getMedicineScheduleText(medicine);
+
+    return `${elder.name}님, ${medicine.name}${scheduleText ? `(${scheduleText})` : ""} 복용 시간입니다. 약을 확인하고 제때 복용해주세요.`;
+  };
+
   const handleOpenMedicineAlert = () => {
-    setMedicineMessage(`${selectedElder.name}님, 복용 중인 약을 확인하고 제때 복용해주세요.`);
+    const activeMedicines = getActiveMedicines(selectedElder);
+    const firstMedicine = activeMedicines[0] || null;
+
+    setSelectedMedicineIndex(firstMedicine ? "0" : "");
+    setMedicineMessage(makeMedicineMessage(selectedElder, firstMedicine));
     setIsMedicineAlertOpen(true);
   };
 
@@ -1163,6 +1272,8 @@ function GuardianPage() {
     }
   };
 
+  const activeMedicines = getActiveMedicines(selectedElder);
+
   return (
     <main className="guardian-page">
       <GuardianHeader
@@ -1194,6 +1305,10 @@ function GuardianPage() {
                 onClick={() => {
                   setSelectedElderId(elder.id);
                   setDeleteModeElderId(elder.id);
+
+                  refreshSeniorProfile(elder.id).catch((error) => {
+                    console.error("최신 사용자 정보 조회 실패:", error);
+                  });
                 }}
               >
                 <span className="elder-tab-label">
@@ -1333,6 +1448,35 @@ function GuardianPage() {
                 닫기
               </button>
             </div>
+
+            {activeMedicines.length > 0 ? (
+              <label className="medicine-alert-field">
+                알림 보낼 약
+                <select
+                  value={selectedMedicineIndex}
+                  onChange={(event) => {
+                    const nextIndex = event.target.value;
+                    const nextMedicine = activeMedicines[Number(nextIndex)];
+
+                    setSelectedMedicineIndex(nextIndex);
+                    setMedicineMessage(makeMedicineMessage(selectedElder, nextMedicine));
+                  }}
+                >
+                  {activeMedicines.map((medicine, index) => (
+                    <option key={`${medicine.name}-${index}`} value={String(index)}>
+                      {[
+                        medicine.name,
+                        getMedicineScheduleText(medicine),
+                      ].filter(Boolean).join(" / ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="medicine-alert-empty">
+                등록된 복용약이 없어 기본 복약 알림을 보냅니다.
+              </p>
+            )}
 
             <label className="medicine-alert-field">
               알림 내용

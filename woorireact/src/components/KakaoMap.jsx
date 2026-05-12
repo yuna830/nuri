@@ -79,9 +79,6 @@ export default function KakaoMap({
             center: toLatLng(maps, normalizedCenter),
             level: zoom,
           });
-        } else {
-          mapRef.current.setCenter(toLatLng(maps, normalizedCenter));
-          mapRef.current.setLevel(zoom);
         }
 
         setFailed(false);

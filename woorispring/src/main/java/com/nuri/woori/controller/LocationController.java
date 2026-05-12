@@ -48,6 +48,7 @@ public class LocationController {
         locationStatus.setLatitude(request.latitude());
         locationStatus.setLongitude(request.longitude());
         locationStatus.setAddress(request.address());
+        locationStatus.setAccuracy(request.accuracy());
 
         LocationStatus savedLocation = locationStatusRepository.save(locationStatus);
         createSafeZoneExitAlertsIfNeeded(request);
@@ -143,7 +144,8 @@ public class LocationController {
             Long seniorId,
             Double latitude,
             Double longitude,
-            String address
+            String address,
+            Double accuracy
     ) {
     }
 }
