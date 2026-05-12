@@ -23,6 +23,38 @@ function LocationPanel({
         ]
       : [];
 
+  const formatReceivedAgo = (receivedAt) => {
+    if (!receivedAt) return "수신 기록 없음";
+
+    const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(receivedAt).getTime()) / 1000));
+
+    if (diffSeconds < 60) {
+      return `${diffSeconds}초 전`;
+    }
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+
+    if (diffMinutes < 60) {
+      return `${diffMinutes}분 전`;
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    return `${diffHours}시간 전`;
+  };
+
+  const formatLocationMeta = (location) => {
+    if (!location?.receivedAt) {
+      return "위치 수신 대기 중 · 휴대폰 GPS";
+    }
+    
+    // 실제 위치가 현재 좌표를 중심으로 대략 반경 안에 있을 가능성
+    const accuracyText = location.accuracy != null
+      ? `정확도 ±${Math.round(location.accuracy)}m`
+      : "정확도 확인 중";
+
+    return `마지막 수신 ${formatReceivedAgo(location.receivedAt)} · ${accuracyText} · 휴대폰 GPS`;
+  };    
+
   return (
     <section className="card map-card">
       <div className="card-header">
@@ -64,6 +96,10 @@ function LocationPanel({
             </div>
           )}
         />
+      </div>
+
+      <div className="map-location-meta">
+        {formatLocationMeta(hasCurrentLocation ? location : null)}
       </div>
     </section>
   );

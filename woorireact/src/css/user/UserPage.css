@@ -776,6 +776,36 @@
   white-space: nowrap;
 }
 
+.medicine-alert-modal-row {
+  width: 100%;
+  margin-top: 1.6rem;
+  padding: 0 0.25rem;
+}
+
+.medicine-alert-confirm-button {
+  width: 100%;
+  min-height: 54px;
+  justify-content: center;
+}
+
+.medicine-alert-user-modal {
+  padding-bottom: 1.1rem;
+}
+
+.medicine-alert-user-modal .medicine-alert-modal-row {
+  width: 100%;
+  display: block;
+  margin-top: 2.2rem;
+}
+
+.medicine-alert-user-modal .medicine-alert-confirm-button {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 900px) {
   .up-sos-pending {
     left: 1rem;

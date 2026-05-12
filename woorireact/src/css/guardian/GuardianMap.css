@@ -244,6 +244,14 @@
   border-top: 2px dashed #AEB6BF;
 }
 
+.map-location-meta {
+  margin: -6px 16px 16px;
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
 @media (max-width: 1180px) {
   .real-map-area {
     height: 420px;

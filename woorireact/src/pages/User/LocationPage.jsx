@@ -82,13 +82,20 @@ export default function LocationPage() {
       ))
     : 0;
 
-  const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
+  const saveCurrentLocation = async ({ lat, lon, nextAddress, accuracy }) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
+
     await fetch("http://localhost:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
+      body: JSON.stringify({
+        seniorId,
+        latitude: lat,
+        longitude: lon,
+        address: nextAddress,
+        accuracy,
+      }),
     }).catch(() => {});
   };
 
@@ -127,39 +134,21 @@ export default function LocationPage() {
     }
   }, []);
 
-  const updateLocation = useCallback(async (lat, lon) => {
-    setCurrentPos([lat, lon]);
-    setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-    setLastUpdate(getNow());
+  const updateLocation = useCallback(async (lat, lon, accuracy) => {
+  setCurrentPos([lat, lon]);
+  setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
+  setLastUpdate(getNow());
 
-    const nextAddress = await getAddress(lat, lon);
-    setAddress(nextAddress);
+  const nextAddress = await getAddress(lat, lon);
+  setAddress(nextAddress);
 
-    try {
-      await saveCurrentLocation({ lat, lon, nextAddress });
-      await loadLocationHistory(todayStr());
-    } catch {}
+  try {
+    await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
+    await loadLocationHistory(todayStr());
+  } catch {}
 
-    const seniorId = getCurrentSeniorId();
-    const currentDistance = Math.round(getDistanceMeters(
-      { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-      { lat, lng: lon }
-    ));
-
-    if (
-      currentDistance > safeZone.radiusMeters &&
-      shouldSendSafeZoneAlert(seniorId, safeZone, lat, lon)
-    ) {
-      createSafeZoneAlert({
-        seniorId,
-        latitude: lat,
-        longitude: lon,
-        address: nextAddress,
-      }).catch(() => {});
-    }
-
-    setLoading(false);
-  }, [loadLocationHistory, safeZone]);
+  setLoading(false);
+}, [loadLocationHistory]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -170,7 +159,11 @@ export default function LocationPage() {
     setLoading(true);
     setError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => updateLocation(position.coords.latitude, position.coords.longitude),
+      (position) => updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        position.coords.accuracy
+      ),
       () => { setError("위치 권한을 허용해주세요."); setLoading(false); }
     );
   }, [updateLocation]);

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://localhost:8181";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -65,4 +65,9 @@ export async function uploadImage(category, file) {
   }
 
   return response.json();
+}
+
+// 경찰청 실종 경보 목록 
+export function getPoliceMissingAlerts() {
+  return request("/api/police-missing-alerts");
 }

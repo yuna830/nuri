@@ -1,6 +1,13 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getGuardianAlerts, readAlert, createMissingReport, uploadImage, createCallRequestAlert } from "../../api/guardianApi";
+import {
+  getGuardianAlerts,
+  readAlert,
+  createMissingReport,
+  uploadImage,
+  getPoliceMissingAlerts,
+  createCallRequestAlert,
+} from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
@@ -20,6 +27,36 @@ const getDateValue = (date = new Date()) => {
   return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
 };
 
+const fetchFullRoadAddress = async (lat, lng, fallbackAddress) => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ko`
+    );
+
+    if (!response.ok) {
+      return fallbackAddress;
+    }
+
+    const data = await response.json();
+    const addr = data?.address;
+
+    const fullRoadAddress = [
+      addr?.province,
+      addr?.city,
+      addr?.borough || addr?.city_district,
+      addr?.suburb || addr?.neighbourhood,
+      addr?.road,
+      addr?.house_number,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return fullRoadAddress || data?.display_name || fallbackAddress;
+  } catch {
+    return fallbackAddress;
+  }
+};
+
 const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => {
   const response = await fetch(
     `http://localhost:8080/api/locations/senior/${seniorId}/date?date=${dateValue}`
@@ -35,14 +72,20 @@ const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => 
     return [];
   }
 
-  const routeHistory = locations
-    .filter((location) => location?.latitude && location?.longitude)
-    .map((location) => ({
-      lat: location.latitude,
-      lng: location.longitude,
-      address: location.address || fallbackAddress,
-      receivedAt: location.receivedAt || new Date().toISOString(),
-    }));
+  const routeHistory = await Promise.all(
+    locations
+      .filter((location) => location?.latitude && location?.longitude)
+      .map(async (location) => ({
+        lat: location.latitude,
+        lng: location.longitude,
+        address: await fetchFullRoadAddress(
+          location.latitude,
+          location.longitude,
+          location.address || fallbackAddress
+        ),
+        receivedAt: location.receivedAt || new Date().toISOString(),
+      }))
+  );
 
   return routeHistory.filter((point, index, list) => {
     if (index === 0) {
@@ -90,6 +133,7 @@ const fetchLatestLocation = async (seniorId, fallbackAddress) => {
     lng: latestLocation.longitude,
     address: latestLocation.address || fallbackAddress,
     receivedAt: latestLocation.receivedAt || new Date().toISOString(),
+    accuracy: latestLocation.accuracy,
   };
 };
 
@@ -177,9 +221,13 @@ function GuardianPage() {
   const [safeZoneForms, setSafeZoneForms] = useState({});
   const [isSafeZoneOpen, setIsSafeZoneOpen] = useState(false);
   const [isRouteVisible, setIsRouteVisible] = useState(true);
+  const didInitialCenterRef = useRef(false);
 
   const [apiAlerts, setApiAlerts] = useState([]);
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
+  const knownAlertIdsRef = useRef(new Set());
+  const didLoadAlertsRef = useRef(false);
+  const [guardianToast, setGuardianToast] = useState(null);
   const [reportingAlertId, setReportingAlertId] = useState(null);
   const [reportedAlertIds, setReportedAlertIds] = useState(() => {
     try {
@@ -200,7 +248,13 @@ function GuardianPage() {
   const [isLoadingElders, setIsLoadingElders] = useState(true);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
   const [selectedRouteDate, setSelectedRouteDate] = useState(getDateValue());
-  const [safeZoneAlertedKeys, setSafeZoneAlertedKeys] = useState([]);
+
+  const [isMedicineAlertOpen, setIsMedicineAlertOpen] = useState(false);
+  const [medicineMessage, setMedicineMessage] = useState("");
+  const [selectedMedicineIndex, setSelectedMedicineIndex] = useState("");
+  const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
+
+  const [policeAlerts, setPoliceAlerts] = useState([]);
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -208,6 +262,43 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  const mergeElderProfile = (freshElder, previousElder) => ({
+    ...freshElder,
+    relation: previousElder?.relation || freshElder.relation,
+    currentLocation: previousElder?.currentLocation ?? freshElder.currentLocation,
+    lastNormalLocation: previousElder?.lastNormalLocation ?? freshElder.lastNormalLocation,
+    routeHistory: previousElder?.routeHistory ?? freshElder.routeHistory,
+    alerts: previousElder?.alerts ?? freshElder.alerts,
+    battery: previousElder?.battery ?? freshElder.battery,
+    status: previousElder?.status ?? freshElder.status,
+  });
+
+  const fetchSeniorProfile = async (seniorId) => {
+    const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
+
+    if (!response.ok) {
+      throw new Error("사용자 정보 조회 실패");
+    }
+
+    const profile = await response.json();
+    return mapSeniorProfileToElder(profile);
+  };
+
+  // 최신 프로필 갱신 함수 
+  const refreshSeniorProfile = useCallback(async (seniorId) => {
+    const freshElder = await fetchSeniorProfile(seniorId);
+
+    setElders((prev) =>
+      prev.map((elder) =>
+        elder.id === seniorId
+          ? mergeElderProfile(freshElder, elder)
+          : elder
+      )
+    );
+
+    return freshElder;
+  }, []);
 
   const attachLatestLocation = async (profile) => {
     const elder = mapSeniorProfileToElder(profile);
@@ -277,43 +368,43 @@ function GuardianPage() {
   }, [loadGuardianSeniorsWithLocation]);
 
   const refreshLatestLocations = useCallback(async () => {
-    const nextElders = await Promise.all(
-      elders.map(async (elder) => {
-        const realLocation = await fetchLatestLocation(elder.id, elder.address);
+  const nextElders = await Promise.all(
+    elders.map(async (elder) => {
+      const realLocation = await fetchLatestLocation(elder.id, elder.address);
 
-        if (!realLocation) {
-          return elder;
-        }
+      if (!realLocation) {
+        return elder;
+      }
 
-        const lastRoutePoint = elder.routeHistory?.[elder.routeHistory.length - 1];
+      const lastRoutePoint = elder.routeHistory?.[elder.routeHistory.length - 1];
 
-        const movedMeters = lastRoutePoint
-          ? Math.sqrt(
-              Math.pow((realLocation.lat - lastRoutePoint.lat) * 111000, 2) +
-                Math.pow(
-                  (realLocation.lng - lastRoutePoint.lng) *
-                    111000 *
-                    Math.cos(realLocation.lat * Math.PI / 180),
-                  2
-                )
-            )
-          : Infinity;
+      const movedMeters = lastRoutePoint
+        ? Math.sqrt(
+            Math.pow((realLocation.lat - lastRoutePoint.lat) * 111000, 2) +
+              Math.pow(
+                (realLocation.lng - lastRoutePoint.lng) *
+                  111000 *
+                  Math.cos((realLocation.lat * Math.PI) / 180),
+                2
+              )
+          )
+        : Infinity;
 
-        const isSameLocation = movedMeters < 50;
+      const isSameLocation = movedMeters < 50;
 
-        return {
-          ...elder,
-          currentLocation: realLocation,
-          lastNormalLocation: realLocation,
-          routeHistory: isSameLocation
-            ? elder.routeHistory || []
-            : [...(elder.routeHistory || []), realLocation],
-        };
-      })
-    );
+      return {
+        ...elder,
+        currentLocation: realLocation,
+        lastNormalLocation: realLocation,
+        routeHistory: isSameLocation
+          ? elder.routeHistory || []
+          : [...(elder.routeHistory || []), realLocation],
+      };
+    })
+  );
 
-    setElders(nextElders);
-  }, [elders]);
+  setElders(nextElders);
+}, [elders]);
 
   const loadGuardianAlerts = useCallback(() => {
     const guardianId = getCurrentGuardianId();
@@ -324,7 +415,35 @@ function GuardianPage() {
     }
 
     getGuardianAlerts(guardianId)
-      .then(setApiAlerts)
+      .then((alerts) => {
+        const nextAlerts = Array.isArray(alerts) ? alerts : [];
+        const previousIds = knownAlertIdsRef.current;
+
+        const newAlerts = nextAlerts.filter(
+          (alert) =>
+            !previousIds.has(String(alert.id)) &&
+            alert.isRead !== true
+        );
+
+        knownAlertIdsRef.current = new Set(
+          nextAlerts.map((alert) => String(alert.id))
+        );
+
+        setApiAlerts(nextAlerts);
+
+        if (didLoadAlertsRef.current && newAlerts.length > 0) {
+          const latestAlert = newAlerts[0];
+
+          setGuardianToast({
+            id: latestAlert.id,
+            type: latestAlert.type,
+            title: latestAlert.title || "새 알림이 도착했어요",
+            message: latestAlert.message || "보호 대상자의 새 알림을 확인해주세요.",
+          });
+        }
+
+        didLoadAlertsRef.current = true;
+      })
       .catch((error) => {
         console.error("알림 조회 실패:", error);
       });
@@ -361,6 +480,12 @@ function GuardianPage() {
 
   useEffect(() => {
     loadGuardianAlerts();
+
+    const alertIntervalId = setInterval(() => {
+      loadGuardianAlerts();
+    }, 5000);
+
+    return () => clearInterval(alertIntervalId);
   }, [loadGuardianAlerts]);
 
   useEffect(() => {
@@ -398,83 +523,86 @@ function GuardianPage() {
       return `${seniorName}의 SOS 요청`;
     }
 
-    if (alert.type === "SAFE_ZONE") {
+    if (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") {
       return originalMessage;
     }
 
     return originalMessage;
   };
 
-  const displayedAlerts = apiAlerts.map((alert) => {
-    const isReported = reportedAlertIds.includes(String(alert.id));
+  const isSameDate = (left, right) => {
+    return (
+      left.getFullYear() === right.getFullYear() &&
+      left.getMonth() === right.getMonth() &&
+      left.getDate() === right.getDate()
+    );
+  };
 
-    return {
-      id: alert.id,
-      seniorId: alert.seniorId,
-      type: alert.type,
-      latitude: alert.latitude,
-      longitude: alert.longitude,
-      time: alert.createdAt
-        ? new Date(alert.createdAt).toLocaleString("ko-KR", {
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "",
-      message: formatAlertMessage(alert),
-      status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
-      isSos: alert.type === "SOS",
-      isSafeZone: alert.type === "SAFE_ZONE",
-    };
-  });
+  const today = new Date();
+
+  const displayedAlerts = apiAlerts
+    .filter((alert) => {
+      if (!alert.createdAt) return false;
+
+      const createdAt = new Date(alert.createdAt);
+
+      if (Number.isNaN(createdAt.getTime())) {
+        return false;
+      }
+
+      return isSameDate(createdAt, today);
+    })
+    .map((alert) => {
+      const isReported = reportedAlertIds.includes(String(alert.id));
+
+      return {
+        id: alert.id,
+        seniorId: alert.seniorId,
+        type: alert.type,
+        latitude: alert.latitude,
+        longitude: alert.longitude,
+        time: alert.createdAt
+          ? new Date(alert.createdAt).toLocaleString("ko-KR", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+        message: formatAlertMessage(alert),
+        status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
+        isSos: alert.type === "SOS",
+        isSafeZone: alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT",
+      };
+    });
 
   const unreadAlertCount = displayedAlerts.filter(
     (alert) => alert.status === "미확인"
   ).length;
 
   useEffect(() => {
-    if (!selectedElder?.currentLocation) {
+    getPoliceMissingAlerts()
+      .then((alerts) => {
+        setPoliceAlerts(Array.isArray(alerts) ? alerts : []);
+      })
+      .catch((error) => {
+        console.error("경찰청 실종경보 조회 실패:", error);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!activeElderId) {
       return;
     }
 
-    const form = safeZoneForms[selectedElder.id] ?? getDefaultSafeZone(selectedElder);
-    const currentLocation = selectedElder.currentLocation;
-    const currentDistance = getDistanceMeters(
-      { lat: form.centerLatitude, lng: form.centerLongitude },
-      currentLocation
-    );
+    const profileRefreshIntervalId = setInterval(() => {
+      refreshSeniorProfile(activeElderId).catch((error) => {
+        console.error("사용자 정보 자동 갱신 실패:", error);
+      });
+    }, 30000);
 
-    if (currentDistance <= form.radiusMeters) {
-      return;
-    }
-
-    const alertKey = [
-      selectedElder.id,
-      form.radiusMeters,
-      Math.round(currentLocation.lat * 10000),
-      Math.round(currentLocation.lng * 10000),
-    ].join("-");
-    if (safeZoneAlertedKeys.includes(alertKey)) {
-      return;
-    }
-
-    const message = `${selectedElder.name}이 안전 구역을 벗어났습니다. 현재 위치: ${currentLocation.address}`;
-    const localAlert = {
-      id: `safe-zone-${Date.now()}`,
-      seniorId: selectedElder.id,
-      type: "SAFE_ZONE",
-      latitude: currentLocation.lat,
-      longitude: currentLocation.lng,
-      message,
-      title: message,
-      createdAt: new Date().toISOString(),
-      isRead: false,
-    };
-
-    setApiAlerts((prev) => [localAlert, ...prev]);
-    setSafeZoneAlertedKeys((prev) => [...prev, alertKey]);
-  }, [safeZoneAlertedKeys, safeZoneForms, selectedElder]);
+    return () => clearInterval(profileRefreshIntervalId);
+  }, [activeElderId, refreshSeniorProfile]);
 
   if (isLoadingElders) {
     return (
@@ -999,6 +1127,109 @@ function GuardianPage() {
     });
   };
 
+  const isMedicineActiveToday = (medicine) => {
+    if (!medicine?.name?.trim()) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = medicine.startDate ? new Date(medicine.startDate) : null;
+    const endDate = medicine.endDate ? new Date(medicine.endDate) : null;
+
+    if (startDate) {
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    if (startDate && today < startDate) {
+      return false;
+    }
+
+    if (!medicine.ongoing && endDate && today > endDate) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const getActiveMedicines = (elder) => {
+    return (elder?.medications || []).filter(isMedicineActiveToday);
+  };
+
+  const getMedicineScheduleText = (medicine) => {
+    return [
+      medicine.interval ? `${medicine.interval}시간마다` : "",
+      medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
+    ].filter(Boolean).join(", ");
+  };
+
+  const makeMedicineMessage = (elder, medicine) => {
+    if (!medicine) {
+      return `${elder.name}님, 복용 중인 약을 확인하고 제때 복용해주세요.`;
+    }
+
+    const scheduleText = getMedicineScheduleText(medicine);
+
+    return `${elder.name}님, ${medicine.name}${scheduleText ? `(${scheduleText})` : ""} 복용 시간입니다. 약을 확인하고 제때 복용해주세요.`;
+  };
+
+  const handleOpenMedicineAlert = () => {
+    const activeMedicines = getActiveMedicines(selectedElder);
+    const firstMedicine = activeMedicines[0] || null;
+
+    setSelectedMedicineIndex(firstMedicine ? "0" : "");
+    setMedicineMessage(makeMedicineMessage(selectedElder, firstMedicine));
+    setIsMedicineAlertOpen(true);
+  };
+
+  const handleSendMedicineAlert = async () => {
+    if (!activeElderId) {
+      alert("보호 대상자를 먼저 선택해주세요.");
+      return;
+    }
+
+    const guardianId = getCurrentGuardianId();
+
+    if (!guardianId) {
+      navigate("/glogin");
+      return;
+    }
+
+    try {
+      setIsSendingMedicineAlert(true);
+
+      const response = await fetch("http://localhost:8080/api/alerts/medicine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seniorId: activeElderId,
+          guardianId,
+          message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("복약 알림 전송 실패");
+      }
+
+      alert("복약 알림을 보냈습니다.");
+      setIsMedicineAlertOpen(false);
+      setMedicineMessage("");
+    } catch (error) {
+      console.error("복약 알림 전송 실패:", error);
+      alert("복약 알림 전송에 실패했습니다.");
+    } finally {
+      setIsSendingMedicineAlert(false);
+    }
+  };
+
+  const activeMedicines = getActiveMedicines(selectedElder);
+
   return (
     <main className="guardian-page">
       <GuardianHeader
@@ -1030,6 +1261,10 @@ function GuardianPage() {
                 onClick={() => {
                   setSelectedElderId(elder.id);
                   setDeleteModeElderId(elder.id);
+
+                  refreshSeniorProfile(elder.id).catch((error) => {
+                    console.error("최신 사용자 정보 조회 실패:", error);
+                  });
                 }}
               >
                 <span className="elder-tab-label">
@@ -1079,8 +1314,8 @@ function GuardianPage() {
           isOutsideSafeZone={isOutsideSafeZone}
           distance={distance}
           location={location}
-          lastNormalLocation={lastNormalLocation}
           safeZoneForm={safeZoneForm}
+          lastNormalLocation={lastNormalLocation}
           formatShortAddress={formatShortAddress}
           formatSafeZoneAddress={formatSafeZoneAddress}
           isSafeZoneOpen={isSafeZoneOpen}
@@ -1101,6 +1336,7 @@ function GuardianPage() {
           onConnectSenior={handleConnectSenior}
           onCreateAndConnectSenior={handleCreateAndConnectSenior}
           onDeleteElder={handleDeleteElder}
+          onOpenMedicineAlert={handleOpenMedicineAlert}
         />
 
         <LocationPanel
@@ -1119,9 +1355,12 @@ function GuardianPage() {
         <EmergencyPanel
           selectedElder={selectedElder}
           displayedAlerts={displayedAlerts}
+          policeAlerts={policeAlerts}
           routeHistory={routeHistory}
           selectedRouteDate={selectedRouteDate}
+          safeZoneForm={safeZoneForm}
           onRouteDateChange={handleRouteDateChange}
+          distance={distance}
           lastNormalLocation={lastNormalLocation}
           isAlertPanelOpen={isAlertPanelOpen}
           isMissingReportOpen={isMissingReportOpen}
@@ -1147,6 +1386,111 @@ function GuardianPage() {
           }}
         />
       </section>
+
+      {isMedicineAlertOpen && (
+        <div className="medicine-alert-backdrop" onClick={() => setIsMedicineAlertOpen(false)}>
+          <section className="medicine-alert-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="medicine-alert-header">
+              <div>
+                <h2>복약 알림 보내기</h2>
+                <p>{selectedElder.name}님에게 복용 약 관련 알림을 보냅니다.</p>
+              </div>
+
+              <button
+                type="button"
+                className="medicine-alert-close"
+                onClick={() => setIsMedicineAlertOpen(false)}
+              >
+                닫기
+              </button>
+            </div>
+
+            {activeMedicines.length > 0 ? (
+              <label className="medicine-alert-field">
+                알림 보낼 약
+                <select
+                  value={selectedMedicineIndex}
+                  onChange={(event) => {
+                    const nextIndex = event.target.value;
+                    const nextMedicine = activeMedicines[Number(nextIndex)];
+
+                    setSelectedMedicineIndex(nextIndex);
+                    setMedicineMessage(makeMedicineMessage(selectedElder, nextMedicine));
+                  }}
+                >
+                  {activeMedicines.map((medicine, index) => (
+                    <option key={`${medicine.name}-${index}`} value={String(index)}>
+                      {[
+                        medicine.name,
+                        getMedicineScheduleText(medicine),
+                      ].filter(Boolean).join(" / ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="medicine-alert-empty">
+                등록된 복용약이 없어 기본 복약 알림을 보냅니다.
+              </p>
+            )}
+
+            <label className="medicine-alert-field">
+              알림 내용
+              <textarea
+                value={medicineMessage}
+                onChange={(event) => setMedicineMessage(event.target.value)}
+                rows={4}
+              />
+            </label>
+
+            <div className="medicine-alert-actions">
+              <button
+                type="button"
+                className="medicine-alert-cancel"
+                onClick={() => setIsMedicineAlertOpen(false)}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="medicine-alert-submit"
+                onClick={handleSendMedicineAlert}
+                disabled={isSendingMedicineAlert}
+              >
+                {isSendingMedicineAlert ? "전송 중..." : "알림 보내기"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {guardianToast && (
+        <div className={`guardian-toast ${guardianToast.type === "SOS" ? "danger" : "normal"}`}>
+          <div>
+            <strong>{guardianToast.title}</strong>
+            <p>{guardianToast.message}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsAlertPanelOpen(true);
+              setGuardianToast(null);
+            }}
+          >
+            확인
+          </button>
+
+          <button
+            type="button"
+            className="guardian-toast-close"
+            onClick={() => setGuardianToast(null)}
+          >
+            닫기
+          </button>
+        </div>
+      )}
     </main>
   );
 }

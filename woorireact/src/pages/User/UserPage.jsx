@@ -246,6 +246,8 @@ export default function UserPage() {
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
 
+  const [medicineAlert, setMedicineAlert] = useState(null);
+
   const fetchWeather = async (lat, lon) => {
     try {
       const forecast = await fetchTodayForecast(lat, lon);
@@ -356,7 +358,7 @@ export default function UserPage() {
     }
   };
 
-  const updateLocation = async (lat, lon) => {
+  const updateLocation = async (lat, lon, accuracy) => {
     setChanged(setCurrentPos, { lat, lon });
 
     const capturedAt = new Date();
@@ -375,7 +377,7 @@ export default function UserPage() {
             Math.pow(
               (lon - lastSavedLocation.lon) *
                 111000 *
-                Math.cos(lat * Math.PI / 180),
+                Math.cos((lat * Math.PI) / 180),
               2
             )
         )
@@ -390,14 +392,13 @@ export default function UserPage() {
     const resolvedAddress = shouldResolveAddress
       ? await reverseGeocode(lat, lon).catch(() => "현재 위치")
       : currentAddress;
-    setChanged(setCurrentAddress, resolvedAddress);
+
+    const displayAddress = resolvedAddress || "현재 위치";
+    setChanged(setCurrentAddress, displayAddress);
 
     try {
-      const displayAddress = resolvedAddress || "현재 위치";
-      setChanged(setCurrentAddress, displayAddress);
-
       const seniorId = getCurrentSeniorId(initialSenior);
-      // 가만히 있어도 위치가 튀는 경우가 있어 50미터 이상 이동 시 저장
+
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
@@ -407,13 +408,14 @@ export default function UserPage() {
             latitude: lat,
             longitude: lon,
             address: displayAddress,
+            accuracy,
           }),
         }).catch(() => {});
 
         lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
-      setCurrentAddress("현재 위치");
+      setChanged(setCurrentAddress, "현재 위치");
     }
 
     if (safeZone) {
@@ -422,24 +424,13 @@ export default function UserPage() {
           Math.pow(
             (lon - safeZone.centerLongitude) *
               111000 *
-              Math.cos(lat * Math.PI / 180),
+              Math.cos((lat * Math.PI) / 180),
             2
           )
       );
 
       setChanged(setIsInRange, dist <= safeZone.radiusMeters);
 
-      if (
-        dist > safeZone.radiusMeters &&
-        shouldSendSafeZoneAlert(getCurrentSeniorId(initialSenior), safeZone, lat, lon)
-      ) {
-        createSafeZoneAlert({
-          seniorId: getCurrentSeniorId(initialSenior),
-          latitude: lat,
-          longitude: lon,
-          address: resolvedAddress || "현재 위치",
-        }).catch(() => {});
-      }
     }
   };
 
@@ -449,7 +440,7 @@ export default function UserPage() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-        updateLocation(pos.coords.latitude, pos.coords.longitude);
+        updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       () => fetchWeather(37.5665, 126.9780)
     );
@@ -457,7 +448,11 @@ export default function UserPage() {
     // 30珥덈쭏???꾩튂 ?먮룞 媛깆떊
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
+        pos => updateLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy
+        ),
         () => {}
       );
     }, 30000);
@@ -661,6 +656,9 @@ export default function UserPage() {
       if (cancelled) return;
       const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
       setIncomingCallAlert(callAlert || null);
+
+      const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
+      setMedicineAlert(medicineAlert || null);
     };
 
     loadCallRequest();
@@ -728,6 +726,14 @@ export default function UserPage() {
     if (alertId) {
       await readAlert(alertId).catch(() => {});
     }
+  };
+
+  const handleReadMedicineAlert = async () => {
+    if (medicineAlert?.id) {
+      await readAlert(medicineAlert.id).catch(() => {});
+    }
+
+    setMedicineAlert(null);
   };
 
   const openAllSchedules = async () => {
@@ -1073,6 +1079,30 @@ export default function UserPage() {
               </button>
               <button className="up-modal-ok" type="button" onClick={handleReceiveCall}>
                 전화 받기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {medicineAlert && (
+        <div className="up-overlay" onClick={handleReadMedicineAlert}>
+          <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💊</div>
+            <div className="up-modal-title">
+              {medicineAlert.title || "복약 알림"}
+            </div>
+            <div className="up-modal-desc">
+              {medicineAlert.message || "복용 중인 약을 확인하고 제때 복용해주세요."}
+            </div>
+
+            <div className="up-modal-row medicine-alert-modal-row">
+              <button
+                className="up-modal-ok medicine-alert-confirm-button"
+                type="button"
+                onClick={handleReadMedicineAlert}
+              >
+                확인했어요
               </button>
             </div>
           </div>
