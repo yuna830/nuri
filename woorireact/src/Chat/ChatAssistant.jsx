@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./ChatAssistant.css";
 import ChatView from "./components/ChatView";
 import ScheduleRegister from "./components/ScheduleRegister";
@@ -34,6 +35,7 @@ const getResolvedSeniorId = () => {
 };
 
 export default function ChatAssistant() {
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [savedSchedules, setSavedSchedules] = useState([]);
@@ -72,6 +74,13 @@ export default function ChatAssistant() {
     setChatSchedules(normalized);
     return normalized;
   }
+
+  useEffect(() => {
+    if (searchParams.get("mode") === "schedule") {
+      setEditingSchedule(null);
+      setMode("schedule");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadSchedules() {

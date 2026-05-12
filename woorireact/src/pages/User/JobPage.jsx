@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import {
   EMPL_COLOR,
   EMPL_MAP,
@@ -190,11 +191,13 @@ export default function JobPage() {
 
   return (
     <div className="jp-root">
-      <nav className="jp-nav">
-        <button className="jp-nav-back" type="button" onClick={() => navigate("/user")}>← 돌아가기</button>
-        <div className="jp-nav-title">💼 일자리 찾기</div>
-        {!loading && !error && <div className="jp-nav-count">총 {totalCount}건</div>}
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="💼 일자리 찾기"
+        right={!loading && !error ? <span className="jp-nav-count">총 {totalCount}건</span> : null}
+        onBack={() => navigate("/user")}
+      />
 
       <div className="jp-top-sticky">
         <div className="jp-top-sticky-inner">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { uploadProfileImage } from "../../api/userPageApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
@@ -296,15 +297,19 @@ export default function ProfilePage() {
 
   return (
     <div className="pr-root">
-      <nav className="pr-nav">
-        <button className="pr-nav-back" type="button" onClick={() => navigate("/user")}>돌아가기</button>
-        <div className="pr-nav-title">내 정보 관리</div>
-        <div className="pr-nav-actions">
-          {saved && <div className="pr-saved-badge">저장되었습니다</div>}
-          <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>초기화</button>
-          <button className="pr-save-btn" type="button" onClick={handleSave}>저장하기</button>
-        </div>
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1280}
+        title="내 정보 관리"
+        onBack={() => navigate("/user")}
+        right={(
+          <div className="pr-nav-actions">
+            {saved && <div className="pr-saved-badge">저장되었습니다</div>}
+            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>초기화</button>
+            <button className="pr-save-btn" type="button" onClick={handleSave}>저장하기</button>
+          </div>
+        )}
+      />
 
       <div className="pr-layout">
         <aside>

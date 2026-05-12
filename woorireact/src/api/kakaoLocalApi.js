@@ -48,7 +48,8 @@ const requestKakao = async (path, cooldownKey) => {
   const response = await fetch(`/kakao-local${path}`);
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error("KAKAO_KEY_MISSING");
+    setCooldown(sessionStorage, cooldownKey);
+    throw new Error("KAKAO_UNAUTHORIZED");
   }
 
   if (response.status === 429) {

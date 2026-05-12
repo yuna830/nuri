@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { DUMMY_FALL_LOGS } from "../../utils/user/fallHistoryData";
 import "../../css/user/FallHistory.css";
 
@@ -17,14 +18,13 @@ export default function FallHistory() {
 
   return (
     <div className="fh-root">
-      <nav className="fh-nav">
-        <button className="fh-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-
-        <div className="fh-nav-title">📋 낙상 기록</div>
-        <div className="fh-nav-sub">YOLOv8-pose · MediaPipe 감지 이력</div>
-      </nav>
+      <UserCommonHeader />
+      <UserSubHeader
+        maxWidth={1100}
+        title="📋 낙상 기록"
+        right="YOLOv8-pose · MediaPipe 감지 이력"
+        onBack={() => navigate("/user")}
+      />
 
       <div className="fh-layout">
         <div className="fh-summary">
