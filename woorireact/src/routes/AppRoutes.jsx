@@ -45,6 +45,7 @@ function AppRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route path="/weather-graph" element={<WeatherGraph />} />
+
         <Route path="/social-worker" element={<SocialWorkerManager />} />
         
       </Routes>
