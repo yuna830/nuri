@@ -65,6 +65,10 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const toggleArr = (key, value) => {

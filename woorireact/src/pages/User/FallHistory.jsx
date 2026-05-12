@@ -10,6 +10,7 @@ export default function FallHistory() {
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     setLogs(DUMMY_FALL_LOGS);
   }, []);
 

@@ -20,9 +20,17 @@
 }
 
 .uch-logo {
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: #86a788;
   font-size: 1.25rem;
   font-weight: 800;
+  cursor: pointer;
+}
+
+.uch-logo:hover {
+  color: #5f8a62;
 }
 
 .uch-actions {
