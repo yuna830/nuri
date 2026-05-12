@@ -279,6 +279,9 @@ export const normalizeForm = (form) => {
   const seniorRelationToGuardian =
     form.seniorRelationToGuardian ||
     inferSeniorRelationFromGuardian(guardianRelation, form.gender);
+  const medications = syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
+    Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
+  );
 
   return {
     ...form,
@@ -286,9 +289,8 @@ export const normalizeForm = (form) => {
     address: region,
     guardianRelation,
     seniorRelationToGuardian,
-    medications: syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
-      Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
-    ),
+    medications,
+    medicationsJson: JSON.stringify(medications),
     lastLoginAt: form.lastLoginAt || new Date().toISOString(),
   };
 };
