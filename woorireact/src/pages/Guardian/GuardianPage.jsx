@@ -248,7 +248,6 @@ function GuardianPage() {
   const [isLoadingElders, setIsLoadingElders] = useState(true);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
   const [selectedRouteDate, setSelectedRouteDate] = useState(getDateValue());
-  const [safeZoneAlertedKeys, setSafeZoneAlertedKeys] = useState([]);
 
   const [isMedicineAlertOpen, setIsMedicineAlertOpen] = useState(false);
   const [medicineMessage, setMedicineMessage] = useState("");
@@ -524,7 +523,7 @@ function GuardianPage() {
       return `${seniorName}의 SOS 요청`;
     }
 
-    if (alert.type === "SAFE_ZONE") {
+    if (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") {
       return originalMessage;
     }
 
@@ -573,7 +572,7 @@ function GuardianPage() {
         message: formatAlertMessage(alert),
         status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
         isSos: alert.type === "SOS",
-        isSafeZone: alert.type === "SAFE_ZONE",
+        isSafeZone: alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT",
       };
     });
 
@@ -590,49 +589,6 @@ function GuardianPage() {
         console.error("경찰청 실종경보 조회 실패:", error);
       });
   }, []);
-
-  useEffect(() => {
-    if (!selectedElder?.currentLocation) {
-      return;
-    }
-
-    const form = safeZoneForms[selectedElder.id] ?? getDefaultSafeZone(selectedElder);
-    const currentLocation = selectedElder.currentLocation;
-    const currentDistance = getDistanceMeters(
-      { lat: form.centerLatitude, lng: form.centerLongitude },
-      currentLocation
-    );
-
-    if (currentDistance <= form.radiusMeters) {
-      return;
-    }
-
-    const alertKey = [
-      selectedElder.id,
-      form.radiusMeters,
-      Math.round(currentLocation.lat * 10000),
-      Math.round(currentLocation.lng * 10000),
-    ].join("-");
-    if (safeZoneAlertedKeys.includes(alertKey)) {
-      return;
-    }
-
-    const message = `${selectedElder.name}이 안전 구역을 벗어났습니다. 현재 위치: ${currentLocation.address}`;
-    const localAlert = {
-      id: `safe-zone-${Date.now()}`,
-      seniorId: selectedElder.id,
-      type: "SAFE_ZONE",
-      latitude: currentLocation.lat,
-      longitude: currentLocation.lng,
-      message,
-      title: message,
-      createdAt: new Date().toISOString(),
-      isRead: false,
-    };
-
-    setApiAlerts((prev) => [localAlert, ...prev]);
-    setSafeZoneAlertedKeys((prev) => [...prev, alertKey]);
-  }, [safeZoneAlertedKeys, safeZoneForms, selectedElder]);
 
   useEffect(() => {
     if (!activeElderId) {

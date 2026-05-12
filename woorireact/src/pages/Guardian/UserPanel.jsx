@@ -360,15 +360,11 @@ function UserPanel({
                       {selectedElder.medications.map((medicine, index) => (
                         <li key={`${medicine.name}-${index}`}>
                           {[
-                            medicine.name,
-                            medicine.ongoing
-                              ? `${medicine.startDate || "시작일 미입력"}부터 계속 복용`
-                              : [medicine.startDate, medicine.endDate].filter(Boolean).join(" ~ "),
-                            medicine.interval ? `${medicine.interval}시간마다` : "",
-                            medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" / ")}
+                              medicine.name,
+                              medicine.startDate ? `${medicine.startDate}부터` : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" / ")}
                         </li>
                       ))}
                     </ul>

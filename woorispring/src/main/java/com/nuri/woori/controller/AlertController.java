@@ -112,7 +112,7 @@ public class AlertController {
 
         Alert alert = new Alert();
         alert.setSeniorId(request.seniorId());
-        alert.setGuardianId(request.guardianId());
+        alert.setGuardianId(null);
         alert.setType("MEDICINE");
         alert.setTitle("복약 알림");
         alert.setMessage(

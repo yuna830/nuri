@@ -135,38 +135,20 @@ export default function LocationPage() {
   }, []);
 
   const updateLocation = useCallback(async (lat, lon, accuracy) => {
-    setCurrentPos([lat, lon]);
-    setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-    setLastUpdate(getNow());
+  setCurrentPos([lat, lon]);
+  setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
+  setLastUpdate(getNow());
 
-    const nextAddress = await getAddress(lat, lon);
-    setAddress(nextAddress);
+  const nextAddress = await getAddress(lat, lon);
+  setAddress(nextAddress);
 
-    try {
-      await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
-      await loadLocationHistory(todayStr());
-    } catch {}
+  try {
+    await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
+    await loadLocationHistory(todayStr());
+  } catch {}
 
-    const seniorId = getCurrentSeniorId();
-    const currentDistance = Math.round(getDistanceMeters(
-      { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-      { lat, lng: lon }
-    ));
-
-    if (
-      currentDistance > safeZone.radiusMeters &&
-      shouldSendSafeZoneAlert(seniorId, safeZone, lat, lon)
-    ) {
-      createSafeZoneAlert({
-        seniorId,
-        latitude: lat,
-        longitude: lon,
-        address: nextAddress,
-      }).catch(() => {});
-    }
-
-    setLoading(false);
-  }, [loadLocationHistory, safeZone]);
+  setLoading(false);
+}, [loadLocationHistory]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {

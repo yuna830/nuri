@@ -522,13 +522,17 @@
 .medicine-alert-field select {
   width: 100%;
   min-height: 46px;
-  padding: 0 12px;
+  padding: 0 44px 0 12px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background:
+    linear-gradient(45deg, transparent 50%, #1f2937 50%) right 19px center / 7px 7px no-repeat,
+    linear-gradient(135deg, #1f2937 50%, transparent 50%) right 14px center / 7px 7px no-repeat,
+    #ffffff;
   color: var(--text-main);
   font: inherit;
   font-weight: 700;
+  appearance: none;
 }
 
 .medicine-alert-empty {
@@ -552,9 +556,13 @@
 
 .medicine-alert-field {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
   font-size: 0.85rem;
   font-weight: 700;
+}
+
+.medicine-alert-field + .medicine-alert-field {
+  margin-top: 1rem;
 }
 
 .medicine-alert-field textarea {
