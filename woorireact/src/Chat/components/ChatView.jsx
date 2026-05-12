@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { useChatFlow } from "../hooks/useChatFlow";
 import { useVoiceInput } from "../hooks/useVoiceInput";
@@ -58,15 +58,21 @@ export default function ChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, pendingSchedule]);
 
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/user");
+  };
+
   return (
     <section className="chatbot-page">
       <UserCommonHeader />
-      <UserSubHeader
-        title=""
-        right={<button className="chatbot-sub-action" type="button" onClick={onScheduleOpen}>일정 등록하기</button>}
-        onBack={() => navigate("/user")}
-        backLabel="← 홈으로"
-      />
+      <button className="chatbot-back-button" type="button" onClick={goBack} aria-label="뒤로가기">
+        &lt;
+      </button>
 
       <header className="chatbot-header">
         <p>AI 챗봇</p>
@@ -110,6 +116,7 @@ export default function ChatView({
           schedules={savedSchedules}
           selectedDate={selectedScheduleDate}
           onDateChange={onScheduleDateChange}
+          onScheduleOpen={onScheduleOpen}
           onScheduleEdit={onScheduleEdit}
           onScheduleDelete={onScheduleDelete}
         />
