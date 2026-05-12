@@ -16,6 +16,37 @@ const TYPO_REPLACEMENTS = [
   [/모래/g, "모레"],
 ];
 
+const KOREAN_NUMBER_VALUES = {
+  한: 1,
+  하나: 1,
+  두: 2,
+  둘: 2,
+  세: 3,
+  셋: 3,
+  네: 4,
+  넷: 4,
+  다섯: 5,
+  여섯: 6,
+  일곱: 7,
+  여덟: 8,
+  아홉: 9,
+  열: 10,
+  열한: 11,
+  열하나: 11,
+  열두: 12,
+  열둘: 12,
+  십: 10,
+  이십: 20,
+  삼십: 30,
+  사십: 40,
+  오십: 50,
+};
+
+const KOREAN_TIME_NUMBER_PATTERN =
+  "열하나|열한|열두|열둘|다섯|여섯|일곱|여덟|아홉|하나|둘|셋|넷|한|두|세|네|삼십|사십|오십|이십|십|열";
+export const TIME_EXPRESSION_PATTERN_SOURCE =
+  `(오전|오후|아침|저녁|밤|새벽)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분?)?\\s*(?:에)?`;
+
 export function normalizeScheduleText(text) {
   return TYPO_REPLACEMENTS.reduce(
     (normalized, [pattern, replacement]) => normalized.replace(pattern, replacement),
@@ -53,13 +84,13 @@ export function parseTimeFromText(text) {
 
 export function parseTimeExpression(text) {
   const normalized = normalizeScheduleText(text);
-  const match = normalized.match(/(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/);
+  const match = normalized.match(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE));
   if (!match) return null;
 
   const [, rawMeridiem, rawHour, rawMinute] = match;
   const meridiem = normalizeMeridiem(rawMeridiem);
-  let hour = Number(rawHour);
-  const minute = Number(rawMinute || 0);
+  let hour = parseKoreanTimeNumber(rawHour);
+  const minute = rawMinute === "반" ? 30 : parseKoreanTimeNumber(rawMinute || 0);
 
   if (meridiem === "오후" && hour < 12) hour += 12;
   if (meridiem === "오전" && hour === 12) hour = 0;
@@ -67,9 +98,9 @@ export function parseTimeExpression(text) {
   return {
     value: `${pad(hour)}:${pad(minute)}`,
     meridiem,
-    hour: Number(rawHour),
+    hour: parseKoreanTimeNumber(rawHour),
     minute,
-    isAmbiguous: !meridiem && Number(rawHour) >= 1 && Number(rawHour) <= 11,
+    isAmbiguous: !meridiem && parseKoreanTimeNumber(rawHour) >= 1 && parseKoreanTimeNumber(rawHour) <= 11,
     text: match[0],
   };
 }
@@ -146,7 +177,7 @@ function cleanTitle(text) {
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?에?/g, "")
     .replace(/내일\s*모레|내일모레|오늘|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?|다음\s*주/g, "")
-    .replace(/(오전|오후|아침|저녁|밤|새벽)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, "")
+    .replace(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"), "")
     .replace(/해야\s*해|해야해|일정|예약|알림|기억해줘|등록해줘|넣어줘|추가해줘|해줘/g, "")
     .replace(/[,:]/g, " ")
     .replace(/\s+/g, " ")
@@ -186,6 +217,11 @@ function normalizeMeridiem(value = "") {
   if (/오전|아침|새벽/.test(value)) return "오전";
   if (/오후|저녁|밤/.test(value)) return "오후";
   return "";
+}
+
+function parseKoreanTimeNumber(value) {
+  if (/^\d+$/.test(String(value))) return Number(value);
+  return KOREAN_NUMBER_VALUES[value] || 0;
 }
 
 function formatDate(date) {
