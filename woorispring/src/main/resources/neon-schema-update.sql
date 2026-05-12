@@ -21,3 +21,6 @@ create table if not exists climate_alerts (
 
 create index if not exists idx_climate_alerts_senior_date
     on climate_alerts (senior_id, alert_date, issued_at desc);
+
+alter table health_info
+    add column if not exists medications_json text;

@@ -58,6 +58,7 @@ public class SeniorController {
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
         healthInfo.setMedicineCount(request.medicineCount());
+        healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
         healthInfo.setHypertension(request.hypertension());
         healthInfo.setHeartDisease(request.heart());
@@ -249,6 +250,7 @@ public class SeniorController {
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
         healthInfo.setMedicineCount(request.medicineCount());
+        healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
         healthInfo.setHypertension(request.hypertension());
         healthInfo.setHeartDisease(request.heart());
@@ -359,6 +361,7 @@ public class SeniorController {
             String smoking,
             String drinking,
             String medicineCount,
+            String medicationsJson,
             String diabetes,
             String hypertension,
             String heart,
