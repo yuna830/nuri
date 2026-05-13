@@ -3,6 +3,9 @@ package com.nuri.woori.controller;
 import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.JobPreference;
 import com.nuri.woori.entity.Senior;
+import com.nuri.woori.entity.LocationStatus;
+import com.nuri.woori.repository.AlertRepository;
+import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
@@ -26,17 +29,23 @@ public class SeniorController {
     private final HealthInfoRepository healthInfoRepository;
     private final JobPreferenceRepository jobPreferenceRepository;
     private final GuardianSeniorRepository guardianSeniorRepository;
+    private final LocationStatusRepository locationStatusRepository;
+    private final AlertRepository alertRepository;
 
     public SeniorController(
             SeniorRepository seniorRepository,
             HealthInfoRepository healthInfoRepository,
             JobPreferenceRepository jobPreferenceRepository,
-            GuardianSeniorRepository guardianSeniorRepository
+            GuardianSeniorRepository guardianSeniorRepository,
+            LocationStatusRepository locationStatusRepository,
+            AlertRepository alertRepository
     ) {
         this.seniorRepository = seniorRepository;
         this.healthInfoRepository = healthInfoRepository;
         this.jobPreferenceRepository = jobPreferenceRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
+        this.locationStatusRepository = locationStatusRepository;
+        this.alertRepository = alertRepository;
     }
 
     @PostMapping
@@ -315,6 +324,88 @@ public class SeniorController {
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
         return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
+    }
+
+    @GetMapping("/welfare")
+    public List<WelfareSeniorListResponse> getWelfareSeniors() {
+        return seniorRepository.findAll()
+                .stream()
+                .map(this::toWelfareSeniorListResponse)
+                .toList();
+    }
+
+    private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
+                .orElse(null);
+
+        boolean hasSosAlert = alertRepository
+                .existsBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "SOS");
+
+        boolean hasSafeZoneExitAlert = alertRepository
+                .existsBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "SAFE_ZONE_EXIT");
+
+        long jobRequestCount = alertRepository
+                .countBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "JOB_REQUEST");
+
+        String alertStatus = hasSosAlert
+                ? "미응답 SOS"
+                : jobRequestCount > 0 ? "일자리 신청" : "없음";
+
+        String locationStatus = hasSafeZoneExitAlert ? "안전구역 이탈" : "정상";
+
+        return new WelfareSeniorListResponse(
+                senior.getId(),
+                senior.getName(),
+                senior.getAge(),
+                senior.getGender(),
+                senior.getPhone(),
+                senior.getRegion() == null ? senior.getAddress() : senior.getRegion(),
+                healthInfo == null ? null : healthInfo.getHealthStatus(),
+                locationStatus,
+                alertStatus,
+                senior.getWorkRequestStatus(),
+                jobRequestCount,
+                jobRequestCount > 0 ? "요청 " + jobRequestCount + "건" : "미요청",
+                senior.getWelfareDecision(),
+                senior.getWelfareDecisionReason(),
+                senior.getLastLoginAt(),
+                latestLocation == null ? null : latestLocation.getAddress(),
+                latestLocation == null ? null : latestLocation.getLatitude(),
+                latestLocation == null ? null : latestLocation.getLongitude(),
+                latestLocation == null ? null : latestLocation.getReceivedAt()
+        );
+    }
+
+    public record WelfareSeniorListResponse(
+            Long id,
+            String name,
+            Integer age,
+            String gender,
+            String phone,
+            String region,
+            String healthStatus,
+            String locationStatus,
+            String alertStatus,
+            String workRequestStatus,
+            Long jobRequestCount,
+            String jobRequestStatus,
+            String welfareDecision,
+            String welfareDecisionReason,
+            LocalDateTime lastLoginAt,
+            String lastGpsAddress,
+            Double lastGpsLatitude,
+            Double lastGpsLongitude,
+            LocalDateTime lastGpsRecordedAt
+    ) {
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {

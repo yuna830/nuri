@@ -41,3 +41,4 @@ alter table seniors
 alter table health_info
     add column if not exists allergies varchar(255);
 
+

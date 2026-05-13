@@ -1,0 +1,329 @@
+.wj-page {
+    min-height: 100vh;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+.wj-header {
+    height: 64px;
+    padding: 0 max(28px, calc((100% - 1280px) / 2 + 28px));
+    border-bottom: 1px solid var(--border-color);
+    background-color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+}
+
+.wj-brand-area {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.wj-service-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #86a788;
+    white-space: nowrap;
+}
+
+.wj-header-title {
+    color: #4b5563;
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.wj-content {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px;
+    box-sizing: border-box;
+}
+
+.wj-header-row {
+    margin-bottom: 18px;
+}
+
+.wj-back-link {
+    color: var(--main-color);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.wj-back-link:hover {
+    text-decoration: underline;
+}
+
+.wj-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.wj-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    position: sticky;
+    top: 92px;
+}
+
+.wj-sidebar-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.wj-sidebar-item {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 7px;
+    border: none;
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.wj-sidebar-item:hover {
+    background-color: #f2f6f0;
+}
+
+.wj-sidebar-item-active {
+    background-color: var(--main-color);
+    color: white;
+}
+
+.wj-sidebar-item-active:hover {
+    background-color: var(--main-color);
+}
+
+.wj-main-area {
+    min-width: 0;
+}
+
+.wj-search-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    height: 44px;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+}
+
+.wj-search-icon {
+    color: #999;
+    flex-shrink: 0;
+}
+
+.wj-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    color: var(--text-color);
+    background-color: transparent;
+}
+
+.wj-search-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    flex-shrink: 0;
+}
+
+.wj-hide-closed-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--main-color);
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.wj-hide-closed-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--main-color);
+    cursor: pointer;
+}
+
+.wj-result-count {
+    margin: 0 0 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #555;
+}
+
+.wj-empty-text {
+    color: #666;
+    font-size: 14px;
+    text-align: center;
+    padding: 40px 0;
+}
+
+.wj-job-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wj-job-card {
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 18px 22px;
+}
+
+.wj-job-card:hover {
+    border-color: #cbd8c4;
+    box-shadow: 0 8px 20px rgba(25, 35, 25, 0.07);
+}
+
+.wj-job-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.wj-job-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.wj-organization {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #666;
+    font-weight: 700;
+}
+
+.wj-badge-row {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.wj-job-type-badge,
+.wj-employment-badge {
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.wj-job-type-badge {
+    background-color: rgba(134, 167, 136, 0.22);
+    color: #48644b;
+}
+
+.wj-employment-badge {
+    background-color: #eeeeee;
+    color: #555;
+}
+
+.wj-job-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 13px;
+    color: #666;
+}
+
+.wj-meta-item {
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .wj-header {
+        padding: 0 20px;
+    }
+
+    .wj-content {
+        padding: 20px;
+    }
+
+    .wj-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .wj-sidebar {
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .wj-sidebar-title {
+        width: 100%;
+    }
+
+    .wj-sidebar-item {
+        width: auto;
+    }
+}
+
+@media (max-width: 560px) {
+    .wj-header {
+        height: auto;
+        min-height: 64px;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+        padding: 14px 18px;
+    }
+
+    .wj-search-row {
+        height: auto;
+        min-height: 44px;
+        align-items: stretch;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+    }
+
+    .wj-search-input {
+        height: 36px;
+    }
+
+    .wj-search-divider {
+        display: none;
+    }
+
+    .wj-job-card-top {
+        flex-direction: column;
+    }
+
+    .wj-badge-row {
+        justify-content: flex-start;
+    }
+}

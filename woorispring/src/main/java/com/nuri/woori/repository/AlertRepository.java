@@ -13,4 +13,12 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findBySeniorIdOrderByCreatedAtDesc(Long seniorId);
 
     Optional<Alert> findTopBySeniorIdAndTypeOrderByCreatedAtDesc(Long seniorId, String type);
+
+    List<Alert> findByTypeInOrderByCreatedAtDesc(List<String> types);
+
+    List<Alert> findByTypeAndIsReadFalseOrderByCreatedAtDesc(String type);
+
+    boolean existsBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
+
+    long countBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
 }

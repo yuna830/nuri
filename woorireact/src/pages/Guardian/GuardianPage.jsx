@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Bell } from "lucide-react";
 import {
   getGuardianAlerts,
   readAlert,
@@ -1149,9 +1150,16 @@ function GuardianHeader({ guardian, unreadAlertCount, onOpenAlertPanel, onOpenEm
       </div>
 
       <div className="header-actions">
-        <button className="icon-button" type="button" onClick={onOpenAlertPanel}>
-          알림
-          <span className="alarm-count">{unreadAlertCount}</span>
+        <button
+          className="icon-button"
+          type="button"
+          onClick={onOpenAlertPanel}
+          aria-label="알림"
+        >
+          <Bell size={20} />
+          {unreadAlertCount > 0 && (
+            <span className="alarm-count">{unreadAlertCount}</span>
+          )}
         </button>
 
         <button className="danger-button" type="button" onClick={onOpenEmergencyReport}>

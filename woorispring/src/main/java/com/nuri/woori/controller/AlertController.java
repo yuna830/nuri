@@ -9,6 +9,8 @@ import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/alerts")
@@ -234,6 +236,64 @@ public class AlertController {
             Long seniorId,
             Long guardianId,
             String message
+    ) {
+    }
+
+    @GetMapping("/welfare")
+    public List<WelfareAlertResponse> getWelfareAlerts() {
+        List<WelfareAlertResponse> sosAlerts = alertRepository
+                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
+                .stream()
+                .map(alert -> {
+                    Senior senior = seniorRepository.findById(alert.getSeniorId()).orElse(null);
+                    String seniorName = senior == null ? "대상자" : senior.getName();
+
+                    return new WelfareAlertResponse(
+                            "sos-" + alert.getId(),
+                            alert.getSeniorId(),
+                            seniorName,
+                            "SOS 요청 미응답",
+                            seniorName + " 대상자의 SOS 요청에 보호자 응답이 없습니다.",
+                            "SOS",
+                            alert.getCreatedAt()
+                    );
+                })
+                .toList();
+
+        LocalDateTime threshold = LocalDateTime.now().minusHours(4);
+
+        List<WelfareAlertResponse> inactiveAlerts = seniorRepository.findAll()
+                .stream()
+                .filter(senior -> senior.getLastLoginAt() != null)
+                .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
+                .map(senior -> new WelfareAlertResponse(
+                        "inactive-" + senior.getId(),
+                        senior.getId(),
+                        senior.getName(),
+                        "장시간 미접속",
+                        senior.getName() + " 대상자가 4시간 이상 접속하지 않았습니다.",
+                        "LAST_ACCESS",
+                        senior.getLastLoginAt()
+                ))
+                .toList();
+
+        List<WelfareAlertResponse> responses = new ArrayList<>();
+        responses.addAll(sosAlerts);
+        responses.addAll(inactiveAlerts);
+
+        return responses.stream()
+                .sorted((first, second) -> second.createdAt().compareTo(first.createdAt()))
+                .toList();
+    }
+
+    public record WelfareAlertResponse(
+            String id,
+            Long seniorId,
+            String seniorName,
+            String title,
+            String message,
+            String type,
+            LocalDateTime createdAt
     ) {
     }
 }

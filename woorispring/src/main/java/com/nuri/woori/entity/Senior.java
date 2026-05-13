@@ -30,4 +30,18 @@ public class Senior {
 
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    private String workRequestStatus;
+    private String welfareDecision;
+
+    @Column(length = 1000)
+    private String welfareDecisionReason;
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
 }
