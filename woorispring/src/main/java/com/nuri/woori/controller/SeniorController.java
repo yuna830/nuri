@@ -116,6 +116,23 @@ public class SeniorController {
                 .toList();
     }
 
+    @GetMapping("/search-exact")
+    public List<SeniorProfileResponse> searchSeniorExact(
+            @RequestParam String name,
+            @RequestParam String phone
+    ) {
+        String trimmedName = name == null ? "" : name.trim();
+        String normalizedPhone = normalizePhone(phone);
+
+        if (trimmedName.isBlank() || normalizedPhone.isBlank()) {
+            return List.of();
+        }
+
+        return seniorRepository.findByNameAndNormalizedPhone(trimmedName, normalizedPhone)
+                .map(senior -> List.of(toProfileResponse(senior)))
+                .orElseGet(List::of);
+    }
+
     @GetMapping("/guardian/{guardianId}")
     public List<SeniorProfileResponse> getSeniorsByGuardian(@PathVariable Long guardianId) {
         return guardianSeniorRepository.findByGuardianId(guardianId)

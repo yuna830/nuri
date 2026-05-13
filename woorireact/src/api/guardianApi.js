@@ -1,51 +1,76 @@
-const API_BASE_URL = "http://localhost:8181";
+const API_BASE_URL = "http://localhost:8080";
+const POLICE_API_BASE_URL = "http://localhost:8181";
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+async function request(baseUrl, path, options = {}) {
+  const isFormData = options.body instanceof FormData;
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
-    ...options,
   });
 
+  if (response.status === 204) {
+    return null;
+  }
+
   if (!response.ok) {
-    throw new Error(`API 요청 실패: ${response.status}`);
+    const message = await response.text().catch(() => "");
+    throw new Error(`API 요청 실패: ${response.status}${message ? ` ${message}` : ""}`);
   }
 
   return response.json();
 }
 
+async function requestArray(baseUrl, path, options = {}) {
+  try {
+    const data = await request(baseUrl, path, options);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error(`${path} 조회 실패:`, error);
+    return [];
+  }
+}
+
 export function getGuardianAlerts(guardianId) {
-  return request(`/api/alerts/guardian/${guardianId}`);
+  return requestArray(API_BASE_URL, `/api/alerts/guardian/${guardianId}`);
 }
 
 export function readAlert(alertId) {
-  return request(`/api/alerts/${alertId}/read`, {
+  return request(API_BASE_URL, `/api/alerts/${alertId}/read`, {
     method: "PATCH",
   });
 }
 
 export function createCallRequestAlert({ seniorId, latitude, longitude }) {
-  return request("/api/alerts/call", {
+  return request(API_BASE_URL, "/api/alerts/call", {
     method: "POST",
     body: JSON.stringify({ seniorId, latitude, longitude }),
   });
 }
 
+export function sendMedicineAlert({ seniorId, guardianId, message }) {
+  return request(API_BASE_URL, "/api/alerts/medicine", {
+    method: "POST",
+    body: JSON.stringify({ seniorId, guardianId, message }),
+  });
+}
+
 export function getMissingReports() {
-  return request("/api/missing-reports");
+  return requestArray(API_BASE_URL, "/api/missing-reports");
 }
 
 export function createMissingReport(data) {
-  return request("/api/missing-reports", {
+  return request(API_BASE_URL, "/api/missing-reports", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function createSightingReport(data) {
-  return request("/api/sighting-reports", {
+  return request(API_BASE_URL, "/api/sighting-reports", {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -55,19 +80,50 @@ export async function uploadImage(category, file) {
   const formData = new FormData();
   formData.append("image", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/uploads/${category}`, {
+  return request(API_BASE_URL, `/api/uploads/${category}`, {
     method: "POST",
     body: formData,
   });
-
-  if (!response.ok) {
-    throw new Error(`이미지 업로드 실패: ${response.status}`);
-  }
-
-  return response.json();
 }
 
-// 경찰청 실종 경보 목록 
 export function getPoliceMissingAlerts() {
-  return request("/api/police-missing-alerts");
+  return requestArray(POLICE_API_BASE_URL, "/api/police-missing-alerts");
+}
+
+export function getSeniorProfile(seniorId) {
+  return request(API_BASE_URL, `/api/seniors/${seniorId}`);
+}
+
+export function getGuardianSeniors(guardianId) {
+  return requestArray(API_BASE_URL, `/api/seniors/guardian/${guardianId}`);
+}
+
+export function searchSeniorExact({ name, phone }) {
+  return requestArray(
+    API_BASE_URL,
+    `/api/seniors/search-exact?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`
+  );
+}
+
+export function connectSeniorToGuardian(guardianId, { seniorId, relation }) {
+  return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors`, {
+    method: "POST",
+    body: JSON.stringify({
+      seniorId,
+      relation,
+    }),
+  });
+}
+
+export function createAndConnectSenior(guardianId, seniorForm) {
+  return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors/new`, {
+    method: "POST",
+    body: JSON.stringify(seniorForm),
+  });
+}
+
+export function deleteGuardianSenior(guardianId, seniorId) {
+  return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors/${seniorId}`, {
+    method: "DELETE",
+  });
 }

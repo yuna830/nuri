@@ -36,6 +36,7 @@ public class PoliceMissingAlert {
     @Column(length = 1000)
     private String feature;
 
+    @Column(name = "photo_url", columnDefinition = "TEXT")
     private String photoUrl;
 
     private LocalDateTime syncedAt = LocalDateTime.now();

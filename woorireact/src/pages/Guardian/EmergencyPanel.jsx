@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
     return "실종 일시 정보 없음";
@@ -45,10 +47,49 @@ function EmergencyPanel({
   onCallNeedsReport,
   onCloseCallResult,
 }) {
+
+  const [policeIndex, setPoliceIndex] = useState(0);
+
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
     ? lastNormalLocation.address
     : "기록 없음";
+
+  const getRouteTimeParts = (receivedAt) => {
+    const date = new Date(receivedAt);
+
+    return {
+      period: date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        hour12: true,
+      }).includes("오전")
+        ? "오전"
+        : "오후",
+      time: date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+    };
+  };
+
+  const visiblePoliceAlert = policeAlerts?.[policeIndex] ?? null;
+
+  const handlePrevPoliceAlert = () => {
+    if (!policeAlerts?.length) return;
+
+    setPoliceIndex((prev) =>
+      prev === 0 ? policeAlerts.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextPoliceAlert = () => {
+    if (!policeAlerts?.length) return;
+
+    setPoliceIndex((prev) =>
+      prev === policeAlerts.length - 1 ? 0 : prev + 1
+    );
+  };
 
   return (
     <>
@@ -76,13 +117,24 @@ function EmergencyPanel({
                 .reverse()
                 .map((point, index) => (
                   <li key={`${point.receivedAt}-${index}`}>
-                    <time>
-                      {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                    <span>{point.address}</span>
+                    <div className="route-time">
+                      <span>
+                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          hour12: true,
+                        }).replace(/\s?\d+시/, "")}
+                      </span>
+
+                      <strong className="route-address">{point.address}</strong>
+
+                      <span>
+                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }).replace(/오전|오후/g, "").trim()}
+                      </span>
+                    </div>
                   </li>
                 ))
             )}
@@ -142,34 +194,56 @@ function EmergencyPanel({
 
         <section className="card police-missing-card">
           <div className="card-header">
-            <h2>경찰청 실종경보</h2>
+            <h2>경찰청 실종정보</h2>
           </div>
 
           <div className="police-missing-list">
-            {!policeAlerts || policeAlerts.length === 0 ? (
-              <p className="alert-empty">등록된 경찰청 실종경보가 없습니다.</p>
+            {!visiblePoliceAlert ? (
+              <p className="alert-empty">등록된 경찰청 실종정보가 없습니다.</p>
             ) : (
-              policeAlerts.slice(0, 3).map((alert) => (
-                <article key={alert.id} className="police-missing-item">
-                  {alert.photoUrl && (
+              <div className="police-missing-slider">
+                {policeAlerts?.length > 1 && (
+                  <button
+                    type="button"
+                    className="police-slide-button prev"
+                    onClick={handlePrevPoliceAlert}
+                    aria-label="이전 실종정보"
+                  >
+                    ‹
+                  </button>
+                )}
+
+                <article className="police-missing-item">
+                  {visiblePoliceAlert.photoUrl && (
                     <img
-                      src={`data:image/jpeg;base64,${alert.photoUrl.replace(/\s/g, "")}`}
-                      alt={`${alert.name} 실종경보 사진`}
+                      src={`data:image/jpeg;base64,${visiblePoliceAlert.photoUrl.replace(/\s/g, "")}`}
+                      alt={`${visiblePoliceAlert.name} 실종정보 사진`}
                     />
                   )}
 
                   <div>
-                    <strong>{alert.name}</strong>
+                    <strong>{visiblePoliceAlert.name}</strong>
                     <span>
-                      {alert.gender}
-                      {alert.ageNow ? ` · 현재 ${alert.ageNow}세` : ""}
+                      {visiblePoliceAlert.gender}
+                      {visiblePoliceAlert.ageNow ? ` · 현재 ${visiblePoliceAlert.ageNow}세` : ""}
                     </span>
-                    <em>실종 일시: {formatPoliceOccurredDate(alert.occurredDate)}</em>
-                    <em>{alert.occurredAddress || "실종 장소 정보 없음"}</em>
+                    <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
+                    <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
                     <small>자료 출처: 경찰청</small>
                   </div>
                 </article>
-              ))
+
+                {policeAlerts?.length > 1 && (
+                  <button
+                    type="button"
+                    className="police-slide-button next"
+                    onClick={handleNextPoliceAlert}
+                    aria-label="다음 실종정보"
+                  >
+                    ›
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </section>

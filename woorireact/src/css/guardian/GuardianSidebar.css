@@ -521,20 +521,38 @@
   margin-bottom: 8px;
   border-radius: 6px;
   background: #F8F8F3;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  display: block;
 }
 
-.route-list time {
-  flex: 0 0 54px;
+.route-time {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.route-time span {
   color: var(--deep-green);
-  font-size: 14px;
-  line-height: 1.25;
+  font-size: 13px;
+  line-height: 1.2;
   font-weight: 700;
 }
 
-.route-list span {
+.route-time span:first-child {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.route-time span:last-child {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.route-address {
+  grid-column: 2;
+  grid-row: 1 / span 2;
   min-width: 0;
   overflow: hidden;
   color: var(--text-main);
@@ -651,6 +669,42 @@
 .safe182-actions button:hover {
   background: var(--main-color);
   color: #ffffff;
+}
+
+.police-missing-slider {
+  position: relative;
+}
+
+.police-slide-button {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #111827;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font-size: 30px;
+  line-height: 0;
+  font-weight: 500;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.police-slide-button.prev {
+  left: -12px;
+}
+
+.police-slide-button.next {
+  right: -12px;
+}
+
+.police-slide-button:hover {
+  background: #f4f6ee;
 }
 
 .police-missing-card {

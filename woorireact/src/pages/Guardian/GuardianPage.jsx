@@ -7,10 +7,29 @@ import {
   uploadImage,
   getPoliceMissingAlerts,
   createCallRequestAlert,
+  getSeniorProfile,
+  getGuardianSeniors,
+  searchSeniorExact,
+  connectSeniorToGuardian,
+  createAndConnectSenior,
+  deleteGuardianSenior,
+  sendMedicineAlert,
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
+import {
+  getDateValue,
+  fetchLatestLocation,
+  fetchRouteHistoryByDate,
+  appendLatestLocationToElder,
+} from "../../utils/guardian/guardianLocation";
+import {
+  getDefaultSafeZone,
+  loadSafeZone,
+  saveSafeZone,
+} from "../../utils/guardian/guardianSafeZone";
+import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
@@ -21,157 +40,6 @@ import "../../css/guardian/GuardianPage.css";
 import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
 import "../../css/guardian/GuardianModal.css";
-
-const getDateValue = (date = new Date()) => {
-  const timezoneOffset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
-};
-
-const fetchFullRoadAddress = async (lat, lng, fallbackAddress) => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ko`
-    );
-
-    if (!response.ok) {
-      return fallbackAddress;
-    }
-
-    const data = await response.json();
-    const addr = data?.address;
-
-    const fullRoadAddress = [
-      addr?.province,
-      addr?.city,
-      addr?.borough || addr?.city_district,
-      addr?.suburb || addr?.neighbourhood,
-      addr?.road,
-      addr?.house_number,
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    return fullRoadAddress || data?.display_name || fallbackAddress;
-  } catch {
-    return fallbackAddress;
-  }
-};
-
-const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => {
-  const response = await fetch(
-    `http://localhost:8080/api/locations/senior/${seniorId}/date?date=${dateValue}`
-  );
-
-  if (!response.ok || response.status === 204) {
-    return [];
-  }
-
-  const locations = await response.json();
-
-  if (!Array.isArray(locations)) {
-    return [];
-  }
-
-  const routeHistory = await Promise.all(
-    locations
-      .filter((location) => location?.latitude && location?.longitude)
-      .map(async (location) => ({
-        lat: location.latitude,
-        lng: location.longitude,
-        address: await fetchFullRoadAddress(
-          location.latitude,
-          location.longitude,
-          location.address || fallbackAddress
-        ),
-        receivedAt: location.receivedAt || new Date().toISOString(),
-      }))
-  );
-
-  return routeHistory.filter((point, index, list) => {
-    if (index === 0) {
-      return true;
-    }
-
-    const previous = list[index - 1];
-    const movedMeters = Math.sqrt(
-      Math.pow((point.lat - previous.lat) * 111000, 2) +
-        Math.pow(
-          (point.lng - previous.lng) *
-            111000 *
-            Math.cos(point.lat * Math.PI / 180),
-          2
-        )
-    );
-
-    return movedMeters >= 50;
-  });
-};
-
-const getDefaultSafeZone = (elder) => ({
-  name: "기본구역",
-  address: elder.address,
-  centerLatitude: elder.center.lat,
-  centerLongitude: elder.center.lng,
-  radiusMeters: elder.radius,
-});
-
-const fetchLatestLocation = async (seniorId, fallbackAddress) => {
-  const response = await fetch(`http://localhost:8080/api/locations/senior/${seniorId}/latest`);
-
-  if (!response.ok || response.status === 204) {
-    return null;
-  }
-
-  const latestLocation = await response.json();
-
-  if (!latestLocation?.latitude || !latestLocation?.longitude) {
-    return null;
-  }
-
-  return {
-    lat: latestLocation.latitude,
-    lng: latestLocation.longitude,
-    address: latestLocation.address || fallbackAddress,
-    receivedAt: latestLocation.receivedAt || new Date().toISOString(),
-    accuracy: latestLocation.accuracy,
-  };
-};
-
-const loadSafeZone = async (elder) => {
-  const cacheKey = `guardian-safe-zone:${elder.id}`;
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
-    if (cached && Date.now() - cached.savedAt < 60 * 1000) {
-      return cached.data;
-    }
-  } catch {
-    // Cache is optional.
-  }
-
-  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${elder.id}`);
-
-  if (!response.ok || response.status === 204) {
-    return getDefaultSafeZone(elder);
-  }
-
-  const safeZone = await response.json();
-
-  const normalizedSafeZone = {
-    name: safeZone.name || "기본구역",
-    address: safeZone.address || elder.address,
-    centerLatitude: safeZone.centerLatitude ?? elder.center.lat,
-    centerLongitude: safeZone.centerLongitude ?? elder.center.lng,
-    radiusMeters: safeZone.radiusMeters ?? elder.radius,
-  };
-
-  try {
-    sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data: normalizedSafeZone }));
-  } catch {
-    // Ignore storage failure.
-  }
-
-  return normalizedSafeZone;
-};
 
 const saveLocalCareTeamMap = (profiles, guardian) => {
   if (!guardian || !Array.isArray(profiles)) return;
@@ -193,7 +61,7 @@ const saveLocalCareTeamMap = (profiles, guardian) => {
 
     localStorage.setItem("seniorCareTeamMap", JSON.stringify(nextMap));
   } catch {
-    // localStorage is only a display cache; backend data remains the source of truth.
+    // localStorage is only a display cache.
   }
 };
 
@@ -206,7 +74,7 @@ function GuardianPage() {
   const [isAddElderOpen, setIsAddElderOpen] = useState(false);
   const [deleteModeElderId, setDeleteModeElderId] = useState(null);
 
-  const [seniorSearch, setSeniorSearch] = useState("");
+  const [seniorSearch, setSeniorSearch] = useState({ name: "", phone: "" });
   const [seniorSearchResults, setSeniorSearchResults] = useState([]);
   const [isSearchingSenior, setIsSearchingSenior] = useState(false);
   const [hasSearchedSenior, setHasSearchedSenior] = useState(false);
@@ -221,13 +89,13 @@ function GuardianPage() {
   const [safeZoneForms, setSafeZoneForms] = useState({});
   const [isSafeZoneOpen, setIsSafeZoneOpen] = useState(false);
   const [isRouteVisible, setIsRouteVisible] = useState(true);
-  const didInitialCenterRef = useRef(false);
 
   const [apiAlerts, setApiAlerts] = useState([]);
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const knownAlertIdsRef = useRef(new Set());
   const didLoadAlertsRef = useRef(false);
   const [guardianToast, setGuardianToast] = useState(null);
+
   const [reportingAlertId, setReportingAlertId] = useState(null);
   const [reportedAlertIds, setReportedAlertIds] = useState(() => {
     try {
@@ -236,8 +104,9 @@ function GuardianPage() {
       return [];
     }
   });
+
   const [callingAlert, setCallingAlert] = useState(null);
-  const [isCallResultOpen, setIsCallResultOpen] = useState(false);  
+  const [isCallResultOpen, setIsCallResultOpen] = useState(false);
 
   const [isMissingReportOpen, setIsMissingReportOpen] = useState(false);
   const [missingDescription, setMissingDescription] = useState("");
@@ -263,6 +132,13 @@ function GuardianPage() {
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
 
+  const displayedAlerts = useMemo(
+    () => buildDisplayedAlerts(apiAlerts, reportedAlertIds),
+    [apiAlerts, reportedAlertIds]
+  );
+
+  const unreadAlertCount = displayedAlerts.filter((alert) => alert.status === "미확인").length;
+
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
     relation: previousElder?.relation || freshElder.relation,
@@ -275,25 +151,16 @@ function GuardianPage() {
   });
 
   const fetchSeniorProfile = async (seniorId) => {
-    const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
-
-    if (!response.ok) {
-      throw new Error("사용자 정보 조회 실패");
-    }
-
-    const profile = await response.json();
+    const profile = await getSeniorProfile(seniorId);
     return mapSeniorProfileToElder(profile);
   };
 
-  // 최신 프로필 갱신 함수 
   const refreshSeniorProfile = useCallback(async (seniorId) => {
     const freshElder = await fetchSeniorProfile(seniorId);
 
     setElders((prev) =>
       prev.map((elder) =>
-        elder.id === seniorId
-          ? mergeElderProfile(freshElder, elder)
-          : elder
+        elder.id === seniorId ? mergeElderProfile(freshElder, elder) : elder
       )
     );
 
@@ -306,9 +173,7 @@ function GuardianPage() {
     try {
       const realLocation = await fetchLatestLocation(elder.id, elder.address);
 
-      if (!realLocation) {
-        return elder;
-      }
+      if (!realLocation) return elder;
 
       return {
         ...elder,
@@ -332,16 +197,10 @@ function GuardianPage() {
 
     setGuardian(currentGuardian);
 
-    const response = await fetch(
-      `http://localhost:8080/api/seniors/guardian/${currentGuardian.id}`
-    );
+    const profiles = await getGuardianSeniors(currentGuardian.id);
 
-    if (!response.ok) {
-      throw new Error("보호 대상자 조회 실패");
-    }
-
-    const profiles = await response.json();
     saveLocalCareTeamMap(profiles, currentGuardian);
+
     return Promise.all(profiles.map(attachLatestLocation));
   }, [navigate]);
 
@@ -368,43 +227,12 @@ function GuardianPage() {
   }, [loadGuardianSeniorsWithLocation]);
 
   const refreshLatestLocations = useCallback(async () => {
-  const nextElders = await Promise.all(
-    elders.map(async (elder) => {
-      const realLocation = await fetchLatestLocation(elder.id, elder.address);
+    const nextElders = await Promise.all(
+      elders.map((elder) => appendLatestLocationToElder(elder))
+    );
 
-      if (!realLocation) {
-        return elder;
-      }
-
-      const lastRoutePoint = elder.routeHistory?.[elder.routeHistory.length - 1];
-
-      const movedMeters = lastRoutePoint
-        ? Math.sqrt(
-            Math.pow((realLocation.lat - lastRoutePoint.lat) * 111000, 2) +
-              Math.pow(
-                (realLocation.lng - lastRoutePoint.lng) *
-                  111000 *
-                  Math.cos((realLocation.lat * Math.PI) / 180),
-                2
-              )
-          )
-        : Infinity;
-
-      const isSameLocation = movedMeters < 50;
-
-      return {
-        ...elder,
-        currentLocation: realLocation,
-        lastNormalLocation: realLocation,
-        routeHistory: isSameLocation
-          ? elder.routeHistory || []
-          : [...(elder.routeHistory || []), realLocation],
-      };
-    })
-  );
-
-  setElders(nextElders);
-}, [elders]);
+    setElders(nextElders);
+  }, [elders]);
 
   const loadGuardianAlerts = useCallback(() => {
     const guardianId = getCurrentGuardianId();
@@ -420,15 +248,10 @@ function GuardianPage() {
         const previousIds = knownAlertIdsRef.current;
 
         const newAlerts = nextAlerts.filter(
-          (alert) =>
-            !previousIds.has(String(alert.id)) &&
-            alert.isRead !== true
+          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true
         );
 
-        knownAlertIdsRef.current = new Set(
-          nextAlerts.map((alert) => String(alert.id))
-        );
-
+        knownAlertIdsRef.current = new Set(nextAlerts.map((alert) => String(alert.id)));
         setApiAlerts(nextAlerts);
 
         if (didLoadAlertsRef.current && newAlerts.length > 0) {
@@ -465,9 +288,7 @@ function GuardianPage() {
   }, [reloadGuardianSeniors]);
 
   useEffect(() => {
-    if (elders.length === 0) {
-      return;
-    }
+    if (elders.length === 0) return;
 
     const locationRefreshIntervalId = setInterval(() => {
       refreshLatestLocations().catch((error) => {
@@ -494,92 +315,6 @@ function GuardianPage() {
     setSelectedRouteDate(getDateValue());
   }, [selectedElderId]);
 
-  const formatAlertMessage = (alert) => {
-    const originalMessage = alert.message ?? alert.title ?? "";
-
-    if (!originalMessage) {
-      return "알림 내용이 없습니다.";
-    }
-
-    const nameMatch = originalMessage.match(/^(.+?)(?:님|이|가|은|는)/);
-    const seniorName = nameMatch?.[1] || alert.seniorName || alert.name || "보호 대상자";
-
-    const isSosCancel =
-      originalMessage.includes("취소") ||
-      originalMessage.includes("해제") ||
-      originalMessage.includes("수신");
-
-    if (isSosCancel) {
-      return `${seniorName}의 SOS 해제 알림`;
-    }
-
-    const isSosRequest =
-      alert.type === "SOS" ||
-      originalMessage.includes("SOS 요청") ||
-      originalMessage.includes("SOS를 보냄") ||
-      originalMessage.includes("SOS 보냄");
-
-    if (isSosRequest) {
-      return `${seniorName}의 SOS 요청`;
-    }
-
-    if (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") {
-      return originalMessage;
-    }
-
-    return originalMessage;
-  };
-
-  const isSameDate = (left, right) => {
-    return (
-      left.getFullYear() === right.getFullYear() &&
-      left.getMonth() === right.getMonth() &&
-      left.getDate() === right.getDate()
-    );
-  };
-
-  const today = new Date();
-
-  const displayedAlerts = apiAlerts
-    .filter((alert) => {
-      if (!alert.createdAt) return false;
-
-      const createdAt = new Date(alert.createdAt);
-
-      if (Number.isNaN(createdAt.getTime())) {
-        return false;
-      }
-
-      return isSameDate(createdAt, today);
-    })
-    .map((alert) => {
-      const isReported = reportedAlertIds.includes(String(alert.id));
-
-      return {
-        id: alert.id,
-        seniorId: alert.seniorId,
-        type: alert.type,
-        latitude: alert.latitude,
-        longitude: alert.longitude,
-        time: alert.createdAt
-          ? new Date(alert.createdAt).toLocaleString("ko-KR", {
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "",
-        message: formatAlertMessage(alert),
-        status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
-        isSos: alert.type === "SOS",
-        isSafeZone: alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT",
-      };
-    });
-
-  const unreadAlertCount = displayedAlerts.filter(
-    (alert) => alert.status === "미확인"
-  ).length;
-
   useEffect(() => {
     getPoliceMissingAlerts()
       .then((alerts) => {
@@ -591,9 +326,7 @@ function GuardianPage() {
   }, []);
 
   useEffect(() => {
-    if (!activeElderId) {
-      return;
-    }
+    if (!activeElderId) return;
 
     const profileRefreshIntervalId = setInterval(() => {
       refreshSeniorProfile(activeElderId).catch((error) => {
@@ -634,6 +367,7 @@ function GuardianPage() {
           onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
           onOpenEmergencyReport={() => {}}
         />
+
         <section className="guardian-empty">등록된 보호 대상자가 없습니다.</section>
       </main>
     );
@@ -661,9 +395,7 @@ function GuardianPage() {
   const getElderStatus = (elder) => {
     const form = safeZoneForms[elder.id] ?? getDefaultSafeZone(elder);
 
-    if (!elder.currentLocation) {
-      return "unknown";
-    }
+    if (!elder.currentLocation) return "unknown";
 
     const elderDistance = getDistanceMeters(
       { lat: form.centerLatitude, lng: form.centerLongitude },
@@ -674,9 +406,7 @@ function GuardianPage() {
   };
 
   const handleRouteDateChange = async (dateValue) => {
-    if (!activeElderId) {
-      return;
-    }
+    if (!activeElderId) return;
 
     try {
       setSelectedRouteDate(dateValue);
@@ -690,10 +420,7 @@ function GuardianPage() {
       setElders((prev) =>
         prev.map((elder) =>
           elder.id === activeElderId
-            ? {
-                ...elder,
-                routeHistory: nextRouteHistory,
-              }
+            ? { ...elder, routeHistory: nextRouteHistory }
             : elder
         )
       );
@@ -708,9 +435,7 @@ function GuardianPage() {
   const handleSafeZoneChange = (event) => {
     const { name, value } = event.target;
 
-    if (!activeElderId) {
-      return;
-    }
+    if (!activeElderId) return;
 
     setSafeZoneForms((prev) => {
       const currentSafeZone = prev[activeElderId] ?? safeZoneForm;
@@ -726,9 +451,7 @@ function GuardianPage() {
   };
 
   const handleSelectSafeZonePlace = (place) => {
-    if (!activeElderId) {
-      return;
-    }
+    if (!activeElderId) return;
 
     setSafeZoneForms((prev) => {
       const currentSafeZone = prev[activeElderId] ?? safeZoneForm;
@@ -754,28 +477,7 @@ function GuardianPage() {
     }
 
     try {
-      const response = await fetch(
-        `http://localhost:8080/api/safe-zones/senior/${seniorId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: safeZoneForm.name,
-            address: safeZoneForm.address,
-            centerLatitude: safeZoneForm.centerLatitude,
-            centerLongitude: safeZoneForm.centerLongitude,
-            radiusMeters: safeZoneForm.radiusMeters,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("안전 구역 저장 실패");
-      }
-
-      const savedSafeZone = await response.json();
+      const savedSafeZone = await saveSafeZone(seniorId, safeZoneForm);
 
       setSafeZoneForms((prev) => ({
         ...prev,
@@ -808,12 +510,13 @@ function GuardianPage() {
   };
 
   const handleSearchSenior = async () => {
-    const keyword = seniorSearch.trim();
+    const searchName = seniorSearch.name.trim();
+    const searchPhone = seniorSearch.phone.replace(/[^0-9]/g, "");
 
-    if (keyword.length < 2) {
+    if (!searchName || !searchPhone) {
       setHasSearchedSenior(false);
       setSeniorSearchResults([]);
-      alert("이름이나 전화번호를 2자 이상 입력해주세요.");
+      alert("이름과 전화번호를 모두 입력해주세요.");
       return;
     }
 
@@ -821,13 +524,11 @@ function GuardianPage() {
       setHasSearchedSenior(true);
       setIsSearchingSenior(true);
 
-      const response = await fetch("http://localhost:8080/api/seniors");
+      const profiles = await searchSeniorExact({
+        name: searchName,
+        phone: searchPhone,
+      });
 
-      if (!response.ok) {
-        throw new Error("사용자 조회 실패");
-      }
-
-      const profiles = await response.json();
       const connectedIds = elders.map((elder) => elder.id);
 
       const results = profiles.filter((profile) => {
@@ -836,7 +537,7 @@ function GuardianPage() {
         if (!senior) return false;
         if (connectedIds.includes(senior.id)) return false;
 
-        return senior.name?.includes(keyword) || senior.phone?.includes(keyword);
+        return true;
       });
 
       setSeniorSearchResults(results);
@@ -857,26 +558,15 @@ function GuardianPage() {
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:8080/api/guardians/${guardianId}/seniors`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            seniorId,
-            relation: relation.trim() || "보호 대상자",
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("보호 대상자 연결 실패");
-      }
+      await connectSeniorToGuardian(guardianId, {
+        seniorId,
+        relation: relation.trim() || "보호 대상자",
+      });
 
       await reloadGuardianSeniors();
 
       setIsAddElderOpen(false);
-      setSeniorSearch("");
+      setSeniorSearch({ name: "", phone: "" });
       setSeniorSearchResults([]);
       setHasSearchedSenior(false);
 
@@ -901,18 +591,7 @@ function GuardianPage() {
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:8080/api/guardians/${guardianId}/seniors/new`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newSeniorForm),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("신규 보호 대상자 등록 실패");
-      }
+      await createAndConnectSenior(guardianId, newSeniorForm);
 
       await reloadGuardianSeniors();
 
@@ -934,17 +613,11 @@ function GuardianPage() {
   const handleDeleteElder = async (targetElder = selectedElder) => {
     const targetElderId = targetElder?.id;
 
-    if (!targetElderId) {
-      return;
-    }
+    if (!targetElderId) return;
 
-    const confirmed = window.confirm(
-      `${targetElder.name}과의 연결을 삭제할까요?`
-    );
+    const confirmed = window.confirm(`${targetElder.name}과의 연결을 해제할까요?`);
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       const guardianId = getCurrentGuardianId();
@@ -954,16 +627,7 @@ function GuardianPage() {
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:8080/api/guardians/${guardianId}/seniors/${targetElderId}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("보호 대상자 연결 삭제 실패");
-      }
+      await deleteGuardianSenior(guardianId, targetElderId);
 
       setSafeZoneForms((prev) => {
         const next = { ...prev };
@@ -973,10 +637,10 @@ function GuardianPage() {
 
       await reloadGuardianSeniors();
 
-      alert("보호 대상자의 연결이 삭제되었습니다.");
+      alert("보호 대상자의 연결이 해제되었습니다.");
     } catch (error) {
-      console.error("연결 삭제 실패:", error);
-      alert("삭제에 실패했습니다.");
+      console.error("연결 해제 실패:", error);
+      alert("해제에 실패했습니다.");
     }
   };
 
@@ -1039,10 +703,9 @@ function GuardianPage() {
   };
 
   const handleOpenEmergencyReport = (alert = null) => {
-    const targetElder =
-      alert?.seniorId
-        ? elders.find((elder) => elder.id === alert.seniorId) ?? selectedElder
-        : selectedElder;
+    const targetElder = alert?.seniorId
+      ? elders.find((elder) => elder.id === alert.seniorId) ?? selectedElder
+      : selectedElder;
 
     if (targetElder?.id) {
       setSelectedElderId(targetElder.id);
@@ -1064,6 +727,18 @@ function GuardianPage() {
 
     setMissingImageFile(file);
     setMissingImagePreview(URL.createObjectURL(file));
+  };
+
+  const markAlertReported = (alertId) => {
+    if (!alertId) return;
+
+    setReportedAlertIds((prev) => {
+      const id = String(alertId);
+      const next = prev.includes(id) ? prev : [...prev, id];
+
+      sessionStorage.setItem("reportedAlertIds", JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleCreateMissingReport = async () => {
@@ -1115,22 +790,8 @@ function GuardianPage() {
     }
   };
 
-  const markAlertReported = (alertId) => {
-    if (!alertId) return;
-
-    setReportedAlertIds((prev) => {
-      const id = String(alertId);
-      const next = prev.includes(id) ? prev : [...prev, id];
-
-      sessionStorage.setItem("reportedAlertIds", JSON.stringify(next));
-      return next;
-    });
-  };
-
   const isMedicineActiveToday = (medicine) => {
-    if (!medicine?.name?.trim()) {
-      return false;
-    }
+    if (!medicine?.name?.trim()) return false;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1138,21 +799,11 @@ function GuardianPage() {
     const startDate = medicine.startDate ? new Date(medicine.startDate) : null;
     const endDate = medicine.endDate ? new Date(medicine.endDate) : null;
 
-    if (startDate) {
-      startDate.setHours(0, 0, 0, 0);
-    }
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(23, 59, 59, 999);
 
-    if (endDate) {
-      endDate.setHours(23, 59, 59, 999);
-    }
-
-    if (startDate && today < startDate) {
-      return false;
-    }
-
-    if (!medicine.ongoing && endDate && today > endDate) {
-      return false;
-    }
+    if (startDate && today < startDate) return false;
+    if (!medicine.ongoing && endDate && today > endDate) return false;
 
     return true;
   };
@@ -1203,19 +854,11 @@ function GuardianPage() {
     try {
       setIsSendingMedicineAlert(true);
 
-      const response = await fetch("http://localhost:8080/api/alerts/medicine", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seniorId: activeElderId,
-          guardianId,
-          message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
-        }),
+      await sendMedicineAlert({
+        seniorId: activeElderId,
+        guardianId,
+        message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
       });
-
-      if (!response.ok) {
-        throw new Error("복약 알림 전송 실패");
-      }
 
       alert("복약 알림을 보냈습니다.");
       setIsMedicineAlertOpen(false);
@@ -1297,7 +940,7 @@ function GuardianPage() {
           type="button"
           onClick={() => {
             setIsAddElderOpen(true);
-            setSeniorSearch("");
+            setSeniorSearch({ name: "", phone: "" });
             setSeniorSearchResults([]);
             setHasSearchedSenior(false);
           }}
@@ -1420,10 +1063,9 @@ function GuardianPage() {
                 >
                   {activeMedicines.map((medicine, index) => (
                     <option key={`${medicine.name}-${index}`} value={String(index)}>
-                      {[
-                        medicine.name,
-                        getMedicineScheduleText(medicine),
-                      ].filter(Boolean).join(" / ")}
+                      {[medicine.name, getMedicineScheduleText(medicine)]
+                        .filter(Boolean)
+                        .join(" / ")}
                     </option>
                   ))}
                 </select>

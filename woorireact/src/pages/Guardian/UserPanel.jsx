@@ -572,9 +572,27 @@ function AddElderModal({
         <div className="add-elder-connect-fields">
           <div className="add-elder-search">
             <input
-              value={seniorSearch}
-              onChange={(event) => setSeniorSearch(event.target.value)}
-              placeholder="이름 또는 연락처로 검색"
+              value={seniorSearch.name}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="이름"
+              onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
+            />
+
+            <input
+              value={seniorSearch.phone}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  phone: event.target.value,
+                }))
+              }
+              placeholder="전화번호"
+              inputMode="numeric"
               onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
             />
 
@@ -595,7 +613,7 @@ function AddElderModal({
 
         <div className="add-elder-list">
           {!hasSearchedSenior ? (
-            <p className="add-elder-empty">보호 대상자의 이름이나 연락처를 입력해 검색해주세요.</p>
+            <p className="add-elder-empty">보호 대상자의 이름과 전화번호를 모두 입력해 검색해주세요.</p>
           ) : isSearchingSenior ? (
             <p className="add-elder-empty">사용자를 검색하는 중입니다.</p>
           ) : seniorSearchResults.length === 0 ? (

@@ -5,6 +5,7 @@ import com.nuri.woori.service.PoliceMissingAlertService;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -30,5 +31,22 @@ public class PoliceMissingAlertController {
         }
 
         return policeMissingAlertService.syncAlerts(LocalDate.parse(date));
+    }
+
+    @PostMapping("/sync-range")
+    public List<PoliceMissingAlert> syncRange(
+            @RequestParam String from,
+            @RequestParam String to
+    ) {
+        LocalDate start = LocalDate.parse(from);
+        LocalDate end = LocalDate.parse(to);
+
+        List<PoliceMissingAlert> result = new ArrayList<>();
+
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            result.addAll(policeMissingAlertService.syncAlerts(date));
+        }
+
+        return result;
     }
 }

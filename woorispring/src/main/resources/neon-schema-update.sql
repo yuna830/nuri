@@ -25,10 +25,13 @@ create index if not exists idx_climate_alerts_senior_date
 alter table health_info
     add column if not exists medications_json text;
 
+alter table seniors
+    add column if not exists last_login_at timestamp;
+
 
 alter table location_status
     add column if not exists accuracy double precision;
 
-alter table seniors
-    add column if not exists last_login_at timestamp;
+alter table police_missing_alerts
+    alter column photo_url type text;
 
