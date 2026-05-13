@@ -176,6 +176,10 @@ export default function LocationPage() {
     return () => clearInterval(timerId);
   }, [getLocation]);
 
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
+
   const currentHistory = historyByDate[selectedDate] || [];
   const mapCenter = currentPos
     ? { lat: currentPos[0], lng: currentPos[1] }

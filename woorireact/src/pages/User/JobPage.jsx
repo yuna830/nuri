@@ -30,6 +30,7 @@ export default function JobPage() {
   const [profile, setProfile] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
   const deferredSearch = useDeferredValue(search);
+  const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
 
   useEffect(() => {
     setProfile(getSavedJobProfile());
@@ -123,8 +124,13 @@ export default function JobPage() {
   }, [category, deferredSearch, hideExpired]);
 
   useEffect(() => {
+    if (!isJobAllowed) {
+      setLoading(false);
+      setJobs([]);
+      return;
+    }
     loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
-  }, []);
+  }, [isJobAllowed]);
 
   useEffect(() => {
     if (loading || jobs.length === 0 || filtered.length >= PAGE_SIZE || !hasMoreSource) {
@@ -201,19 +207,6 @@ export default function JobPage() {
 
       <div className="jp-top-sticky">
         <div className="jp-top-sticky-inner">
-          <div className="jp-category-bar">
-            {JOB_CATEGORY_FILTERS.map((item) => (
-              <button
-                key={item.label}
-                className={`jp-cat-btn ${category === item.value ? "active" : ""}`}
-                type="button"
-                onClick={() => handleCategoryClick(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
           <div className="jp-search-wrap">
             <span className="jp-search-icon">🔍</span>
             <input
@@ -236,10 +229,32 @@ export default function JobPage() {
               <span className="jp-expire-label">마감 숨기기</span>
             </label>
           </div>
+
+          <div className="jp-category-bar">
+            {JOB_CATEGORY_FILTERS.map((item) => (
+              <button
+                key={item.label}
+                className={`jp-cat-btn ${category === item.value ? "active" : ""}`}
+                type="button"
+                onClick={() => handleCategoryClick(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="jp-layout">
+        {!isJobAllowed ? (
+          <main className="jp-main jp-age-block">
+            <div className="jp-empty">
+              <div className="jp-empty-icon">🔒</div>
+              <div className="jp-empty-text">일자리 정보는 만 20세 이상부터 볼 수 있어요</div>
+            </div>
+          </main>
+        ) : (
+        <>
         <aside className="jp-sidebar">
           {profile && (
             <div className="jp-profile-box">
@@ -358,6 +373,8 @@ export default function JobPage() {
             </button>
           )}
         </main>
+        </>
+        )}
       </div>
 
       {selected && (

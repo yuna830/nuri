@@ -16,6 +16,7 @@ import {
   NONE,
   SECTIONS,
   WORK_TYPES,
+  calculateAge,
   calcBMI,
   createMedicine,
   defaultForm,
@@ -63,6 +64,10 @@ export default function ProfilePage() {
     };
 
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -165,7 +170,19 @@ export default function ProfilePage() {
             />
             <InputField label="이름" value={form.name} onChange={(value) => set("name", value)} />
             <div className="pr-row">
-              <InputField label="나이" type="number" value={form.age} onChange={(value) => set("age", value)} />
+              <InputField
+                label="생년월일"
+                type="date"
+                value={form.birthDate}
+                onChange={(value) => {
+                  const age = calculateAge(value);
+                  setForm((prev) => ({
+                    ...prev,
+                    birthDate: value,
+                    age: age ? String(age) : "",
+                  }));
+                }}
+              />
               <SelectField label="성별" value={form.gender} options={["", "여성", "남성", "기타"]} labels={{ "": "선택" }} onChange={(value) => set("gender", value)} />
             </div>
             <div className="pr-row">
@@ -200,6 +217,7 @@ export default function ProfilePage() {
             )}
             <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
             <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+            <InputField label="알레르기 정보" value={form.allergies} onChange={(value) => set("allergies", value)} />
           </section>
         );
 

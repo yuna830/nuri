@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createCareResponse, extractScheduleIntent } from "../services/aiCareService";
+import { getNearbyPlaceChatAnswer } from "../services/nearbyPlaceChatApi";
 import { getWeatherChatAnswer } from "../services/weatherChatApi";
 import {
   normalizeScheduleText,
@@ -39,6 +40,12 @@ export function useChatFlow({
       const weatherAnswer = await getWeatherChatAnswer(text);
       if (weatherAnswer) {
         answer(weatherAnswer, options);
+        return;
+      }
+
+      const nearbyPlaceAnswer = await getNearbyPlaceChatAnswer(text);
+      if (nearbyPlaceAnswer) {
+        answer(nearbyPlaceAnswer, options);
         return;
       }
 
@@ -90,6 +97,7 @@ export function useChatFlow({
         text,
         schedules: [],
         history: messages,
+        profileContext: getCurrentUserHealthContext(),
       });
       answer(response, options);
     } catch (error) {
@@ -210,6 +218,37 @@ export function useChatFlow({
     cancelPendingDelete,
     addAssistantMessage,
   };
+}
+
+function getCurrentUserHealthContext() {
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    if (!saved) return null;
+
+    const profile = JSON.parse(saved);
+    const healthInfo = profile?.healthInfo || {};
+    const senior = profile?.senior || {};
+
+    return {
+      age: senior.age,
+      birthDate: senior.birthDate,
+      allergies: healthInfo.allergies,
+      diseases: {
+        diabetes: healthInfo.diabetes,
+        hypertension: healthInfo.hypertension,
+        heartDisease: healthInfo.heartDisease,
+        jointDisease: healthInfo.jointDisease,
+        stroke: healthInfo.stroke,
+        kidneyDisease: healthInfo.kidneyDisease,
+        lungDisease: healthInfo.lungDisease,
+        liverDisease: healthInfo.liverDisease,
+        cancer: healthInfo.cancer,
+        otherDisease: healthInfo.otherDisease,
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseMeridiemChoice(text) {

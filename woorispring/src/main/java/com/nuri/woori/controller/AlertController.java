@@ -72,6 +72,40 @@ public class AlertController {
         );
     }
 
+    @PostMapping("/fall")
+    public List<Alert> createFallAlert(@RequestBody FallAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String address = request.address() == null || request.address().isBlank()
+                ? "현재 위치 확인 필요"
+                : request.address();
+        String scoreText = request.score() == null ? "" : " 감지 점수: " + request.score() + "점.";
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("FALL_DETECTED");
+                    alert.setTitle("낙상 감지");
+                    alert.setMessage(senior.getName() + "님의 낙상이 감지되었습니다. 현재 위치: " + address + "." + scoreText);
+                    alert.setLatitude(request.latitude());
+                    alert.setLongitude(request.longitude());
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
     private List<Alert> createGuardianAlerts(
             SosAlertRequest request,
             String type,
@@ -184,6 +218,15 @@ public class AlertController {
             Double latitude,
             Double longitude,
             String address
+    ) {
+    }
+
+    public record FallAlertRequest(
+            Long seniorId,
+            Double latitude,
+            Double longitude,
+            String address,
+            Integer score
     ) {
     }
 

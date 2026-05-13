@@ -232,6 +232,12 @@
   display: block;
 }
 
+.su-field-help {
+  color: #7a9a7c;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
+
 .su-required {
   color: #e05252;
   margin-left: 2px;

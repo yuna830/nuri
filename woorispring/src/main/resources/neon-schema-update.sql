@@ -35,3 +35,9 @@ alter table location_status
 alter table police_missing_alerts
     alter column photo_url type text;
 
+alter table seniors
+    add column if not exists birth_date date;
+
+alter table health_info
+    add column if not exists allergies varchar(255);
+

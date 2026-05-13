@@ -7,20 +7,69 @@
   color: #2f2f2f;
 }
 
+.chatbot-page {
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .schedule-register-page {
   height: auto;
   overflow-y: auto;
 }
 
+.chatbot-back-button {
+  display: none;
+  position: fixed;
+  left: max(32px, calc((100vw - 1280px) / 2 - 84px));
+  top: 50%;
+  z-index: 80;
+  width: 52px;
+  height: 52px;
+  border: 1px solid #d8e5d3;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #5f8a62;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(56, 72, 57, 0.12);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.chatbot-back-button:hover {
+  border-color: #86a788;
+  background: #f8faf4;
+  color: #3f6f43;
+}
+
+@media (min-width: 1500px) {
+  .chatbot-back-button {
+    display: grid;
+    place-items: center;
+  }
+}
+
 .chatbot-header,
 .schedule-register-header {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto 20px;
   padding: 28px 2rem 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.chatbot-header {
+  margin-bottom: 12px;
+  padding-top: 18px;
 }
 
 .chatbot-title-wrap {
@@ -47,14 +96,18 @@
   font-size: 34px;
 }
 
+.chatbot-header h1 {
+  font-size: 30px;
+}
+
 .chatbot-sub-action {
-  min-height: 56px;
-  padding: 0 22px;
+  min-height: 44px;
+  padding: 0 18px;
   border: 1px solid #86a788;
   border-radius: 8px;
   background: #86a788;
   color: #ffffff;
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -62,13 +115,20 @@
 .chatbot-layout,
 .schedule-register-layout {
   max-width: 1280px;
-  height: calc(100vh - 284px);
   margin: 0 auto;
   padding: 0 2rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: 20px;
   align-items: start;
+}
+
+.chatbot-layout {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 20px;
+  align-items: stretch;
 }
 
 .schedule-register-layout {
@@ -88,8 +148,7 @@
 
 .chatbot-panel {
   height: 100%;
-  min-height: 520px;
-  max-height: 760px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -253,8 +312,34 @@
 
 .schedule-list-panel {
   max-height: 100%;
+  min-height: 0;
+  overflow-y: hidden;
+  padding: 18px 28px;
+}
+
+.schedule-list-panel.expanded {
   overflow-y: auto;
-  padding: 22px;
+  scrollbar-width: thin;
+  scrollbar-color: #9ba59b transparent;
+}
+
+.schedule-list-panel.expanded::-webkit-scrollbar {
+  width: 8px;
+}
+
+.schedule-list-panel.expanded::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.schedule-list-panel.expanded::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #9ba59b;
+}
+
+
+.schedule-panel-action {
+  width: 100%;
+  margin-bottom: 16px;
 }
 
 .schedule-list-panel h2,
@@ -268,7 +353,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .schedule-list-head h2 {
@@ -291,13 +376,37 @@
 }
 
 .saved-schedule-card {
-  padding: 14px;
+  padding: 12px 14px;
   margin-top: 10px;
   border-radius: 8px;
   background: #f8faf4;
   border: 1px solid #e1e8d7;
   font-size: 17px;
-  line-height: 1.45;
+  line-height: 1.3;
+}
+
+.schedule-more-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 10px;
+  border: 1px solid #d7dfce;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5f7f63;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.schedule-more-button:hover {
+  border-color: #86a788;
+  background: #f8faf4;
+}
+
+.schedule-more-button:focus-visible {
+  border-color: #86a788;
+  box-shadow: 0 0 0 4px rgba(134, 167, 136, 0.16);
+  outline: none;
 }
 
 .saved-schedule-card p {
@@ -309,7 +418,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .saved-schedule-actions button {
@@ -516,6 +625,29 @@ button.selected {
   font-weight: 700;
 }
 
+.scroll-top-button {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 20;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5f7f63;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(56, 72, 57, 0.14);
+  cursor: pointer;
+}
+
+.scroll-top-button:hover {
+  background: #86a788;
+  color: #ffffff;
+}
+
 @media (max-width: 900px) {
   .chatbot-page,
   .schedule-register-page {
@@ -523,6 +655,16 @@ button.selected {
     min-height: 100vh;
     padding-bottom: 16px;
     overflow: visible;
+  }
+
+  .chatbot-back-button {
+    display: none;
+  }
+
+  .chatbot-sub-action {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 15px;
   }
 
   .chatbot-header,
@@ -564,5 +706,13 @@ button.selected {
   .chatbot-header h1,
   .schedule-register-header h1 {
     font-size: 28px;
+  }
+
+  .scroll-top-button {
+    right: 16px;
+    bottom: 16px;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 15px;
   }
 }

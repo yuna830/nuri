@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,7 +43,8 @@ public class SeniorController {
     public SeniorProfileResponse createSenior(@RequestBody SeniorCreateRequest request) {
         Senior senior = new Senior();
         senior.setName(request.name());
-        senior.setAge(toInteger(request.age()));
+        senior.setBirthDate(toLocalDate(request.birthDate()));
+        senior.setAge(toAge(request.birthDate(), request.age()));
         senior.setGender(request.gender());
         senior.setPhone(request.phone());
         senior.setAddress(request.region());
@@ -58,6 +61,7 @@ public class SeniorController {
         healthInfo.setWeight(toBigDecimal(request.weight()));
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
+        healthInfo.setAllergies(request.allergies());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -250,7 +254,8 @@ public class SeniorController {
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         senior.setName(request.name());
-        senior.setAge(toInteger(request.age()));
+        senior.setBirthDate(toLocalDate(request.birthDate()));
+        senior.setAge(toAge(request.birthDate(), request.age()));
         senior.setGender(request.gender());
         senior.setPhone(request.phone());
         senior.setAddress(request.region());
@@ -270,6 +275,7 @@ public class SeniorController {
         healthInfo.setWeight(toBigDecimal(request.weight()));
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
+        healthInfo.setAllergies(request.allergies());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -348,6 +354,23 @@ public class SeniorController {
         return Integer.parseInt(value);
     }
 
+    private LocalDate toLocalDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return LocalDate.parse(value);
+    }
+
+    private Integer toAge(String birthDate, String fallbackAge) {
+        LocalDate parsedBirthDate = toLocalDate(birthDate);
+        if (parsedBirthDate != null) {
+            return Period.between(parsedBirthDate, LocalDate.now()).getYears();
+        }
+
+        return toInteger(fallbackAge);
+    }
+
     private BigDecimal toBigDecimal(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -371,6 +394,7 @@ public class SeniorController {
     public record SeniorCreateRequest(
             String name,
             String age,
+            String birthDate,
             String gender,
             String region,
             String phone,
@@ -381,6 +405,7 @@ public class SeniorController {
             String weight,
             String smoking,
             String drinking,
+            String allergies,
             String medicineCount,
             String medicationsJson,
             String diabetes,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   createSosAlert,
   createSosCancelAlert,
@@ -33,6 +34,7 @@ const getCurrentPosition = () => new Promise((resolve) => {
 });
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
 
@@ -91,7 +93,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     <>
       <header className="uch-header">
         <div className="uch-header-inner">
-          <div className="uch-logo">우리 woori</div>
+          <button className="uch-logo" type="button" onClick={() => navigate("/user")}>
+            우리 woori
+          </button>
           <div className="uch-actions">
             <span className="uch-date">{formatKoreanDate()}</span>
             {showSos && (
