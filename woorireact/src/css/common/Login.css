@@ -105,6 +105,14 @@
   --login-left-bg: #7f9f83;
 }
 
+.login-welfare {
+  --login-main: #7f9f83;
+  --login-main-dark: #3f6546;
+  --login-main-soft: rgba(127, 159, 131, 0.16);
+  --login-left-bg: #7f9f83;
+  --login-border: rgba(127, 159, 131, 0.22);
+}
+
 .login-worker {
   --login-main: #6f8fa8;
   --login-main-dark: #2f566f;
