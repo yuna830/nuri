@@ -54,7 +54,7 @@ export async function extractScheduleIntent(text) {
   }
 }
 
-export async function createCareResponse({ text, schedules, history = [] }) {
+export async function createCareResponse({ text, schedules, history = [], profileContext = null }) {
   if (schedules.length > 0) {
     const schedule = schedules[0];
     const dateText = schedule.date || "날짜 확인 필요";
@@ -66,6 +66,7 @@ export async function createCareResponse({ text, schedules, history = [] }) {
   try {
     const content = await askGemini([
       { role: "system", content: CARE_ASSISTANT_SYSTEM_PROMPT },
+      ...(profileContext ? [{ role: "system", content: buildProfileContextPrompt(profileContext) }] : []),
       ...toRecentAiMessages(history),
       { role: "user", content: text },
     ], {
@@ -86,6 +87,25 @@ export async function createCareResponse({ text, schedules, history = [] }) {
     }
     return "답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.";
   }
+}
+
+function buildProfileContextPrompt(profileContext) {
+  const allergyText = profileContext.allergies?.trim() || "없음";
+  const diseaseEntries = Object.entries(profileContext.diseases || {})
+    .filter(([, value]) => value && value !== "없음")
+    .map(([key, value]) => `${key}: ${value}`);
+
+  return `
+사용자 건강 참고 정보:
+- 나이: ${profileContext.age || "미확인"}
+- 생년월일: ${profileContext.birthDate || "미확인"}
+- 알레르기: ${allergyText}
+- 질병/건강 정보: ${diseaseEntries.length ? diseaseEntries.join(", ") : "특이사항 없음"}
+
+음식, 복약, 건강 관련 답변에서는 위 알레르기와 질병 정보를 우선 반영한다.
+알레르기 성분이 의심되면 먹기 전에 확인하라고 안내한다.
+진단이나 처방처럼 의료 전문가 판단이 필요한 내용은 병원/전문가 확인을 권한다.
+`.trim();
 }
 
 async function askGemini(messages, requestConfig = {}) {

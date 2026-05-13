@@ -32,3 +32,9 @@ alter table location_status
 alter table seniors
     add column if not exists last_login_at timestamp;
 
+alter table seniors
+    add column if not exists birth_date date;
+
+alter table health_info
+    add column if not exists allergies varchar(255);
+

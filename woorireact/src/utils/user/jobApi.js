@@ -132,6 +132,7 @@ export const getSavedJobProfile = () => {
       const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
       return {
+        age: profile.senior?.age,
         maxHours: healthInfo.maxHours,
         maxDistance: healthInfo.maxDistance,
         payType: jobPreference.payType,

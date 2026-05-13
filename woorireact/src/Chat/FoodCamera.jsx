@@ -58,6 +58,24 @@ function FoodCamera() {
         const formData = new FormData();
 
         formData.append("file", imageBlob, "food.png");
+        try {
+            const profile = JSON.parse(sessionStorage.getItem("currentSenior") || "null");
+            const healthInfo = profile?.healthInfo || {};
+            formData.append("allergies", healthInfo.allergies || "");
+            formData.append("diseases", JSON.stringify({
+                diabetes: healthInfo.diabetes,
+                hypertension: healthInfo.hypertension,
+                heartDisease: healthInfo.heartDisease,
+                kidneyDisease: healthInfo.kidneyDisease,
+                lungDisease: healthInfo.lungDisease,
+                liverDisease: healthInfo.liverDisease,
+                cancer: healthInfo.cancer,
+                otherDisease: healthInfo.otherDisease,
+            }));
+        } catch {
+            formData.append("allergies", "");
+            formData.append("diseases", "{}");
+        }
 
         try {
 
