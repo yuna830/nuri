@@ -9,6 +9,8 @@ import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/alerts")
@@ -72,6 +74,40 @@ public class AlertController {
         );
     }
 
+    @PostMapping("/fall")
+    public List<Alert> createFallAlert(@RequestBody FallAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String address = request.address() == null || request.address().isBlank()
+                ? "현재 위치 확인 필요"
+                : request.address();
+        String scoreText = request.score() == null ? "" : " 감지 점수: " + request.score() + "점.";
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("FALL_DETECTED");
+                    alert.setTitle("낙상 감지");
+                    alert.setMessage(senior.getName() + "님의 낙상이 감지되었습니다. 현재 위치: " + address + "." + scoreText);
+                    alert.setLatitude(request.latitude());
+                    alert.setLongitude(request.longitude());
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
     private List<Alert> createGuardianAlerts(
             SosAlertRequest request,
             String type,
@@ -105,6 +141,71 @@ public class AlertController {
                 .toList();
     }
 
+    @PostMapping("/medicine")
+    public Alert createMedicineAlert(@RequestBody MedicineAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(null);
+        alert.setType("MEDICINE");
+        alert.setTitle("복약 알림");
+        alert.setMessage(
+                request.message() == null || request.message().isBlank()
+                        ? senior.getName() + "님, 복용 중인 약을 확인하고 제때 복용해주세요."
+                        : request.message()
+        );
+        alert.setIsRead(false);
+
+        return alertRepository.save(alert);
+    }
+
+    @PostMapping("/camera")
+    public List<Alert> createCameraAlert(@RequestBody CameraAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String title = switch (request.type()) {
+            case "FACE_MATCH" -> "실종자 얼굴 감지";
+            case "PERSON_DETECTED" -> "사람 감지";
+            case "FALL_RISK" -> "낙상 의심";
+            default -> "카메라 감지 알림";
+        };
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType(request.type());
+                    alert.setTitle(title);
+                    alert.setMessage(senior.getName() + "님 관련 카메라 알림: " + request.message());
+                    alert.setLatitude(request.latitude());
+                    alert.setLongitude(request.longitude());
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record CameraAlertRequest(
+            Long seniorId,
+            String type,
+            String message,
+            Double latitude,
+            Double longitude
+    ) {
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)
@@ -119,6 +220,80 @@ public class AlertController {
             Double latitude,
             Double longitude,
             String address
+    ) {
+    }
+
+    public record FallAlertRequest(
+            Long seniorId,
+            Double latitude,
+            Double longitude,
+            String address,
+            Integer score
+    ) {
+    }
+
+    public record MedicineAlertRequest(
+            Long seniorId,
+            Long guardianId,
+            String message
+    ) {
+    }
+
+    @GetMapping("/welfare")
+    public List<WelfareAlertResponse> getWelfareAlerts() {
+        List<WelfareAlertResponse> sosAlerts = alertRepository
+                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
+                .stream()
+                .map(alert -> {
+                    Senior senior = seniorRepository.findById(alert.getSeniorId()).orElse(null);
+                    String seniorName = senior == null ? "대상자" : senior.getName();
+
+                    return new WelfareAlertResponse(
+                            "sos-" + alert.getId(),
+                            alert.getSeniorId(),
+                            seniorName,
+                            "SOS 요청 미응답",
+                            seniorName + " 대상자의 SOS 요청에 보호자 응답이 없습니다.",
+                            "SOS",
+                            alert.getCreatedAt()
+                    );
+                })
+                .toList();
+
+        LocalDateTime threshold = LocalDateTime.now().minusHours(4);
+
+        List<WelfareAlertResponse> inactiveAlerts = seniorRepository.findAll()
+                .stream()
+                .filter(senior -> senior.getLastLoginAt() != null)
+                .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
+                .map(senior -> new WelfareAlertResponse(
+                        "inactive-" + senior.getId(),
+                        senior.getId(),
+                        senior.getName(),
+                        "장시간 미접속",
+                        senior.getName() + " 대상자가 4시간 이상 접속하지 않았습니다.",
+                        "LAST_ACCESS",
+                        senior.getLastLoginAt()
+                ))
+                .toList();
+
+        List<WelfareAlertResponse> responses = new ArrayList<>();
+        responses.addAll(sosAlerts);
+        responses.addAll(inactiveAlerts);
+
+        return responses.stream()
+                .sorted((first, second) -> second.createdAt().compareTo(first.createdAt()))
+                .toList();
+    }
+
+    public record WelfareAlertResponse(
+            String id,
+            Long seniorId,
+            String seniorName,
+            String title,
+            String message,
+            String type,
+            LocalDateTime createdAt
     ) {
     }
 }

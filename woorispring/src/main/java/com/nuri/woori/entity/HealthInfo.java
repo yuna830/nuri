@@ -23,7 +23,12 @@ public class HealthInfo {
     private String bloodPressure;
     private String smoking;
     private String drinking;
+    private String allergies;
     private String medicineCount;
+
+    @Column(columnDefinition = "TEXT")
+    private String medicationsJson;
+
     private String diabetes;
     private String hypertension;
     private String heartDisease;

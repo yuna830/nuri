@@ -4,10 +4,21 @@ import com.nuri.woori.entity.Alert;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     List<Alert> findByGuardianIdOrderByCreatedAtDesc(Long guardianId);
 
     List<Alert> findBySeniorIdOrderByCreatedAtDesc(Long seniorId);
+
+    Optional<Alert> findTopBySeniorIdAndTypeOrderByCreatedAtDesc(Long seniorId, String type);
+
+    List<Alert> findByTypeInOrderByCreatedAtDesc(List<String> types);
+
+    List<Alert> findByTypeAndIsReadFalseOrderByCreatedAtDesc(String type);
+
+    boolean existsBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
+
+    long countBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
 }
