@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import WelfareDashboard from "../pages/Welfare/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
+import WelfareJobApplications from "../pages/Welfare/WelfareJobApplications";
 import WelfareMyPage from "../pages/Welfare/WelfareMyPage";
 import WelfareLogin from "../pages/Common/WelfareLogin";
 import WelfareSignup from "../pages/Common/WelfareSignup";
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/welfare" element={<WelfareDashboard />} />
         <Route path="/welfare/seniors/:id" element={<WelfareSeniorDetail />} />
         <Route path="/welfare/jobs" element={<WelfareJobPostings />} />
+        <Route path="/welfare/job-applications" element={<WelfareJobApplications />} />
         <Route path="/welfare/mypage" element={<WelfareMyPage />} />
         <Route path="/welfare/seniors/:id/jobs" element={<WelfareJobPostings />} />
 

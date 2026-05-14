@@ -101,11 +101,38 @@ export const mapWelfareSenior = (item) => ({
     lastAccess: formatLastAccessText(item.lastLoginAt),
 });
 
+const EMERGENCY_ALERT_STATUSES = [
+    "미응답 SOS",
+    "보호자 미응답 SOS",
+    "낙상 의심",
+    "안전구역 이탈",
+    "위험 알림",
+];
+
+const isEmergencyPendingSenior = (senior) => {
+    const alertStatus = senior.alertStatus || "";
+    const alertHandled = senior.alertHandled || senior.alertResolved || senior.isAlertResolved;
+
+    return EMERGENCY_ALERT_STATUSES.some((status) => alertStatus.includes(status)) && !alertHandled;
+};
+
+const hasMissingRequiredInfo = (senior) => {
+    const requiredValues = [
+        senior.phone,
+        senior.address || senior.region,
+        senior.guardianName || senior.guardianPhone || senior.guardianId,
+        senior.healthInfo || senior.healthStatus,
+        senior.birthDate || senior.age,
+        senior.gender,
+    ];
+
+    return requiredValues.some((value) => value === undefined || value === null || String(value).trim() === "");
+};
+
 export const getSummaryCounts = (seniors) => ({
-    total: seniors.length,
-    jobApplicants: seniors.filter((senior) => Number(senior.jobRequestCount || 0) > 0).length,
-    pendingReview: seniors.filter((senior) => getSeniorReviewStatus(senior) === "미검토").length,
-    completedReview: seniors.filter((senior) => getSeniorReviewStatus(senior) === "검토").length,
+    totalSeniors: seniors.length,
+    emergencyRequired: seniors.filter(isEmergencyPendingSenior).length,
+    missingInfo: seniors.filter(hasMissingRequiredInfo).length,
 });
 
 export const getBadgeClass = (type, value) => {

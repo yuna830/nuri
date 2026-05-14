@@ -178,7 +178,7 @@ export default function JobPage() {
         alert("로그인 정보가 없습니다.");
         return;
       }
-      await fetch("http://localhost:8083/api/job-interests", {
+      await fetch("/api/job-interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -187,6 +187,8 @@ export default function JobPage() {
           jobTitle: job.recrtTitle,
           company: job.oranNm,
           location: job.workPlcNm,
+          applicationType: "ONLINE",
+          status: "검토 대기",
         }),
       });
       alert("복지사에게 관심 공고를 전달했어요!");

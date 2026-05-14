@@ -15,12 +15,16 @@ import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
 import {
+    getSeniorSummaryCounts,
+    hasMissingRequiredSeniorInfo,
+    isEmergencyPendingSenior,
+} from "../../utils/welfare/welfareSummaryStats";
+import {
     FILTER_GROUPS,
     SEOUL_DISTRICTS,
     createEmptyFilters,
     getRegionDistrict,
     getSeniorReviewStatus,
-    getSummaryCounts,
     mapWelfareSenior,
 } from "../../utils/welfare/welfareDashboardData";
 import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
@@ -29,6 +33,14 @@ import "../../css/welfare/WelfareNotifications.css";
 import "../../css/welfare/WelfareDashboard.css";
 
 const ITEM_PER_PAGE = 6;
+
+const EMERGENCY_FILTER_VALUES = [
+    "미응답 SOS",
+    "보호자 미응답 SOS",
+    "낙상 의심",
+    "안전구역 이탈",
+    "위험 알림",
+];
 
 const getKeywordTokens = (keyword) =>
     keyword
@@ -54,6 +66,7 @@ function WelfareDashboard() {
     const [searchKeyword, setSearchKeyword] = useState("");
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
     const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
+    const [summaryFilter, setSummaryFilter] = useState("all");
 
     useEffect(() => {
         let ignore = false;
@@ -173,9 +186,14 @@ function WelfareDashboard() {
                 keywordTokens.length === 0 ||
                 keywordTokens.every((token) => searchableText.includes(token));
 
-            return isMatchedByFilters && isMatchedByKeyword;
+            const isMatchedBySummary =
+                summaryFilter === "all" ||
+                (summaryFilter === "emergency" && isEmergencyPendingSenior(senior)) ||
+                (summaryFilter === "missingInfo" && hasMissingRequiredSeniorInfo(senior));
+
+            return isMatchedByFilters && isMatchedByKeyword && isMatchedBySummary;
         });
-    }, [filters, searchKeyword, seniors]);
+    }, [filters, searchKeyword, seniors, summaryFilter]);
 
     const getPriorityRank = (senior) => {
         if (senior.alertStatus === "미응답 SOS") return 1;
@@ -243,6 +261,7 @@ function WelfareDashboard() {
     const applyFilters = () => {
         setFilters(cloneFilters(draftFilters));
         setSearchKeyword(draftSearchKeyword.trim());
+        setSummaryFilter("all");
         setCurrentPage(1);
     };
 
@@ -253,7 +272,38 @@ function WelfareDashboard() {
         setFilters(cloneFilters(emptyFilters));
         setDraftSearchKeyword("");
         setSearchKeyword("");
+        setSummaryFilter("all");
         setCurrentPage(1);
+    };
+
+    const handleSeniorSummaryFilter = (key) => {
+        setCurrentPage(1);
+        setSummaryFilter(key);
+
+        if (key === "all") {
+            resetFilters();
+            return;
+        }
+
+        if (key === "emergency") {
+            setActiveFilterKey("alertStatus");
+            setDraftFilters((previousFilters) => ({
+                ...previousFilters,
+                alertStatus: EMERGENCY_FILTER_VALUES,
+            }));
+            setFilters((previousFilters) => ({
+                ...previousFilters,
+                alertStatus: EMERGENCY_FILTER_VALUES,
+            }));
+            setSearchKeyword("");
+            setDraftSearchKeyword("");
+            return;
+        }
+
+        if (key === "missingInfo") {
+            setSearchKeyword("");
+            setDraftSearchKeyword("");
+        }
     };
 
     const dbWelfareNotifications = dbWelfareAlerts.map((alert) => ({
@@ -425,25 +475,10 @@ function WelfareDashboard() {
                             대상자 목록
                         </Link>
 
-                        <button
-                            type="button"
-                            className="wd-sidebar-item"
-                            onClick={() => {
-                                setActiveFilterKey("alertStatus");
-                                setDraftFilters((previousFilters) => ({
-                                    ...previousFilters,
-                                    alertStatus: ["일자리 신청"],
-                                }));
-                                setFilters((previousFilters) => ({
-                                    ...previousFilters,
-                                    alertStatus: ["일자리 신청"],
-                                }));
-                                setCurrentPage(1);
-                            }}
-                        >
+                        <Link to="/welfare/job-applications" className="wd-sidebar-item">
                             <UserPlus size={17} />
                             일자리 신청
-                        </button>
+                        </Link>
 
                         <Link to="/welfare/jobs" className="wd-sidebar-item">
                             <BriefcaseBusiness size={17} />
@@ -467,7 +502,11 @@ function WelfareDashboard() {
                 </aside>
 
                 <main className="wd-content">
-                    <WelfareSummaryCards counts={getSummaryCounts(seniors)} />
+                    <WelfareSummaryCards
+                        mode="seniors"
+                        counts={getSeniorSummaryCounts(seniors)}
+                        onFilter={handleSeniorSummaryFilter}
+                    />
 
                     <section className="wd-filter-area">
                         <div className="wd-search-row">
@@ -540,7 +579,6 @@ function WelfareDashboard() {
                                         </div>
                                     );
                                 })}
-
                             </div>
                         )}
                     </section>
