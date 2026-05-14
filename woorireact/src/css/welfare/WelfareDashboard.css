@@ -7,9 +7,10 @@
 }
 
 .wd-layout {
-    width: min(1280px, calc(100% - 48px));
+    width: 100%;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 28px 0;
+    padding: 2rem;
     display: grid;
     grid-template-columns: 240px minmax(0, 1fr);
     gap: 24px;
@@ -95,6 +96,33 @@
     color: #4f6f52;
 }
 
+.wd-sidebar-add-button {
+    width: 100%;
+    height: 42px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--main-color);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.wd-sidebar-add-button:hover {
+    background: #78997b;
+}
+
+.wd-sidebar-add-button:active {
+    background: #678b6b;
+}
+
 .wd-content {
     width: 100%;
     max-width: none;
@@ -144,57 +172,53 @@
 
 .wd-notification-plain-button {
     position: relative;
-    width: 44px;
-    height: 44px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #374151;
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
     display: grid;
     place-items: center;
-    cursor: pointer;
+}
+
+.wd-notification-plain-button svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2;
 }
 
 .wd-notification-plain-button:hover {
-    background: #f2f6f0;
+    border-color: #86a788;
     color: #4f6f52;
 }
 
 .wd-notification-plain-button .wd-notification-badge {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -6px;
+    right: -6px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #c93a32;
+    color: #ffffff;
+    font-size: 10px;
+    line-height: 17px;
+    font-weight: 800;
+    text-align: center;
 }
 
 .wd-emergency-button {
-    height: 40px;
-    padding: 0 22px;
-    border: none;
-    border-radius: 7px;
-    background: #c93a32;
-    color: #ffffff;
-    font-family: "Noto Sans KR", sans-serif;
-    font-size: 14px;
-    font-weight: 800;
-    box-shadow: 0 8px 18px rgba(201, 58, 50, 0.2);
-    cursor: pointer;
-    white-space: nowrap;
+    min-height: 40px;
 }
 
 .wd-emergency-button:hover {
-    background: #b7352e;
-    box-shadow: 0 10px 22px rgba(201, 58, 50, 0.28);
-}
-
-.wd-emergency-button:active {
-    background: #9f2f29;
+    transform: scale(1.03);
 }
 
 /* 메인 상단 */
 .wd-action-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 14px;
     margin-bottom: 16px;
     flex-wrap: wrap;
@@ -296,6 +320,27 @@
     flex-wrap: wrap;
 }
 
+.wd-condition-select {
+    flex: 0 0 160px;
+    height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 36px 0 12px;
+    background:
+        linear-gradient(45deg, transparent 50%, #6b7280 50%) right 17px center / 7px 7px no-repeat,
+        linear-gradient(135deg, #6b7280 50%, transparent 50%) right 12px center / 7px 7px no-repeat,
+        #ffffff;
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 800;
+    outline: none;
+    appearance: none;
+}
+
+.wd-condition-select:focus {
+    border-color: var(--main-color);
+}
+
 .wd-keyword-input {
     flex: 1 1 340px;
     height: 40px;
@@ -330,6 +375,63 @@
 
 .wd-search-button:hover {
     opacity: 0.88;
+}
+
+.wd-detail-search-button {
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--main-color);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--main-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.wd-detail-search-button:hover,
+.wd-detail-search-button.active {
+    background: var(--main-color);
+    color: #ffffff;
+}
+
+.wd-detail-search-panel {
+    margin-top: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.wd-detail-filter-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.wd-detail-filter-row:last-of-type {
+    border-bottom: 0;
+}
+
+.wd-detail-filter-row > strong {
+    padding: 15px 16px;
+    background: #f7f5e8;
+    color: #1f2a44;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.wd-detail-filter-options {
+    min-height: 52px;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 18px;
 }
 
 .wd-filter-top-row {
@@ -760,53 +862,6 @@
     cursor: not-allowed;
 }
 
-.wd-notification-plain-button {
-    position: relative;
-    width: 44px;
-    height: 44px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #374151;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-}
-
-.wd-notification-plain-button:hover {
-    background: #f2f6f0;
-    color: #4f6f52;
-}
-
-.wd-notification-plain-button .wd-notification-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-}
-
-.wd-emergency-button {
-    height: 48px;
-    padding: 0 28px;
-    border: none;
-    border-radius: 10px;
-    background: #b8463d;
-    color: #ffffff;
-    font-family: "Noto Sans KR", sans-serif;
-    font-size: 20px;
-    font-weight: 800;
-    box-shadow: 0 10px 24px rgba(184, 70, 61, 0.22);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.wd-emergency-button:hover {
-    background: #a83f37;
-}
-
-.wd-emergency-button:active {
-    background: #92362f;
-}
-
 /* 반응형 */
 @media (max-width: 1000px) {
     .wd-summary-grid {
@@ -861,6 +916,27 @@
     .wd-filter-reset-button {
         align-self: flex-start;
     }
+
+    .wd-condition-select,
+    .wd-keyword-input,
+    .wd-search-button,
+    .wd-detail-search-button {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .wd-detail-filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .wd-detail-filter-row > strong {
+        padding-bottom: 8px;
+    }
+
+    .wd-detail-filter-options {
+        padding-top: 10px;
+    }
+
 }
 
 @media (max-width: 560px) {

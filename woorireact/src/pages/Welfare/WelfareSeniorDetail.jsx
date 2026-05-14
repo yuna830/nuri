@@ -13,6 +13,8 @@ import {
 
 import "../../css/welfare/WelfareSeniorDetail.css";
 
+const getSavedAddedSeniors = () => [];
+
 const findSavedSenior = (seniorId) =>
     getSavedAddedSeniors().find((senior) => String(senior.id) === String(seniorId));
 

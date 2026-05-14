@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
-import "leaflet/dist/leaflet.css";
+
 import KakaoMap from "../../components/KakaoMap.jsx";
 import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 

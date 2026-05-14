@@ -23,10 +23,15 @@
 }
 
 .wj-service-name {
-    font-size: 20px;
-    font-weight: 700;
-    color: #86a788;
-    white-space: nowrap;
+  font-size: 20px;
+  font-weight: 700;
+  color: #86a788;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wj-service-name:hover {
+  color: #5f8a62;
 }
 
 .wj-header-title {
@@ -66,53 +71,74 @@
     align-items: flex-start;
 }
 
+.wj-main-area {
+    min-width: 0;
+}
+
 .wj-sidebar {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     background-color: white;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 14px;
+    border: 1px solid #d4e8d6;
+    border-radius: 14px;
+    padding: 16px 6px;
     position: sticky;
     top: 92px;
+    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
 }
 
 .wj-sidebar-title {
+    margin: 0 12px 10px;
+    color: #5f7d61;
     font-size: 13px;
     font-weight: 800;
-    color: #666;
-    margin-bottom: 8px;
 }
 
 .wj-sidebar-item {
+    position: relative;
     width: 100%;
-    padding: 10px 14px;
-    border-radius: 7px;
-    border: none;
+    min-height: 42px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 0 14px 0 32px;
     background-color: transparent;
-    color: var(--text-color);
+    color: #5f7d61;
+    font-family: "Noto Sans KR", sans-serif;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 800;
     text-align: left;
     cursor: pointer;
 }
 
+.wj-sidebar-item::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: transparent;
+    transform: translateY(-50%);
+}
+
 .wj-sidebar-item:hover {
+    border-color: #d4e8d6;
     background-color: #f2f6f0;
 }
 
-.wj-sidebar-item-active {
-    background-color: var(--main-color);
-    color: white;
-}
-
+.wj-sidebar-item-active,
 .wj-sidebar-item-active:hover {
-    background-color: var(--main-color);
+    border-color: #86a788;
+    background-color: #86a788;
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(134, 167, 136, 0.22);
 }
 
-.wj-main-area {
-    min-width: 0;
+.wj-sidebar-item-active::before {
+    background: #ffffff;
 }
 
 .wj-search-row {
@@ -188,41 +214,58 @@
 .wj-job-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
 }
 
 .wj-job-card {
+    position: relative;
+    overflow: hidden;
     background-color: white;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 18px 22px;
+    border: 1px solid #d4e8d6;
+    border-radius: 18px;
+    padding: 26px 28px 24px 36px;
+    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.15s ease;
 }
 
 .wj-job-card:hover {
-    border-color: #cbd8c4;
-    box-shadow: 0 8px 20px rgba(25, 35, 25, 0.07);
+    border-color: #86a788;
+    box-shadow: 0 4px 20px rgba(134, 167, 136, 0.15);
+    transform: translateY(-1px);
+}
+
+.wj-job-card-accent {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 5px;
+    background: #86a788;
 }
 
 .wj-job-card-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 10px;
+    gap: 18px;
+    margin-bottom: 14px;
 }
 
 .wj-job-title {
     margin: 0;
-    font-size: 17px;
+    font-size: 19px;
     font-weight: 800;
     color: var(--text-color);
     line-height: 1.4;
 }
 
 .wj-organization {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: #666;
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: #7a9a7c;
     font-weight: 700;
 }
 
@@ -236,15 +279,16 @@
 
 .wj-job-type-badge,
 .wj-employment-badge {
-    padding: 4px 9px;
+    padding: 6px 12px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
     white-space: nowrap;
 }
 
 .wj-job-type-badge {
-    background-color: rgba(134, 167, 136, 0.22);
+    border: 1px solid #b8d4ba;
+    background-color: #eef6ef;
     color: #48644b;
 }
 
@@ -256,12 +300,20 @@
 .wj-job-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 10px;
     font-size: 13px;
-    color: #666;
+    color: #5f7d61;
 }
 
 .wj-meta-item {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: #eef6ef;
+    color: #5f7d61;
+    font-weight: 700;
     white-space: nowrap;
 }
 
@@ -290,6 +342,8 @@
 
     .wj-sidebar-item {
         width: auto;
+        min-height: 36px;
+        font-size: 13px;
     }
 }
 

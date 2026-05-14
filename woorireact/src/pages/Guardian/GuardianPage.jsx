@@ -32,6 +32,7 @@ import {
 } from "../../utils/guardian/guardianSafeZone";
 import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 
+import CommonHeader from "../../components/CommonHeader.jsx";
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
 import EmergencyPanel from "./EmergencyPanel";
@@ -342,7 +343,6 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          guardian={guardian}
           unreadAlertCount={unreadAlertCount}
           onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
           onOpenEmergencyReport={() => {}}
@@ -363,7 +363,6 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          guardian={guardian}
           unreadAlertCount={unreadAlertCount}
           onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
           onOpenEmergencyReport={() => {}}
@@ -877,7 +876,6 @@ function GuardianPage() {
   return (
     <main className="guardian-page">
       <GuardianHeader
-        guardian={guardian}
         unreadAlertCount={unreadAlertCount}
         onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
@@ -957,7 +955,6 @@ function GuardianPage() {
           hasCurrentLocation={hasCurrentLocation}
           isOutsideSafeZone={isOutsideSafeZone}
           distance={distance}
-          location={location}
           safeZoneForm={safeZoneForm}
           lastNormalLocation={lastNormalLocation}
           formatShortAddress={formatShortAddress}
@@ -993,6 +990,7 @@ function GuardianPage() {
           distance={distance}
           isRouteVisible={isRouteVisible}
           isRefreshingLocation={isRefreshingLocation}
+          formatShortAddress={formatShortAddress}
           onRefreshLocation={handleRefreshLocation}
         />
 
@@ -1138,35 +1136,30 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ guardian, unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
+function GuardianHeader({ unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
   return (
-    <header className="guardian-header">
-      <div className="brand-area">
-        <div className="logo-box">우리</div>
-        <strong className="service-name">우리 돌봄</strong>
-        <span className="guardian-name">
-          {guardian?.name ? `보호자: ${guardian.name}` : ""}
-        </span>
-      </div>
+    <CommonHeader
+      homePath="/guardian"
+      actions={
+        <>
+          <button
+            className="common-app-icon-button"
+            type="button"
+            onClick={onOpenAlertPanel}
+            aria-label="알림"
+          >
+            <Bell size={18} />
+            {unreadAlertCount > 0 && (
+              <span className="common-app-badge">{unreadAlertCount}</span>
+            )}
+          </button>
 
-      <div className="header-actions">
-        <button
-          className="icon-button"
-          type="button"
-          onClick={onOpenAlertPanel}
-          aria-label="알림"
-        >
-          <Bell size={20} />
-          {unreadAlertCount > 0 && (
-            <span className="alarm-count">{unreadAlertCount}</span>
-          )}
-        </button>
-
-        <button className="danger-button" type="button" onClick={onOpenEmergencyReport}>
-          긴급 신고
-        </button>
-      </div>
-    </header>
+          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+            긴급 신고
+          </button>
+        </>
+      }
+    />
   );
 }
 

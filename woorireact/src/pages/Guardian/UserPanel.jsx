@@ -73,7 +73,6 @@ function UserPanel({
   hasCurrentLocation,
   isOutsideSafeZone,
   distance,
-  location,
   lastNormalLocation,
   safeZoneForm,
   formatShortAddress,
@@ -307,10 +306,6 @@ function UserPanel({
 
           <dl className="status-profile-list">
             <div>
-              <dt>마지막 접속</dt>
-              <dd>{selectedElder.lastLoginText || "기록 없음"}</dd>
-            </div>
-            <div>
               <dt>연락처</dt>
               <dd>{selectedElder.phone || "연락처 없음"}</dd>
             </div>
@@ -390,13 +385,6 @@ function UserPanel({
         </section>
 
         <section className="card location-summary">
-          <div className="summary-row">
-            <span>현재 위치</span>
-            <strong>
-              {hasCurrentLocation ? formatShortAddress(location.address) : "위치 미수신"}
-            </strong>
-          </div>
-
           <div className="summary-row">
             <span>마지막 정상 위치</span>
             <strong>

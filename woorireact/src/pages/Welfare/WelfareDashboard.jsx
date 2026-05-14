@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
+import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
 import {
@@ -26,7 +27,6 @@ import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
 import "../../css/welfare/WelfareNotifications.css";
 import "../../css/welfare/WelfareDashboard.css";
-import "../../css/common/Header.css";
 
 const ITEM_PER_PAGE = 6;
 
@@ -53,6 +53,7 @@ function WelfareDashboard() {
     const [draftFilters, setDraftFilters] = useState(createEmptyFilters);
     const [searchKeyword, setSearchKeyword] = useState("");
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
+    const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
 
     useEffect(() => {
         let ignore = false;
@@ -119,16 +120,6 @@ function WelfareDashboard() {
     }, []);
 
     const regionOptions = useMemo(() => ["서울 전체", ...SEOUL_DISTRICTS], []);
-
-    const activeFilterGroup = useMemo(() => {
-        const group = FILTER_GROUPS.find((filterGroup) => filterGroup.key === activeFilterKey) || FILTER_GROUPS[0];
-
-        if (group.key === "regionDistrict") {
-            return { ...group, options: regionOptions };
-        }
-
-        return group;
-    }, [activeFilterKey, regionOptions]);
 
     const getSeniorFilterValue = (senior, filterKey) => {
         if (filterKey === "regionDistrict") {
@@ -321,22 +312,19 @@ function WelfareDashboard() {
 
     return (
         <div className="wd-page">
-            <header className="common-header">
-                <div className="common-header-inner">
-                    <Link to="/welfare" className="common-header-logo">
-                        우리 woori
-                    </Link>
-
-                    <div className="common-header-actions">
+            <CommonHeader
+                homePath="/welfare"
+                actions={
+                    <>
                         <button
                             type="button"
-                            className="wd-notification-plain-button"
+                            className="common-app-icon-button"
                             onClick={() => setIsNotificationOpen(true)}
                             aria-label="알림"
                         >
-                            <Bell size={24} />
+                            <Bell size={18} />
                             {activeNotifications.length > 0 && (
-                                <span className="wd-notification-badge">
+                                <span className="common-app-badge">
                                     {activeNotifications.length}
                                 </span>
                             )}
@@ -344,14 +332,14 @@ function WelfareDashboard() {
 
                         <button
                             type="button"
-                            className="wd-emergency-button"
+                            className="common-app-danger-button"
                             onClick={() => alert("긴급 신고 기능을 연결해주세요.")}
                         >
                             긴급 신고
                         </button>
-                    </div>
-                </div>
-            </header>
+                    </>
+                }
+            />
 
             {isNotificationOpen && (
                 <div
@@ -467,34 +455,41 @@ function WelfareDashboard() {
                             마이페이지
                         </Link>
                     </nav>
+
+                    <button
+                        type="button"
+                        className="wd-sidebar-add-button"
+                        onClick={() => navigate("/signup")}
+                    >
+                        <UserPlus size={17} />
+                        대상자 추가
+                    </button>
                 </aside>
 
                 <main className="wd-content">
-                    <div className="wd-action-header">
-                        <h1 className="wd-page-title">대상자 목록</h1>
-
-                        <div className="wd-header-button-group">
-                            <button
-                                type="button"
-                                className="wd-add-senior-button"
-                                onClick={() => navigate("/signup")}
-                            >
-                                <UserPlus size={17} />
-                                대상자 추가
-                            </button>
-                        </div>
-                    </div>
-
                     <WelfareSummaryCards counts={getSummaryCounts(seniors)} />
 
                     <section className="wd-filter-area">
                         <div className="wd-search-row">
+                            <select
+                                className="wd-condition-select"
+                                value={activeFilterKey}
+                                onChange={(event) => setActiveFilterKey(event.target.value)}
+                                aria-label="검색 조건"
+                            >
+                                {FILTER_GROUPS.map((group) => (
+                                    <option key={group.key} value={group.key}>
+                                        {group.label}
+                                    </option>
+                                ))}
+                            </select>
+
                             <input
                                 id="senior-keyword-search"
                                 className="wd-keyword-input"
                                 type="search"
                                 value={draftSearchKeyword}
-                                placeholder="이름, 거주 지역, 요청 상태 검색"
+                                placeholder="검색어를 입력하세요"
                                 onChange={(event) => setDraftSearchKeyword(event.target.value)}
                                 onKeyDown={(event) => {
                                     if (event.key === "Enter") {
@@ -507,57 +502,47 @@ function WelfareDashboard() {
                                 <Search size={15} />
                                 검색
                             </button>
-                        </div>
 
-                        <div className="wd-filter-top-row">
-                            <div className="wd-filter-tabs">
-                                {FILTER_GROUPS.map((group) => {
-                                    const isActive = activeFilterKey === group.key;
-                                    const selectedCount = draftFilters[group.key].length;
-
-                                    return (
-                                        <button
-                                            type="button"
-                                            key={group.key}
-                                            className={`wd-filter-tab${isActive ? " wd-filter-tab-active" : ""}`}
-                                            onClick={() => setActiveFilterKey(group.key)}
-                                        >
-                                            <span>{group.label}</span>
-                                            {selectedCount > 0 && (
-                                                <span className="wd-filter-count">{selectedCount}</span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            <button type="button" className="wd-filter-reset-button" onClick={resetFilters}>
-                                초기화
+                            <button
+                                type="button"
+                                className={`wd-detail-search-button${isDetailedSearchOpen ? " active" : ""}`}
+                                onClick={() => setIsDetailedSearchOpen((isOpen) => !isOpen)}
+                            >
+                                상세검색
                             </button>
                         </div>
 
-                        <div className="wd-checkbox-panel">
-                            <div className="wd-checkbox-panel-header">
-                                <strong className="wd-checkbox-panel-title">{activeFilterGroup.label}</strong>
-                            </div>
+                        {isDetailedSearchOpen && (
+                            <div className="wd-detail-search-panel">
+                                {FILTER_GROUPS.map((group) => {
+                                    const groupOptions = group.key === "regionDistrict" ? regionOptions : group.options;
 
-                            <div className="wd-checkbox-grid">
-                                {activeFilterGroup.options.map((option) => (
-                                    <label key={option} className="wd-checkbox-label">
-                                        <input
-                                            className="wd-checkbox-input"
-                                            type="checkbox"
-                                            checked={draftFilters[activeFilterGroup.key].includes(option)}
-                                            onChange={() => toggleDraftFilter(activeFilterGroup.key, option)}
-                                        />
-                                        <span>{option}</span>
-                                        <span className="wd-checkbox-count">
-                                            ({getFilterOptionCount(activeFilterGroup.key, option)})
-                                        </span>
-                                    </label>
-                                ))}
+                                    return (
+                                        <div key={group.key} className="wd-detail-filter-row">
+                                            <strong>{group.label}</strong>
+
+                                            <div className="wd-detail-filter-options">
+                                                {groupOptions.map((option) => (
+                                                    <label key={option} className="wd-checkbox-label">
+                                                        <input
+                                                            className="wd-checkbox-input"
+                                                            type="checkbox"
+                                                            checked={draftFilters[group.key].includes(option)}
+                                                            onChange={() => toggleDraftFilter(group.key, option)}
+                                                        />
+                                                        <span>{option}</span>
+                                                        <span className="wd-checkbox-count">
+                                                            ({getFilterOptionCount(group.key, option)})
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
                             </div>
-                        </div>
+                        )}
                     </section>
 
                     {isLoadingSeniors && (

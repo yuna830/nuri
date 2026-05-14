@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   createSosAlert,
   createSosCancelAlert,
   getCurrentSeniorId,
 } from "../api/userPageApi.js";
+import CommonHeader from "./CommonHeader.jsx";
 import "../css/user/UserCommonHeader.css";
 
 const formatKoreanDate = () => {
@@ -34,7 +34,6 @@ const getCurrentPosition = () => new Promise((resolve) => {
 });
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
-  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
 
@@ -91,21 +90,17 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
   return (
     <>
-      <header className="uch-header">
-        <div className="uch-header-inner">
-          <button className="uch-logo" type="button" onClick={() => navigate("/user")}>
-            우리 woori
-          </button>
-          <div className="uch-actions">
-            <span className="uch-date">{formatKoreanDate()}</span>
-            {showSos && (
-              <button className="uch-sos" type="button" onClick={openSos}>
-                🚨 SOS 알림 요청
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <CommonHeader
+        homePath="/user"
+        rightText={formatKoreanDate()}
+        actions={
+          showSos ? (
+            <button className="common-app-danger-button" type="button" onClick={openSos}>
+              🚨 SOS 알림 요청
+            </button>
+          ) : null
+        }
+      />
 
       {!onSosClick && pendingSos && (
         <div className="uch-sos-pending">

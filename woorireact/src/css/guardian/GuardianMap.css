@@ -64,6 +64,27 @@
   gap: 8px;
 }
 
+.map-title-group {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.map-title-group h2 {
+  flex-shrink: 0;
+}
+
+.map-current-address {
+  min-width: 0;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-icon-button {
   width: 34px;
   height: 34px;

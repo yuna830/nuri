@@ -11,6 +11,7 @@ function LocationPanel({
   distance,
   isRouteVisible,
   isRefreshingLocation,
+  formatShortAddress,
   onRefreshLocation,
 }) {
   const center = { lat: mapCenter[0], lng: mapCenter[1] };
@@ -55,10 +56,19 @@ function LocationPanel({
     return `마지막 수신 ${formatReceivedAgo(location.receivedAt)} · ${accuracyText} · 휴대폰 GPS`;
   };    
 
+  const currentLocationText = hasCurrentLocation
+    ? formatShortAddress(location.address)
+    : "위치 미수신";
+
   return (
     <section className="card map-card">
       <div className="card-header">
-        <h2>실시간 위치</h2>
+        <div className="map-title-group">
+          <h2>실시간 위치</h2>
+          <span className="map-current-address">
+            현재 위치 · {currentLocationText}
+          </span>
+        </div>
 
         <div className="map-actions">
           <button

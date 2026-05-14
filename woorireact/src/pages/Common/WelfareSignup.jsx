@@ -11,6 +11,7 @@ export default function WelfareSignup() {
   const [form, setForm] = useState({
     name: "",
     workerId: "",
+    email: "",
     password: "",
     passwordConfirm: "",
     center: "",
@@ -63,6 +64,7 @@ export default function WelfareSignup() {
   const handleSignup = async () => {
     const name = form.name.trim();
     const workerId = form.workerId.trim();
+    const email = form.email.trim();
     const password = form.password.trim();
     const passwordConfirm = form.passwordConfirm.trim();
     const center = form.center.trim();
@@ -74,6 +76,16 @@ export default function WelfareSignup() {
 
     if (!workerId) {
       setError("복지사 아이디를 입력해주세요.");
+      return;
+    }
+
+    if (!email) {
+      setError("이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("올바른 이메일 형식으로 입력해주세요.");
       return;
     }
 
@@ -111,6 +123,7 @@ export default function WelfareSignup() {
         body: JSON.stringify({
           name,
           workerId,
+          email, 
           password,
           center,
           role: "복지사",
@@ -189,6 +202,19 @@ export default function WelfareSignup() {
               value={form.workerId}
               onChange={(event) => set("workerId", event.target.value)}
               placeholder="예: worker01"
+            />
+          </div>
+
+          <div className="su-field">
+            <label className="su-label">
+              이메일 <span className="su-required">*</span>
+            </label>
+            <input
+              className="su-input"
+              type="email"
+              value={form.email}
+              onChange={(event) => set("email", event.target.value)}
+              placeholder="예: worker@woori.kr"
             />
           </div>
 

@@ -2,20 +2,31 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Search } from "lucide-react";
 
+import {
+    WELFARE_DEMO_JOBS,
+    findWelfareDemoSenior,
+} from "../../data/welfareSeniorDemoData";
 import "../../css/welfare/WelfareJobPostings.css";
 
 const JOB_CATEGORIES = [
-    { key: "전체", label: "전체" },
-    { key: "안내", label: "안내" },
-    { key: "환경 정비", label: "환경 정비" },
-    { key: "실내 보조", label: "실내 보조" },
-    { key: "복지 보조", label: "복지 보조" },
+    { label: "전체", value: "", keywords: [] },
+    { label: "환경미화", value: "환경미화", keywords: ["환경", "정비", "미화", "청소"] },
+    { label: "경비·보안", value: "경비·보안", keywords: ["경비", "보안", "안전"] },
+    { label: "요양·돌봄", value: "요양·돌봄", keywords: ["요양", "돌봄", "간병", "보호"] },
+    { label: "사무보조", value: "사무보조", keywords: ["사무", "행정", "전산", "문서", "안내", "민원", "자료"] },
+    { label: "생산·제조", value: "생산·제조", keywords: ["생산", "제조", "포장", "조립"] },
+    { label: "운전·배달", value: "운전·배달", keywords: ["운전", "배송", "배달", "택배"] },
+    { label: "조리·식품", value: "조리·식품", keywords: ["조리", "급식", "식당", "주방", "배식"] },
+    { label: "물류·유통", value: "물류·유통", keywords: ["물류", "유통", "매장", "판매"] },
+    { label: "기타", value: "기타", keywords: [] },
 ];
 
 const getRegionDistrict = (region = "") => {
     const districtMatch = String(region).match(/[가-힣]+구/);
     return districtMatch ? districtMatch[0] : "";
 };
+
+const getSavedAddedSeniors = () => [];
 
 const findWelfareSenior = (seniorId) =>
     findWelfareDemoSenior(seniorId) ||
@@ -32,16 +43,35 @@ const findRecommendedJobs = (senior) => {
     );
 };
 
+const categorizeWelfareJob = (job) => {
+    const text = [
+        job.title,
+        job.organization,
+        job.workPlace,
+        job.jobType,
+        job.employmentType,
+    ].filter(Boolean).join(" ");
+
+    for (const category of JOB_CATEGORIES) {
+        if (!category.keywords.length) continue;
+        if (category.keywords.some((keyword) => text.includes(keyword))) {
+            return category.label;
+        }
+    }
+
+    return "기타";
+};
+
 function WelfareJobPostings() {
     const { id } = useParams();
     const senior = id ? findWelfareSenior(id) : null;
     const allJobs = senior ? findRecommendedJobs(senior) : WELFARE_DEMO_JOBS;
-    const [activeCategory, setActiveCategory] = useState("전체");
+    const [activeCategory, setActiveCategory] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [hideClosedJobs, setHideClosedJobs] = useState(true);
 
     const filteredJobs = allJobs.filter((job) => {
-        const matchCategory = activeCategory === "전체" || job.jobType === activeCategory;
+        const matchCategory = activeCategory === "" || categorizeWelfareJob(job) === activeCategory;
         const matchDeadline = !hideClosedJobs || job.deadlineStatus !== "마감";
         const keyword = searchKeyword.trim().toLowerCase();
         const matchKeyword =
@@ -57,33 +87,37 @@ function WelfareJobPostings() {
     return (
         <div className="wj-page">
             <header className="wj-header">
-                <div className="wj-brand-area">
-                    <strong className="wj-service-name">우리 woori</strong>
-                </div>
+        <div className="wj-brand-area">
+            <Link to="/welfare" className="wj-service-name">
+            우리 woori
+            </Link>
+        </div>
 
-                <div className="wj-header-title">노인일자리 공고</div>
-            </header>
+        <div className="wj-header-title">노인일자리 공고</div>
+        </header>
 
             <main className="wj-content">
-                <div className="wj-header-row">
-                    <Link
-                        to={senior ? `/welfare/seniors/${senior.id}` : "/welfare"}
-                        className="wj-back-link"
-                    >
-                        {senior ? "상세정보로" : "목록으로"}
-                    </Link>
-                </div>
+                {senior && (
+                    <div className="wj-header-row">
+                        <Link
+                            to={`/welfare/seniors/${senior.id}`}
+                            className="wj-back-link"
+                        >
+                            상세정보로
+                        </Link>
+                    </div>
+                )}
 
                 <div className="wj-layout">
-                    <nav className="wj-sidebar">
+                    <nav className="wj-sidebar" aria-label="직종 분류">
                         <strong className="wj-sidebar-title">직종 분류</strong>
 
                         {JOB_CATEGORIES.map((category) => (
                             <button
                                 type="button"
-                                key={category.key}
-                                className={`wj-sidebar-item${activeCategory === category.key ? " wj-sidebar-item-active" : ""}`}
-                                onClick={() => setActiveCategory(category.key)}
+                                key={category.label}
+                                className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
+                                onClick={() => setActiveCategory(category.value)}
                             >
                                 {category.label}
                             </button>
@@ -116,7 +150,7 @@ function WelfareJobPostings() {
                         </div>
 
                         <p className="wj-result-count">
-                            {activeCategory === "전체" ? pageTitle : activeCategory} · {filteredJobs.length}건
+                            {activeCategory === "" ? pageTitle : activeCategory} · {filteredJobs.length}건
                         </p>
 
                         {filteredJobs.length === 0 && (
@@ -124,26 +158,35 @@ function WelfareJobPostings() {
                         )}
 
                         <div className="wj-job-list">
-                            {filteredJobs.map((job) => (
-                                <article key={job.jobId} className="wj-job-card">
-                                    <div className="wj-job-card-top">
-                                        <div>
-                                            <h2 className="wj-job-title">{job.title}</h2>
-                                            <p className="wj-organization">{job.organization}</p>
+                            {filteredJobs.map((job) => {
+                                const jobCategory = categorizeWelfareJob(job);
+
+                                return (
+                                    <article key={job.jobId} className="wj-job-card">
+                                        <div className="wj-job-card-accent" />
+
+                                        <div className="wj-job-card-top">
+                                            <div>
+                                                <h2 className="wj-job-title">{job.title}</h2>
+                                                <p className="wj-organization">🏢 {job.organization}</p>
+                                            </div>
+
+                                            <div className="wj-badge-row">
+                                                <span className="wj-job-type-badge">{jobCategory}</span>
+                                                <span className="wj-employment-badge">{job.employmentType}</span>
+                                            </div>
                                         </div>
 
-                                        <div className="wj-badge-row">
-                                            <span className="wj-job-type-badge">{job.jobType}</span>
-                                            <span className="wj-employment-badge">{job.employmentType}</span>
+                                        <div className="wj-job-meta">
+                                            <span className="wj-meta-item">📍 {job.workPlace}</span>
+                                            {job.workDays && (
+                                                <span className="wj-meta-item">📋 {job.workDays}</span>
+                                            )}
+                                            <span className="wj-meta-item">📅 {job.recruitPeriod}</span>
                                         </div>
-                                    </div>
-
-                                    <div className="wj-job-meta">
-                                        <span className="wj-meta-item">📍 {job.workPlace}</span>
-                                        <span className="wj-meta-item">📅 {job.recruitPeriod}</span>
-                                    </div>
-                                </article>
-                            ))}
+                                    </article>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
