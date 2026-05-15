@@ -10,6 +10,9 @@ import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
@@ -327,11 +330,33 @@ public class SeniorController {
     }
 
     @GetMapping("/welfare")
-    public List<WelfareSeniorListResponse> getWelfareSeniors() {
-        return seniorRepository.findAll()
-                .stream()
-                .map(this::toWelfareSeniorListResponse)
-                .toList();
+    public Object getWelfareSeniors(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        if (page == null && size == null) {
+            return seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+                    .stream()
+                    .map(this::toWelfareSeniorListResponse)
+                    .toList();
+        }
+
+        int pageNumber = Math.max(0, page == null ? 0 : page);
+        int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
+        Page<Senior> seniorPage = seniorRepository.findAll(
+                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id"))
+        );
+
+        return new WelfareSeniorPageResponse(
+                seniorPage.getContent()
+                        .stream()
+                        .map(this::toWelfareSeniorListResponse)
+                        .toList(),
+                seniorPage.getTotalElements(),
+                seniorPage.getTotalPages(),
+                seniorPage.getNumber(),
+                seniorPage.getSize()
+        );
     }
 
     private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
@@ -366,6 +391,8 @@ public class SeniorController {
                 senior.getId(),
                 senior.getName(),
                 senior.getAge(),
+                senior.getBirthDate(),
+                senior.getAddress(),
                 senior.getGender(),
                 senior.getPhone(),
                 senior.getRegion() == null ? senior.getAddress() : senior.getRegion(),
@@ -389,6 +416,8 @@ public class SeniorController {
             Long id,
             String name,
             Integer age,
+            LocalDate birthDate,
+            String address,
             String gender,
             String phone,
             String region,
@@ -405,6 +434,15 @@ public class SeniorController {
             Double lastGpsLatitude,
             Double lastGpsLongitude,
             LocalDateTime lastGpsRecordedAt
+    ) {
+    }
+
+    public record WelfareSeniorPageResponse(
+            List<WelfareSeniorListResponse> content,
+            Long totalElements,
+            Integer totalPages,
+            Integer page,
+            Integer size
     ) {
     }
 

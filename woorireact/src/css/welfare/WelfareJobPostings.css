@@ -110,6 +110,29 @@
     font-weight: 800;
     text-align: left;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.wj-sidebar-count {
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #f1f3ee;
+    color: #6f7a6b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.wj-sidebar-item-active .wj-sidebar-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
 }
 
 .wj-sidebar-item::before {
@@ -214,21 +237,17 @@
 .wj-job-list {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .wj-job-card {
     position: relative;
+    min-height: 96px;
+    padding: 18px 24px 18px 32px;
+    border: 1px solid #cfe0d2;
+    border-radius: 16px;
+    background: #ffffff;
     overflow: hidden;
-    background-color: white;
-    border: 1px solid #d4e8d6;
-    border-radius: 18px;
-    padding: 26px 28px 24px 36px;
-    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
-    transition:
-        border-color 0.15s ease,
-        box-shadow 0.15s ease,
-        transform 0.15s ease;
 }
 
 .wj-job-card:hover {
@@ -256,33 +275,31 @@
 
 .wj-job-title {
     margin: 0;
-    font-size: 19px;
-    font-weight: 800;
-    color: var(--text-color);
-    line-height: 1.4;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.35;
 }
 
 .wj-organization {
-    margin: 12px 0 0;
-    font-size: 14px;
-    color: #7a9a7c;
-    font-weight: 700;
+    margin: 8px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6f8a70;
 }
 
-.wj-badge-row {
+.wj-job-meta {
+    margin-top: 12px;
     display: flex;
-    gap: 6px;
-    flex-shrink: 0;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    gap: 10px;
 }
 
 .wj-job-type-badge,
 .wj-employment-badge {
     padding: 6px 12px;
     border-radius: 999px;
-    font-size: 13px;
-    font-weight: 800;
+    font-size: 11px;
+    font-weight: 700;
     white-space: nowrap;
 }
 
@@ -301,7 +318,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    font-size: 13px;
+    font-size: 11px;
     color: #5f7d61;
 }
 
@@ -315,6 +332,222 @@
     color: #5f7d61;
     font-weight: 700;
     white-space: nowrap;
+}
+
+.wj-job-card {
+    cursor: pointer;
+}
+
+.wj-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(20, 24, 20, 0.45);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.wj-modal {
+    width: min(760px, 100%);
+    max-height: calc(100vh - 80px);
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wj-modal-header {
+    flex-shrink: 0;
+    padding: 26px 32px;
+    background: #86a788;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.wj-modal-header h2 {
+    margin: 0;
+    font-size: 23px;
+    line-height: 1.35;
+}
+
+.wj-modal-header p {
+    margin: 8px 0 0;
+    font-weight: 700;
+    opacity: 0.92;
+}
+
+.wj-modal-close {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    font-size: 28px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.wj-modal-body {
+    min-height: 0;
+    padding: 26px 32px 18px;
+    overflow: auto;
+}
+
+.wj-modal-row {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid #dce8dc;
+}
+
+.wj-modal-row strong,
+.wj-modal-detail strong {
+    color: #5f7d61;
+    font-weight: 800;
+}
+
+.wj-modal-row span {
+    color: #222222;
+    font-weight: 700;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.wj-modal-detail {
+    padding: 18px 0 8px;
+}
+
+.wj-modal-detail p {
+    margin: 10px 0 0;
+    color: #333333;
+    line-height: 1.65;
+    white-space: pre-wrap;
+}
+
+.wj-modal-actions {
+    flex-shrink: 0;
+    padding: 18px 32px 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    border-top: 1px solid #edf2ed;
+    background: #ffffff;
+}
+
+.wj-modal-actions button {
+    height: 52px;
+    border: 0;
+    border-radius: 12px;
+    background: #86a788;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wj-modal-actions button:last-child {
+    background: #5f7d61;
+}
+
+.wj-recommend-search {
+    width: 100%;
+    height: 46px;
+    border: 1px solid #d4dfd4;
+    border-radius: 10px;
+    padding: 0 14px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+}
+
+.wj-recommend-search:focus {
+    border-color: #86a788;
+    box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.16);
+}
+
+.wj-recommend-list {
+    max-height: min(420px, calc(100vh - 360px));
+    margin-top: 14px;
+    overflow: auto;
+    display: grid;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.wj-recommend-item {
+    min-height: 58px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f7faf4;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.wj-recommend-item:hover {
+    background: #eef6ef;
+}
+
+.wj-recommend-item input {
+    accent-color: #86a788;
+    flex-shrink: 0;
+}
+
+.wj-recommend-item span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.wj-recommend-item strong {
+    font-size: 15px;
+    color: #26352a;
+}
+
+.wj-recommend-item small {
+    color: #718076;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.wj-recommend-empty {
+    margin: 12px 0;
+    color: #718076;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.wj-more-button {
+    width: 100%;
+    height: 54px;
+    margin: 18px 0 32px;
+    border: 1px solid #86a788;
+    border-radius: 14px;
+    background: #ffffff;
+    color: #5f7d61;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wj-more-button:hover {
+    background: #f7fbf7;
+}
+
+.wj-more-button:active {
+    transform: translateY(1px);
 }
 
 @media (max-width: 900px) {

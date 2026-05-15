@@ -32,9 +32,6 @@ const COMPLETED_APPLICATION_STATUSES = [
     "취소 처리",
 ];
 
-const isBlank = (value) =>
-    value === undefined || value === null || String(value).trim() === "";
-
 export const isEmergencyPendingSenior = (senior) => {
     const alertStatus = String(senior.alertStatus || senior.alertType || "");
     const isHandled =
@@ -47,11 +44,17 @@ export const isEmergencyPendingSenior = (senior) => {
     return EMERGENCY_ALERT_STATUSES.some((status) => alertStatus.includes(status)) && !isHandled;
 };
 
+const isBlank = (value) =>
+    value === undefined ||
+    value === null ||
+    String(value).trim() === "" ||
+    String(value).trim() === "주소 미등록" ||
+    String(value).trim() === "기록 없음";
+
 export const hasMissingRequiredSeniorInfo = (senior) => {
     const requiredValues = [
         senior.phone,
         senior.address || senior.region,
-        senior.guardianName || senior.guardianPhone || senior.guardianId,
         senior.healthInfo || senior.healthStatus,
         senior.birthDate || senior.age,
         senior.gender,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BriefcaseBusiness, ClipboardList, Search, UserRound } from "lucide-react";
+import { BriefcaseBusiness, ClipboardList, Search, UserPlus, UserRound } from "lucide-react";
 
 import {
     fetchWelfareJobApplications,
@@ -114,10 +114,6 @@ function WelfareJobApplications() {
                 <Link to="/welfare" className="wja-service-name">
                     우리 woori
                 </Link>
-
-                <Link to="/welfare" className="wja-back-link">
-                    대상자 목록
-                </Link>
             </header>
 
             <main className="wja-content">
@@ -139,7 +135,7 @@ function WelfareJobApplications() {
                         </Link>
 
                         <Link to="/welfare/job-applications" className="wja-sidebar-item wja-sidebar-item-active">
-                            <UserRound size={17} />
+                            <UserPlus size={17} />
                             일자리 신청
                         </Link>
 
@@ -147,17 +143,15 @@ function WelfareJobApplications() {
                             <BriefcaseBusiness size={17} />
                             일자리 공고
                         </Link>
+
+                        <Link to="/welfare/mypage" className="wja-sidebar-item">
+                            <UserRound size={17} />
+                            마이페이지
+                        </Link>
                     </nav>
                 </aside>
 
                 <section className="wja-main">
-                    <div className="wja-title-row">
-                        <div>
-                            <h1>일자리 신청</h1>
-                            <p>사용자가 복지사에게 보낸 일자리 신청을 확인하고 처리합니다.</p>
-                        </div>
-                    </div>
-
                     <WelfareSummaryCards
                         mode="jobs"
                         counts={getJobApplicationSummaryCounts(applications)}

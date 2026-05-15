@@ -697,26 +697,28 @@
     margin-top: 16px;
 }
 
-.wd-small-button,
-.wd-pager-button {
-    padding: 7px 10px;
-    border-radius: 8px;
-    font-size: 13px;
+.wd-small-button {
+    min-width: 34px;
+    height: 34px;
     border: none;
+    border-radius: 8px;
+    background: #fffdee;
+    color: #333333;
+    font-size: 14px;
+    font-weight: 800;
     cursor: pointer;
-    color: white;
-    background-color: var(--main-color);
 }
 
-.wd-small-button:hover:not(:disabled),
-.wd-pager-button:hover:not(:disabled) {
-    opacity: 0.88;
+.wd-small-button:hover:not(:disabled) {
+    background: #f5f1dd;
+    color: #222222;
 }
 
-.wd-small-button:disabled,
-.wd-pager-button:disabled {
-    opacity: 0.6;
+.wd-small-button:disabled {
+    background: #fffdee;
+    color: #777777;
     cursor: default;
+    opacity: 1;
 }
 
 /* 모달 */

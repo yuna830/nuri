@@ -87,10 +87,20 @@ export const mapWelfareSenior = (item) => ({
     id: item.id,
     name: item.name,
     age: item.age,
+    birthDate: item.birthDate,
     gender: item.gender,
     phone: item.phone,
+
+    address: item.address,
     region: item.region || "주소 미등록",
+
+    guardianName: item.guardianName,
+    guardianPhone: item.guardianPhone,
+    guardianId: item.guardianId,
+
+    healthInfo: item.healthInfo,
     healthStatus: item.healthStatus || "양호",
+
     locationStatus: item.locationStatus || "정상",
     alertStatus: item.alertStatus || "없음",
     workRequestStatus: item.workRequestStatus || "미검토",

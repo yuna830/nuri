@@ -1,9 +1,6 @@
 import { Link, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import {
-    findWelfareDemoCounselingRecords,
-    findWelfareDemoSenior,
-} from "../../data/welfareSeniorDemoData";
+
 import {
     normalizeSenior,
     applySavedWelfareDecision,

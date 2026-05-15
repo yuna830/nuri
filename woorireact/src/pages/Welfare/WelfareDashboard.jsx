@@ -67,6 +67,8 @@ function WelfareDashboard() {
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
     const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
     const [summaryFilter, setSummaryFilter] = useState("all");
+    const [serverTotalPages, setServerTotalPages] = useState(1);
+    const [serverTotalSeniors, setServerTotalSeniors] = useState(0);
 
     useEffect(() => {
         let ignore = false;
@@ -76,11 +78,26 @@ function WelfareDashboard() {
                 setIsLoadingSeniors(true);
                 setSeniorLoadError("");
 
-                const data = await fetchWelfareSeniors();
-                const nextSeniors = Array.isArray(data) ? data.map(mapWelfareSenior) : [];
+                const cacheKey = `welfareSeniors:${currentPage}`;
+                const cachedSeniors = sessionStorage.getItem(cacheKey);
+
+                if (cachedSeniors && !ignore) {
+                    setSeniors(JSON.parse(cachedSeniors));
+                    setIsLoadingSeniors(false);
+                }
+
+                const data = await fetchWelfareSeniors({
+                    page: currentPage - 1,
+                    size: ITEM_PER_PAGE,
+                });
+                const rawSeniors = Array.isArray(data) ? data : data.content;
+                const nextSeniors = Array.isArray(rawSeniors) ? rawSeniors.map(mapWelfareSenior) : [];
 
                 if (!ignore) {
                     setSeniors(nextSeniors);
+                    setServerTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
+                    setServerTotalSeniors(Array.isArray(data) ? nextSeniors.length : Number(data.totalElements || 0));
+                    sessionStorage.setItem(cacheKey, JSON.stringify(nextSeniors));
                 }
             } catch (error) {
                 console.error("대상자 데이터 로딩 실패:", error);
@@ -101,7 +118,7 @@ function WelfareDashboard() {
         return () => {
             ignore = true;
         };
-    }, []);
+    }, [currentPage]);
 
     useEffect(() => {
         let ignore = false;
@@ -203,15 +220,18 @@ function WelfareDashboard() {
         return 4;
     };
 
-    const totalPages = Math.max(1, Math.ceil(filteredSeniors.length / ITEM_PER_PAGE));
+    const totalPages = Math.max(1, serverTotalPages);
+    const seniorSummaryCounts = {
+        ...getSeniorSummaryCounts(seniors),
+        totalSeniors: serverTotalSeniors || seniors.length,
+    };
 
     const currentSeniors = filteredSeniors
         .slice()
         .sort((first, second) =>
             getPriorityRank(first) - getPriorityRank(second) ||
             Number(first.id) - Number(second.id)
-        )
-        .slice((currentPage - 1) * ITEM_PER_PAGE, currentPage * ITEM_PER_PAGE);
+        );
 
     const toggleDraftFilter = (filterKey, option) => {
         setDraftFilters((previousFilters) => {
@@ -301,8 +321,13 @@ function WelfareDashboard() {
         }
 
         if (key === "missingInfo") {
+            const emptyFilters = createEmptyFilters();
+
+            setFilters(cloneFilters(emptyFilters));
+            setDraftFilters(emptyFilters);
             setSearchKeyword("");
             setDraftSearchKeyword("");
+            return;
         }
     };
 
@@ -504,7 +529,7 @@ function WelfareDashboard() {
                 <main className="wd-content">
                     <WelfareSummaryCards
                         mode="seniors"
-                        counts={getSeniorSummaryCounts(seniors)}
+                        counts={seniorSummaryCounts}
                         onFilter={handleSeniorSummaryFilter}
                     />
 
@@ -603,8 +628,9 @@ function WelfareDashboard() {
                             className="wd-small-button"
                             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                             disabled={currentPage === 1}
+                            aria-label="이전 페이지"
                         >
-                            이전
+                            &lt;
                         </button>
 
                         {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
@@ -624,8 +650,9 @@ function WelfareDashboard() {
                             className="wd-small-button"
                             onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                             disabled={currentPage === totalPages}
+                            aria-label="다음 페이지"
                         >
-                            다음
+                            &gt;
                         </button>
                     </div>
                 </main>
