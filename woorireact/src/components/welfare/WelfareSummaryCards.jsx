@@ -63,7 +63,7 @@ const SUMMARY_CARD_CONFIGS = {
     ],
 };
 
-function WelfareSummaryCards({ mode = "seniors", counts = {}, onFilter }) {
+function WelfareSummaryCards({ mode = "seniors", counts = {}, activeKey, onFilter }) {
     const cards = SUMMARY_CARD_CONFIGS[mode] || SUMMARY_CARD_CONFIGS.seniors;
 
     return (
@@ -72,23 +72,28 @@ function WelfareSummaryCards({ mode = "seniors", counts = {}, onFilter }) {
                 mode === "seniors" ? "wd-summary-grid-three" : ""
             }`}
         >
-            {cards.map(({ key, label, valueKey, unit, icon: Icon }) => (
-                <button
-                    key={key}
+            {cards.map((card) => {
+                const Icon = card.icon;
+                const isActive = activeKey === card.key;
+
+                return (
+                    <button
+                    key={card.key}
                     type="button"
-                    className="wd-summary-card"
-                    onClick={() => onFilter?.(key)}
-                >
+                    className={`wd-summary-card ${isActive ? "wd-summary-card-active" : ""}`}
+                    onClick={() => onFilter?.(card.key)}
+                    >
                     <div>
-                        <span>{label}</span>
+                        <span>{card.label}</span>
                         <strong>
-                            {counts[valueKey] || 0}
-                            {unit}
+                        {counts[card.valueKey] || 0}
+                        {card.unit}
                         </strong>
                     </div>
                     <Icon size={22} />
-                </button>
-            ))}
+                    </button>
+                );
+            })}
         </section>
     );
 }

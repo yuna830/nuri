@@ -200,52 +200,6 @@ export default function JobPage() {
   return (
     <div className="jp-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="💼 일자리 찾기"
-        right={!loading && !error ? <span className="jp-nav-count">총 {totalCount}건</span> : null}
-        onBack={() => navigate("/user")}
-      />
-
-      <div className="jp-top-sticky">
-        <div className="jp-top-sticky-inner">
-          <div className="jp-search-wrap">
-            <span className="jp-search-icon">🔍</span>
-            <input
-              className="jp-search-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="공고명, 기업명, 근무지 검색..."
-            />
-            {search && (
-              <button className="jp-search-clear" type="button" onClick={() => setSearch("")}>✕</button>
-            )}
-            <div className="jp-search-divider" />
-            <label className="jp-expire-filter">
-              <input
-                type="checkbox"
-                className="jp-expire-checkbox"
-                checked={hideExpired}
-                onChange={(event) => setHideExpired(event.target.checked)}
-              />
-              <span className="jp-expire-label">마감 숨기기</span>
-            </label>
-          </div>
-
-          <div className="jp-category-bar">
-            {JOB_CATEGORY_FILTERS.map((item) => (
-              <button
-                key={item.label}
-                className={`jp-cat-btn ${category === item.value ? "active" : ""}`}
-                type="button"
-                onClick={() => handleCategoryClick(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       <div className="jp-layout">
         {!isJobAllowed ? (
@@ -287,9 +241,54 @@ export default function JobPage() {
               )}
             </div>
           )}
+          <nav className="jp-category-sidebar" aria-label="직종 분류">
+            <strong className="jp-category-sidebar-title">직종 분류</strong>
+
+            {JOB_CATEGORY_FILTERS.map((item) => (
+                <button
+                    key={item.label}
+                    className={`jp-category-sidebar-item ${category === item.value ? "active" : ""}`}
+                    type="button"
+                    onClick={() => handleCategoryClick(item.value)}
+                >
+                    {item.label}
+                </button>
+            ))}
+          </nav>
         </aside>
 
         <main className="jp-main">
+          <div className="jp-main-search">
+            <div className="jp-search-wrap">
+              <span className="jp-search-icon">🔍</span>
+
+              <input
+                className="jp-search-input"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="공고명, 기업명, 근무지 검색..."
+              />
+
+              {search && (
+                <button className="jp-search-clear" type="button" onClick={() => setSearch("")}>
+                  ×
+                </button>
+              )}
+
+              <div className="jp-search-divider" />
+
+              <label className="jp-expire-filter">
+                <input
+                  type="checkbox"
+                  className="jp-expire-checkbox"
+                  checked={hideExpired}
+                  onChange={(event) => setHideExpired(event.target.checked)}
+                />
+                <span className="jp-expire-label">마감 숨기기</span>
+              </label>
+            </div>
+          </div>
+
           <div className="jp-main-head">
             <div className="jp-main-label">
               {search

@@ -175,27 +175,25 @@ export default function FallHistory() {
   return (
     <div className="fh-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="📋 낙상 기록"
-        right="YOLOv8 · MediaPipe 실시간 감지"
-        onBack={() => navigate("/user")}
-      />
 
       <div className="fh-layout">
         <div className={`fh-live-card ${detector.fall_detected ? "danger" : ""}`}>
           <div className="fh-live-head">
             <div>
-              <div className="fh-live-kicker">실시간 낙상 감지</div>
-              <div className="fh-live-title">
-                {detector.fall_detected ? "낙상 감지됨" : serverOnline ? "정상 감지 중" : "감지 서버 연결 대기"}
-              </div>
+                <div className="fh-live-kicker">실시간 낙상 감지</div>
+                <div className="fh-live-title">
+                    {detector.fall_detected ? "낙상 감지됨" : serverOnline ? "정상 감지 중" : "감지 서버 연결 대기"}
+                </div>
             </div>
-            <div className={`fh-live-badge ${detector.fall_detected ? "danger" : serverOnline ? "ok" : ""}`}>
-              {detector.fall_detected ? "위험" : serverOnline ? "정상" : "대기"}
+
+            <div className="fh-live-status">
+                <span className="fh-live-tech">YOLOv8 · MediaPipe 실시간 감지</span>
+
+                <div className={`fh-live-badge ${detector.fall_detected ? "danger" : serverOnline ? "ok" : ""}`}>
+                    {detector.fall_detected ? "위험" : serverOnline ? "정상" : "대기"}
+                </div>
             </div>
           </div>
-
           <div className="fh-video-wrap">
             {serverOnline ? (
               <img

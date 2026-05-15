@@ -35,10 +35,10 @@ const getFilteredApplicationsBySummary = (applications, filter) => {
 
 function WelfareJobApplications() {
     const [applications, setApplications] = useState([]);
-    const [summaryFilter, setSummaryFilter] = useState("all");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
+    const [summaryFilter, setSummaryFilter] = useState("all");
 
     useEffect(() => {
         let ignore = false;
@@ -153,9 +153,10 @@ function WelfareJobApplications() {
 
                 <section className="wja-main">
                     <WelfareSummaryCards
-                        mode="jobs"
-                        counts={getJobApplicationSummaryCounts(applications)}
-                        onFilter={(key) => setSummaryFilter(key)}
+                    mode="jobs"
+                    counts={getJobApplicationSummaryCounts(applications)}
+                    activeKey={summaryFilter}
+                    onFilter={(key) => setSummaryFilter(key)}
                     />
 
                     <div className="wja-search-row">
@@ -164,7 +165,7 @@ function WelfareJobApplications() {
                             type="search"
                             value={searchKeyword}
                             onChange={(event) => setSearchKeyword(event.target.value)}
-                            placeholder="대상자, 공고명, 기관명, 상태 검색"
+                            placeholder="대상자, 공고명, 기관명 검색"
                         />
                     </div>
 
@@ -179,8 +180,6 @@ function WelfareJobApplications() {
                                         <th>대상자</th>
                                         <th>공고명</th>
                                         <th>기관</th>
-                                        <th>신청 유형</th>
-                                        <th>상태</th>
                                         <th>신청일</th>
                                         <th>연락처</th>
                                         <th>처리</th>
@@ -190,8 +189,10 @@ function WelfareJobApplications() {
                                 <tbody>
                                     {filteredApplications.length === 0 ? (
                                         <tr>
-                                            <td colSpan="8" className="wja-empty-cell">
-                                                일자리 신청 내역이 없습니다.
+                                            <td colSpan="6" className="wja-empty-cell">
+                                                {summaryFilter === "all"
+                                                    ? "일자리 신청 내역이 없습니다."
+                                                    : "해당 상태의 신청이 없습니다."}
                                             </td>
                                         </tr>
                                     ) : (
@@ -203,16 +204,6 @@ function WelfareJobApplications() {
                                                 </td>
                                                 <td>{application.jobTitle}</td>
                                                 <td>{application.organization}</td>
-                                                <td>
-                                                    {isPhoneConsultationJobApplication(application)
-                                                        ? "전화 상담 요청"
-                                                        : "일반 신청"}
-                                                </td>
-                                                <td>
-                                                    <span className="wja-status-badge">
-                                                        {application.status}
-                                                    </span>
-                                                </td>
                                                 <td>{application.requestedAt}</td>
                                                 <td>{application.phone || "-"}</td>
                                                 <td>

@@ -301,13 +301,7 @@ export default function WeatherAlert() {
   return (
     <div className="wa-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="🌡️ 기후 위험 알림"
-        right={fetching ? "업데이트 중..." : lastFetched ? `마지막 갱신 ${lastFetched}` : "기상청 API · 실시간 확인"}
-        onBack={() => navigate("/user")}
-      />
-
+      
       <div className="wa-layout">
         <main className="wa-main">
           {currentAlert && (
@@ -360,7 +354,12 @@ export default function WeatherAlert() {
 
         <aside className="wa-sidebar">
           <div className="wa-level-card">
-            <div className="wa-level-title">알림 단계 안내</div>
+            <div className="wa-level-header">
+                <div className="wa-level-title">알림 단계 안내</div>
+                <div className="wa-level-updated">
+                    {fetching ? "업데이트 중..." : lastFetched ? `마지막 갱신 ${lastFetched}` : "기상청 API · 실시간 확인"}
+                </div>
+            </div>
             {Object.entries(LEVELS).map(([key, level]) => (
               <div key={key} className="wa-level-item">
                 <div className="wa-level-pill" style={{ background: level.bg }}>{level.icon} {level.label}</div>

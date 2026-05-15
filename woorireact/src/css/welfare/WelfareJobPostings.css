@@ -550,6 +550,25 @@
     transform: translateY(1px);
 }
 
+.wa-level-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.wa-level-header .wa-level-title {
+  margin-bottom: 0;
+}
+
+.wa-level-updated {
+  color: #7a9a7c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
     .wj-header {
         padding: 0 20px;

@@ -13,6 +13,24 @@
   color: #1e2a1f;
 }
 
+.pr-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid #a9c9aa;
+}
+
+.pr-section-header h2 {
+  margin: 0;
+}
+
+.pr-section-actions {
+  margin-left: auto;
+}
+
 .pr-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;

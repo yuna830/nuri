@@ -255,6 +255,29 @@
   color: #e05252;
 }
 
+.lp-info-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #d5e6d5;
+}
+
+.lp-info-card-header h2 {
+  margin: 0;
+  color: #5f7d61;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.lp-refresh-btn-compact {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
 .lp-info-card,
 .lp-history-card {
   background: #ffffff;

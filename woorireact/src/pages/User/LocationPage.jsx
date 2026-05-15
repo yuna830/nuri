@@ -197,16 +197,6 @@ export default function LocationPage() {
   return (
     <div className="lp-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="📍 내 위치"
-        onBack={() => navigate("/user")}
-        right={(
-          <button className="lp-refresh-btn" type="button" onClick={getLocation}>
-            <RefreshCw size={13} /> 새로고침
-          </button>
-        )}
-      />
 
       <div className="lp-layout">
         <div className="lp-map-section">
@@ -348,7 +338,13 @@ export default function LocationPage() {
         <aside className="lp-sidebar">
           {/* 위치 정보 */}
           <div className="lp-info-card">
-            <div className="lp-card-title"><span>위치 정보</span></div>
+            <div className="lp-info-card-header">
+              <h2>위치 정보</h2>
+
+              <button className="lp-refresh-btn lp-refresh-btn-compact" type="button" onClick={getLocation}>
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
             <div className="lp-info-row">
               <div className="lp-info-key"><Clock size={13} /> 마지막 갱신</div>
               <div className="lp-info-val">{lastUpdate}</div>

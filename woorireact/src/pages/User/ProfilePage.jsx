@@ -159,7 +159,19 @@ export default function ProfilePage() {
       case "personal":
         return (
           <section className="pr-section">
-            <div className="pr-section-title">인적사항</div>
+            <div className="pr-section-header">
+              <h2>인적사항</h2>
+
+              <div className="pr-nav-actions pr-section-actions">
+                {saved && <div className="pr-saved-badge">저장되었습니다</div>}
+                <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>
+                  초기화
+                </button>
+                <button className="pr-save-btn" type="button" onClick={handleSave}>
+                  저장하기
+                </button>
+              </div>
+            </div>
             <ProfilePhotoPicker
               classPrefix="pr"
               imageUrl={form.profileImageUrl}
@@ -316,18 +328,6 @@ export default function ProfilePage() {
   return (
     <div className="pr-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="내 정보 관리"
-        onBack={() => navigate("/user")}
-        right={(
-          <div className="pr-nav-actions">
-            {saved && <div className="pr-saved-badge">저장되었습니다</div>}
-            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>초기화</button>
-            <button className="pr-save-btn" type="button" onClick={handleSave}>저장하기</button>
-          </div>
-        )}
-      />
 
       <div className="pr-layout">
         <aside>

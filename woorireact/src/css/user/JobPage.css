@@ -60,20 +60,14 @@
   padding: 0.25rem 0.8rem;
 }
 
-/* 직종 필터 + 검색바 sticky 영역 */
-.jp-top-sticky {
-  position: sticky;
-  top: 60px;
-  z-index: 90;
-  background: #fffdec;
-  border-bottom: 1px solid #d4e8d6;
-  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.06);
+/* 직종 필터 + 검색바 */
+.jp-main-search {
+  margin-top: 0.9rem;
+  margin-bottom: 1.1rem;
 }
 
-.jp-top-sticky-inner {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0.8rem 2rem;
+.jp-main .jp-search-wrap {
+  width: 100%;
 }
 
 /* 직종 분류 가로 스크롤 바 */
@@ -222,23 +216,67 @@
   margin: 0 auto;
   padding: 0 2rem 2rem 2rem;
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 2rem;
   align-items: start;
 }
 
 /* 사이드바 */
 .jp-sidebar {
   position: sticky;
-  top: 170px;
-  max-height: calc(100vh - 190px);
+  top: 96px;
+  max-height: calc(100vh - 120px);
   overflow-y: auto;
   scrollbar-width: none;
-  padding-top: 1.5rem;
+  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .jp-sidebar::-webkit-scrollbar {
   display: none;
+}
+
+.jp-category-sidebar {
+  background: #ffffff;
+  border: 1px solid #cfe3d0;
+  border-radius: 18px;
+  padding: 1.1rem;
+}
+
+.jp-category-sidebar-title {
+  display: block;
+  margin-bottom: 0.8rem;
+  color: #5f7d61;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.jp-category-sidebar-item {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #5f7d61;
+  display: flex;
+  align-items: center;
+  padding: 0 0.9rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.jp-category-sidebar-item:hover {
+  background: #f2f8f2;
+}
+
+.jp-category-sidebar-item.active {
+  background: #86a788;
+  color: #ffffff;
 }
 
 .jp-profile-box {
@@ -583,10 +621,6 @@
 @media (max-width: 900px) {
   .jp-nav {
     padding: 0 1rem;
-  }
-
-  .jp-top-sticky-inner {
-    padding: 0.8rem 1rem;
   }
 
   .jp-layout {
