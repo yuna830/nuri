@@ -385,11 +385,11 @@ export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, addre
   return response.json();
 };
 
-export const createFallAlert = async ({ seniorId, latitude, longitude, address, score }) => {
+export const createFallAlert = async ({ seniorId, latitude, longitude, address, score, imageUrl }) => {
   const response = await fetch(`${API_BASE}/api/alerts/fall`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seniorId, latitude, longitude, address, score }),
+    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl }),
   });
 
   if (!response.ok) {
@@ -400,6 +400,23 @@ export const createFallAlert = async ({ seniorId, latitude, longitude, address, 
 };
 
 export const getFallVideoUrl = () => `${FALL_API_BASE}/video`;
+
+export const getFallCaptureUrl = (filename) => {
+  if (!filename) return "";
+  const clean = String(filename).replace(/^captures[\\/]/, "");
+  return `${FALL_API_BASE}/captures/${encodeURIComponent(clean)}`;
+};
+
+export const fetchFallCaptures = async () => {
+  const response = await fetch(`${FALL_API_BASE}/captures`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Fall captures failed");
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.captures) ? data.captures : [];
+};
 
 export const fetchFallDetectionStatus = async () => {
   const response = await fetch(`${FALL_API_BASE}/status`, { cache: "no-store" });

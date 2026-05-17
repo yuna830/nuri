@@ -238,6 +238,9 @@ export default function UserPage() {
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
   const [incomingCallAlert, setIncomingCallAlert] = useState(null);
+  const [userAlerts, setUserAlerts] = useState([]);
+  const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
+  const [todayFallCount, setTodayFallCount] = useState(0);
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -479,7 +482,9 @@ export default function UserPage() {
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
 
-      fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
+      fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+        cache: "no-store",
+      })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           if (data) setSafeZone(data);
@@ -490,7 +495,7 @@ export default function UserPage() {
     loadSafeZoneForHome();
 
     if (seniorId) {
-      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 60 * 1000);
+      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 10 * 1000);
     }
 
     const checkNewJobs = async () => {
@@ -654,11 +659,30 @@ export default function UserPage() {
     const loadCallRequest = async () => {
       const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
       if (cancelled) return;
+      setUserAlerts(alerts);
       const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
       setIncomingCallAlert(callAlert || null);
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
+
+      const safeExitAlert = alerts.find((alert) => (
+        (alert.type === "SAFE_ZONE_EXIT" || alert.type === "SAFE_ZONE") && !alert.isRead
+      ));
+      setSafeZoneExitAlert(safeExitAlert || null);
+
+      const today = new Date();
+      setTodayFallCount(
+        alerts.filter((alert) => {
+          if (alert.type !== "FALL_DETECTED" && alert.type !== "FALL_RISK") return false;
+          const createdAt = new Date(alert.createdAt);
+          return (
+            createdAt.getFullYear() === today.getFullYear()
+            && createdAt.getMonth() === today.getMonth()
+            && createdAt.getDate() === today.getDate()
+          );
+        }).length
+      );
     };
 
     loadCallRequest();
@@ -755,6 +779,14 @@ export default function UserPage() {
     }
   };
 
+  const hasUnreadByRoute = (route) => {
+    if (route === "/weather") return weatherAlerts.some((alert) => alert.type !== "오늘 날씨");
+    if (route === "/fall-history") return userAlerts.some((alert) => (alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK") && !alert.isRead);
+    if (route === "/location") return userAlerts.some((alert) => (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") && !alert.isRead);
+    if (route === "/profile") return userAlerts.some((alert) => alert.type === "PROFILE_UPDATE" && !alert.isRead);
+    return false;
+  };
+
   return (
     <div className="up-root">
       <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
@@ -824,7 +856,7 @@ export default function UserPage() {
               >
                 <span className="up-sidemenu-icon">{menu.icon}</span>
                 <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew)) && (
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
                   <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
                     {menu.badge || "NEW"}
                   </span>
@@ -910,9 +942,11 @@ export default function UserPage() {
             </div>
 
             <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
-              <div className="up-card-label">이번 달 낙상</div>
-              <div className="up-stat-value red">2건</div>
-              <div className="up-stat-sub">최근: 5월 4일 거실</div>
+              <div className="up-card-label">오늘 낙상</div>
+              <div className="up-stat-value red">{todayFallCount}건</div>
+              <div className="up-stat-sub">
+                {todayFallCount > 0 ? "감지 이력을 확인해주세요" : "오늘 감지된 낙상이 없어요"}
+              </div>
             </div>
 
             <div className="up-stat-card" onClick={openAllSchedules}>
@@ -1104,6 +1138,22 @@ export default function UserPage() {
               >
                 확인했어요
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {safeZoneExitAlert && (
+        <div className="up-overlay up-safe-zone-overlay">
+          <div className="up-modal up-safe-zone-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">📍</div>
+            <div className="up-modal-title">안전 반경을 벗어났습니다</div>
+            <div className="up-modal-desc">
+              보호자에게 이탈 알림을 보냈어요.<br />
+              보호자 또는 담당자와 만날 때까지 이 안내가 유지됩니다.
+            </div>
+            <div className="up-safe-zone-message">
+              집 또는 지정된 안전 구역으로 돌아가 주세요.
             </div>
           </div>
         </div>

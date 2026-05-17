@@ -145,11 +145,12 @@
 .fh-video-wrap {
   background: #172018;
   min-height: 420px;
+  overflow: hidden;
 }
 
 .fh-video {
-  aspect-ratio: 16 / 9;
   display: block;
+  height: clamp(420px, 48vw, 560px);
   object-fit: cover;
   width: 100%;
 }
@@ -164,6 +165,14 @@
   min-height: 420px;
   padding: 2rem;
   text-align: center;
+}
+
+.fh-summary-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fh-stat-value.small {
+  font-size: 2rem;
 }
 
 .fh-video-placeholder code {
@@ -422,6 +431,88 @@
   background: #fff8f8;
 }
 
+.fh-capture {
+  border: 1px solid #f5c6c6;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 0.8rem;
+  max-height: 260px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.fh-pagination {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+  margin-top: 1.2rem;
+}
+
+.fh-pagination button {
+  background: #ffffff;
+  border: 1px solid #b8d4ba;
+  border-radius: 10px;
+  color: #5f7d61;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.55rem 1rem;
+}
+
+.fh-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.fh-popup-overlay {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 3000;
+}
+
+.fh-popup {
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+  max-width: 420px;
+  padding: 2.4rem;
+  text-align: center;
+  width: calc(100% - 2rem);
+}
+
+.fh-popup-icon {
+  font-size: 3.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.fh-popup-title {
+  color: #1e2a1f;
+  font-size: 1.45rem;
+  font-weight: 900;
+  margin-bottom: 0.8rem;
+}
+
+.fh-popup p {
+  color: #5f7d61;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.fh-popup-wait {
+  background: #fdf0f0;
+  border: 1px solid #f5c6c6;
+  border-radius: 999px;
+  color: #e05252;
+  display: inline-flex;
+  font-weight: 900;
+  margin-top: 1.3rem;
+  padding: 0.65rem 1.1rem;
+}
+
 .fh-empty {
   text-align: center;
   padding: 4rem 2rem;
@@ -461,7 +552,11 @@
 
   .fh-video-wrap,
   .fh-video-placeholder {
-    min-height: 260px;
+    min-height: 320px;
+  }
+
+  .fh-video {
+    height: 320px;
   }
 
   .fh-summary {

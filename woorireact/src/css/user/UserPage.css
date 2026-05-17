@@ -806,6 +806,25 @@
   justify-content: center;
 }
 
+.up-safe-zone-overlay {
+  cursor: default;
+}
+
+.up-safe-zone-modal {
+  border: 2px solid #f5c6c6;
+}
+
+.up-safe-zone-message {
+  margin-top: 1rem;
+  border-radius: 14px;
+  background: #fff2f2;
+  color: #e05252;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.5;
+  padding: 1rem;
+}
+
 @media (max-width: 900px) {
   .up-sos-pending {
     left: 1rem;

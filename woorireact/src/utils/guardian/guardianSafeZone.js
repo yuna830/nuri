@@ -66,5 +66,16 @@ export const saveSafeZone = async (seniorId, safeZoneForm) => {
     throw new Error("안전 구역 저장 실패");
   }
 
-  return response.json();
+  const savedSafeZone = await response.json();
+
+  try {
+    sessionStorage.setItem(
+      `guardian-safe-zone:${seniorId}`,
+      JSON.stringify({ savedAt: Date.now(), data: savedSafeZone })
+    );
+  } catch {
+    // ignore storage failure
+  }
+
+  return savedSafeZone;
 };
