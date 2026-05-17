@@ -5,7 +5,7 @@ import { BriefcaseBusiness, ClipboardList, Search, UserPlus, UserRound } from "l
 import {
     fetchWelfareJobApplications,
     updateWelfareJobApplicationStatus,
-} from "../../api/welfareJobApplicationsApi";
+} from "../../api/welfareJobApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import {
     getJobApplicationSummaryCounts,
@@ -13,6 +13,8 @@ import {
     isPendingJobApplication,
     isPhoneConsultationJobApplication,
 } from "../../utils/welfare/welfareSummaryStats";
+import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+
 
 import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareJobApplications.css";
@@ -230,6 +232,8 @@ function WelfareJobApplications() {
                     )}
                 </section>
             </main>
+            
+            <WelfarePolicyQaButton />
         </div>
     );
 }

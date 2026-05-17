@@ -1,0 +1,200 @@
+.wpq-floating-button {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    width: 54px;
+    height: 54px;
+    border: none;
+    border-radius: 50%;
+    background-color: #86a788;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 12px 24px rgba(72, 100, 75, 0.28);
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.wpq-floating-button:hover {
+    background-color: #6f9272;
+}
+
+.wpq-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(17, 24, 39, 0.38);
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 28px;
+    box-sizing: border-box;
+    z-index: 1001;
+}
+
+.wpq-modal {
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid #dde6d7;
+    background-color: white;
+    padding: 22px;
+    box-sizing: border-box;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+}
+
+.wpq-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.wpq-header h2 {
+    margin: 0;
+    color: #243027;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.wpq-header p {
+    margin: 6px 0 0;
+    color: #647067;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.wpq-close-button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #dde6d7;
+    border-radius: 50%;
+    background-color: white;
+    color: #4b5563;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.wpq-close-button:hover {
+    background-color: #f2f6f0;
+}
+
+.wpq-question-input {
+    width: 100%;
+    min-height: 104px;
+    border: 1px solid #dde6d7;
+    border-radius: 8px;
+    padding: 13px 14px;
+    box-sizing: border-box;
+    color: #1f2933;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+}
+
+.wpq-question-input:focus {
+    border-color: #86a788;
+    box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.16);
+}
+
+.wpq-action-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.wpq-ask-button {
+    height: 38px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #86a788;
+    color: white;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.wpq-ask-button:hover {
+    background-color: #6f9272;
+}
+
+.wpq-ask-button:disabled {
+    background-color: #b7c7b9;
+    cursor: not-allowed;
+}
+
+.wpq-error-message {
+    margin: 12px 0 0;
+    color: #b33939;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.wpq-answer-box {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #dde6d7;
+    border-radius: 8px;
+    background-color: #fffef7;
+    color: #243027;
+    line-height: 1.7;
+}
+
+.wpq-answer-box strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 900;
+    color: #48644b;
+}
+
+.wpq-answer-box p {
+    margin: 8px 0 14px;
+    white-space: pre-wrap;
+    word-break: keep-all;
+}
+
+.wpq-evidence {
+    border-top: 1px solid #e8eadf;
+    padding-top: 12px;
+}
+
+.wpq-evidence ul {
+    margin: 8px 0 0;
+    padding-left: 19px;
+}
+
+.wpq-evidence li {
+    margin-bottom: 7px;
+    word-break: keep-all;
+}
+
+@media (max-width: 640px) {
+    .wpq-floating-button {
+        right: 18px;
+        bottom: 18px;
+        width: 50px;
+        height: 50px;
+    }
+
+    .wpq-overlay {
+        align-items: flex-end;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .wpq-modal {
+        width: 100%;
+        max-height: calc(100vh - 32px);
+        padding: 18px;
+    }
+}

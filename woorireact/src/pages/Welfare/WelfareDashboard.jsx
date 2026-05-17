@@ -19,6 +19,8 @@ import {
     hasMissingRequiredSeniorInfo,
     isEmergencyPendingSenior,
 } from "../../utils/welfare/welfareSummaryStats";
+import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+
 import {
     FILTER_GROUPS,
     SEOUL_DISTRICTS,
@@ -657,6 +659,8 @@ function WelfareDashboard() {
                     </div>
                 </main>
             </div>
+
+            <WelfarePolicyQaButton />
         </div>
     );
 }
