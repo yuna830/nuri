@@ -618,6 +618,58 @@
   margin-bottom: 1.1rem;
 }
 
+.up-radar-quality {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid #b8d4ba;
+  border-radius: 999px;
+  color: #5f7d61;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-bottom: 0.55rem;
+  padding: 0.2rem 0.65rem;
+}
+
+.up-radar-quality.low,
+.up-radar-quality.insufficient {
+  background: #fff8e8;
+  border-color: #f1cf8f;
+  color: #b06b00;
+}
+
+.up-radar-quality.good {
+  background: #eef6ef;
+}
+
+.up-radar-note {
+  color: #7a9a7c;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  margin-bottom: 0.85rem;
+}
+
+.up-activity-empty {
+  background: #f8fbf7;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  color: #5f7d61;
+  padding: 1.1rem 1.2rem;
+}
+
+.up-activity-empty-title {
+  color: #1e2a1f;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.up-activity-empty p {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
 .up-radar-row {
   display: flex;
   align-items: center;

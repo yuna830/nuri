@@ -12,6 +12,8 @@ import {
   createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
+  fetchActivityToday,
+  fetchActivityTrend,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
@@ -82,7 +84,7 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
-function RadarChart({ scores }) {
+function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
   const count = keys.length;
@@ -109,16 +111,22 @@ function RadarChart({ scores }) {
         {keys.map((_, i) => { const p = point(i, 1); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={COLORS.border} strokeWidth="1" />; })}
         <path d={pathD} fill={COLORS.green} fillOpacity="0.2" stroke={COLORS.green} strokeWidth="2.5" />
         {dataPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4" fill={COLORS.green} stroke="#fff" strokeWidth="2" />)}
-        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{key}</text>; })}
+        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{labels[key] || key}</text>; })}
         {vals.map((v, i) => { const p = point(i, (v / 100) * 0.68); return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill={COLORS.text} fontWeight="700">{v}</text>; })}
       </svg>
       <div className="up-radar-info">
-        <div className="up-radar-label">종합 건강 점수</div>
+        <div className="up-radar-label">{summaryLabel}</div>
         <div className="up-radar-score" style={{ color: avgColor }}>{avg}</div>
         <div className="up-radar-unit">/ 100점</div>
+        {quality && (
+          <div className={`up-radar-quality ${quality.level || ""}`}>
+            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : "참고용"}
+          </div>
+        )}
+        {note && <div className="up-radar-note">{note}</div>}
         {keys.map((key, i) => (
           <div key={key} className="up-radar-row">
-            <div className="up-radar-key">{key}</div>
+            <div className="up-radar-key">{labels[key] || key}</div>
             <div className="up-radar-bar">
               <div className="up-radar-bar-fill" style={{
                 width: `${vals[i]}%`,
@@ -230,6 +238,8 @@ export default function UserPage() {
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
+  const [activityToday, setActivityToday] = useState(null);
+  const [activityTrend, setActivityTrend] = useState(null);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -250,6 +260,34 @@ export default function UserPage() {
   const [safeZone, setSafeZone] = useState(null);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadActivityCondition = async () => {
+      try {
+        const [today, trend] = await Promise.all([
+          fetchActivityToday(),
+          fetchActivityTrend(7),
+        ]);
+        if (!isMounted) return;
+        setActivityToday(today);
+        setActivityTrend(trend);
+      } catch {
+        if (!isMounted) return;
+        setActivityToday(null);
+        setActivityTrend(null);
+      }
+    };
+
+    loadActivityCondition();
+    const intervalId = window.setInterval(loadActivityCondition, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const fetchWeather = async (lat, lon) => {
     try {
@@ -1024,16 +1062,43 @@ export default function UserPage() {
             </div>
           </div>
 
+          {activityToday && (
+            <div className="up-content-row">
+              <div className="up-card full">
+                <div className="up-card-head">
+                  <div className="up-card-title">오늘의 활동 컨디션</div>
+                  <div className="up-card-more">
+                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
+                  </div>
+                </div>
+                {activityToday.status === "ok" && activityToday.scores ? (
+                  <RadarChart
+                    scores={activityToday.scores}
+                    labels={activityToday.labels}
+                    summaryLabel="활동 컨디션 요약"
+                    note={activityTrend?.alerts?.[0] || activityToday.overall_note || ""}
+                    quality={activityToday.data_quality}
+                  />
+                ) : (
+                  <div className="up-activity-empty">
+                    <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
+                    <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {healthScores && (
             <div className="up-content-row">
               <div className="up-card full">
                 <div className="up-card-head">
-                  <div className="up-card-title">건강 상태 레이더</div>
+                  <div className="up-card-title">건강 정보 요약</div>
                   <button className="up-card-more" type="button" onClick={() => navigate("/profile")}>
                     정보 수정
                   </button>
                 </div>
-                <RadarChart scores={healthScores} />
+                <RadarChart scores={healthScores} summaryLabel="건강 정보 참고 지표" />
               </div>
             </div>
           )}
