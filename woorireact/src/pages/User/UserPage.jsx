@@ -1143,7 +1143,7 @@ export default function UserPage() {
         </div>
       )}
 
-      {safeZoneExitAlert && (
+      {safeZoneExitAlert && !isInRange && (
         <div className="up-overlay up-safe-zone-overlay">
           <div className="up-modal up-safe-zone-modal" onClick={(event) => event.stopPropagation()}>
             <div className="up-modal-ico">📍</div>

@@ -306,6 +306,7 @@
 
 .alert-call-button,
 .alert-emergency-button,
+.alert-meet-button,
 .alert-confirm-button {
   border: none;
   border-radius: 8px;
@@ -415,6 +416,15 @@
 
 .alert-emergency-button:hover {
   background: #8f382f;
+}
+
+.alert-meet-button {
+  background: #86a788;
+  color: #ffffff;
+}
+
+.alert-meet-button:hover {
+  background: #6f9272;
 }
 
 .alert-confirm-button {

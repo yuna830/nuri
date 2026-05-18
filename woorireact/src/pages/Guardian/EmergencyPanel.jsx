@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -292,9 +292,17 @@ function EmergencyPanel({
                             긴급 신고
                           </button>
                         </div>
+                      ) : alert.isSafeZone ? (
+                        <button
+                          className="alert-meet-button"
+                          type="button"
+                          onClick={() => onReadAlert(alert.id)}
+                        >
+                          만남 완료
+                        </button>
                       ) : (
                         <button
-                          className={`alert-confirm-button ${alert.isSafeZone ? "danger" : ""}`}
+                          className="alert-confirm-button"
                           type="button"
                           onClick={() => onReadAlert(alert.id)}
                         >
