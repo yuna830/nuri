@@ -69,6 +69,7 @@ async function searchNearbyPlaces(keyword, { lat, lon, radius, size }) {
 function parseNearbyPlaceRequest(text) {
   const normalized = String(text || "").trim();
   if (!/(추천|찾아|찾아줘|근처|가까운|주변)/.test(normalized)) return null;
+  if (isCasualAdviceQuestion(normalized) && !hasPlaceSearchSignal(normalized)) return null;
 
   const directKeyword = normalized
     .replace(/배고픈데|배고파|근처|가까운|주변|추천해줘|추천|찾아줘|찾아|알려줘|가게|장소/g, " ")
@@ -83,6 +84,14 @@ function parseNearbyPlaceRequest(text) {
     keyword,
     label: keyword,
   };
+}
+
+function hasPlaceSearchSignal(text) {
+  return /(근처|가까운|주변|찾아|찾아줘|어디|식당|밥집|맛집|카페|커피|약국|병원|의원|편의점)/.test(text);
+}
+
+function isCasualAdviceQuestion(text) {
+  return /(뭐\s*하지|뭐\s*할지|뭘\s*하지|뭐\s*할까|뭐\s*먹을까|뭘\s*먹을까|메뉴\s*추천|추천해\s*줘|추천해줘)/.test(text);
 }
 
 function inferKeyword(text) {

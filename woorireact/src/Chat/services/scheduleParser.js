@@ -7,7 +7,7 @@ const SCHEDULE_COMMAND_PATTERN =
   /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|삭제|취소|지워|빼줘|없애|수정|변경|바꿔|미뤄|앞당겨|조회|확인|알려|보여)/;
 
 const NON_SCHEDULE_QUESTION_PATTERN =
-  /(날씨|기분|컨디션|뭐해|뭐 할까|어때|좋아|나빠|누구|이름|이야기|농담|뉴스)/;
+  /(날씨|기분|컨디션|뭐해|뭐 할까|뭐하지|뭐할지|뭘 하지|뭐 먹|먹을까|메뉴|추천|어때|좋아|나빠|누구|이름|이야기|농담|뉴스)/;
 
 const TYPO_REPLACEMENTS = [
   [/낼/g, "내일"],
@@ -115,6 +115,7 @@ export function shouldUseScheduleExtraction(text) {
   const hasCommand = SCHEDULE_COMMAND_PATTERN.test(normalized);
 
   if (isScheduleQuestion(normalized)) return true;
+  if (isCasualAdviceQuestion(normalized) && !hasCommand) return false;
   if (NON_SCHEDULE_QUESTION_PATTERN.test(normalized) && !hasCommand && !hasIntent) return false;
   if (hasCommand && (hasIntent || hasDate || hasTime)) return true;
   if (hasIntent && (hasDate || hasTime)) return true;
@@ -159,6 +160,7 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
   const hasNonScheduleQuestion = NON_SCHEDULE_QUESTION_PATTERN.test(text);
 
   if (isScheduleQuestion(text)) return false;
+  if (isCasualAdviceQuestion(text) && !hasCommand) return false;
   if (hasNonScheduleQuestion && !hasIntent && !hasCommand) return false;
   if (date && !title && /일정/.test(text)) return false;
   if (hasIntent && (date || time)) return true;
@@ -170,6 +172,10 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
 
 function isScheduleQuestion(text) {
   return /일정/.test(text) && /(뭐|뭐야|있어|알려|확인|보여|언제|어떻게|요약)/.test(text);
+}
+
+function isCasualAdviceQuestion(text) {
+  return /(뭐\s*하지|뭐\s*할지|뭘\s*하지|뭐\s*할까|뭐\s*먹을까|뭘\s*먹을까|메뉴\s*추천|추천해\s*줘|추천해줘)/.test(text);
 }
 
 function cleanTitle(text) {

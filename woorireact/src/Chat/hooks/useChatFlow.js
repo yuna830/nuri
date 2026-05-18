@@ -4,6 +4,7 @@ import { getNearbyPlaceChatAnswer } from "../services/nearbyPlaceChatApi";
 import { getWeatherChatAnswer } from "../services/weatherChatApi";
 import {
   normalizeScheduleText,
+  parseDateFromText,
   parseKoreanSchedules,
   shouldUseScheduleExtraction,
 } from "../services/scheduleParser";
@@ -12,7 +13,7 @@ import {
   getScheduleCommandAction,
   scheduleFromExtractedIntent,
 } from "../services/scheduleChatRules";
-import { isPastSchedule, scheduleToText } from "../utils/scheduleText";
+import { isPastSchedule, scheduleToText, todayValue } from "../utils/scheduleText";
 
 export function useChatFlow({
   messages,
@@ -55,6 +56,17 @@ export function useChatFlow({
           await savePendingSchedule(applyMeridiemToSchedule(pendingSchedule, meridiem), options);
           return;
         }
+      }
+
+      if (pendingSchedule && isAffirmativeReply(text)) {
+        await savePendingSchedule(pendingSchedule, options);
+        return;
+      }
+
+      const suggestedSchedule = getConfirmedSuggestedSchedule(text, messages);
+      if (suggestedSchedule) {
+        await savePendingSchedule(suggestedSchedule, options);
+        return;
       }
 
       const commandHandled = await handleScheduleAction(
@@ -256,6 +268,55 @@ function parseMeridiemChoice(text) {
   if (/오전|아침|새벽/.test(normalized)) return "오전";
   if (/오후|저녁|밤/.test(normalized)) return "오후";
   return "";
+}
+
+function getConfirmedSuggestedSchedule(text, messages) {
+  if (!isAffirmativeReply(text)) return null;
+
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.content);
+  const content = String(lastAssistantMessage?.content || "");
+
+  if (!/(일정에\s*추가|일정으로\s*등록|추가해\s*드릴까요|등록해\s*드릴까요)/.test(content)) {
+    return null;
+  }
+
+  const title = extractSuggestedScheduleTitle(content);
+  if (!title) return null;
+
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    date: parseDateFromText(content) || todayValue(),
+    time: "",
+    sourceText: content,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function isAffirmativeReply(text) {
+  return /^(응|네|예|어|좋아|좋습니다|그래|그래요|ㅇㅇ|오케이|ok|okay|등록해줘|추가해줘|웅)[.!?\s]*$/i.test(
+    normalizeScheduleText(text).trim()
+  );
+}
+
+function extractSuggestedScheduleTitle(content) {
+  const normalized = normalizeScheduleText(content).replace(/\s+/g, " ").trim();
+  const sentence =
+    normalized
+      .split(/[.!?]/)
+      .map((item) => item.trim())
+      .find((item) => /일정(?:에|으로)\s*(?:추가|등록)/.test(item)) || normalized;
+  const match = sentence.match(
+    /(?:오늘|내일|모레)?\s*(.+?)(?:을|를)?\s*일정(?:에|으로)\s*(?:추가|등록)/
+  );
+  if (!match) return "";
+
+  return match[1]
+    .replace(/^(네|예|좋습니다|좋아요|알겠습니다|그럼|그렇다면|그러면)[,.\s]*/g, "")
+    .replace(/^(오늘|내일|모레)\s*/g, "")
+    .trim();
 }
 
 function applyMeridiemToSchedule(schedule, meridiem) {
