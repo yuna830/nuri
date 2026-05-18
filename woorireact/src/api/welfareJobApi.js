@@ -25,3 +25,22 @@ export const updateWelfareJobApplicationStatus = async (id, status) => {
 
     return response.json();
 };
+
+export const askWelfareJobRecommendationReason = async ({ seniorId, job }) => {
+    const response = await fetch("/api/welfare/jobs/recommendation-reason", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            seniorId,
+            job,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to generate recommendation reason");
+    }
+
+    return response.json();
+};

@@ -5,7 +5,7 @@ import { BriefcaseBusiness, ClipboardList, Search, UserPlus, UserRound } from "l
 import {
     fetchWelfareJobApplications,
     updateWelfareJobApplicationStatus,
-} from "../../api/welfareJobApplicationsApi";
+} from "../../api/welfareJobApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import {
     getJobApplicationSummaryCounts,

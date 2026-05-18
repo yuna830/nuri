@@ -14,6 +14,8 @@ import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashbo
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
+import WelfareBenefitQa from "../../components/welfare/WelfareBenefitQa";
+
 import {
     getSeniorSummaryCounts,
     hasMissingRequiredSeniorInfo,
@@ -31,6 +33,7 @@ import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
 import "../../css/welfare/WelfareNotifications.css";
 import "../../css/welfare/WelfareDashboard.css";
+import "../../css/welfare/WelfareBenefitQa.css";
 
 const ITEM_PER_PAGE = 6;
 
@@ -657,6 +660,7 @@ function WelfareDashboard() {
                     </div>
                 </main>
             </div>
+            <WelfareBenefitQa seniors={currentSeniors} />
         </div>
     );
 }
