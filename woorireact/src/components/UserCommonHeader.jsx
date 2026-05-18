@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createSosAlert,
   createSosCancelAlert,
+  deleteAlert,
+  deleteAlerts,
+  deleteOldRequestAlerts,
   fetchLatestClimateAlerts,
   fetchSeniorAlerts,
   getCurrentSeniorId,
@@ -11,6 +14,7 @@ import CommonHeader from "./CommonHeader.jsx";
 import "../css/user/UserCommonHeader.css";
 
 const ALERT_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
+const REQUEST_CATEGORIES = new Set(["요청"]);
 
 const formatKoreanDate = () => {
   const now = new Date();
@@ -38,10 +42,32 @@ const getCurrentPosition = () => new Promise((resolve) => {
   );
 });
 
-const formatAlertTime = (value) => {
-  if (!value) return "";
+const toDate = (value) => {
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isToday = (value) => {
+  const date = toDate(value);
+  if (!date) return false;
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  );
+};
+
+const isWithinDays = (value, days) => {
+  const date = toDate(value);
+  if (!date) return false;
+  return Date.now() - date.getTime() <= days * 24 * 60 * 60 * 1000;
+};
+
+const formatAlertTime = (value) => {
+  const date = toDate(value);
+  if (!date) return "";
   return date.toLocaleString("ko-KR", {
     month: "2-digit",
     day: "2-digit",
@@ -96,6 +122,13 @@ const getAlertCategory = (type) => {
 
 const isSafeZoneAlert = (type) => type === "SAFE_ZONE" || type === "SAFE_ZONE_EXIT";
 
+const shouldShowAlert = (alert) => {
+  const category = getAlertCategory(alert.type);
+  const createdAt = alert.createdAt || alert.time;
+  if (REQUEST_CATEGORIES.has(category)) return isWithinDays(createdAt, 30);
+  return isToday(createdAt);
+};
+
 const normalizeUserAlert = (alert) => ({
   id: alert.id,
   key: `alert-${alert.id}`,
@@ -105,9 +138,10 @@ const normalizeUserAlert = (alert) => ({
   time: formatAlertTime(alert.createdAt || alert.time),
   isRead: alert.isRead === true,
   canRead: Boolean(alert.id) && !isSafeZoneAlert(alert.type),
+  canDelete: Boolean(alert.id),
   requiresGuardianConfirm: isSafeZoneAlert(alert.type),
   danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT", "SOS"].includes(alert.type),
-  sortTime: new Date(alert.createdAt || alert.time || 0).getTime(),
+  sortTime: toDate(alert.createdAt || alert.time)?.getTime() || 0,
 });
 
 const normalizeClimateAlert = (alert, index) => ({
@@ -119,9 +153,10 @@ const normalizeClimateAlert = (alert, index) => ({
   time: formatAlertTime(alert.createdAt || alert.baseTime || alert.time),
   isRead: true,
   canRead: false,
+  canDelete: false,
   requiresGuardianConfirm: false,
   danger: alert.level === "warning" || alert.level === "danger",
-  sortTime: new Date(alert.createdAt || alert.baseTime || alert.time || 0).getTime(),
+  sortTime: toDate(alert.createdAt || alert.baseTime || alert.time)?.getTime() || 0,
 });
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
@@ -132,6 +167,8 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [activeAlertTab, setActiveAlertTab] = useState(ALERT_TABS[0]);
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
+  const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
+  const [deletingAlerts, setDeletingAlerts] = useState(false);
   const alertTabsRef = useRef(null);
 
   const loadAlerts = async ({ silent = false } = {}) => {
@@ -141,24 +178,25 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       return;
     }
 
-    if (silent && isAlertPanelOpen) return;
     if (!silent) setLoadingAlerts(true);
 
     try {
+      deleteOldRequestAlerts(seniorId).catch(() => {});
       const [seniorAlerts, climateAlerts] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
       ]);
       const combined = [
-        ...seniorAlerts.map(normalizeUserAlert),
-        ...climateAlerts.map(normalizeClimateAlert),
+        ...seniorAlerts.filter(shouldShowAlert).map(normalizeUserAlert),
+        ...climateAlerts.filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time)).map(normalizeClimateAlert),
       ]
         .sort((a, b) => {
           if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
           return b.sortTime - a.sortTime;
         })
-        .slice(0, 20);
+        .slice(0, 40);
       setAlerts(combined);
+      setSelectedAlertKeys((prev) => prev.filter((key) => combined.some((alert) => alert.key === key)));
     } finally {
       if (!silent) setLoadingAlerts(false);
     }
@@ -171,11 +209,17 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   }, []);
 
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
-  const filteredAlerts = alerts.filter((alert) => {
+  const filteredAlerts = useMemo(() => alerts.filter((alert) => {
     if (activeAlertTab === "전체") return true;
     if (activeAlertTab === "읽지 않음") return !alert.isRead || recentlyReadKeys.includes(alert.key);
     return alert.category === activeAlertTab;
-  });
+  }), [activeAlertTab, alerts, recentlyReadKeys]);
+
+  const deletableFilteredAlerts = filteredAlerts.filter((alert) => alert.canDelete);
+  const selectedDeletableIds = selectedAlertKeys
+    .map((key) => alerts.find((alert) => alert.key === key))
+    .filter((alert) => alert?.canDelete)
+    .map((alert) => alert.id);
 
   const getTabCount = (tab) => {
     if (tab === "전체") return alerts.length;
@@ -205,7 +249,24 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     const activeTabButton = alertTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    setSelectedAlertKeys([]);
   }, [activeAlertTab]);
+
+  const toggleAlertSelection = (key) => {
+    setSelectedAlertKeys((prev) => (
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    ));
+  };
+
+  const toggleAllFiltered = () => {
+    const keys = deletableFilteredAlerts.map((alert) => alert.key);
+    const allSelected = keys.length > 0 && keys.every((key) => selectedAlertKeys.includes(key));
+    setSelectedAlertKeys((prev) => (
+      allSelected
+        ? prev.filter((key) => !keys.includes(key))
+        : [...new Set([...prev, ...keys])]
+    ));
+  };
 
   const handleReadAlert = async (targetAlert) => {
     if (targetAlert.requiresGuardianConfirm || !targetAlert.canRead || !targetAlert.id) return;
@@ -219,6 +280,44 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     } catch (error) {
       console.error("알림 확인 실패:", error);
       window.alert("알림 확인 처리에 실패했습니다.");
+    }
+  };
+
+  const removeAlertsFromList = (ids) => {
+    setAlerts((prev) => prev.filter((alert) => !ids.includes(alert.id)));
+    setSelectedAlertKeys([]);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedDeletableIds.length === 0 || deletingAlerts) return;
+    setDeletingAlerts(true);
+    try {
+      if (selectedDeletableIds.length === 1) {
+        await deleteAlert(selectedDeletableIds[0]);
+      } else {
+        await deleteAlerts(selectedDeletableIds);
+      }
+      removeAlertsFromList(selectedDeletableIds);
+    } catch (error) {
+      console.error("알림 삭제 실패:", error);
+      window.alert("알림 삭제에 실패했습니다.");
+    } finally {
+      setDeletingAlerts(false);
+    }
+  };
+
+  const handleDeleteAllFiltered = async () => {
+    const ids = deletableFilteredAlerts.map((alert) => alert.id);
+    if (ids.length === 0 || deletingAlerts) return;
+    setDeletingAlerts(true);
+    try {
+      await deleteAlerts(ids);
+      removeAlertsFromList(ids);
+    } catch (error) {
+      console.error("알림 전체 삭제 실패:", error);
+      window.alert("알림 삭제에 실패했습니다.");
+    } finally {
+      setDeletingAlerts(false);
     }
   };
 
@@ -291,7 +390,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
             <div className="uch-alert-panel-header">
               <div>
                 <h2>전체 알림</h2>
-                <p>최근 알림을 모아서 확인할 수 있어요.</p>
+                <p>오늘 알림과 최근 30일 요청 알림을 확인할 수 있어요.</p>
               </div>
               <button type="button" onClick={() => setIsAlertPanelOpen(false)}>
                 닫기
@@ -324,6 +423,26 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
               </button>
             </div>
 
+            <div className="uch-alert-toolbar">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={deletableFilteredAlerts.length > 0 && deletableFilteredAlerts.every((alert) => selectedAlertKeys.includes(alert.key))}
+                  disabled={deletableFilteredAlerts.length === 0}
+                  onChange={toggleAllFiltered}
+                />
+                전체 선택
+              </label>
+              <div>
+                <button type="button" disabled={selectedDeletableIds.length === 0 || deletingAlerts} onClick={handleDeleteSelected}>
+                  선택 삭제
+                </button>
+                <button type="button" disabled={deletableFilteredAlerts.length === 0 || deletingAlerts} onClick={handleDeleteAllFiltered}>
+                  전체 삭제
+                </button>
+              </div>
+            </div>
+
             <div className="uch-alert-panel-list">
               {loadingAlerts ? (
                 <p className="uch-alert-empty">알림을 불러오는 중...</p>
@@ -332,7 +451,16 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
               ) : (
                 filteredAlerts.map((userAlert) => (
                   <article key={userAlert.key} className={`uch-alert-item ${userAlert.danger ? "danger" : ""} ${userAlert.isRead ? "read" : ""}`}>
-                    <div>
+                    <label className="uch-alert-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedAlertKeys.includes(userAlert.key)}
+                        disabled={!userAlert.canDelete}
+                        onChange={() => toggleAlertSelection(userAlert.key)}
+                        aria-label="알림 선택"
+                      />
+                    </label>
+                    <div className="uch-alert-content">
                       <div className="uch-alert-meta">
                         <span className={userAlert.isRead ? "read" : "unread"}>
                           {userAlert.isRead ? "확인됨" : "확인 필요"}
@@ -343,19 +471,21 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                       <p>{userAlert.message}</p>
                       {userAlert.time && <span>{userAlert.time}</span>}
                     </div>
-                    {userAlert.requiresGuardianConfirm ? (
-                      <em className="waiting">보호자 확인 대기</em>
-                    ) : userAlert.canRead ? (
-                      userAlert.isRead ? (
-                        <em>확인됨</em>
+                    <div className="uch-alert-action">
+                      {userAlert.requiresGuardianConfirm ? (
+                        <em className="waiting">보호자 확인 대기</em>
+                      ) : userAlert.canRead ? (
+                        userAlert.isRead ? (
+                          <em>확인됨</em>
+                        ) : (
+                          <button type="button" onClick={() => handleReadAlert(userAlert)}>
+                            확인
+                          </button>
+                        )
                       ) : (
-                        <button type="button" onClick={() => handleReadAlert(userAlert)}>
-                          확인
-                        </button>
-                      )
-                    ) : (
-                      <em>정보</em>
-                    )}
+                        <em>정보</em>
+                      )}
+                    </div>
                   </article>
                 ))
               )}

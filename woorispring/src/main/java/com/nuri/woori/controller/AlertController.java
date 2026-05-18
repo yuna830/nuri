@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/alerts")
@@ -210,6 +211,31 @@ public class AlertController {
                 .toList();
     }
 
+    @DeleteMapping("/{id}")
+    public void deleteAlert(@PathVariable Long id) {
+        alertRepository.deleteById(id);
+    }
+
+    @DeleteMapping("/bulk-delete")
+    public void deleteAlerts(@RequestBody Map<String, List<Long>> request) {
+        List<Long> ids = request.getOrDefault("ids", List.of());
+        alertRepository.deleteAllById(ids);
+    }
+
+    @DeleteMapping("/senior/{seniorId}/old-requests")
+    public void deleteOldRequestAlerts(@PathVariable Long seniorId) {
+        List<String> requestTypes = List.of(
+                "PROFILE_UPDATE_REQUEST",
+                "PROFILE_UPDATE",
+                "JOB_RECOMMEND",
+                "JOB_CONTACT_REQUEST",
+                "WELFARE_REQUEST"
+        );
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
+        List<Alert> oldAlerts = alertRepository
+                .findBySeniorIdAndTypeInAndCreatedAtBefore(seniorId, requestTypes, cutoff);
+        alertRepository.deleteAll(oldAlerts);
+    }
     public record CameraAlertRequest(
             Long seniorId,
             String type,

@@ -686,7 +686,7 @@ export default function UserPage() {
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 15000);
+    const timerId = setInterval(loadCallRequest, 5000);
     return () => {
       cancelled = true;
       clearInterval(timerId);

@@ -124,14 +124,17 @@
   align-items: start;
 }
 
+.pr-layout aside {
+  position: sticky;
+  top: 80px;
+}
+
 .pr-sidenav {
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid #d4e8d6;
   box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
   overflow: hidden;
-  position: sticky;
-  top: 80px;
 }
 
 .pr-side-actions {
@@ -143,8 +146,6 @@
   gap: 0.7rem;
   margin-top: 1rem;
   padding: 1rem;
-  position: sticky;
-  top: 560px;
 }
 
 .pr-side-actions .pr-reset-btn,
@@ -572,5 +573,9 @@
   .pr-layout {
     grid-template-columns: 1fr;
     padding: 1rem;
+  }
+
+  .pr-layout aside {
+    position: static;
   }
 }

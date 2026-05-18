@@ -445,3 +445,33 @@ export const readAlert = async (alertId) => {
   return response.json();
 };
 
+export const deleteAlert = async (alertId) => {
+  const response = await fetch(`${API_BASE}/api/alerts/${alertId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error("Alert delete failed");
+  }
+};
+
+export const deleteAlerts = async (alertIds) => {
+  const response = await fetch(`${API_BASE}/api/alerts/bulk-delete`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: alertIds }),
+  });
+  if (!response.ok) {
+    throw new Error("Alert bulk delete failed");
+  }
+};
+
+export const deleteOldRequestAlerts = async (seniorId) => {
+  if (!seniorId) return;
+  const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}/old-requests`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error("Old request alert cleanup failed");
+  }
+};
+
