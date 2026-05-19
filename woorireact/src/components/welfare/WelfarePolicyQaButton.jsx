@@ -111,8 +111,7 @@ function WelfarePolicyQaButton({ senior = null }) {
                                         <ul>
                                             {answer.evidence.map((item, index) => (
                                                 <li key={`${item.title || "evidence"}-${index}`}>
-                                                    {item.title ? `${item.title}: ` : ""}
-                                                    {item.content || item}
+                                                    {item.title}
                                                 </li>
                                             ))}
                                         </ul>
