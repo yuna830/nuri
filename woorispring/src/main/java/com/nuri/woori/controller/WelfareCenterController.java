@@ -24,7 +24,7 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class WelfareCenterController {
 
-    @Value("${public-data.service-key}")
+    @Value("${data.api.service-key}")
     private String serviceKey;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
