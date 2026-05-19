@@ -26,10 +26,6 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/airkorea/, ''),
         secure: false,
       },
-      '/api/welfare/rag': {
-        target: 'http://localhost:8181',
-        changeOrigin: true,
-      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
