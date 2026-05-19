@@ -87,7 +87,7 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
-function RadarChart({ scores, labels = {}, summaryLabel = "醫낇빀 ?먯닔", note = "", quality = null }) {
+function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
   const count = keys.length;
@@ -221,7 +221,7 @@ function scheduleFromApi(schedule) {
   return {
     id: schedule.id,
     date: schedule.scheduleDate,
-    time: schedule.scheduleTime?.slice(0, 5) || "?쒓컙 誘몄젙",
+    time: schedule.scheduleTime?.slice(0, 5) || "시간 미정",
     text: schedule.content || schedule.title,
   };
 }
@@ -295,7 +295,7 @@ export default function UserPage() {
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
-  // 蹂댄샇???섏씠吏 ?대룞 寃쎈줈?먯꽌 ?꾩튂媛 ?덈Т ?먯＜ ??λ릺??寃껋쓣 諛⑹?
+  // 보호자 페이지 이동 경로에서 위치가 너무 자주 저장되는 것을 방지
   const lastSavedLocationRef = useRef(null);
 
   const [weather, setWeather] = useState(null);
@@ -332,9 +332,9 @@ export default function UserPage() {
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
 
-  // ?꾩튂 愿??state
+  // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
-  const [currentAddress, setCurrentAddress] = useState("?꾩튂 遺덈윭?ㅻ뒗 以?..");
+  const [currentAddress, setCurrentAddress] = useState("위치 불러오는 중...");
   const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
@@ -348,7 +348,7 @@ export default function UserPage() {
       try {
         const [today, trend, slots, baseline, fallPattern] = await Promise.all([
           fetchActivityToday(),
-          fetchActivityTrend(7),
+          fetchActivityTrend(1),
           fetchActivitySlots(),
           fetchActivityBaseline(14),
           fetchFallPattern(),
@@ -436,7 +436,7 @@ export default function UserPage() {
         const colors = { danger: COLORS.danger, warning: COLORS.danger, caution: "#f0a500", normal: "#4f9cc9", safe: COLORS.green };
         const issuedAt = alert.issuedAt || alert.createdAt || "";
         return {
-          type: alert.type || "湲고썑",
+          type: alert.type || "기후",
           color: colors[alert.level] || COLORS.green,
           msg: alert.message,
           time: issuedAt ? issuedAt.replace("T", " ").slice(0, 16) : "-",
@@ -451,9 +451,9 @@ export default function UserPage() {
       const staleDbAlerts = dbAlerts.filter((alert) => alert.sortTime < currentHourTime);
 
       const currentWeatherAlert = {
-        type: "?ㅻ뒛 ?좎뵪",
+        type: "오늘 날씨",
         color: COLORS.green,
-        msg: "?꾩옱 諛쒕졊??湲곗긽?밸낫媛 ?놁뒿?덈떎. ?ㅻ뒛 ?섎（ 湲고썑 ?곹깭??鍮꾧탳???덉쟾?⑸땲??",
+        msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
         time: currentDateTime,
         sortTime: now.getTime() - 1,
       };
@@ -473,16 +473,16 @@ export default function UserPage() {
       }
 
       setChanged(setWeatherAlerts, [{
-        type: "?덉쟾",
+        type: "안전",
         color: COLORS.green,
-        msg: "?꾩옱 ?뺤씤??湲고썑 ?꾪뿕 ?뚮┝???놁뒿?덈떎.",
+        msg: "현재 확인된 기후 위험 알림이 없습니다.",
         time: currentDateTime,
       }]);
     } catch {
       setChanged(setWeatherAlerts, [{
-        type: "?덉쟾",
+        type: "안전",
         color: COLORS.green,
-        msg: "湲고썑 ?뚮┝???뺤씤?섎뒗 以묒엯?덈떎.",
+        msg: "기후 알림을 확인하는 중입니다.",
         time: currentDateTime,
       }]);
     }
@@ -516,14 +516,14 @@ export default function UserPage() {
     const shouldResolveAddress =
       movedMeters >= 50 ||
       !currentAddress ||
-      currentAddress === "?꾩튂 遺덈윭?ㅻ뒗 以?.." ||
-      currentAddress === "?꾩옱 ?꾩튂";
+      currentAddress === "위치 불러오는 중..." ||
+      currentAddress === "현재 위치";
 
     const resolvedAddress = shouldResolveAddress
-      ? await reverseGeocode(lat, lon).catch(() => "?꾩옱 ?꾩튂")
+      ? await reverseGeocode(lat, lon).catch(() => "현재 위치")
       : currentAddress;
 
-    const displayAddress = resolvedAddress || "?꾩옱 ?꾩튂";
+    const displayAddress = resolvedAddress || "현재 위치";
     setChanged(setCurrentAddress, displayAddress);
 
     try {
@@ -545,7 +545,7 @@ export default function UserPage() {
         lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
-      setChanged(setCurrentAddress, "?꾩옱 ?꾩튂");
+      setChanged(setCurrentAddress, "현재 위치");
     }
 
     if (safeZone) {
@@ -575,7 +575,7 @@ export default function UserPage() {
       () => fetchWeather(37.5665, 126.9780)
     );
 
-    // 30?λ뜄彛???袁⑺뒄 ?癒?짗 揶쏄퉮??
+    // 30초마다 위치 자동 갱신
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         pos => updateLocation(
@@ -711,7 +711,7 @@ export default function UserPage() {
         loadMatchedCareTeam(latest?.senior?.id, latest);
         setChanged(setHealthScores, getHealthScoresFromProfile(latest));
       } catch (error) {
-        console.error("?ъ슜???뺣낫 議고쉶 ?ㅽ뙣:", error);
+        console.error("사용자 정보 조회 실패:", error);
       }
     };
 
@@ -825,7 +825,7 @@ export default function UserPage() {
     const seniorId = getCurrentSeniorId(initialSenior);
 
     if (!seniorId) {
-      alert("?ъ슜???뺣낫瑜?李얠쓣 ???놁뒿?덈떎.");
+      alert("사용자 정보를 찾을 수 없습니다.");
       return;
     }
 
@@ -838,8 +838,8 @@ export default function UserPage() {
       localStorage.setItem("pending_sos", "true");
       setPendingSos(true);
     } catch (error) {
-      console.error("SOS ?꾩넚 ?ㅽ뙣:", error);
-      alert("SOS ?꾩넚???ㅽ뙣?덉뒿?덈떎. 蹂댄샇?먯뿉寃?吏곸젒 ?곕씫?댁＜?몄슂.");
+      console.error("SOS 전송 실패:", error);
+      alert("SOS 전송에 실패했습니다. 보호자에게 직접 연락해주세요.");
     }
   };
 
@@ -851,13 +851,13 @@ export default function UserPage() {
         latitude: currentPos?.lat,
         longitude: currentPos?.lon,
       }).catch((error) => {
-        console.error("SOS ?섎せ ?꾨쫫 ?뚮┝ ?ㅽ뙣:", error);
+        console.error("SOS 잘못 누름 알림 실패:", error);
       });
     }
 
     localStorage.removeItem("pending_sos");
     setPendingSos(false);
-    alert("蹂댄샇?먯뿉寃??섎せ ?꾨쫫 ?뚮┝??蹂대깉?댁슂.");
+    alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
 
   const handleReceiveCall = async () => {
@@ -907,7 +907,7 @@ export default function UserPage() {
   };
 
   const hasUnreadByRoute = (route) => {
-    if (route === "/weather") return weatherAlerts.some((alert) => alert.type !== "?ㅻ뒛 ?좎뵪");
+    if (route === "/weather") return weatherAlerts.some((alert) => alert.type !== "오늘 날씨");
     if (route === "/fall-history") return userAlerts.some((alert) => (alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK") && !alert.isRead);
     if (route === "/location") return userAlerts.some((alert) => (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") && !alert.isRead);
     if (route === "/profile") return userAlerts.some((alert) => alert.type === "PROFILE_UPDATE" && !alert.isRead);
@@ -1103,7 +1103,7 @@ export default function UserPage() {
                     className="up-schedule-create"
                     onClick={() => navigate("/chat?mode=schedule")}
                   >
-                    ?쇱젙 ?앹꽦
+                    일정 생성
                   </button>
                 </div>
               </div>
@@ -1111,7 +1111,7 @@ export default function UserPage() {
               <div className="up-schedule-list">
                 {scheduleList.length === 0 ? (
                   <div className="up-schedule-empty">
-                    ?깅줉???쇱젙???놁뼱??
+                    등록된 일정이 없어요.
                   </div>
                 ) : (
                   scheduleList.map((s, i) => (
@@ -1127,9 +1127,9 @@ export default function UserPage() {
 
             <div className="up-card up-climate-card">
               <div className="up-card-head">
-                <div className="up-card-title">湲고썑 ?뚮┝</div>
+                <div className="up-card-title">기후 알림</div>
                 <button className="up-card-more" type="button" onClick={() => navigate("/weather")}>
-                  ?꾩껜蹂닿린
+                  전체보기
                 </button>
               </div>
 
@@ -1164,14 +1164,14 @@ export default function UserPage() {
                   <RadarChart
                     scores={activityToday.scores}
                     labels={activityToday.labels}
-                    summaryLabel="?쒕룞 而⑤뵒???붿빟"
+                    summaryLabel="활동 컨디션 요약"
                     note={activityTrend?.alerts?.[0] || activityToday.overall_note || ""}
                     quality={activityToday.data_quality}
                   />
                 ) : (
                   <div className="up-activity-empty">
-                    <div className="up-activity-empty-title">?쒕룞 ?곗씠?곕? ?섏쭛?섎뒗 以묒엯?덈떎</div>
-                    <p>{activityToday.message || activityToday.data_quality?.message || "媛먯? ?쒕쾭媛 異⑸텇??湲곕줉??紐⑥쑝硫??쒕룞 吏?쒓? ?쒖떆?⑸땲??"}</p>
+                    <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
+                    <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
                   </div>
                 )}
               </div>
@@ -1190,7 +1190,7 @@ export default function UserPage() {
           <div className="up-content-row">
             <div className="up-card full">
               <div className="up-card-head">
-                <div className="up-card-title">鍮좊Ⅸ ?ㅽ뻾</div>
+                <div className="up-card-title">빠른 실행</div>
               </div>
               <div className="up-quick-grid">
                 {menus.filter(m => !m.hideQuick).map((m, i) => (
@@ -1219,7 +1219,7 @@ export default function UserPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="up-card-head" style={{ marginBottom: "1rem" }}>
-              <div className="up-modal-title" style={{ fontSize: "1.1rem" }}>?꾩껜 ?쇱젙</div>
+              <div className="up-modal-title" style={{ fontSize: "1.1rem" }}>전체 일정</div>
               <button
                 style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
                 type="button"
@@ -1229,9 +1229,9 @@ export default function UserPage() {
               </button>
             </div>
             {isLoadingAllSchedules ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>遺덈윭?ㅻ뒗 以?..</div>
+              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>불러오는 중...</div>
             ) : allSchedules.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>?깅줉???쇱젙???놁뼱??</div>
+              <div style={{ textAlign: "center", padding: "2rem", color: COLORS.textMuted }}>등록된 일정이 없어요.</div>
             ) : (
               allSchedules.map((s) => (
                 <div key={s.id} className="up-schedule-row">
@@ -1251,17 +1251,17 @@ export default function UserPage() {
       {incomingCallAlert && (
         <div className="up-overlay" onClick={handleDismissCallRequest}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">?뱸</div>
-            <div className="up-modal-title">蹂댄샇?먭? ?꾪솕瑜??붿껌?덉뒿?덈떎.</div>
+            <div className="up-modal-ico">📞</div>
+            <div className="up-modal-title">보호자가 전화를 요청했습니다.</div>
             <div className="up-modal-desc">
-              ?꾪솕 ?깆뿉 ?섏떊 ?붾㈃???⑤㈃ ?듯솕 踰꾪듉???뚮윭二쇱꽭??
+              전화 앱에 수신 화면이 뜨면 통화 버튼을 눌러주세요.
             </div>
             <div className="up-modal-row">
               <button className="up-modal-cancel" type="button" onClick={handleDismissCallRequest}>
-                ?섏쨷??
+                나중에
               </button>
               <button className="up-modal-ok" type="button" onClick={handleReceiveCall}>
-                ?꾪솕 諛쏄린
+                전화 받기
               </button>
             </div>
           </div>
@@ -1271,12 +1271,12 @@ export default function UserPage() {
       {medicineAlert && (
         <div className="up-overlay" onClick={handleReadMedicineAlert}>
           <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">?뭻</div>
+            <div className="up-modal-ico">💊</div>
             <div className="up-modal-title">
-              {medicineAlert.title || "蹂듭빟 ?뚮┝"}
+              {medicineAlert.title || "복약 알림"}
             </div>
             <div className="up-modal-desc">
-              {medicineAlert.message || "蹂듭슜 以묒씤 ?쎌쓣 ?뺤씤?섍퀬 ?쒕븣 蹂듭슜?댁＜?몄슂."}
+              {medicineAlert.message || "복용 중인 약을 확인하고 제때 복용해주세요."}
             </div>
 
             <div className="up-modal-row medicine-alert-modal-row">
@@ -1285,7 +1285,7 @@ export default function UserPage() {
                 type="button"
                 onClick={handleReadMedicineAlert}
               >
-                ?뺤씤?덉뼱??
+                확인했어요
               </button>
             </div>
           </div>
@@ -1295,14 +1295,14 @@ export default function UserPage() {
       {safeZoneExitAlert && !isInRange && (
         <div className="up-overlay up-safe-zone-overlay">
           <div className="up-modal up-safe-zone-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">?뱧</div>
-            <div className="up-modal-title">?덉쟾 諛섍꼍??踰쀬뼱?ъ뒿?덈떎</div>
+            <div className="up-modal-ico">📍</div>
+            <div className="up-modal-title">안전 반경을 벗어났습니다</div>
             <div className="up-modal-desc">
-              蹂댄샇?먯뿉寃??댄깉 ?뚮┝??蹂대깉?댁슂.<br />
-              蹂댄샇???먮뒗 ?대떦?먯? 留뚮궇 ?뚭퉴吏 ???덈궡媛 ?좎??⑸땲??
+              보호자에게 이탈 알림을 보냈어요.<br />
+              보호자 또는 담당자와 만날 때까지 이 안내가 유지됩니다.
             </div>
             <div className="up-safe-zone-message">
-              吏??먮뒗 吏?뺣맂 ?덉쟾 援ъ뿭?쇰줈 ?뚯븘媛 二쇱꽭??
+              집 또는 지정된 안전 구역으로 돌아가 주세요.
             </div>
           </div>
         </div>
@@ -1311,11 +1311,11 @@ export default function UserPage() {
       {pendingSos && (
         <div className="up-sos-pending">
           <div>
-            <strong>SOS媛 蹂댄샇?먯뿉寃??꾩넚?섏뿀?댁슂.</strong>
-            <p>?ㅼ닔濡??꾨Ⅴ?⑤떎硫??꾨옒 踰꾪듉???뚮윭 ?쒖떆瑜?痍⑥냼??二쇱꽭??</p>
+            <strong>SOS가 보호자에게 전송되었어요.</strong>
+            <p>실수로 누르셨다면 아래 버튼을 눌러 표시를 취소해 주세요.</p>
           </div>
           <button type="button" onClick={handleSosMistake}>
-            ?섎せ ?뚮??댁슂
+            잘못 눌렀어요
           </button>
         </div>
       )}

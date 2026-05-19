@@ -7,6 +7,64 @@ const SAFE_ZONE_SEARCH_CACHE_KEY = "safeZoneSearchCache";
 const SAFE_ZONE_SEARCH_COOLDOWN_KEY = "safeZoneSearchCooldownUntil";
 const SAFE_ZONE_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const SAFE_ZONE_SEARCH_COOLDOWN_MS = 2 * 60 * 1000;
+const ACTIVITY_LABELS = {
+  activity: "활동성",
+  stability: "안정성",
+  rest_balance: "휴식 균형",
+  posture_quality: "자세 상태",
+  safety: "안전도",
+};
+
+const formatActivityScore = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(1) : "-";
+};
+
+const getActivityReportSummary = (activityReport) => {
+  if (activityReport?.isLoading) {
+    return { tone: "normal", title: "활동 리포트 확인 중", message: "오늘 컨디션을 어제 기록과 비교하고 있습니다." };
+  }
+
+  if (activityReport?.error) {
+    return { tone: "warning", title: "리포트 확인 필요", message: activityReport.error };
+  }
+
+  const fallWarnings = activityReport?.fallPattern?.status === "ok"
+    ? activityReport.fallPattern.warning_signs || []
+    : [];
+
+  if (fallWarnings.length > 0) {
+    return { tone: "danger", title: "낙상 전후 변화 확인", message: fallWarnings[0] };
+  }
+
+  const trend = activityReport?.trend;
+
+  if (trend?.status !== "ok") {
+    return {
+      tone: "normal",
+      title: "기록 수집 중",
+      message: trend?.message || "어제와 비교하려면 오늘과 어제의 활동 기록이 더 필요합니다.",
+    };
+  }
+
+  const strongestChange = Object.entries(trend.changes || {})
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => Math.abs(b.pct_change || 0) - Math.abs(a.pct_change || 0))[0];
+
+  if (!strongestChange || Math.abs(strongestChange.pct_change || 0) < 10) {
+    return { tone: "normal", title: "어제와 비슷함", message: "오늘 활동 컨디션은 어제와 큰 차이가 없습니다." };
+  }
+
+  const label = ACTIVITY_LABELS[strongestChange.key] || strongestChange.key;
+  const direction = strongestChange.pct_change > 0 ? "높아졌습니다" : "낮아졌습니다";
+  const tone = strongestChange.pct_change < -15 ? "warning" : "normal";
+
+  return {
+    tone,
+    title: `어제보다 ${label} 변화`,
+    message: `${label} 점수가 어제보다 ${Math.abs(strongestChange.pct_change).toFixed(0)}% ${direction}.`,
+  };
+};
 
 const readSearchCache = () => {
   try {
@@ -96,6 +154,7 @@ function UserPanel({
   onCreateAndConnectSenior,
   onDeleteElder,
   onOpenMedicineAlert,
+  activityReport,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
@@ -138,6 +197,10 @@ function UserPanel({
     : null;
 
   const profileImage = guardianProfileImage || userProfileImage;
+  const activitySummary = getActivityReportSummary(activityReport);
+  const activityChanges = activityReport?.trend?.status === "ok"
+    ? Object.entries(activityReport.trend.changes || {}).slice(0, 3)
+    : [];
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
@@ -382,6 +445,30 @@ function UserPanel({
               </div>
             </div>
           </div>
+        </section>
+
+        <section className={`card guardian-activity-report ${activitySummary.tone}`}>
+          <div className="guardian-activity-report-head">
+            <div>
+              <span>오늘의 활동 컨디션</span>
+              <strong>{activitySummary.title}</strong>
+            </div>
+            {activityReport?.updatedAt && <em>{activityReport.updatedAt}</em>}
+          </div>
+
+          <p>{activitySummary.message}</p>
+
+          {activityChanges.length > 0 && (
+            <div className="guardian-activity-report-list">
+              {activityChanges.map(([key, change]) => (
+                <div key={key}>
+                  <span>{ACTIVITY_LABELS[key] || key}</span>
+                  <strong>{formatActivityScore(change.today)}</strong>
+                  <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="card location-summary">
