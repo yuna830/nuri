@@ -6,10 +6,13 @@ import {
     EMPL_MAP,
     JOB_CATEGORY_FILTERS,
     categorizeJob,
-    fetchJobList,
+    fetchWelfareJobList,
     formatDate,
-} from "../../utils/user/jobApi";
+    recommendWelfareJobToSenior,
+} from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
+import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+
 
 import "../../css/welfare/WelfareJobPostings.css";
 
@@ -137,7 +140,7 @@ function WelfareJobPostings() {
             let shouldContinue = true;
 
             while (shouldContinue) {
-                const result = await fetchJobList(nextPage, "", API_PAGE_SIZE);
+                const result = await fetchWelfareJobList(nextPage, "", API_PAGE_SIZE);
                 nextTotal = result.total || nextTotal;
 
                 const merged = new Map(nextJobs.map((job) => [job.jobId, job]));
@@ -249,18 +252,9 @@ function WelfareJobPostings() {
         }
 
         try {
-            await fetch("/api/job-interests", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    seniorId: Number(selectedSeniorId),
-                    jobId: selectedJob.jobId,
-                    jobTitle: selectedJob.recrtTitle,
-                    company: selectedJob.oranNm,
-                    location: selectedJob.workPlcNm,
-                    applicationType: "RECOMMEND",
-                    status: "검토 대기",
-                }),
+            await recommendWelfareJobToSenior({
+                seniorId: selectedSeniorId,
+                job: selectedJob,
             });
 
             alert("대상자에게 일자리 공고를 추천했습니다.");
@@ -628,6 +622,8 @@ function WelfareJobPostings() {
                     </section>
                 </div>
             )}
+            
+            <WelfarePolicyQaButton />
         </div>
     );
 }
