@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import {
   EMPL_COLOR,
   EMPL_MAP,
@@ -29,6 +30,7 @@ export default function JobPage() {
   const [profile, setProfile] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
   const deferredSearch = useDeferredValue(search);
+  const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
 
   useEffect(() => {
     setProfile(getSavedJobProfile());
@@ -122,8 +124,13 @@ export default function JobPage() {
   }, [category, deferredSearch, hideExpired]);
 
   useEffect(() => {
+    if (!isJobAllowed) {
+      setLoading(false);
+      setJobs([]);
+      return;
+    }
     loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
-  }, []);
+  }, [isJobAllowed]);
 
   useEffect(() => {
     if (loading || jobs.length === 0 || filtered.length >= PAGE_SIZE || !hasMoreSource) {
@@ -171,7 +178,7 @@ export default function JobPage() {
         alert("로그인 정보가 없습니다.");
         return;
       }
-      await fetch("http://localhost:8083/api/job-interests", {
+      await fetch("/api/job-interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -180,6 +187,8 @@ export default function JobPage() {
           jobTitle: job.recrtTitle,
           company: job.oranNm,
           location: job.workPlcNm,
+          applicationType: "ONLINE",
+          status: "검토 대기",
         }),
       });
       alert("복지사에게 관심 공고를 전달했어요!");
@@ -190,53 +199,18 @@ export default function JobPage() {
 
   return (
     <div className="jp-root">
-      <nav className="jp-nav">
-        <button className="jp-nav-back" type="button" onClick={() => navigate("/user")}>← 돌아가기</button>
-        <div className="jp-nav-title">💼 일자리 찾기</div>
-        {!loading && !error && <div className="jp-nav-count">총 {totalCount}건</div>}
-      </nav>
-
-      <div className="jp-top-sticky">
-        <div className="jp-top-sticky-inner">
-          <div className="jp-category-bar">
-            {JOB_CATEGORY_FILTERS.map((item) => (
-              <button
-                key={item.label}
-                className={`jp-cat-btn ${category === item.value ? "active" : ""}`}
-                type="button"
-                onClick={() => handleCategoryClick(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="jp-search-wrap">
-            <span className="jp-search-icon">🔍</span>
-            <input
-              className="jp-search-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="공고명, 기업명, 근무지 검색..."
-            />
-            {search && (
-              <button className="jp-search-clear" type="button" onClick={() => setSearch("")}>✕</button>
-            )}
-            <div className="jp-search-divider" />
-            <label className="jp-expire-filter">
-              <input
-                type="checkbox"
-                className="jp-expire-checkbox"
-                checked={hideExpired}
-                onChange={(event) => setHideExpired(event.target.checked)}
-              />
-              <span className="jp-expire-label">마감 숨기기</span>
-            </label>
-          </div>
-        </div>
-      </div>
+      <UserCommonHeader />
 
       <div className="jp-layout">
+        {!isJobAllowed ? (
+          <main className="jp-main jp-age-block">
+            <div className="jp-empty">
+              <div className="jp-empty-icon">🔒</div>
+              <div className="jp-empty-text">일자리 정보는 만 20세 이상부터 볼 수 있어요</div>
+            </div>
+          </main>
+        ) : (
+        <>
         <aside className="jp-sidebar">
           {profile && (
             <div className="jp-profile-box">
@@ -267,9 +241,54 @@ export default function JobPage() {
               )}
             </div>
           )}
+          <nav className="jp-category-sidebar" aria-label="직종 분류">
+            <strong className="jp-category-sidebar-title">직종 분류</strong>
+
+            {JOB_CATEGORY_FILTERS.map((item) => (
+                <button
+                    key={item.label}
+                    className={`jp-category-sidebar-item ${category === item.value ? "active" : ""}`}
+                    type="button"
+                    onClick={() => handleCategoryClick(item.value)}
+                >
+                    {item.label}
+                </button>
+            ))}
+          </nav>
         </aside>
 
         <main className="jp-main">
+          <div className="jp-main-search">
+            <div className="jp-search-wrap">
+              <span className="jp-search-icon">🔍</span>
+
+              <input
+                className="jp-search-input"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="공고명, 기업명, 근무지 검색..."
+              />
+
+              {search && (
+                <button className="jp-search-clear" type="button" onClick={() => setSearch("")}>
+                  ×
+                </button>
+              )}
+
+              <div className="jp-search-divider" />
+
+              <label className="jp-expire-filter">
+                <input
+                  type="checkbox"
+                  className="jp-expire-checkbox"
+                  checked={hideExpired}
+                  onChange={(event) => setHideExpired(event.target.checked)}
+                />
+                <span className="jp-expire-label">마감 숨기기</span>
+              </label>
+            </div>
+          </div>
+
           <div className="jp-main-head">
             <div className="jp-main-label">
               {search
@@ -355,6 +374,8 @@ export default function JobPage() {
             </button>
           )}
         </main>
+        </>
+        )}
       </div>
 
       {selected && (

@@ -1,8 +1,31 @@
+import { useState } from "react";
+
+const formatPoliceOccurredDate = (value) => {
+  if (!value) {
+    return "실종 일시 정보 없음";
+  }
+
+  const digits = String(value).replace(/\D/g, "");
+
+  if (digits.length >= 12) {
+    return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)} ${digits.slice(8, 10)}:${digits.slice(10, 12)}`;
+  }
+
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)}`;
+  }
+
+  return value;
+};
+
 function EmergencyPanel({
   selectedElder,
   displayedAlerts,
+  policeAlerts,
   routeHistory,
   lastNormalLocation,
+  safeZoneForm,
+  distance,
   isAlertPanelOpen,
   isMissingReportOpen,
   missingDescription,
@@ -16,7 +39,6 @@ function EmergencyPanel({
   onReadAlert,
   onCallAlert,
   onOpenEmergencyReport,
-  onOpenMissingReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
@@ -25,37 +47,53 @@ function EmergencyPanel({
   onCallNeedsReport,
   onCloseCallResult,
 }) {
+
+  const [policeIndex, setPoliceIndex] = useState(0);
+
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
     ? lastNormalLocation.address
     : "기록 없음";
 
+  const getRouteTimeParts = (receivedAt) => {
+    const date = new Date(receivedAt);
+
+    return {
+      period: date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        hour12: true,
+      }).includes("오전")
+        ? "오전"
+        : "오후",
+      time: date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+    };
+  };
+
+  const visiblePoliceAlert = policeAlerts?.[policeIndex] ?? null;
+
+  const handlePrevPoliceAlert = () => {
+    if (!policeAlerts?.length) return;
+
+    setPoliceIndex((prev) =>
+      prev === 0 ? policeAlerts.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextPoliceAlert = () => {
+    if (!policeAlerts?.length) return;
+
+    setPoliceIndex((prev) =>
+      prev === policeAlerts.length - 1 ? 0 : prev + 1
+    );
+  };
+
   return (
     <>
       <aside className="right-panel">
-        <section className="card recent-alerts">
-          <div className="card-header">
-            <h2>최근 알림</h2>
-            <button className="text-button" type="button" onClick={onOpenAlertPanel}>
-              전체보기
-            </button>
-          </div>
-
-          <div className="alert-list">
-            {displayedAlerts.length === 0 ? (
-              <p className="alert-empty">최근 알림이 없습니다.</p>
-            ) : (
-              displayedAlerts.map((alert) => (
-                <article key={alert.id} className={`alert-item ${alert.isSafeZone ? "danger" : "warning"}`}>
-                  <strong>{alert.time}</strong>
-                  <span>{alert.message}</span>
-                  <em>{alert.status}</em>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-
         <section className="card route-card">
           <div className="card-header">
             <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
@@ -79,40 +117,135 @@ function EmergencyPanel({
                 .reverse()
                 .map((point, index) => (
                   <li key={`${point.receivedAt}-${index}`}>
-                    <time>
-                      {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                    <span>{point.address}</span>
+                    <div className="route-time">
+                      <span>
+                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          hour12: true,
+                        }).replace(/\s?\d+시/, "")}
+                      </span>
+
+                      <strong className="route-address">{point.address}</strong>
+
+                      <span>
+                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }).replace(/오전|오후/g, "").trim()}
+                      </span>
+                    </div>
                   </li>
                 ))
             )}
           </ol>
         </section>
 
-        <section className="card report-card">
-          <div className="report-header">
-            <h2>실종 신고</h2>
-            <button className="outline-danger-button" type="button" onClick={onOpenMissingReport}>
-              상세 입력
-            </button>
+        <section className="card safe182-card">
+          <div className="card-header">
+            <h2>안전드림 연계</h2>
           </div>
 
-          <p className="last-seen-label">마지막 목격</p>
-          <strong className="last-seen-place">{lastSeenAddress}</strong>
+          <div className="safe182-body">
+            <p>
+              현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
+            </p>
 
-          <button
-            className="report-button"
-            type="button"
-            onClick={async () => {
-              await onCreateMissingReport();
-              window.open("https://www.safe182.go.kr", "_blank");
-            }}
-          >
-            안전드림 연계 신고
-          </button>
+            <div className="safe182-actions">
+              <button
+                type="button"
+                onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
+              >
+                안전드림 열기
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const reportText = [
+                    "[안전드림 신고 참고 정보]",
+                    `대상자: ${selectedElder.name} (${selectedElder.relation})`,
+                    `나이/성별: ${selectedElder.age}세 / ${selectedElder.gender}`,
+                    `연락처: ${selectedElder.phone || "없음"}`,
+                    `현재 위치: ${selectedElder.currentLocation?.address || "위치 미수신"}`,
+                    `마지막 정상 위치: ${lastNormalLocation?.address || "기록 없음"}`,
+                    `안전 반경 중심: ${safeZoneForm?.address || selectedElder.address || "기록 없음"}`,
+                    `안전 반경: ${safeZoneForm?.radiusMeters ?? selectedElder.radius ?? 0}m`,
+                    `현재 상태: ${
+                      selectedElder.currentLocation
+                        ? `안전 반경 이탈 감지 (${distance}m)`
+                        : "위치 미수신"
+                    }`,
+                    `주요 질환: ${selectedElder.condition || "등록 없음"}`,
+                    `복약 정보: ${selectedElder.medicineCount || "없음"}`,
+                    "",
+                    "위 정보는 보호자 앱에서 자동 정리한 신고 참고 정보입니다.",
+                  ].join("\n");
+
+                  navigator.clipboard.writeText(reportText);
+                  alert("안전드림 신고 참고 정보가 복사되었습니다.");
+                }}
+              >
+                신고 정보 복사
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card police-missing-card">
+          <div className="card-header">
+            <h2>경찰청 실종정보</h2>
+          </div>
+
+          <div className="police-missing-list">
+            {!visiblePoliceAlert ? (
+              <p className="alert-empty">등록된 경찰청 실종정보가 없습니다.</p>
+            ) : (
+              <div className="police-missing-slider">
+                {policeAlerts?.length > 1 && (
+                  <button
+                    type="button"
+                    className="police-slide-button prev"
+                    onClick={handlePrevPoliceAlert}
+                    aria-label="이전 실종정보"
+                  >
+                    ‹
+                  </button>
+                )}
+
+                <article className="police-missing-item">
+                  {visiblePoliceAlert.photoUrl && (
+                    <img
+                      src={`data:image/jpeg;base64,${visiblePoliceAlert.photoUrl.replace(/\s/g, "")}`}
+                      alt={`${visiblePoliceAlert.name} 실종정보 사진`}
+                    />
+                  )}
+
+                  <div>
+                    <strong>{visiblePoliceAlert.name}</strong>
+                    <span>
+                      {visiblePoliceAlert.gender}
+                      {visiblePoliceAlert.ageNow ? ` · 현재 ${visiblePoliceAlert.ageNow}세` : ""}
+                    </span>
+                    <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
+                    <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
+                    <small>자료 출처: 경찰청</small>
+                  </div>
+                </article>
+
+                {policeAlerts?.length > 1 && (
+                  <button
+                    type="button"
+                    className="police-slide-button next"
+                    onClick={handleNextPoliceAlert}
+                    aria-label="다음 실종정보"
+                  >
+                    ›
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </section>
       </aside>
 

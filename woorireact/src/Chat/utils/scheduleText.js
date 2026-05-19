@@ -12,7 +12,7 @@ export function formatScheduleList(schedules) {
   return schedules
     .slice()
     .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))
-    .map((schedule, index) => `${index + 1}. ${formatScheduleBrief(schedule)}`)
+    .map((schedule) => `● ${formatScheduleBrief(schedule)}`)
     .join("\n");
 }
 

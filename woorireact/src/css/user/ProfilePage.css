@@ -13,10 +13,28 @@
   color: #1e2a1f;
 }
 
+.pr-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid #a9c9aa;
+}
+
+.pr-section-header h2 {
+  margin: 0;
+}
+
+.pr-section-actions {
+  margin-left: auto;
+}
+
 .pr-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1100px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -67,14 +85,20 @@
 }
 
 .pr-reset-btn {
-  background: transparent;
-  color: #7a9a7c;
-  border: 1px solid #d4e8d6;
+  background: #fff4e6;
+  color: #b66a00;
+  border: 1px solid #f0d080;
   border-radius: 8px;
   padding: 0.45rem 1rem;
   font-size: 0.88rem;
+  font-weight: 700;
   font-family: "Noto Sans KR", sans-serif;
   cursor: pointer;
+}
+
+.pr-reset-btn:hover {
+  background: #ffe8c2;
+  border-color: #e0a943;
 }
 
 .pr-save-btn {
@@ -91,11 +115,11 @@
 }
 
 .pr-layout {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -357,7 +381,7 @@
   border: 1px solid #b8d4ba;
   border-radius: 12px;
   padding: 1rem 1.3rem;
-  margin-top: 0.9rem;
+  margin: 0.9rem 0 1.4rem;
   display: flex;
   align-items: center;
   gap: 2rem;
@@ -446,4 +470,15 @@
   width: 16px;
   height: 16px;
   accent-color: #86a788;
+}
+
+@media (max-width: 900px) {
+  .pr-nav {
+    padding: 0 1rem;
+  }
+
+  .pr-layout {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
 }

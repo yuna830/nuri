@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import {
   buildClimateInsightFromForecast,
   fetchTodayClimateAlerts,
@@ -299,14 +300,8 @@ export default function WeatherAlert() {
 
   return (
     <div className="wa-root">
-      <nav className="wa-nav">
-        <button className="wa-nav-back" type="button" onClick={() => navigate("/user")}>← 돌아가기</button>
-        <div className="wa-nav-title">🌡️ 기후 위험 알림</div>
-        <div className="wa-nav-sub">
-          {fetching ? "업데이트 중..." : lastFetched ? `마지막 갱신 ${lastFetched}` : "기상청 API · 실시간 확인"}
-        </div>
-      </nav>
-
+      <UserCommonHeader />
+      
       <div className="wa-layout">
         <main className="wa-main">
           {currentAlert && (
@@ -359,7 +354,12 @@ export default function WeatherAlert() {
 
         <aside className="wa-sidebar">
           <div className="wa-level-card">
-            <div className="wa-level-title">알림 단계 안내</div>
+            <div className="wa-level-header">
+                <div className="wa-level-title">알림 단계 안내</div>
+                <div className="wa-level-updated">
+                    {fetching ? "업데이트 중..." : lastFetched ? `마지막 갱신 ${lastFetched}` : "기상청 API · 실시간 확인"}
+                </div>
+            </div>
             {Object.entries(LEVELS).map(([key, level]) => (
               <div key={key} className="wa-level-item">
                 <div className="wa-level-pill" style={{ background: level.bg }}>{level.icon} {level.label}</div>
@@ -392,7 +392,10 @@ export default function WeatherAlert() {
             <div className="wa-climate-card">
               <div className="wa-climate-top">
                 <div>
-                  <div className="wa-climate-label">{insight.region} 단기예보 기반</div>
+                  <div className="wa-climate-label">
+                    <span>{insight.region}</span>
+                    <span>단기예보 기반</span>
+                  </div>
                   <div className="wa-climate-title">{insight.title}</div>
                 </div>
                 <span className="wa-climate-tag">{insight.tag}</span>

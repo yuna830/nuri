@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { useChatFlow } from "../hooks/useChatFlow";
 import { useVoiceInput } from "../hooks/useVoiceInput";
-import { formatTodayKorean } from "../utils/scheduleText";
 import DeleteScheduleBox from "./DeleteScheduleBox";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
@@ -58,28 +58,25 @@ export default function ChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, pendingSchedule]);
 
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/user");
+  };
+
   return (
     <section className="chatbot-page">
-      <nav className="chatbot-global-nav">
-        <button className="chatbot-nav-logo" type="button" onClick={() => navigate("/user")}>
-          우리 woori
-        </button>
-        <div className="chatbot-nav-right">
-          <span className="chatbot-nav-date">{formatTodayKorean()}</span>
-        </div>
-      </nav>
+      <UserCommonHeader />
+      <button className="chatbot-back-button" type="button" onClick={goBack} aria-label="뒤로가기">
+        &lt;
+      </button>
 
       <header className="chatbot-header">
-        <div className="chatbot-title-wrap">
-          <button className="chatbot-back-inline" type="button" onClick={() => navigate("/user")}>
-            ← 홈으로
-          </button>
-          <div>
-            <p>AI 챗봇</p>
-            <h1>무엇을 도와드릴까요?</h1>
-          </div>
-        </div>
-        <button type="button" onClick={onScheduleOpen}>일정 등록하기</button>
+        <p>AI 챗봇</p>
+        <h1>무엇을 도와드릴까요?</h1>
       </header>
 
       <main className="chatbot-layout">
@@ -119,6 +116,7 @@ export default function ChatView({
           schedules={savedSchedules}
           selectedDate={selectedScheduleDate}
           onDateChange={onScheduleDateChange}
+          onScheduleOpen={onScheduleOpen}
           onScheduleEdit={onScheduleEdit}
           onScheduleDelete={onScheduleDelete}
         />

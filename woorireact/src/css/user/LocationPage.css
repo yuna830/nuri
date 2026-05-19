@@ -16,7 +16,7 @@
 .lp-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1200px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -78,11 +78,11 @@
 }
 
 .lp-layout {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 1.5rem;
   align-items: start;
 }
@@ -253,6 +253,29 @@
 
 .lp-map-placeholder-text.danger {
   color: #e05252;
+}
+
+.lp-info-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #d5e6d5;
+}
+
+.lp-info-card-header h2 {
+  margin: 0;
+  color: #5f7d61;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.lp-refresh-btn-compact {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .lp-info-card,
@@ -437,6 +460,10 @@
 }
 
 @media (max-width: 900px) {
+  .lp-nav {
+    padding: 0 1rem;
+  }
+
   .lp-layout {
     grid-template-columns: 1fr;
     padding: 1rem;

@@ -150,7 +150,7 @@ export default function GuardianSignUp() {
                 className="su-input"
                 value={form.name}
                 onChange={(event) => set("name", event.target.value)}
-                placeholder="예: 김민지"
+                placeholder="이름을 입력해주세요"
               />
             </div>
 
@@ -189,7 +189,7 @@ export default function GuardianSignUp() {
                 type="password"
                 value={form.password}
                 onChange={(event) => set("password", event.target.value)}
-                placeholder="비밀번호"
+                placeholder="비밀번호를 입력해주세요"
               />
             </div>
 
@@ -202,7 +202,7 @@ export default function GuardianSignUp() {
                 type="password"
                 value={form.passwordConfirm}
                 onChange={(event) => set("passwordConfirm", event.target.value)}
-                placeholder="비밀번호 확인"
+                placeholder="비밀번호를 다시 입력해주세요"
               />
             </div>
           </div>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
-import "leaflet/dist/leaflet.css";
+
 import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
   SAFE_RADIUS,
@@ -81,13 +82,20 @@ export default function LocationPage() {
       ))
     : 0;
 
-  const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
+  const saveCurrentLocation = async ({ lat, lon, nextAddress, accuracy }) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
+
     await fetch("http://localhost:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
+      body: JSON.stringify({
+        seniorId,
+        latitude: lat,
+        longitude: lon,
+        address: nextAddress,
+        accuracy,
+      }),
     }).catch(() => {});
   };
 
@@ -126,39 +134,21 @@ export default function LocationPage() {
     }
   }, []);
 
-  const updateLocation = useCallback(async (lat, lon) => {
-    setCurrentPos([lat, lon]);
-    setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-    setLastUpdate(getNow());
+  const updateLocation = useCallback(async (lat, lon, accuracy) => {
+  setCurrentPos([lat, lon]);
+  setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
+  setLastUpdate(getNow());
 
-    const nextAddress = await getAddress(lat, lon);
-    setAddress(nextAddress);
+  const nextAddress = await getAddress(lat, lon);
+  setAddress(nextAddress);
 
-    try {
-      await saveCurrentLocation({ lat, lon, nextAddress });
-      await loadLocationHistory(todayStr());
-    } catch {}
+  try {
+    await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
+    await loadLocationHistory(todayStr());
+  } catch {}
 
-    const seniorId = getCurrentSeniorId();
-    const currentDistance = Math.round(getDistanceMeters(
-      { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-      { lat, lng: lon }
-    ));
-
-    if (
-      currentDistance > safeZone.radiusMeters &&
-      shouldSendSafeZoneAlert(seniorId, safeZone, lat, lon)
-    ) {
-      createSafeZoneAlert({
-        seniorId,
-        latitude: lat,
-        longitude: lon,
-        address: nextAddress,
-      }).catch(() => {});
-    }
-
-    setLoading(false);
-  }, [loadLocationHistory, safeZone]);
+  setLoading(false);
+}, [loadLocationHistory]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -169,7 +159,11 @@ export default function LocationPage() {
     setLoading(true);
     setError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => updateLocation(position.coords.latitude, position.coords.longitude),
+      (position) => updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        position.coords.accuracy
+      ),
       () => { setError("위치 권한을 허용해주세요."); setLoading(false); }
     );
   }, [updateLocation]);
@@ -181,6 +175,10 @@ export default function LocationPage() {
     const timerId = setInterval(getLocation, 30000);
     return () => clearInterval(timerId);
   }, [getLocation]);
+
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   const currentHistory = historyByDate[selectedDate] || [];
   const mapCenter = currentPos
@@ -198,17 +196,7 @@ export default function LocationPage() {
 
   return (
     <div className="lp-root">
-      <nav className="lp-nav">
-        <button className="lp-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-        <div className="lp-nav-title">내 위치</div>
-        <div className="lp-nav-right">
-          <button className="lp-refresh-btn" type="button" onClick={getLocation}>
-            <RefreshCw size={13} /> 새로고침
-          </button>
-        </div>
-      </nav>
+      <UserCommonHeader />
 
       <div className="lp-layout">
         <div className="lp-map-section">
@@ -350,7 +338,13 @@ export default function LocationPage() {
         <aside className="lp-sidebar">
           {/* 위치 정보 */}
           <div className="lp-info-card">
-            <div className="lp-card-title"><span>위치 정보</span></div>
+            <div className="lp-info-card-header">
+              <h2>위치 정보</h2>
+
+              <button className="lp-refresh-btn lp-refresh-btn-compact" type="button" onClick={getLocation}>
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
             <div className="lp-info-row">
               <div className="lp-info-key"><Clock size={13} /> 마지막 갱신</div>
               <div className="lp-info-val">{lastUpdate}</div>

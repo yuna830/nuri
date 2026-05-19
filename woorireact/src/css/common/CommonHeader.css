@@ -1,0 +1,130 @@
+.common-app-header {
+  height: 60px;
+  border-bottom: 1px solid #d4e8d6;
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 120;
+  box-shadow: 0 1px 8px rgba(134, 167, 136, 0.08);
+}
+
+.common-app-header-inner {
+  max-width: 1280px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.common-app-header .common-app-logo {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #86a788;
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.common-app-header .common-app-logo:hover {
+  color: #5f8a62;
+}
+
+.common-app-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.common-app-header .common-app-header-text {
+  color: #7a9a7c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.common-app-header .common-app-danger-button {
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  padding: 0 1.2rem;
+  background: #e05252;
+  color: #ffffff;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(224, 82, 82, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.common-app-header .common-app-danger-button:hover {
+  transform: scale(1.03);
+}
+
+.common-app-header .common-app-icon-button {
+  position: relative;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 0;
+  background: #ffffff;
+  color: #374151;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.common-app-header .common-app-icon-button:hover {
+  border-color: #86a788;
+  color: #5f8a62;
+}
+
+.common-app-header .common-app-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: #d63b34;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .common-app-header-inner {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .common-app-header .common-app-header-text {
+    display: none;
+  }
+
+  .common-app-actions {
+    gap: 0.7rem;
+  }
+
+  .common-app-header .common-app-danger-button {
+    padding: 0 0.85rem;
+    font-size: 14px;
+  }
+}

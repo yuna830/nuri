@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   COLORS,
   calcHealthScore,
@@ -162,6 +163,11 @@ const formatDongAddress = (address = "") => {
   return parts.slice(0, 3).join(" ");
 };
 
+const toTelHref = (phone = "") => {
+  const digits = String(phone).replace(/[^0-9+]/g, "");
+  return digits ? `tel:${digits}` : "";
+};
+
 const getLocalCareTeam = (seniorId) => {
   if (!seniorId) return null;
 
@@ -221,6 +227,7 @@ export default function UserPage() {
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
     guardianPhone: initialProfile?.guardian?.phone || initialSenior?.guardianPhone || initialLocalCareTeam?.guardianPhone || "",
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
+    socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
@@ -238,6 +245,8 @@ export default function UserPage() {
   const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
+
+  const [medicineAlert, setMedicineAlert] = useState(null);
 
   const fetchWeather = async (lat, lon) => {
     try {
@@ -349,7 +358,7 @@ export default function UserPage() {
     }
   };
 
-  const updateLocation = async (lat, lon) => {
+  const updateLocation = async (lat, lon, accuracy) => {
     setChanged(setCurrentPos, { lat, lon });
 
     const capturedAt = new Date();
@@ -368,7 +377,7 @@ export default function UserPage() {
             Math.pow(
               (lon - lastSavedLocation.lon) *
                 111000 *
-                Math.cos(lat * Math.PI / 180),
+                Math.cos((lat * Math.PI) / 180),
               2
             )
         )
@@ -383,14 +392,13 @@ export default function UserPage() {
     const resolvedAddress = shouldResolveAddress
       ? await reverseGeocode(lat, lon).catch(() => "현재 위치")
       : currentAddress;
-    setChanged(setCurrentAddress, resolvedAddress);
+
+    const displayAddress = resolvedAddress || "현재 위치";
+    setChanged(setCurrentAddress, displayAddress);
 
     try {
-      const displayAddress = resolvedAddress || "현재 위치";
-      setChanged(setCurrentAddress, displayAddress);
-
       const seniorId = getCurrentSeniorId(initialSenior);
-      // 가만히 있어도 위치가 튀는 경우가 있어 50미터 이상 이동 시 저장
+
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
@@ -400,13 +408,14 @@ export default function UserPage() {
             latitude: lat,
             longitude: lon,
             address: displayAddress,
+            accuracy,
           }),
         }).catch(() => {});
 
         lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
-      setCurrentAddress("현재 위치");
+      setChanged(setCurrentAddress, "현재 위치");
     }
 
     if (safeZone) {
@@ -415,24 +424,13 @@ export default function UserPage() {
           Math.pow(
             (lon - safeZone.centerLongitude) *
               111000 *
-              Math.cos(lat * Math.PI / 180),
+              Math.cos((lat * Math.PI) / 180),
             2
           )
       );
 
       setChanged(setIsInRange, dist <= safeZone.radiusMeters);
 
-      if (
-        dist > safeZone.radiusMeters &&
-        shouldSendSafeZoneAlert(getCurrentSeniorId(initialSenior), safeZone, lat, lon)
-      ) {
-        createSafeZoneAlert({
-          seniorId: getCurrentSeniorId(initialSenior),
-          latitude: lat,
-          longitude: lon,
-          address: resolvedAddress || "현재 위치",
-        }).catch(() => {});
-      }
     }
   };
 
@@ -442,7 +440,7 @@ export default function UserPage() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-        updateLocation(pos.coords.latitude, pos.coords.longitude);
+        updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       () => fetchWeather(37.5665, 126.9780)
     );
@@ -450,7 +448,11 @@ export default function UserPage() {
     // 30珥덈쭏???꾩튂 ?먮룞 媛깆떊
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
+        pos => updateLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy
+        ),
         () => {}
       );
     }, 30000);
@@ -521,6 +523,7 @@ export default function UserPage() {
         guardianRelation: profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
         guardianPhone: guardian?.phone || profile?.guardianPhone || senior.guardianPhone || localCareTeam?.guardianPhone || "",
         socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
+        socialWorkerPhone: socialWorker?.phone || profile?.socialWorkerPhone || senior.socialWorkerPhone || localCareTeam?.socialWorkerPhone || "",
       });
     };
 
@@ -653,6 +656,9 @@ export default function UserPage() {
       if (cancelled) return;
       const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
       setIncomingCallAlert(callAlert || null);
+
+      const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
+      setMedicineAlert(medicineAlert || null);
     };
 
     loadCallRequest();
@@ -714,6 +720,22 @@ export default function UserPage() {
     }
   };
 
+  const handleDismissCallRequest = async () => {
+    const alertId = incomingCallAlert?.id;
+    setIncomingCallAlert(null);
+    if (alertId) {
+      await readAlert(alertId).catch(() => {});
+    }
+  };
+
+  const handleReadMedicineAlert = async () => {
+    if (medicineAlert?.id) {
+      await readAlert(medicineAlert.id).catch(() => {});
+    }
+
+    setMedicineAlert(null);
+  };
+
   const openAllSchedules = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
     const today = todayValue();
@@ -735,15 +757,7 @@ export default function UserPage() {
 
   return (
     <div className="up-root">
-      <nav className="up-nav">
-        <div className="up-nav-logo">우리 woori</div>
-        <div className="up-nav-right">
-          <span className="up-nav-date">{dateStr}</span>
-          <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
-            SOS 알림 요청
-          </button>
-        </div>
-      </nav>
+      <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
 
       <div className="up-layout">
         <aside>
@@ -764,15 +778,27 @@ export default function UserPage() {
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                <strong>
-                  {careTeam.guardianName
-                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                    : "매칭 전"}
-                </strong>
+                {careTeam.guardianName && toTelHref(careTeam.guardianPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.guardianPhone)}>
+                    {`${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`}
+                  </a>
+                ) : (
+                  <strong>
+                    {careTeam.guardianName
+                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                      : "매칭 전"}
+                  </strong>
+                )}
               </div>
               <div>
                 <span>복지사</span>
-                <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
+                    {careTeam.socialWorkerName}
+                  </a>
+                ) : (
+                  <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                )}
               </div>
             </div>
           </div>
@@ -904,12 +930,21 @@ export default function UserPage() {
             <div className="up-card up-schedule-card">
               <div className="up-card-head">
                 <div className="up-card-title">일정</div>
-                <input
-                  className="up-schedule-date"
-                  type="date"
-                  value={selectedScheduleDate}
-                  onChange={(event) => setSelectedScheduleDate(event.target.value)}
-                />
+                <div className="up-schedule-tools">
+                  <input
+                    className="up-schedule-date"
+                    type="date"
+                    value={selectedScheduleDate}
+                    onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="up-schedule-create"
+                    onClick={() => navigate("/chat?mode=schedule")}
+                  >
+                    일정 생성
+                  </button>
+                </div>
               </div>
 
               <div className="up-schedule-list">
@@ -1031,19 +1066,43 @@ export default function UserPage() {
       )}
 
       {incomingCallAlert && (
-        <div className="up-overlay" onClick={() => setIncomingCallAlert(null)}>
+        <div className="up-overlay" onClick={handleDismissCallRequest}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">전화</div>
+            <div className="up-modal-ico">📞</div>
             <div className="up-modal-title">보호자가 전화를 요청했습니다.</div>
             <div className="up-modal-desc">
               전화 앱에 수신 화면이 뜨면 통화 버튼을 눌러주세요.
             </div>
             <div className="up-modal-row">
-              <button className="up-modal-cancel" type="button" onClick={() => setIncomingCallAlert(null)}>
+              <button className="up-modal-cancel" type="button" onClick={handleDismissCallRequest}>
                 나중에
               </button>
               <button className="up-modal-ok" type="button" onClick={handleReceiveCall}>
                 전화 받기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {medicineAlert && (
+        <div className="up-overlay" onClick={handleReadMedicineAlert}>
+          <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💊</div>
+            <div className="up-modal-title">
+              {medicineAlert.title || "복약 알림"}
+            </div>
+            <div className="up-modal-desc">
+              {medicineAlert.message || "복용 중인 약을 확인하고 제때 복용해주세요."}
+            </div>
+
+            <div className="up-modal-row medicine-alert-modal-row">
+              <button
+                className="up-modal-ok medicine-alert-confirm-button"
+                type="button"
+                onClick={handleReadMedicineAlert}
+              >
+                확인했어요
               </button>
             </div>
           </div>
@@ -1065,7 +1124,7 @@ export default function UserPage() {
       {showSOS && (
         <div className="up-overlay" onClick={() => setShowSOS(false)}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">SOS</div>
+            <div className="up-modal-ico">🚨</div>
             <div className="up-modal-title">SOS를 보내시겠어요?</div>
             <div className="up-modal-desc">
               보호자와 담당 복지사에게<br />즉시 알림이 전송됩니다.

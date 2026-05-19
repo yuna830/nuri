@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const KAKAO_MAP_SCRIPT_ID = "kakao-map-sdk";
 
 const getKakaoMapKey = () =>
-  import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY ||
-  import.meta.env.VITE_KAKAO_REST_API_KEY ||
-  "";
+  (
+    import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY ||
+    import.meta.env.VITE_KAKAO_REST_API_KEY ||
+    ""
+  ).trim();
 
 const loadKakaoMapSdk = () => new Promise((resolve, reject) => {
   if (window.kakao?.maps) {
@@ -29,7 +31,7 @@ const loadKakaoMapSdk = () => new Promise((resolve, reject) => {
   const script = document.createElement("script");
   script.id = KAKAO_MAP_SCRIPT_ID;
   script.async = true;
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
+  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=services`;
   script.onload = () => window.kakao.maps.load(() => resolve(window.kakao.maps));
   script.onerror = reject;
   document.head.appendChild(script);
@@ -77,9 +79,6 @@ export default function KakaoMap({
             center: toLatLng(maps, normalizedCenter),
             level: zoom,
           });
-        } else {
-          mapRef.current.setCenter(toLatLng(maps, normalizedCenter));
-          mapRef.current.setLevel(zoom);
         }
 
         setFailed(false);

@@ -1,4 +1,5 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import { resolveUploadUrl } from "../../api/userPageApi";
 
@@ -72,7 +73,6 @@ function UserPanel({
   hasCurrentLocation,
   isOutsideSafeZone,
   distance,
-  location,
   lastNormalLocation,
   safeZoneForm,
   formatShortAddress,
@@ -95,6 +95,7 @@ function UserPanel({
   onConnectSenior,
   onCreateAndConnectSenior,
   onDeleteElder,
+  onOpenMedicineAlert,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
@@ -106,6 +107,29 @@ function UserPanel({
   const [isSearchingSafeZone, setIsSearchingSafeZone] = useState(false);
 
   const profileMenuRef = useRef(null);
+
+  const navigate = useNavigate();
+
+  const handleOpenUserPage = () => {
+    if (!selectedElder?.id) return;
+
+    const seniorProfile = {
+      senior: {
+        id: selectedElder.id,
+        name: selectedElder.name,
+        age: selectedElder.age,
+        gender: selectedElder.gender,
+        address: selectedElder.address,
+        region: selectedElder.address,
+        profileImageUrl: selectedElder.profileImageUrl || "",
+      },
+    };
+
+    sessionStorage.setItem("currentSenior", JSON.stringify(seniorProfile));
+    localStorage.setItem("current_senior_id", String(selectedElder.id));
+
+    navigate("/user");
+  };
 
   const guardianProfileImage = profileImages[selectedElderId] ?? null;
 
@@ -210,7 +234,16 @@ function UserPanel({
   };
 
   const handleSelectSafeZone = (place) => {
-    onSelectSafeZonePlace(place);
+    onSelectSafeZonePlace({
+      display_name:
+        place.display_name ||
+        place.road_address_name ||
+        place.address_name ||
+        place.place_name,
+      lat: place.lat || place.y,
+      lon: place.lon || place.x,
+    });
+
     setSafeZoneKeyword("");
     setSafeZoneResults([]);
   };
@@ -228,7 +261,7 @@ function UserPanel({
               {profileImage ? (
                 <img src={profileImage} alt={`${selectedElder.name} 프로필`} />
               ) : (
-                <span>?대?吏</span>
+                <span>이미지</span>
               )}
             </button>
 
@@ -243,39 +276,35 @@ function UserPanel({
             {profileImage && isProfileMenuOpen && (
               <div className="profile-image-menu">
                 <button type="button" onClick={handleChangeProfileImage}>
-                  蹂寃?
+                  변경
                 </button>
                 <button type="button" onClick={handleDeleteProfileImage}>
-                  ??젣
+                  삭제
                 </button>
               </div>
             )}
           </div>
 
           <div className="status-profile-head">
-            <strong>
+            <button
+              className="guardian-user-link"
+              type="button"
+              onClick={handleOpenUserPage}
+            >
               {selectedElder.name} ({selectedElder.relation})
-            </strong>
+            </button>
+
             <p className={`status-line ${!hasCurrentLocation ? "muted" : isOutsideSafeZone ? "danger" : "normal"}`}>
               <span />
-              {!hasCurrentLocation ? "미수신" : isOutsideSafeZone ? "이탈" : "정상"}
+              {!hasCurrentLocation
+                ? "미수신"
+                : isOutsideSafeZone
+                  ? `이탈 (${distance}m)`
+                  : "정상"}
             </p>
           </div>
 
-          <p className="status-message">
-            {!hasCurrentLocation
-              ? "최근 위치를 아직 수신하지 못했습니다"
-              : isOutsideSafeZone
-                ? "안전 반경 밖에 있습니다"
-                : "현재 안전 반경 안에 있습니다"}
-          </p>
-          <small>{hasCurrentLocation ? `${distance}m 거리` : "위치 미수신"}</small>
-
           <dl className="status-profile-list">
-            <div>
-              <dt>마지막 접속</dt>
-              <dd>{selectedElder.lastLoginText || "기록 없음"}</dd>
-            </div>
             <div>
               <dt>연락처</dt>
               <dd>{selectedElder.phone || "연락처 없음"}</dd>
@@ -283,14 +312,6 @@ function UserPanel({
             <div>
               <dt>나이</dt>
               <dd>{selectedElder.age}</dd>
-            </div>
-            <div>
-              <dt>성별</dt>
-              <dd>{selectedElder.gender}</dd>
-            </div>
-            <div>
-              <dt>주소</dt>
-              <dd>{selectedElder.address}</dd>
             </div>
             <div>
               <dt>담당 복지사</dt>
@@ -302,36 +323,50 @@ function UserPanel({
             <div className="condition-row">
               <dt>주요 질환</dt>
               <dd>
-                <ul className="condition-list">
-                  {(selectedElder.condition || "?깅줉??嫄닿컯?뺣낫 ?놁쓬").split(", ").map((condition) => (
-                    <li key={condition}>{condition}</li>
-                  ))}
-                </ul>
+                {(() => {
+                  const conditions = (selectedElder.condition || "")
+                    .split(", ")
+                    .map((condition) => condition.split(":")[0].trim())
+                    .filter(Boolean);
+
+                  if (conditions.length === 0) {
+                    return "등록 없음";
+                  }
+
+                  return (
+                    <>
+                      {conditions.slice(0, 2).join(" · ")}
+                      {conditions.length > 2 ? ` 외 ${conditions.length - 2}` : ""}
+                    </>
+                  );
+                })()}
               </dd>
             </div>
             <div className="condition-row">
               <dt>복약 정보</dt>
               <dd>
-                {selectedElder.medications?.length ? (
-                  <ul className="condition-list">
-                    {selectedElder.medications.map((medicine, index) => (
-                      <li key={`${medicine.name}-${index}`}>
-                        {[
-                          medicine.name,
-                          medicine.ongoing
-                            ? `${medicine.startDate || "시작일 미입력"}부터 계속 복용`
-                            : [medicine.startDate, medicine.endDate].filter(Boolean).join(" ~ "),
-                          medicine.interval ? `${medicine.interval}시간마다` : "",
-                          medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" / ")}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  selectedElder.medicineCount || "없음"
-                )}
+                <button
+                  className="medicine-info-text-button"
+                  type="button"
+                  onClick={onOpenMedicineAlert}
+                >
+                  {selectedElder.medications?.length ? (
+                    <ul className="condition-list">
+                      {selectedElder.medications.map((medicine, index) => (
+                        <li key={`${medicine.name}-${index}`}>
+                          {[
+                              medicine.name,
+                              medicine.startDate ? `${medicine.startDate}부터` : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" / ")}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    selectedElder.medicineCount || "없음"
+                  )}
+                </button>
               </dd>
             </div>
           </dl>
@@ -351,19 +386,17 @@ function UserPanel({
 
         <section className="card location-summary">
           <div className="summary-row">
-            <span>현재 위치</span>
-            <strong>{hasCurrentLocation ? formatShortAddress(location.address) : "위치 미수신"}</strong>
-          </div>
-
-          <div className="summary-row">
             <span>마지막 정상 위치</span>
             <strong>
-              {selectedElder.lastNormalLocation ? formatShortAddress(lastNormalLocation.address) : "기록 없음"}
+              {selectedElder.lastNormalLocation
+                ? formatShortAddress(lastNormalLocation.address)
+                : "기록 없음"}
             </strong>
           </div>
 
           <div className="summary-row safe-zone-summary">
             <span>안전 반경 중심</span>
+
             <button
               className={`safe-zone-trigger ${isSafeZoneOpen ? "active" : ""}`}
               type="button"
@@ -371,18 +404,19 @@ function UserPanel({
             >
               <span className="safe-zone-top">
                 <span className="safe-zone-name-row">
-                  <span className="safe-zone-name">{safeZoneForm.name}</span>
+                  <span className="safe-zone-name">{safeZoneForm?.name || "기본구역"}</span>
                   <span className="safe-zone-edit">수정</span>
                 </span>
 
-                {safeZoneForm.address && (
+                {safeZoneForm?.address && (
                   <span className="safe-zone-address">
-                    {formatShortAddress(safeZoneForm.address)}
+                    {formatSafeZoneAddress(safeZoneForm.address)}
                   </span>
                 )}
               </span>
+
               <span className="safe-zone-radius">
-                반경 {safeZoneForm.radiusMeters}m 설정
+                반경 {safeZoneForm?.radiusMeters ?? 500}m 설정
               </span>
             </button>
           </div>
@@ -390,11 +424,15 @@ function UserPanel({
 
         {isSafeZoneOpen && (
           <section className="card safe-zone-card">
-            <h2>?덉쟾 諛섍꼍 ?ㅼ젙</h2>
+            <h2>안전 반경 설정</h2>
 
             <label>
               장소 이름
-              <input name="name" value={safeZoneForm.name} onChange={onSafeZoneChange} />
+              <input
+                name="name"
+                value={safeZoneForm.name}
+                onChange={onSafeZoneChange}
+              />
             </label>
 
             <label>
@@ -403,7 +441,7 @@ function UserPanel({
                 name="address"
                 value={safeZoneForm.address || ""}
                 onChange={onSafeZoneChange}
-                placeholder="예: 서울특별시 서초구 서초중앙로"
+                placeholder="예: 서울특별시 광진구 자양동"
               />
             </label>
 
@@ -413,9 +451,14 @@ function UserPanel({
                 <input
                   value={safeZoneKeyword}
                   onChange={(event) => setSafeZoneKeyword(event.target.value)}
-                  placeholder={safeZoneForm.address || "예: 서울 서초구 서초중앙로"}
-                  onKeyDown={(event) => event.key === "Enter" && handleSearchSafeZone()}
+                  placeholder={safeZoneForm.address || "예: 자양고등학교"}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      handleSearchSafeZone();
+                    }
+                  }}
                 />
+
                 <button type="button" onClick={handleSearchSafeZone}>
                   {isSearchingSafeZone ? "검색 중" : "검색"}
                 </button>
@@ -424,13 +467,16 @@ function UserPanel({
 
             {safeZoneResults.length > 0 && (
               <div className="safe-zone-results">
-                {safeZoneResults.map((place) => (
+                {safeZoneResults.map((place, index) => (
                   <button
-                    key={`${place.place_id}-${place.lat}-${place.lon}`}
+                    key={`${place.place_id || place.id || index}-${place.lat || place.y}-${place.lon || place.x}`}
                     type="button"
                     onClick={() => handleSelectSafeZone(place)}
                   >
-                    {place.display_name}
+                    {place.display_name ||
+                      place.place_name ||
+                      place.road_address_name ||
+                      place.address_name}
                   </button>
                 ))}
               </div>
@@ -438,7 +484,11 @@ function UserPanel({
 
             <label>
               반경
-              <select name="radiusMeters" value={safeZoneForm.radiusMeters} onChange={onSafeZoneChange}>
+              <select
+                name="radiusMeters"
+                value={safeZoneForm.radiusMeters}
+                onChange={onSafeZoneChange}
+              >
                 <option value={300}>300m</option>
                 <option value={500}>500m</option>
                 <option value={1000}>1km</option>
@@ -447,7 +497,7 @@ function UserPanel({
             </label>
 
             <button className="primary-button" type="button" onClick={onSaveSafeZone}>
-              ???
+              저장
             </button>
           </section>
         )}
@@ -486,7 +536,7 @@ function AddElderModal({
   onCreateAndConnectSenior,
 }) {
   const [isCreateElderOpen, setIsCreateElderOpen] = useState(false);
-  const [connectRelation, setConnectRelation] = useState("蹂댄샇 ??곸옄");
+  const [connectRelation, setConnectRelation] = useState("보호 대상자");
 
   const handleClose = () => {
     setIsCreateElderOpen(false);
@@ -510,9 +560,27 @@ function AddElderModal({
         <div className="add-elder-connect-fields">
           <div className="add-elder-search">
             <input
-              value={seniorSearch}
-              onChange={(event) => setSeniorSearch(event.target.value)}
-              placeholder="이름 또는 연락처로 검색"
+              value={seniorSearch.name}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="이름"
+              onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
+            />
+
+            <input
+              value={seniorSearch.phone}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  phone: event.target.value,
+                }))
+              }
+              placeholder="전화번호"
+              inputMode="numeric"
               onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
             />
 
@@ -533,11 +601,11 @@ function AddElderModal({
 
         <div className="add-elder-list">
           {!hasSearchedSenior ? (
-            <p className="add-elder-empty">蹂댄샇 ??곸옄???대쫫?대굹 ?곕씫泥섎? ?낅젰????寃?됲빐二쇱꽭??</p>
+            <p className="add-elder-empty">보호 대상자의 이름과 전화번호를 모두 입력해 검색해주세요.</p>
           ) : isSearchingSenior ? (
-            <p className="add-elder-empty">?ъ슜?먮? 寃?됲븯??以묒엯?덈떎.</p>
+            <p className="add-elder-empty">사용자를 검색하는 중입니다.</p>
           ) : seniorSearchResults.length === 0 ? (
-            <p className="add-elder-empty">寃??寃곌낵媛 ?놁뒿?덈떎. 蹂댄샇 ????깅줉???뚮윭 ?덈줈 ?깅줉?????덉뒿?덈떎.</p>
+            <p className="add-elder-empty">검색 결과가 없습니다. 보호 대상자 등록을 눌러 새로 등록할 수 있습니다..</p>
           ) : (
             seniorSearchResults.map((profile) => {
               const senior = profile.senior;
@@ -546,12 +614,12 @@ function AddElderModal({
                 <article key={senior.id} className="add-elder-item">
                   <div>
                     <strong>{senior.name}</strong>
-                    <span>{senior.phone || "?곕씫泥??놁쓬"}</span>
-                    <em>{senior.region || senior.address || "二쇱냼 ?놁쓬"}</em>
+                    <span>{senior.phone || "연락처 없음"}</span>
+                    <em>{senior.region || senior.address || "주소 없음"}</em>
                   </div>
 
                   <button type="button" onClick={() => onConnectSenior(senior.id, connectRelation)}>
-                    ?좏깮
+                    선택
                   </button>
                 </article>
               );
@@ -565,27 +633,27 @@ function AddElderModal({
             type="button"
             onClick={() => setIsCreateElderOpen((prev) => !prev)}
           >
-            蹂댄샇 ????깅줉
+            보호 대상자 등록
           </button>
         </div>
 
         {isCreateElderOpen && (
           <div className="add-elder-create">
-            <h3>?좉퇋 蹂댄샇 ????깅줉</h3>
+            <h3>신규 보호 대상자 등록</h3>
 
             <label>
-              ?대쫫
+              이름
               <input
                 value={newSeniorForm.name}
                 onChange={(event) =>
                   setNewSeniorForm((prev) => ({ ...prev, name: event.target.value }))
                 }
-                placeholder="?? 源?곹씗"
+                placeholder="예: 김영희"
               />
             </label>
 
             <label>
-              ?곕씫泥?
+              연락처
               <input
                 value={newSeniorForm.phone}
                 onChange={(event) =>

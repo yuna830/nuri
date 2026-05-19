@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import "../../css/common/Login.css";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 
+const API_BASE = "http://localhost:8080";
+
 const FEATURES = [
   { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로 확인" },
   { icon: "🚨", title: "긴급 알림 수신", desc: "안전 반경 이탈, 낙상, 실종 신고 알림" },
@@ -45,7 +47,7 @@ export default function GuardianLogin() {
       return;
     }
 
-    const response = await fetch("http://localhost:8080/api/guardians/login", {
+    const response = await fetch(`${API_BASE}/api/guardians/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -110,7 +112,7 @@ export default function GuardianLogin() {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/api/guardians/find-email", {
+        const response = await fetch(`${API_BASE}/api/guardians/find-email`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -144,7 +146,7 @@ export default function GuardianLogin() {
         return;
       }
 
-      const response = await fetch("http://localhost:8080/api/guardians/reset-password", {
+      const response = await fetch(`${API_BASE}/api/guardians/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -174,7 +176,7 @@ export default function GuardianLogin() {
     const phone = window.prompt("가입한 전화번호를 입력하세요.");
     if (!phone) return;
 
-    const response = await fetch("http://localhost:8080/api/guardians/find-email", {
+    const response = await fetch(`${API_BASE}/api/guardians/find-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, phone }),
@@ -199,7 +201,7 @@ export default function GuardianLogin() {
     const newPassword = window.prompt("새 비밀번호를 입력하세요.");
     if (!newPassword) return;
 
-    const response = await fetch("http://localhost:8080/api/guardians/reset-password", {
+    const response = await fetch(`${API_BASE}/api/guardians/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, phone, newPassword }),
@@ -234,7 +236,7 @@ export default function GuardianLogin() {
 
       <main className="login-root login-guardian">
         <section className="login-left">
-          <div className="login-logo">🌿 우리</div>
+          <div className="login-logo">🌿 우리 woori</div>
           <div className="login-tagline">보호자를 위한 실시간 안전 관리</div>
 
           <div className="login-features">
@@ -276,7 +278,7 @@ export default function GuardianLogin() {
               type="password"
               value={form.password}
               onChange={(event) => set("password", event.target.value)}
-              placeholder="비밀번호"
+              placeholder="비밀번호를 입력하세요"
               onKeyDown={(event) => event.key === "Enter" && handleLogin()}
             />
 
@@ -341,7 +343,7 @@ export default function GuardianLogin() {
                   className="login-input"
                   value={helpForm.name}
                   onChange={(event) => setHelp("name", event.target.value)}
-                  placeholder="예: 박윤아"
+                  placeholder="이름을 입력하세요"
                 />
 
                 <label className="login-label">전화번호</label>
@@ -376,7 +378,7 @@ export default function GuardianLogin() {
                   type="password"
                   value={helpForm.newPassword}
                   onChange={(event) => setHelp("newPassword", event.target.value)}
-                  placeholder="새 비밀번호"
+                  placeholder="새로운 비밀번호를 입력하세요"
                 />
               </>
             )}

@@ -1,6 +1,7 @@
 import { reverseGeocodeByKakao } from "./kakaoLocalApi.js";
 
 const API_BASE = "http://localhost:8080";
+const FALL_API_BASE = import.meta.env.VITE_FALL_API_BASE || "http://127.0.0.1:8000";
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 
@@ -316,14 +317,16 @@ export const fetchTodayClimateAlerts = async (seniorId) => {
   if (!seniorId) return [];
   const response = await fetch(`${API_BASE}/api/climate-alerts/senior/${seniorId}/today`);
   if (!response.ok) return [];
-  return response.json();
+  const alerts = await response.json();
+  return Array.isArray(alerts) ? alerts.slice(0, 6) : [];
 };
 
 export const fetchLatestClimateAlerts = async (seniorId) => {
   if (!seniorId) return [];
   const response = await fetch(`${API_BASE}/api/climate-alerts/senior/${seniorId}/latest`);
   if (!response.ok) return [];
-  return response.json();
+  const alerts = await response.json();
+  return Array.isArray(alerts) ? alerts.slice(0, 6) : [];
 };
 
 export const saveClimateAlert = async (alert) => {
@@ -377,6 +380,32 @@ export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, addre
 
   if (!response.ok) {
     throw new Error("Safe zone alert failed");
+  }
+
+  return response.json();
+};
+
+export const createFallAlert = async ({ seniorId, latitude, longitude, address, score }) => {
+  const response = await fetch(`${API_BASE}/api/alerts/fall`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId, latitude, longitude, address, score }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Fall alert failed");
+  }
+
+  return response.json();
+};
+
+export const getFallVideoUrl = () => `${FALL_API_BASE}/video`;
+
+export const fetchFallDetectionStatus = async () => {
+  const response = await fetch(`${FALL_API_BASE}/status`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Fall detection server failed");
   }
 
   return response.json();

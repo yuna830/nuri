@@ -264,20 +264,11 @@ export const fetchAirQuality = async (
   const primaryStation =
     await extractDistrictStation(lat, lon);
 
-  // 시도 전체 조회
-  const sidoUrl =
-    `/airkorea/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty`
-    + `?serviceKey=${PUBLIC_DATA_SERVICE_KEY}`
-    + `&returnType=json`
-    + `&numOfRows=100`
-    + `&pageNo=1`
-    + `&sidoName=${encodeURIComponent("서울")}`
-    + `&ver=1.3`;
-
   const sidoData =
     await fetchJsonWithCache(
-      sidoUrl,
-      "weather:air:sido:seoul"
+      `/api/environment/air-quality?sidoName=${encodeURIComponent("서울")}`,
+      "weather:air:sido:seoul",
+      2 * 60 * 1000
     );
 
   const sidoItems =
@@ -319,43 +310,6 @@ export const fetchAirQuality = async (
         station:
           matchedItem.stationName ||
           primaryStation,
-        ...parsed,
-      };
-    }
-  }
-
-  // fallback 최소화
-  const stations = [
-    ...new Set([
-      primaryStation,
-      "중구",
-    ]),
-  ];
-
-  for (const station of stations) {
-    const airUrl =
-      `/airkorea/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`
-      + `?serviceKey=${PUBLIC_DATA_SERVICE_KEY}`
-      + `&returnType=json`
-      + `&numOfRows=1`
-      + `&pageNo=1`
-      + `&stationName=${encodeURIComponent(
-          station
-        )}`
-      + `&dataTerm=DAILY`
-      + `&ver=1.3`;
-
-    const airData =
-      await fetchJsonWithCache(
-        airUrl,
-        `weather:air:${station}`
-      );
-
-    const parsed = parseAirItem(airData);
-
-    if (parsed) {
-      return {
-        station,
         ...parsed,
       };
     }

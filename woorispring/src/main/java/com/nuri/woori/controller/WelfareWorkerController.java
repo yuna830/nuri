@@ -35,6 +35,9 @@ public class WelfareWorkerController {
         worker.setPassword(hashPassword(password));
         worker.setCenter(trim(request.center()));
         worker.setRole(request.role() == null || request.role().isBlank() ? "복지사" : request.role().trim());
+        worker.setRegion(trim(request.region()));
+        worker.setPhone(trim(request.phone()));
+        worker.setEmail(trim(request.email()));
 
         WelfareWorker savedWorker = welfareWorkerRepository.save(worker);
 
@@ -81,13 +84,52 @@ public class WelfareWorkerController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<WelfareWorkerResponse> updateProfile(
+            @PathVariable Long id,
+            @RequestBody WelfareWorkerUpdateRequest request
+    ) {
+        String name = trim(request.name());
+        String center = trim(request.center());
+
+        if (name.isBlank() || center.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return welfareWorkerRepository.findById(id)
+                .map(worker -> {
+                    worker.setName(name);
+                    worker.setCenter(center);
+                    worker.setRegion(trim(request.region()));
+                    worker.setPhone(trim(request.phone()));
+                    worker.setEmail(trim(request.email()));
+                    WelfareWorker savedWorker = welfareWorkerRepository.save(worker);
+                    return ResponseEntity.ok(toResponse(savedWorker));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteWorker(@PathVariable Long id) {
+        if (!welfareWorkerRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        welfareWorkerRepository.deleteById(id);
+
+        return ResponseEntity.noContent().build();
+    }
+
     private WelfareWorkerResponse toResponse(WelfareWorker worker) {
         return new WelfareWorkerResponse(
                 worker.getId(),
                 worker.getWorkerId(),
                 worker.getName(),
                 worker.getRole(),
-                worker.getCenter()
+                worker.getCenter(),
+                worker.getRegion(),
+                worker.getPhone(),
+                worker.getEmail()
         );
     }
 
@@ -107,7 +149,7 @@ public class WelfareWorkerController {
 
             return builder.toString();
         } catch (Exception error) {
-            throw new RuntimeException("비밀번호 암호화 실패");
+            throw new RuntimeException("비밀번호 암호화에 실패했습니다.");
         }
     }
 
@@ -116,7 +158,10 @@ public class WelfareWorkerController {
             String workerId,
             String password,
             String center,
-            String role
+            String role,
+            String region,
+            String phone,
+            String email
     ) {
     }
 
@@ -144,12 +189,24 @@ public class WelfareWorkerController {
     ) {
     }
 
+    public record WelfareWorkerUpdateRequest(
+            String name,
+            String center,
+            String region,
+            String phone,
+            String email
+    ) {
+    }
+
     public record WelfareWorkerResponse(
             Long id,
             String workerId,
             String name,
             String role,
-            String center
+            String center,
+            String region,
+            String phone,
+            String email
     ) {
     }
 }

@@ -1,7 +1,5 @@
 // 복지사 페이지 공통 대상자 데이터 처리 유틸
 
-import { getSavedWelfareDecisions, getSavedWelfareDecisionDetails } from "./welfareStorage";
-
 export const getJobRequestGroup = (senior) =>
     Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
         ? "요청 있음"
