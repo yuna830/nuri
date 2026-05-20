@@ -58,6 +58,7 @@ export function parseDateFromText(text, baseDate = new Date()) {
   const normalized = normalizeScheduleText(text).replace(/\s+/g, " ").trim();
 
   if (/오늘/.test(normalized)) return formatDate(baseDate);
+  if (/글피/.test(normalized)) return formatDate(addDays(baseDate, 3));
   if (/내일\s*모레|내일모레|모레/.test(normalized)) return formatDate(addDays(baseDate, 2));
   if (/내일/.test(normalized)) return formatDate(addDays(baseDate, 1));
 
@@ -182,9 +183,11 @@ function cleanTitle(text) {
   return normalizeScheduleText(text)
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?에?/g, "")
-    .replace(/내일\s*모레|내일모레|오늘|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?|다음\s*주/g, "")
+    .replace(/내일\s*모레|내일모레|오늘|글피|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?|다음\s*주/g, "")
     .replace(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"), "")
-    .replace(/해야\s*해|해야해|일정|예약|알림|기억해줘|등록해줘|넣어줘|추가해줘|해줘/g, "")
+    .replace(/해야\s*해|해야해|일정|예약|알림|기억해줘|등록해줘|넣어줘|추가해줘|해줘|있어|있어요/g, "")
+    .replace(/^(에는|에|은|는)\s*/g, "")
+    .replace(/\s*(에는|에|은|는|이|가|을|를)\s*$/g, "")
     .replace(/[,:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

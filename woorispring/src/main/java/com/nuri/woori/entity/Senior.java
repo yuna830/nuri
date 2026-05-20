@@ -27,6 +27,8 @@ public class Senior {
     private String disabilityGrade;
     private String disabilityType;
     private String profileImageUrl;
+    private Boolean active = true;
+    private Long welfareWorkerId;
 
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -45,3 +47,4 @@ public class Senior {
         this.lastLoginAt = lastLoginAt;
     }
 }
+

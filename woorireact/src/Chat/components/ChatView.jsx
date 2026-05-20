@@ -67,6 +67,26 @@ export default function ChatView({
     navigate("/user");
   };
 
+  const handleImageUpload = async (file) => {
+    const imageUrl = URL.createObjectURL(file);
+    const answer = "사진 잘 받았어요. 같이 보고 이야기해요. 어떤 사진인지 설명해 주시면 더 잘 맞춰서 대답할게요.";
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: "사진을 보냈어요.",
+        imageUrl,
+      },
+      {
+        role: "assistant",
+        content: answer,
+      },
+    ]);
+
+    speak(answer);
+  };
+
   return (
     <section className="chatbot-page">
       <UserCommonHeader />
@@ -109,6 +129,7 @@ export default function ChatView({
             onSend={() => sendMessage()}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
+            onImageUpload={handleImageUpload}
           />
         </section>
 
