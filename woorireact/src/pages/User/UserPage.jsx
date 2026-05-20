@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
@@ -12,6 +12,11 @@ import {
   createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
+  fetchActivityBaseline,
+  fetchActivitySlots,
+  fetchActivityToday,
+  fetchActivityTrend,
+  fetchFallPattern,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
@@ -82,7 +87,7 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
-function RadarChart({ scores }) {
+function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
   const count = keys.length;
@@ -109,16 +114,22 @@ function RadarChart({ scores }) {
         {keys.map((_, i) => { const p = point(i, 1); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={COLORS.border} strokeWidth="1" />; })}
         <path d={pathD} fill={COLORS.green} fillOpacity="0.2" stroke={COLORS.green} strokeWidth="2.5" />
         {dataPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4" fill={COLORS.green} stroke="#fff" strokeWidth="2" />)}
-        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{key}</text>; })}
+        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{labels[key] || key}</text>; })}
         {vals.map((v, i) => { const p = point(i, (v / 100) * 0.68); return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill={COLORS.text} fontWeight="700">{v}</text>; })}
       </svg>
       <div className="up-radar-info">
-        <div className="up-radar-label">종합 건강 점수</div>
+        <div className="up-radar-label">{summaryLabel}</div>
         <div className="up-radar-score" style={{ color: avgColor }}>{avg}</div>
         <div className="up-radar-unit">/ 100점</div>
+        {quality && (
+          <div className={`up-radar-quality ${quality.level || ""}`}>
+            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : "참고용"}
+          </div>
+        )}
+        {note && <div className="up-radar-note">{note}</div>}
         {keys.map((key, i) => (
           <div key={key} className="up-radar-row">
-            <div className="up-radar-key">{key}</div>
+            <div className="up-radar-key">{labels[key] || key}</div>
             <div className="up-radar-bar">
               <div className="up-radar-bar-fill" style={{
                 width: `${vals[i]}%`,
@@ -133,6 +144,79 @@ function RadarChart({ scores }) {
   );
 }
 
+const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
+
+function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
+  const slotList = slots?.slots ? Object.entries(slots.slots) : [];
+  const baselineItems = baseline?.today_comparison
+    ? Object.entries(baseline.today_comparison).slice(0, 3)
+    : [];
+  const fallWarnings = Array.isArray(fallPattern?.warning_signs) ? fallPattern.warning_signs.slice(0, 3) : [];
+
+  return (
+    <div className="up-content-row">
+      <div className="up-card full up-activity-insights">
+        <div className="up-card-head">
+          <div className="up-card-title">활동 변화 분석</div>
+          <button className="up-card-more up-info-chip" type="button" onClick={() => onInfoClick?.("reference")}>
+            참고 지표
+          </button>
+        </div>
+
+        <div className="up-insight-grid">
+          <section className="up-insight-panel">
+            <div className="up-insight-title">시간대별 활동</div>
+            {slotList.length ? (
+              <div className="up-slot-list">
+                {slotList.map(([key, slot]) => (
+                  <div key={key} className={`up-slot-item ${slot.status}`}>
+                    <div>
+                      <strong>{slot.label}</strong>
+                      <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                    </div>
+                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "-"}</b>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">시간대별 활동 데이터를 불러오는 중입니다.</p>
+            )}
+          </section>
+
+          <section className="up-insight-panel">
+            <div className="up-insight-title">개인 기준선</div>
+            {baseline?.status === "ok" ? (
+              <div className="up-baseline-list">
+                {baselineItems.map(([key, item]) => (
+                  <div key={key} className={`up-baseline-item ${item.level}`}>
+                    <span>{baseline.labels?.[key] || key}</span>
+                    <strong>{formatScore(item.today)}</strong>
+                    <em>{item.level === "anomaly" ? "평소와 다름" : item.level === "deviation" ? "약간 다름" : "평소 범위"}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">{baseline?.message || "개인 기준선을 만드는 중입니다."}</p>
+            )}
+          </section>
+
+          <section className="up-insight-panel">
+            <div className="up-insight-title">낙상 전후 변화</div>
+            {fallPattern?.status === "ok" ? (
+              <div className="up-warning-list">
+                {fallWarnings.map((warning, index) => (
+                  <div key={index} className="up-warning-item">{warning}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">{fallPattern?.message || "낙상 기록이 생기면 전후 활동 변화를 보여줍니다."}</p>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
 function scheduleFromApi(schedule) {
   return {
     id: schedule.id,
@@ -217,6 +301,7 @@ export default function UserPage() {
   const [weather, setWeather] = useState(null);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
+  const [activityInfoModal, setActivityInfoModal] = useState(null);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
@@ -230,6 +315,11 @@ export default function UserPage() {
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
+  const [activityToday, setActivityToday] = useState(null);
+  const [activityTrend, setActivityTrend] = useState(null);
+  const [activitySlots, setActivitySlots] = useState(null);
+  const [activityBaseline, setActivityBaseline] = useState(null);
+  const [activityFallPattern, setActivityFallPattern] = useState(null);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -238,6 +328,9 @@ export default function UserPage() {
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
   const [incomingCallAlert, setIncomingCallAlert] = useState(null);
+  const [userAlerts, setUserAlerts] = useState([]);
+  const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
+  const [todayFallCount, setTodayFallCount] = useState(0);
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -247,6 +340,43 @@ export default function UserPage() {
   const [safeZone, setSafeZone] = useState(null);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadActivityCondition = async () => {
+      try {
+        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
+          fetchActivityToday(),
+          fetchActivityTrend(1),
+          fetchActivitySlots(),
+          fetchActivityBaseline(14),
+          fetchFallPattern(),
+        ]);
+        if (!isMounted) return;
+        setActivityToday(today);
+        setActivityTrend(trend);
+        setActivitySlots(slots);
+        setActivityBaseline(baseline);
+        setActivityFallPattern(fallPattern);
+      } catch {
+        if (!isMounted) return;
+        setActivityToday(null);
+        setActivityTrend(null);
+        setActivitySlots(null);
+        setActivityBaseline(null);
+        setActivityFallPattern(null);
+      }
+    };
+
+    loadActivityCondition();
+    const intervalId = window.setInterval(loadActivityCondition, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const fetchWeather = async (lat, lon) => {
     try {
@@ -260,7 +390,7 @@ export default function UserPage() {
         humid: forecast.humid && forecast.humid !== "--" ? forecast.humid + "%" : "-",
       });
     } catch {
-      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌤️", region: "현재 위치" });
+      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌧️", region: "현재 위치" });
     }
   };
 
@@ -445,7 +575,7 @@ export default function UserPage() {
       () => fetchWeather(37.5665, 126.9780)
     );
 
-    // 30珥덈쭏???꾩튂 ?먮룞 媛깆떊
+    // 30초마다 위치 자동 갱신
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         pos => updateLocation(
@@ -479,7 +609,9 @@ export default function UserPage() {
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
 
-      fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
+      fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+        cache: "no-store",
+      })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           if (data) setSafeZone(data);
@@ -490,7 +622,7 @@ export default function UserPage() {
     loadSafeZoneForHome();
 
     if (seniorId) {
-      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 60 * 1000);
+      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 10 * 1000);
     }
 
     const checkNewJobs = async () => {
@@ -587,7 +719,7 @@ export default function UserPage() {
     seniorIntervalId = setInterval(loadCurrentSenior, 60 * 1000);
 
     const currentDate = new Date();
-    const days = ["일", "월", "화", "수", "목", "금", "토"];
+    const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
@@ -654,15 +786,34 @@ export default function UserPage() {
     const loadCallRequest = async () => {
       const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
       if (cancelled) return;
+      setUserAlerts(alerts);
       const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
       setIncomingCallAlert(callAlert || null);
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
+
+      const safeExitAlert = alerts.find((alert) => (
+        (alert.type === "SAFE_ZONE_EXIT" || alert.type === "SAFE_ZONE") && !alert.isRead
+      ));
+      setSafeZoneExitAlert(safeExitAlert || null);
+
+      const today = new Date();
+      setTodayFallCount(
+        alerts.filter((alert) => {
+          if (alert.type !== "FALL_DETECTED" && alert.type !== "FALL_RISK") return false;
+          const createdAt = new Date(alert.createdAt);
+          return (
+            createdAt.getFullYear() === today.getFullYear()
+            && createdAt.getMonth() === today.getMonth()
+            && createdAt.getDate() === today.getDate()
+          );
+        }).length
+      );
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 15000);
+    const timerId = setInterval(loadCallRequest, 5000);
     return () => {
       cancelled = true;
       clearInterval(timerId);
@@ -755,6 +906,14 @@ export default function UserPage() {
     }
   };
 
+  const hasUnreadByRoute = (route) => {
+    if (route === "/weather") return weatherAlerts.some((alert) => alert.type !== "오늘 날씨");
+    if (route === "/fall-history") return userAlerts.some((alert) => (alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK") && !alert.isRead);
+    if (route === "/location") return userAlerts.some((alert) => (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") && !alert.isRead);
+    if (route === "/profile") return userAlerts.some((alert) => alert.type === "PROFILE_UPDATE" && !alert.isRead);
+    return false;
+  };
+
   return (
     <div className="up-root">
       <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
@@ -766,7 +925,7 @@ export default function UserPage() {
               {profileImageUrl ? (
                 <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
               ) : (
-                "👤"
+                "🙂"
               )}
             </div>
             <div className="up-profile-name">{userName}</div>
@@ -824,7 +983,7 @@ export default function UserPage() {
               >
                 <span className="up-sidemenu-icon">{menu.icon}</span>
                 <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew)) && (
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
                   <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
                     {menu.badge || "NEW"}
                   </span>
@@ -857,7 +1016,7 @@ export default function UserPage() {
                 fontWeight: "700",
                 color: isInRange ? COLORS.green : COLORS.danger,
               }}>
-                {isInRange ? "안전 반경 내" : "안전 반경 이탈"}
+                {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
               </span>
             </div>
             <div style={{
@@ -877,7 +1036,7 @@ export default function UserPage() {
             )}
             {currentLocationTime && (
               <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
-                기준 시간 {currentLocationTime}
+                갱신 시간 {currentLocationTime}
               </div>
             )}
             {currentPos && (
@@ -900,19 +1059,21 @@ export default function UserPage() {
           <div className="up-top-row">
             <div className="up-weather-card" onClick={() => navigate("/weather-graph")}>
               <div className="up-card-label">오늘 날씨</div>
-              <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
+              <div className="up-weather-temp">{weather?.temp ?? "--"}°C</div>
               <div className="up-weather-bot">
                 <div className="up-weather-desc">
                   {weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}
                 </div>
-                <div className="up-weather-icon">{weather?.icon ?? "☁️"}</div>
+                <div className="up-weather-icon">{weather?.icon ?? "🌧️"}</div>
               </div>
             </div>
 
             <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
-              <div className="up-card-label">이번 달 낙상</div>
-              <div className="up-stat-value red">2건</div>
-              <div className="up-stat-sub">최근: 5월 4일 거실</div>
+              <div className="up-card-label">오늘 낙상</div>
+              <div className="up-stat-value red">{todayFallCount}건</div>
+              <div className="up-stat-sub">
+                {todayFallCount > 0 ? "감지 이력을 확인해주세요" : "오늘 감지된 낙상이 없어요"}
+              </div>
             </div>
 
             <div className="up-stat-card" onClick={openAllSchedules}>
@@ -990,18 +1151,40 @@ export default function UserPage() {
             </div>
           </div>
 
-          {healthScores && (
+          {activityToday && (
             <div className="up-content-row">
               <div className="up-card full">
                 <div className="up-card-head">
-                  <div className="up-card-title">건강 상태 레이더</div>
-                  <button className="up-card-more" type="button" onClick={() => navigate("/profile")}>
-                    정보 수정
+                  <div className="up-card-title">오늘의 활동 컨디션</div>
+                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
+                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
                   </button>
                 </div>
-                <RadarChart scores={healthScores} />
+                {activityToday.status === "ok" && activityToday.scores ? (
+                  <RadarChart
+                    scores={activityToday.scores}
+                    labels={activityToday.labels}
+                    summaryLabel="활동 컨디션 요약"
+                    note={activityTrend?.alerts?.[0] || activityToday.overall_note || ""}
+                    quality={activityToday.data_quality}
+                  />
+                ) : (
+                  <div className="up-activity-empty">
+                    <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
+                    <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
+                  </div>
+                )}
               </div>
             </div>
+          )}
+
+          {(activitySlots || activityBaseline || activityFallPattern) && (
+            <ActivityInsightCards
+              slots={activitySlots}
+              baseline={activityBaseline}
+              fallPattern={activityFallPattern}
+              onInfoClick={setActivityInfoModal}
+            />
           )}
 
           <div className="up-content-row">
@@ -1042,7 +1225,7 @@ export default function UserPage() {
                 type="button"
                 onClick={() => setShowAllSchedules(false)}
               >
-                ×
+                횞
               </button>
             </div>
             {isLoadingAllSchedules ? (
@@ -1109,6 +1292,22 @@ export default function UserPage() {
         </div>
       )}
 
+      {safeZoneExitAlert && !isInRange && (
+        <div className="up-overlay up-safe-zone-overlay">
+          <div className="up-modal up-safe-zone-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">📍</div>
+            <div className="up-modal-title">안전 반경을 벗어났습니다</div>
+            <div className="up-modal-desc">
+              보호자에게 이탈 알림을 보냈어요.<br />
+              보호자 또는 담당자와 만날 때까지 이 안내가 유지됩니다.
+            </div>
+            <div className="up-safe-zone-message">
+              집 또는 지정된 안전 구역으로 돌아가 주세요.
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingSos && (
         <div className="up-sos-pending">
           <div>
@@ -1118,6 +1317,27 @@ export default function UserPage() {
           <button type="button" onClick={handleSosMistake}>
             잘못 눌렀어요
           </button>
+        </div>
+      )}
+
+      {activityInfoModal && (
+        <div className="up-overlay" onClick={() => setActivityInfoModal(null)}>
+          <div className="up-modal up-info-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">{activityInfoModal === "measured" ? "📷" : "ℹ️"}</div>
+            <div className="up-modal-title">
+              {activityInfoModal === "measured" ? "실측 데이터" : "참고 지표"}
+            </div>
+            <div className="up-modal-desc">
+              {activityInfoModal === "measured"
+                ? "카메라와 낙상 감지 모델이 수집한 자세, 움직임, 정지 시간, 낙상 이벤트를 바탕으로 표시됩니다."
+                : "의료 진단이 아닌 활동 패턴 참고용 지표입니다. 평소와 다른 움직임을 확인하는 용도로만 활용해주세요."}
+            </div>
+            <div className="up-modal-row single">
+              <button className="up-modal-ok" type="button" onClick={() => setActivityInfoModal(null)}>
+                확인
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1139,3 +1359,4 @@ export default function UserPage() {
     </div>
   );
 }
+

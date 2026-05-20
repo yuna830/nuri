@@ -119,7 +119,9 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}`);
+      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (!response.ok || response.status === 204) return;
       const nextSafeZone = await response.json();
       setSafeZone({
@@ -133,6 +135,12 @@ export default function LocationPage() {
       console.error("안전 반경 조회 실패:", e);
     }
   }, []);
+
+  useEffect(() => {
+    loadSafeZone();
+    const timerId = setInterval(loadSafeZone, 10 * 1000);
+    return () => clearInterval(timerId);
+  }, [loadSafeZone]);
 
   const updateLocation = useCallback(async (lat, lon, accuracy) => {
   setCurrentPos([lat, lon]);
@@ -168,7 +176,6 @@ export default function LocationPage() {
     );
   }, [updateLocation]);
 
-  useEffect(() => { loadSafeZone(); }, [loadSafeZone]);
   useEffect(() => { getLocation(); }, [getLocation]);
   useEffect(() => { loadLocationHistory(selectedDate); }, [loadLocationHistory, selectedDate]);
   useEffect(() => {

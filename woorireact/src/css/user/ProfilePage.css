@@ -124,14 +124,41 @@
   align-items: start;
 }
 
+.pr-layout aside {
+  position: sticky;
+  top: 80px;
+}
+
 .pr-sidenav {
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid #d4e8d6;
   box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
   overflow: hidden;
-  position: sticky;
-  top: 80px;
+}
+
+.pr-side-actions {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.pr-side-actions .pr-reset-btn,
+.pr-side-actions .pr-save-btn {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.pr-reset-btn:disabled,
+.pr-save-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .pr-sidenav-item {
@@ -472,6 +499,72 @@
   accent-color: #86a788;
 }
 
+.pr-save-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 42, 31, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.pr-save-popup {
+  width: min(360px, 100%);
+  border: 1px solid #d4e8d6;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(30, 42, 31, 0.18);
+  padding: 2rem 1.6rem;
+  text-align: center;
+}
+
+.pr-save-spinner,
+.pr-save-check {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+}
+
+.pr-save-spinner {
+  border: 5px solid #eef6ef;
+  border-top-color: #86a788;
+  animation: pr-spin 0.8s linear infinite;
+}
+
+.pr-save-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #86a788;
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(134, 167, 136, 0.3);
+}
+
+.pr-save-popup-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1e2a1f;
+  margin-bottom: 0.45rem;
+}
+
+.pr-save-popup-desc {
+  color: #6f8f72;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+@keyframes pr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 900px) {
   .pr-nav {
     padding: 0 1rem;
@@ -480,5 +573,9 @@
   .pr-layout {
     grid-template-columns: 1fr;
     padding: 1rem;
+  }
+
+  .pr-layout aside {
+    position: static;
   }
 }

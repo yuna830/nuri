@@ -41,4 +41,7 @@ alter table seniors
 alter table health_info
     add column if not exists allergies varchar(255);
 
+alter table alerts
+    add column if not exists image_url varchar(255);
+
 

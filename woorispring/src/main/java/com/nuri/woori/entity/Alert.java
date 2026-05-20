@@ -20,6 +20,8 @@ public class Alert {
     @Column(length = 1000)
     private String message;
 
+    private String imageUrl;
+
     private Double latitude;
     private Double longitude;
 
@@ -69,6 +71,14 @@ public class Alert {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public Double getLatitude() {

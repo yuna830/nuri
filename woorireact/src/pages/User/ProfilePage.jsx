@@ -29,7 +29,8 @@ import "../../css/user/ProfilePage.css";
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [form, setForm] = useState(defaultForm);
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -145,12 +146,20 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     try {
+      setSaving(true);
+      setSaveToast("saving");
       await saveProfile(form);
-      setSaved(true);
-      setTimeout(() => navigate("/user"), 700);
+      setSaveToast("saved");
+      setTimeout(() => {
+        setSaveToast(null);
+        navigate("/user");
+      }, 1000);
     } catch (error) {
+      setSaveToast(null);
       console.error("프로필 수정 실패:", error);
       alert(error.message || "정보 수정에 실패했습니다.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -161,16 +170,6 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-header">
               <h2>인적사항</h2>
-
-              <div className="pr-nav-actions pr-section-actions">
-                {saved && <div className="pr-saved-badge">저장되었습니다</div>}
-                <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>
-                  초기화
-                </button>
-                <button className="pr-save-btn" type="button" onClick={handleSave}>
-                  저장하기
-                </button>
-              </div>
             </div>
             <ProfilePhotoPicker
               classPrefix="pr"
@@ -338,10 +337,36 @@ export default function ProfilePage() {
               </button>
             ))}
           </div>
+          <div className="pr-side-actions">
+            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)} disabled={saving}>
+              초기화
+            </button>
+            <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving}>
+              {saving ? "저장 중..." : "저장하기"}
+            </button>
+          </div>
         </aside>
 
         <main className="pr-main">{renderSection()}</main>
       </div>
+
+      {saveToast && (
+        <div className="pr-save-popup-backdrop" role="status" aria-live="polite">
+          <div className="pr-save-popup">
+            {saveToast === "saving" ? (
+              <div className="pr-save-spinner" aria-hidden="true" />
+            ) : (
+              <div className="pr-save-check" aria-hidden="true">✓</div>
+            )}
+            <div className="pr-save-popup-title">
+              {saveToast === "saving" ? "저장 중입니다" : "저장되었습니다"}
+            </div>
+            <p className="pr-save-popup-desc">
+              {saveToast === "saving" ? "변경한 정보를 반영하고 있어요." : "내 정보가 정상적으로 반영되었어요."}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
