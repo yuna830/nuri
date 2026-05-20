@@ -43,6 +43,7 @@ import "../../css/guardian/GuardianPage.css";
 import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
 import "../../css/guardian/GuardianModal.css";
+import "../../css/user/UserCommonHeader.css";
 
 const saveLocalCareTeamMap = (profiles, guardian) => {
   if (!guardian || !Array.isArray(profiles)) return;
@@ -399,8 +400,8 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          unreadAlertCount={unreadAlertCount}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          displayedAlerts={displayedAlerts}
+          onReadAlert={() => {}}
           onOpenEmergencyReport={() => {}}
         />
 
@@ -419,8 +420,8 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          unreadAlertCount={unreadAlertCount}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          displayedAlerts={displayedAlerts}
+          onReadAlert={() => {}}
           onOpenEmergencyReport={() => {}}
         />
 
@@ -932,8 +933,8 @@ function GuardianPage() {
   return (
     <main className="guardian-page">
       <GuardianHeader
-        unreadAlertCount={unreadAlertCount}
-        onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+        displayedAlerts={displayedAlerts}
+        onReadAlert={handleReadAlert}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
       />
 
@@ -1061,14 +1062,11 @@ function GuardianPage() {
           onRouteDateChange={handleRouteDateChange}
           distance={distance}
           lastNormalLocation={lastNormalLocation}
-          isAlertPanelOpen={isAlertPanelOpen}
           isMissingReportOpen={isMissingReportOpen}
           missingDescription={missingDescription}
           setMissingDescription={setMissingDescription}
           missingImagePreview={missingImagePreview}
           isSubmittingMissingReport={isSubmittingMissingReport}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
-          onCloseAlertPanel={() => setIsAlertPanelOpen(false)}
           onReadAlert={handleReadAlert}
           onCallAlert={handleCallAlert}
           onOpenEmergencyReport={handleOpenEmergencyReport}
@@ -1173,7 +1171,6 @@ function GuardianPage() {
           <button
             type="button"
             onClick={() => {
-              setIsAlertPanelOpen(true);
               setGuardianToast(null);
             }}
           >
@@ -1193,28 +1190,33 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport }) {
+  const guardianNotifications = displayedAlerts.map((alert) => ({
+    id: alert.id,
+    title: alert.message || "보호 대상자 알림",
+    message: alert.time || "",
+    category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
+    time: alert.time,
+    isRead: alert.status !== "미확인",
+    danger: alert.isSos || alert.isSafeZone,
+    raw: alert,
+  }));
+
   return (
     <CommonHeader
       homePath="/guardian"
+      showNotificationButton
+      notifications={guardianNotifications}
+      notificationTabs={["전체", "긴급", "정보", "읽지 않음"]}
+      onReadNotification={(alert) => {
+        if (alert?.id) {
+          onReadAlert?.(alert.id);
+        }
+      }}
       actions={
-        <>
-          <button
-            className="common-app-icon-button"
-            type="button"
-            onClick={onOpenAlertPanel}
-            aria-label="알림"
-          >
-            <Bell size={18} />
-            {unreadAlertCount > 0 && (
-              <span className="common-app-badge">{unreadAlertCount}</span>
-            )}
-          </button>
-
-          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
-            긴급 신고
-          </button>
-        </>
+        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+          긴급 신고
+        </button>
       }
     />
   );

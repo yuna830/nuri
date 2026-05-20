@@ -1,4 +1,4 @@
-const FASTAPI_BASE_URL = "http://localhost:8000";
+const FASTAPI_BASE_URL = "http://localhost:8001";
 
 function valueOrMissing(value) {
     if (value === null || value === undefined || value === "") {

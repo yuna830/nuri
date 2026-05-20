@@ -26,7 +26,6 @@ function EmergencyPanel({
   lastNormalLocation,
   safeZoneForm,
   distance,
-  isAlertPanelOpen,
   isMissingReportOpen,
   missingDescription,
   selectedRouteDate,
@@ -34,8 +33,6 @@ function EmergencyPanel({
   setMissingDescription,
   missingImagePreview,
   isSubmittingMissingReport,
-  onOpenAlertPanel,
-  onCloseAlertPanel,
   onReadAlert,
   onCallAlert,
   onOpenEmergencyReport,
@@ -248,79 +245,6 @@ function EmergencyPanel({
           </div>
         </section>
       </aside>
-
-      {isAlertPanelOpen && (
-        <div className="alert-panel-backdrop" onClick={onCloseAlertPanel}>
-          <section className="alert-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="alert-panel-header">
-              <div>
-                <h2>전체 알림</h2>
-              </div>
-
-              <button className="alert-panel-close" type="button" onClick={onCloseAlertPanel}>
-                닫기
-              </button>
-            </div>
-
-            <div className="alert-panel-list">
-              {displayedAlerts.length === 0 ? (
-                <p className="alert-empty">도착한 알림이 없습니다.</p>
-              ) : (
-                displayedAlerts.map((alert) => (
-                  <article key={alert.id} className={`alert-panel-item ${alert.isSafeZone ? "danger" : ""}`}>
-                    <div>
-                      <strong>{alert.message}</strong>
-                      <span>{alert.time}</span>
-                    </div>
-
-                    {alert.status === "미확인" ? (
-                      alert.isSos ? (
-                        <div className="alert-actions">
-                          <button
-                            className="alert-call-button"
-                            type="button"
-                            onClick={() => onCallAlert(alert)}
-                          >
-                            전화
-                          </button>
-
-                          <button
-                            className="alert-emergency-button"
-                            type="button"
-                            onClick={() => onOpenEmergencyReport(alert)}
-                          >
-                            긴급 신고
-                          </button>
-                        </div>
-                      ) : alert.isSafeZone ? (
-                        <button
-                          className="alert-meet-button"
-                          type="button"
-                          onClick={() => onReadAlert(alert.id)}
-                        >
-                          만남 완료
-                        </button>
-                      ) : (
-                        <button
-                          className="alert-confirm-button"
-                          type="button"
-                          onClick={() => onReadAlert(alert.id)}
-                        >
-                          확인
-                        </button>
-                      )
-                    ) : (
-                      <em className={alert.status === "신고 완료" ? "reported" : "read"}>
-                        {alert.status}
-                      </em>
-                    )}
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
 
       {isCallResultOpen && (
         <div className="call-result-backdrop" onClick={onCloseCallResult}>
