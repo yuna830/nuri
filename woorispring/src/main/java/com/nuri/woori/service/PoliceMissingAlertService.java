@@ -14,10 +14,13 @@ import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
+import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class PoliceMissingAlertService {
@@ -60,30 +63,38 @@ public class PoliceMissingAlertService {
         form.add("occrde", dateValue);
         form.add("xmlUseYN", "Y");
 
-        String response = restClient.post()
+        byte[] response = restClient.post()
                 .uri(API_URL)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
-                .body(String.class);
+                .body(byte[].class);
 
         List<PoliceMissingAlert> parsedAlerts = parseXml(response);
         List<PoliceMissingAlert> savedAlerts = new ArrayList<>();
 
         for (PoliceMissingAlert parsedAlert : parsedAlerts) {
+//            if (!Objects.equals(parsedAlert.getOccurredDate(), dateValue)) {
+//                continue;
+//            }
+
             PoliceMissingAlert alert = policeMissingAlertRepository
                     .findByExternalKey(parsedAlert.getExternalKey())
                     .orElse(parsedAlert);
 
             copyAlert(parsedAlert, alert);
+            alert.setSyncedAt(LocalDateTime.now());
+
             savedAlerts.add(policeMissingAlertRepository.save(alert));
         }
 
         return savedAlerts;
     }
 
-    private List<PoliceMissingAlert> parseXml(String xml) {
+    private List<PoliceMissingAlert> parseXml(byte[] xmlBytes) {
         try {
+            String xml = new String(xmlBytes, StandardCharsets.UTF_8);
+
             Document document = DocumentBuilderFactory.newInstance()
                     .newDocumentBuilder()
                     .parse(new InputSource(new StringReader(xml)));

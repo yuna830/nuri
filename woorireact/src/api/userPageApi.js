@@ -428,6 +428,73 @@ export const fetchFallDetectionStatus = async () => {
   return response.json();
 };
 
+export const fetchActivityToday = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/today`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Activity today failed");
+  }
+
+  return response.json();
+};
+
+export const fetchActivityTrend = async (days = 7) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/trend?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Activity trend failed");
+  }
+
+  return response.json();
+};
+
+export const fetchFallEvents = async (days = 1) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/falls?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Fall events failed");
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.events) ? data.events : [];
+};
+
+export const fetchActivitySlots = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/slots`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Activity slots failed");
+  }
+
+  return response.json();
+};
+
+export const fetchActivityBaseline = async (days = 14) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/baseline?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Activity baseline failed");
+  }
+
+  return response.json();
+};
+
+export const fetchFallPattern = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/fall-pattern`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Fall pattern failed");
+  }
+
+  return response.json();
+};
+
 export const fetchSeniorAlerts = async (seniorId) => {
   if (!seniorId) return [];
   const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}`);

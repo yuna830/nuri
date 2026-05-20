@@ -214,9 +214,9 @@ function EmergencyPanel({
                 )}
 
                 <article className="police-missing-item">
-                  {visiblePoliceAlert.photoUrl && (
+                  {visiblePoliceAlert.id && (
                     <img
-                      src={`data:image/jpeg;base64,${visiblePoliceAlert.photoUrl.replace(/\s/g, "")}`}
+                      src={`http://localhost:8181/api/police-missing-alerts/${visiblePoliceAlert.id}/photo`}
                       alt={`${visiblePoliceAlert.name} 실종정보 사진`}
                     />
                   )}

@@ -5,6 +5,7 @@ import {
   createFallAlert,
   fetchFallCaptures,
   fetchFallDetectionStatus,
+  fetchFallEvents,
   fetchSeniorAlerts,
   getCurrentSeniorId,
   getFallCaptureUrl,
@@ -105,6 +106,22 @@ const toFallLog = (alert, captureMap) => {
   };
 };
 
+const toFallEventLog = (event, index = 0) => {
+  const captureName = normalizeCaptureName(event.capture_filename || event.captureFilename || "");
+
+  return {
+    id: `event-${event.timestamp || index}`,
+    date: formatDate(event.timestamp),
+    time: formatTime(event.timestamp),
+    location: "낙상 감지 위치",
+    status: event.confirmed ? "보호자 확인 완료" : "보호자 확인 대기",
+    confirmed: Boolean(event.confirmed),
+    imageUrl: captureName ? getFallCaptureUrl(captureName) : "",
+    capture: event,
+    detail: `감지 점수 ${event.score ?? 0}점 · 자세 ${event.posture || "확인 중"} · 모드 ${event.ensemble_mode || "-"}`,
+  };
+};
+
 export default function FallHistory() {
   const navigate = useNavigate();
   const seniorId = getCurrentSeniorId();
@@ -141,7 +158,8 @@ export default function FallHistory() {
       return [];
     }
 
-    const [alerts, nextCaptures] = await Promise.all([
+    const [events, alerts, nextCaptures] = await Promise.all([
+      fetchFallEvents(1).catch(() => []),
       fetchSeniorAlerts(seniorId).catch(() => []),
       loadCaptures(),
     ]);
@@ -156,7 +174,11 @@ export default function FallHistory() {
       .filter((alert) => isToday(alert.createdAt))
       .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
 
-    setLogs(fallAlerts.map((alert) => toFallLog(alert, nextCaptureMap)));
+    const eventLogs = events
+      .filter((event) => isToday(event.timestamp))
+      .map((event, index) => toFallEventLog(event, index));
+
+    setLogs(eventLogs.length ? eventLogs : fallAlerts.map((alert) => toFallLog(alert, nextCaptureMap)));
     setActiveFallAlert(fallAlerts.find((alert) => !alert.isRead) || null);
     return fallAlerts;
   }, [loadCaptures, seniorId]);

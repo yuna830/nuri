@@ -31,6 +31,7 @@ import {
   saveSafeZone,
 } from "../../utils/guardian/guardianSafeZone";
 import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
+import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
 import UserPanel from "./UserPanel";
@@ -126,6 +127,13 @@ function GuardianPage() {
   const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
 
   const [policeAlerts, setPoliceAlerts] = useState([]);
+  const [activityReport, setActivityReport] = useState({
+    isLoading: false,
+    trend: null,
+    fallPattern: null,
+    error: "",
+    updatedAt: "",
+  });
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -133,6 +141,54 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  useEffect(() => {
+    if (!activeElderId) {
+      setActivityReport({ isLoading: false, trend: null, fallPattern: null, error: "", updatedAt: "" });
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadActivityReport = async () => {
+      setActivityReport((prev) => ({ ...prev, isLoading: true, error: "" }));
+
+      try {
+        const [trend, fallPattern] = await Promise.all([
+          fetchActivityTrend(1),
+          fetchFallPattern(),
+        ]);
+
+        if (!isMounted) return;
+
+        setActivityReport({
+          isLoading: false,
+          trend,
+          fallPattern,
+          error: "",
+          updatedAt: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+        });
+      } catch {
+        if (!isMounted) return;
+
+        setActivityReport({
+          isLoading: false,
+          trend: null,
+          fallPattern: null,
+          error: "활동 리포트를 불러오지 못했습니다.",
+          updatedAt: "",
+        });
+      }
+    };
+
+    loadActivityReport();
+    const intervalId = window.setInterval(loadActivityReport, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [activeElderId]);
 
   const displayedAlerts = useMemo(
     () => buildDisplayedAlerts(apiAlerts, reportedAlertIds),
@@ -978,6 +1034,7 @@ function GuardianPage() {
           onCreateAndConnectSenior={handleCreateAndConnectSenior}
           onDeleteElder={handleDeleteElder}
           onOpenMedicineAlert={handleOpenMedicineAlert}
+          activityReport={activityReport}
         />
 
         <LocationPanel
