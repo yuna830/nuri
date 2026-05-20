@@ -12,12 +12,16 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
+import java.nio.charset.Charset;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class PoliceMissingAlertService {
@@ -60,33 +64,60 @@ public class PoliceMissingAlertService {
         form.add("occrde", dateValue);
         form.add("xmlUseYN", "Y");
 
-        String response = restClient.post()
+        byte[] response = restClient.post()
                 .uri(API_URL)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
-                .body(String.class);
+                .body(byte[].class);
 
         List<PoliceMissingAlert> parsedAlerts = parseXml(response);
+
+        System.out.println("Safe182 request date = " + dateValue);
+        System.out.println("Safe182 parsed count = " + parsedAlerts.size());
+
+        for (PoliceMissingAlert alert : parsedAlerts) {
+            System.out.println(
+                    "parsed alert = "
+                            + alert.getName()
+                            + " / "
+                            + alert.getOccurredDate()
+                            + " / "
+                            + alert.getOccurredAddress()
+                            + " / "
+                            + alert.getExternalKey()
+            );
+        }
+
         List<PoliceMissingAlert> savedAlerts = new ArrayList<>();
 
         for (PoliceMissingAlert parsedAlert : parsedAlerts) {
+//            if (!Objects.equals(parsedAlert.getOccurredDate(), dateValue)) {
+//                continue;
+//            }
+
             PoliceMissingAlert alert = policeMissingAlertRepository
                     .findByExternalKey(parsedAlert.getExternalKey())
                     .orElse(parsedAlert);
 
             copyAlert(parsedAlert, alert);
+            alert.setSyncedAt(LocalDateTime.now());
+
             savedAlerts.add(policeMissingAlertRepository.save(alert));
         }
 
         return savedAlerts;
     }
 
-    private List<PoliceMissingAlert> parseXml(String xml) {
+    private List<PoliceMissingAlert> parseXml(byte[] xmlBytes) {
         try {
+            String xml = decodeSafe182Xml(xmlBytes);
+
             Document document = DocumentBuilderFactory.newInstance()
                     .newDocumentBuilder()
                     .parse(new InputSource(new StringReader(xml)));
+
+            document.getDocumentElement().normalize();
 
             NodeList items = document.getElementsByTagName("list");
             List<PoliceMissingAlert> result = new ArrayList<>();
@@ -140,7 +171,87 @@ public class PoliceMissingAlertService {
             return "";
         }
 
-        return nodes.item(0).getTextContent();
+        return fixMojibake(nodes.item(0).getTextContent());
+    }
+
+    private String fixMojibake(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        String trimmed = value.trim();
+
+        boolean looksBroken =
+                trimmed.indexOf('\u00EC') >= 0
+                        || trimmed.indexOf('\u00EB') >= 0
+                        || trimmed.indexOf('\u00EA') >= 0
+                        || trimmed.indexOf('\u00ED') >= 0
+                        || trimmed.indexOf('\u00EF') >= 0
+                        || trimmed.indexOf('\u00BF') >= 0
+                        || trimmed.indexOf('\u00BD') >= 0;
+
+        if (!looksBroken) {
+            return trimmed;
+        }
+
+        try {
+            return new String(
+                    trimmed.getBytes(StandardCharsets.ISO_8859_1),
+                    StandardCharsets.UTF_8
+            ).trim();
+        } catch (Exception error) {
+            return trimmed;
+        }
+    }
+
+    private String decodeSafe182Xml(byte[] xmlBytes) {
+        List<String> candidates = new ArrayList<>();
+
+        String utf8 = new String(xmlBytes, StandardCharsets.UTF_8);
+        candidates.add(utf8);
+        candidates.add(fixMojibake(utf8));
+        candidates.add(new String(xmlBytes, Charset.forName("MS949")));
+        candidates.add(new String(xmlBytes, Charset.forName("EUC-KR")));
+
+        String best = candidates.get(0);
+        int bestScore = koreanScore(best);
+
+        for (String candidate : candidates) {
+            int score = koreanScore(candidate);
+
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private int koreanScore(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+
+        int score = 0;
+
+        for (int index = 0; index < value.length(); index++) {
+            char ch = value.charAt(index);
+
+            if (ch >= '가' && ch <= '힣') {
+                score += 2;
+            }
+
+            if (ch == '\uFFFD') {
+                score -= 5;
+            }
+
+            if (ch == '\u00EC' || ch == '\u00EB' || ch == '\u00EA' || ch == '\u00ED') {
+                score -= 2;
+            }
+        }
+
+        return score;
     }
 
     private String safe(String value) {

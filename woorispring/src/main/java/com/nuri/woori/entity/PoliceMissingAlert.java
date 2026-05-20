@@ -2,6 +2,7 @@ package com.nuri.woori.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "police_missing_alerts")
@@ -173,6 +174,7 @@ public class PoliceMissingAlert {
         this.feature = feature;
     }
 
+    @JsonIgnore
     public String getPhotoUrl() {
         return photoUrl;
     }

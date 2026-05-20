@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-    Bell,
     BriefcaseBusiness,
     ClipboardList,
     Search,
     UserPlus,
     UserRound,
-    X,
 } from "lucide-react";
 
 import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
+import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
 import {
     getSeniorSummaryCounts,
     hasMissingRequiredSeniorInfo,
@@ -29,7 +28,6 @@ import {
 } from "../../utils/welfare/welfareDashboardData";
 import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
-import "../../css/welfare/WelfareNotifications.css";
 import "../../css/welfare/WelfareDashboard.css";
 
 const ITEM_PER_PAGE = 6;
@@ -45,9 +43,18 @@ const EMERGENCY_FILTER_VALUES = [
 const getKeywordTokens = (keyword) =>
     keyword
         .toLowerCase()
-        .split(/[\s,，]+/)
+        .split(/[\s,]+/)
         .map((token) => token.trim())
         .filter(Boolean);
+
+const cloneFilters = (targetFilters) =>
+    FILTER_GROUPS.reduce(
+        (nextFilters, group) => ({
+            ...nextFilters,
+            [group.key]: [...targetFilters[group.key]],
+        }),
+        {}
+    );
 
 function WelfareDashboard() {
     const navigate = useNavigate();
@@ -57,7 +64,6 @@ function WelfareDashboard() {
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
-    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [dismissedNotifications, setDismissedNotifications] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
@@ -78,14 +84,6 @@ function WelfareDashboard() {
                 setIsLoadingSeniors(true);
                 setSeniorLoadError("");
 
-                const cacheKey = `welfareSeniors:${currentPage}`;
-                const cachedSeniors = sessionStorage.getItem(cacheKey);
-
-                if (cachedSeniors && !ignore) {
-                    setSeniors(JSON.parse(cachedSeniors));
-                    setIsLoadingSeniors(false);
-                }
-
                 const data = await fetchWelfareSeniors({
                     page: currentPage - 1,
                     size: ITEM_PER_PAGE,
@@ -97,7 +95,6 @@ function WelfareDashboard() {
                     setSeniors(nextSeniors);
                     setServerTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
                     setServerTotalSeniors(Array.isArray(data) ? nextSeniors.length : Number(data.totalElements || 0));
-                    sessionStorage.setItem(cacheKey, JSON.stringify(nextSeniors));
                 }
             } catch (error) {
                 console.error("대상자 데이터 로딩 실패:", error);
@@ -128,7 +125,7 @@ function WelfareDashboard() {
                 const alerts = await fetchWelfareAlerts();
 
                 if (!ignore) {
-                    setDbWelfareAlerts(alerts);
+                    setDbWelfareAlerts(Array.isArray(alerts) ? alerts : []);
                 }
             } catch (error) {
                 console.error("복지사 알림 로딩 실패:", error);
@@ -140,7 +137,6 @@ function WelfareDashboard() {
         };
 
         loadWelfareAlerts();
-
         const timerId = setInterval(loadWelfareAlerts, 15000);
 
         return () => {
@@ -228,9 +224,10 @@ function WelfareDashboard() {
 
     const currentSeniors = filteredSeniors
         .slice()
-        .sort((first, second) =>
-            getPriorityRank(first) - getPriorityRank(second) ||
-            Number(first.id) - Number(second.id)
+        .sort(
+            (first, second) =>
+                getPriorityRank(first) - getPriorityRank(second) ||
+                Number(first.id) - Number(second.id)
         );
 
     const toggleDraftFilter = (filterKey, option) => {
@@ -271,12 +268,6 @@ function WelfareDashboard() {
 
         return seniors.filter((senior) => getSeniorFilterValue(senior, filterKey) === option).length;
     };
-
-    const cloneFilters = (targetFilters) =>
-        FILTER_GROUPS.reduce((nextFilters, group) => ({
-            ...nextFilters,
-            [group.key]: [...targetFilters[group.key]],
-        }), {});
 
     const applyFilters = () => {
         setFilters(cloneFilters(draftFilters));
@@ -327,7 +318,6 @@ function WelfareDashboard() {
             setDraftFilters(emptyFilters);
             setSearchKeyword("");
             setDraftSearchKeyword("");
-            return;
         }
     };
 
@@ -336,7 +326,9 @@ function WelfareDashboard() {
         seniorId: alert.seniorId,
         title: alert.title,
         message: alert.message,
-        detailCategory: alert.type === "LAST_ACCESS" ? "기본 정보" : "안심구역 관리",
+        category: alert.type === "LAST_ACCESS" ? "복지" : "긴급",
+        detailCategory: alert.type === "LAST_ACCESS" ? "기본 정보" : "안전구역 관리",
+        danger: alert.type !== "LAST_ACCESS",
     }));
 
     const welfareNotifications = seniors.flatMap((senior) => {
@@ -348,7 +340,9 @@ function WelfareDashboard() {
                 seniorId: senior.id,
                 title: "미응답 SOS",
                 message: `${senior.name} 대상자의 SOS를 보호자가 아직 확인하지 않았습니다.`,
-                detailCategory: "안심구역 관리",
+                category: "긴급",
+                detailCategory: "안전구역 관리",
+                danger: true,
             });
         }
 
@@ -358,6 +352,7 @@ function WelfareDashboard() {
                 seniorId: senior.id,
                 title: "일자리 신청",
                 message: `${senior.name} 대상자가 일자리 신청을 보냈습니다.`,
+                category: "일자리",
                 detailCategory: "일자리 요청 상태",
             });
         }
@@ -368,6 +363,7 @@ function WelfareDashboard() {
                 seniorId: senior.id,
                 title: "접속 확인 필요",
                 message: `${senior.name} 대상자가 4시간 넘게 접속하지 않았습니다.`,
+                category: "복지",
                 detailCategory: "기본 정보",
             });
         }
@@ -389,97 +385,38 @@ function WelfareDashboard() {
         <div className="wd-page">
             <CommonHeader
                 homePath="/welfare"
+                showNotificationButton
+                notifications={activeNotifications.map((notification) => ({
+                    id: notification.id,
+                    title: notification.title,
+                    message: notification.message,
+                    category: notification.category || notification.detailCategory || "정보",
+                    time: notification.time,
+                    isRead: false,
+                    danger: notification.danger === true || notification.category === "긴급",
+                    raw: notification,
+                }))}
+                notificationTabs={["전체", "긴급", "정보 미입력", "일자리", "복지", "읽지 않음"]}
+                onReadNotification={(notification) => dismissNotification(notification.id)}
+                onNotificationClick={(notification) => {
+                    if (notification.seniorId) {
+                        navigate(`/welfare/seniors/${notification.seniorId}`, {
+                            state: {
+                                category: notification.detailCategory || "기본 정보",
+                            },
+                        });
+                    }
+                }}
                 actions={
-                    <>
-                        <button
-                            type="button"
-                            className="common-app-icon-button"
-                            onClick={() => setIsNotificationOpen(true)}
-                            aria-label="알림"
-                        >
-                            <Bell size={18} />
-                            {activeNotifications.length > 0 && (
-                                <span className="common-app-badge">
-                                    {activeNotifications.length}
-                                </span>
-                            )}
-                        </button>
-
-                        <button
-                            type="button"
-                            className="common-app-danger-button"
-                            onClick={() => alert("긴급 신고 기능을 연결해주세요.")}
-                        >
-                            긴급 신고
-                        </button>
-                    </>
+                    <button
+                        className="common-app-danger-button"
+                        type="button"
+                        onClick={() => navigate("/signup")}
+                    >
+                        대상자 추가
+                    </button>
                 }
             />
-
-            {isNotificationOpen && (
-                <div
-                    className="welfare-notification-overlay"
-                    onClick={() => setIsNotificationOpen(false)}
-                >
-                    <aside
-                        className="welfare-notification-panel"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="welfare-notification-panel-header">
-                            <h2>전체 알림</h2>
-                            <button
-                                type="button"
-                                className="welfare-notification-close"
-                                onClick={() => setIsNotificationOpen(false)}
-                            >
-                                닫기
-                            </button>
-                        </div>
-
-                        <div className="welfare-notification-count">
-                            {activeNotifications.length}건
-                        </div>
-
-                        <div className="welfare-notification-list">
-                            {activeNotifications.length === 0 ? (
-                                <p className="welfare-notification-empty">도착한 알림이 없습니다.</p>
-                            ) : (
-                                activeNotifications.map((notification) => (
-                                    <article key={notification.id} className="welfare-notification-item">
-                                        <button
-                                            type="button"
-                                            className="welfare-notification-dismiss"
-                                            onClick={() => dismissNotification(notification.id)}
-                                            aria-label="알림 삭제"
-                                        >
-                                            <X size={16} />
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            className="welfare-notification-content"
-                                            onClick={() => {
-                                                setIsNotificationOpen(false);
-
-                                                if (notification.seniorId) {
-                                                    navigate(`/welfare/seniors/${notification.seniorId}`, {
-                                                        state: {
-                                                            category: notification.detailCategory || "기본 정보",
-                                                        },
-                                                    });
-                                                }
-                                            }}
-                                        >
-                                            <strong>{notification.title}</strong>
-                                            <span>{notification.message}</span>
-                                        </button>
-                                    </article>
-                                ))
-                            )}
-                        </div>
-                    </aside>
-                </div>
-            )}
 
             <div className="wd-layout">
                 <aside className="wd-sidebar">
@@ -657,6 +594,8 @@ function WelfareDashboard() {
                     </div>
                 </main>
             </div>
+
+            <WelfarePolicyQaButton />
         </div>
     );
 }
