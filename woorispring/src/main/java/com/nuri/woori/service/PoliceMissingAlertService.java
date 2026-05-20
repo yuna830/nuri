@@ -9,24 +9,27 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.nio.charset.Charset;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.nio.charset.StandardCharsets;
 
 @Service
 public class PoliceMissingAlertService {
 
-    private static final String API_URL = "https://www.safe182.go.kr/api/lcm/amberList.do";
+    private static final String AMBER_API_URL = "https://www.safe182.go.kr/api/lcm/amberList.do";
+    private static final String FIND_CHILD_API_URL = "https://www.safe182.go.kr/api/lcm/findChildList.do";
+    private static final int ROW_SIZE = 100;
+    private static final int MAX_PAGES = 10;
 
     private final PoliceMissingAlertRepository policeMissingAlertRepository;
     private final RestClient restClient = RestClient.create();
@@ -49,67 +52,136 @@ public class PoliceMissingAlertService {
         return syncAlerts(LocalDate.now());
     }
 
-    public List<PoliceMissingAlert> syncAlerts(LocalDate occurredDate) {
-        if (esntlId == null || esntlId.isBlank() || authKey == null || authKey.isBlank()) {
-            throw new RuntimeException("Safe182 API key is missing");
-        }
+    public List<PoliceMissingAlert> syncAlerts(LocalDate date) {
+        validateApiKeys();
+        return syncPages(date);
+    }
 
-        String dateValue = occurredDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+    public List<PoliceMissingAlert> syncAlerts(LocalDate from, LocalDate to) {
+        validateApiKeys();
 
-        LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("esntlId", esntlId);
-        form.add("authKey", authKey);
-        form.add("rowSize", "100");
-        form.add("page", "1");
-        form.add("occrde", dateValue);
-        form.add("xmlUseYN", "Y");
-
-        byte[] response = restClient.post()
-                .uri(API_URL)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(form)
-                .retrieve()
-                .body(byte[].class);
-
-        List<PoliceMissingAlert> parsedAlerts = parseXml(response);
-
-        System.out.println("Safe182 request date = " + dateValue);
-        System.out.println("Safe182 parsed count = " + parsedAlerts.size());
-
-        for (PoliceMissingAlert alert : parsedAlerts) {
-            System.out.println(
-                    "parsed alert = "
-                            + alert.getName()
-                            + " / "
-                            + alert.getOccurredDate()
-                            + " / "
-                            + alert.getOccurredAddress()
-                            + " / "
-                            + alert.getExternalKey()
-            );
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("from must be before or equal to to");
         }
 
         List<PoliceMissingAlert> savedAlerts = new ArrayList<>();
 
-        for (PoliceMissingAlert parsedAlert : parsedAlerts) {
-//            if (!Objects.equals(parsedAlert.getOccurredDate(), dateValue)) {
-//                continue;
-//            }
-
-            PoliceMissingAlert alert = policeMissingAlertRepository
-                    .findByExternalKey(parsedAlert.getExternalKey())
-                    .orElse(parsedAlert);
-
-            copyAlert(parsedAlert, alert);
-            alert.setSyncedAt(LocalDateTime.now());
-
-            savedAlerts.add(policeMissingAlertRepository.save(alert));
+        for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
+            savedAlerts.addAll(syncPages(date));
         }
 
         return savedAlerts;
     }
 
-    private List<PoliceMissingAlert> parseXml(byte[] xmlBytes) {
+    public List<PoliceMissingAlert> syncAllAlerts() {
+        validateApiKeys();
+
+        List<PoliceMissingAlert> savedAlerts = new ArrayList<>();
+
+        for (int page = 1; page <= MAX_PAGES; page++) {
+            Safe182Page parsedPage = requestPageWithoutDate(page);
+            List<PoliceMissingAlert> parsedAlerts = parsedPage.alerts();
+
+            logSyncResult(null, page, parsedPage);
+
+            if (parsedAlerts.isEmpty()) {
+                break;
+            }
+
+            for (PoliceMissingAlert parsedAlert : parsedAlerts) {
+                savedAlerts.add(saveAlert(parsedAlert));
+            }
+
+            if (isLastPage(page, parsedPage)) {
+                break;
+            }
+        }
+
+        return savedAlerts;
+    }
+
+    private List<PoliceMissingAlert> syncPages(LocalDate date) {
+        List<PoliceMissingAlert> savedAlerts = new ArrayList<>();
+
+        for (int page = 1; page <= MAX_PAGES; page++) {
+            Safe182Page parsedPage = requestPage(date, page);
+            List<PoliceMissingAlert> parsedAlerts = parsedPage.alerts();
+
+            logSyncResult(date, page, parsedPage);
+
+            if (parsedAlerts.isEmpty()) {
+                break;
+            }
+
+            for (PoliceMissingAlert parsedAlert : parsedAlerts) {
+                savedAlerts.add(saveAlert(parsedAlert));
+            }
+
+            if (isLastPage(page, parsedPage)) {
+                break;
+            }
+        }
+
+        return savedAlerts;
+    }
+
+    private Safe182Page requestPage(LocalDate date, int page) {
+        LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("esntlId", esntlId);
+        form.add("authKey", authKey);
+        form.add("rowSize", String.valueOf(ROW_SIZE));
+        form.add("page", String.valueOf(page));
+        form.add("xmlUseYN", "Y");
+        form.add("occrde", date.format(DateTimeFormatter.BASIC_ISO_DATE));
+
+        byte[] response = restClient.post()
+                .uri(AMBER_API_URL)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(byte[].class);
+
+        return parseXml(response);
+    }
+
+    private Safe182Page requestPageWithoutDate(int page) {
+        LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("esntlId", esntlId);
+        form.add("authKey", authKey);
+        form.add("rowSize", String.valueOf(ROW_SIZE));
+        form.add("page", String.valueOf(page));
+        form.add("xmlUseYN", "Y");
+
+        byte[] response = restClient.post()
+                .uri(FIND_CHILD_API_URL)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(byte[].class);
+
+        return parseXml(response);
+    }
+
+    private boolean isLastPage(int page, Safe182Page parsedPage) {
+        if (parsedPage.totalCount() > 0) {
+            return page * ROW_SIZE >= parsedPage.totalCount();
+        }
+
+        return parsedPage.alerts().size() < ROW_SIZE;
+    }
+
+    private PoliceMissingAlert saveAlert(PoliceMissingAlert parsedAlert) {
+        PoliceMissingAlert alert = policeMissingAlertRepository
+                .findByExternalKey(parsedAlert.getExternalKey())
+                .orElse(parsedAlert);
+
+        copyAlert(parsedAlert, alert);
+        alert.setSyncedAt(LocalDateTime.now());
+
+        return policeMissingAlertRepository.save(alert);
+    }
+
+    private Safe182Page parseXml(byte[] xmlBytes) {
         try {
             String xml = decodeSafe182Xml(xmlBytes);
 
@@ -119,49 +191,106 @@ public class PoliceMissingAlertService {
 
             document.getDocumentElement().normalize();
 
-            NodeList items = document.getElementsByTagName("list");
-            List<PoliceMissingAlert> result = new ArrayList<>();
+            int totalCount = parseInt(firstText(document, "totalCount"));
+            String resultCode = firstText(document, "result");
+            String resultMessage = firstText(document, "msg");
 
-            for (int index = 0; index < items.getLength(); index++) {
-                Element item = (Element) items.item(index);
+            List<Element> items = collectAlertElements(document);
+            List<PoliceMissingAlert> alerts = new ArrayList<>();
 
-                String name = text(item, "nm");
-                String occurredDate = text(item, "occrde");
-                String occurredAddress = text(item, "occrAdres");
-                String gender = text(item, "sexdstnDscd");
-
-                PoliceMissingAlert alert = new PoliceMissingAlert();
-                alert.setName(name);
-                alert.setGender(gender);
-                alert.setTargetType(text(item, "writngTrgetDscd"));
-                alert.setOccurredDate(occurredDate);
-                alert.setOccurredAddress(occurredAddress);
-                alert.setAge(text(item, "age"));
-                alert.setAgeNow(text(item, "ageNow"));
-                alert.setHeight(text(item, "height"));
-                alert.setWeight(text(item, "bdwgh"));
-                alert.setBodyType(text(item, "frmDscd"));
-                alert.setFaceShape(text(item, "faceshpeDscd"));
-                alert.setHairShape(text(item, "hairshpeDscd"));
-                alert.setHairColor(text(item, "haircolrDscd"));
-                alert.setClothing(text(item, "alldressingDscd"));
-                alert.setFeature(text(item, "etcSpfeatr"));
-                alert.setPhotoUrl(text(item, "tknphotoFile"));
-
-                alert.setExternalKey(String.join("|",
-                        safe(name),
-                        safe(occurredDate),
-                        safe(occurredAddress),
-                        safe(gender)
-                ));
-
-                result.add(alert);
+            for (Element item : items) {
+                alerts.add(parseAlert(item));
             }
 
-            return result;
+            return new Safe182Page(alerts, totalCount, resultCode, resultMessage);
         } catch (Exception error) {
             throw new RuntimeException("Safe182 XML parse failed", error);
         }
+    }
+
+    private List<Element> collectAlertElements(Document document) {
+        List<Element> alerts = new ArrayList<>();
+        NodeList lists = document.getElementsByTagName("list");
+
+        for (int index = 0; index < lists.getLength(); index++) {
+            Element list = (Element) lists.item(index);
+
+            if (hasDirectChild(list, "nm") || hasDirectChild(list, "occrde")) {
+                alerts.add(list);
+            }
+        }
+
+        if (!alerts.isEmpty()) {
+            return alerts;
+        }
+
+        for (int index = 0; index < lists.getLength(); index++) {
+            Element list = (Element) lists.item(index);
+            NodeList children = list.getChildNodes();
+
+            for (int childIndex = 0; childIndex < children.getLength(); childIndex++) {
+                Node child = children.item(childIndex);
+
+                if (child instanceof Element childElement && containsAlertFields(childElement)) {
+                    alerts.add(childElement);
+                }
+            }
+        }
+
+        return alerts;
+    }
+
+    private boolean hasDirectChild(Element element, String tagName) {
+        NodeList children = element.getChildNodes();
+
+        for (int index = 0; index < children.getLength(); index++) {
+            Node child = children.item(index);
+
+            if (child instanceof Element childElement && tagName.equals(childElement.getTagName())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean containsAlertFields(Element element) {
+        return element.getElementsByTagName("nm").getLength() > 0
+                || element.getElementsByTagName("occrde").getLength() > 0
+                || element.getElementsByTagName("occrAdres").getLength() > 0;
+    }
+
+    private PoliceMissingAlert parseAlert(Element item) {
+        String name = text(item, "nm");
+        String occurredDate = text(item, "occrde");
+        String occurredAddress = text(item, "occrAdres");
+        String gender = text(item, "sexdstnDscd");
+
+        PoliceMissingAlert alert = new PoliceMissingAlert();
+        alert.setName(name);
+        alert.setGender(gender);
+        alert.setTargetType(text(item, "writngTrgetDscd"));
+        alert.setOccurredDate(occurredDate);
+        alert.setOccurredAddress(occurredAddress);
+        alert.setAge(text(item, "age"));
+        alert.setAgeNow(text(item, "ageNow"));
+        alert.setHeight(text(item, "height"));
+        alert.setWeight(text(item, "bdwgh"));
+        alert.setBodyType(text(item, "frmDscd"));
+        alert.setFaceShape(text(item, "faceshpeDscd"));
+        alert.setHairShape(text(item, "hairshpeDscd"));
+        alert.setHairColor(text(item, "haircolrDscd"));
+        alert.setClothing(text(item, "alldressingDscd"));
+        alert.setFeature(text(item, "etcSpfeatr"));
+        alert.setPhotoUrl(text(item, "tknphotoFile"));
+        alert.setExternalKey(String.join("|",
+                safe(name),
+                safe(occurredDate),
+                safe(occurredAddress),
+                safe(gender)
+        ));
+
+        return alert;
     }
 
     private String text(Element element, String tagName) {
@@ -171,47 +300,33 @@ public class PoliceMissingAlertService {
             return "";
         }
 
-        return fixMojibake(nodes.item(0).getTextContent());
-    }
+        String value = nodes.item(0).getTextContent();
 
-    private String fixMojibake(String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null) {
             return "";
         }
 
-        String trimmed = value.trim();
+        return value.trim();
+    }
 
-        boolean looksBroken =
-                trimmed.indexOf('\u00EC') >= 0
-                        || trimmed.indexOf('\u00EB') >= 0
-                        || trimmed.indexOf('\u00EA') >= 0
-                        || trimmed.indexOf('\u00ED') >= 0
-                        || trimmed.indexOf('\u00EF') >= 0
-                        || trimmed.indexOf('\u00BF') >= 0
-                        || trimmed.indexOf('\u00BD') >= 0;
+    private String firstText(Document document, String tagName) {
+        NodeList nodes = document.getElementsByTagName(tagName);
 
-        if (!looksBroken) {
-            return trimmed;
+        if (nodes.getLength() == 0 || nodes.item(0) == null) {
+            return "";
         }
 
-        try {
-            return new String(
-                    trimmed.getBytes(StandardCharsets.ISO_8859_1),
-                    StandardCharsets.UTF_8
-            ).trim();
-        } catch (Exception error) {
-            return trimmed;
-        }
+        String value = nodes.item(0).getTextContent();
+
+        return value == null ? "" : value.trim();
     }
 
     private String decodeSafe182Xml(byte[] xmlBytes) {
-        List<String> candidates = new ArrayList<>();
-
-        String utf8 = new String(xmlBytes, StandardCharsets.UTF_8);
-        candidates.add(utf8);
-        candidates.add(fixMojibake(utf8));
-        candidates.add(new String(xmlBytes, Charset.forName("MS949")));
-        candidates.add(new String(xmlBytes, Charset.forName("EUC-KR")));
+        List<String> candidates = List.of(
+                new String(xmlBytes, StandardCharsets.UTF_8),
+                new String(xmlBytes, Charset.forName("MS949")),
+                new String(xmlBytes, Charset.forName("EUC-KR"))
+        );
 
         String best = candidates.get(0);
         int bestScore = koreanScore(best);
@@ -238,7 +353,7 @@ public class PoliceMissingAlertService {
         for (int index = 0; index < value.length(); index++) {
             char ch = value.charAt(index);
 
-            if (ch >= '가' && ch <= '힣') {
+            if (ch >= '\uAC00' && ch <= '\uD7A3') {
                 score += 2;
             }
 
@@ -254,8 +369,37 @@ public class PoliceMissingAlertService {
         return score;
     }
 
+    private int parseInt(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException error) {
+            return 0;
+        }
+    }
+
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private void validateApiKeys() {
+        if (esntlId == null || esntlId.isBlank() || authKey == null || authKey.isBlank()) {
+            throw new RuntimeException("Safe182 API key is missing");
+        }
+    }
+
+    private void logSyncResult(LocalDate date, int page, Safe182Page parsedPage) {
+        System.out.println(
+                "Safe182 date=" + date
+                        + ", page=" + page
+                        + ", totalCount=" + parsedPage.totalCount()
+                        + ", listCount=" + parsedPage.alerts().size()
+                        + ", result=" + parsedPage.resultCode()
+                        + ", msg=" + parsedPage.resultMessage()
+        );
     }
 
     private void copyAlert(PoliceMissingAlert source, PoliceMissingAlert target) {
@@ -276,5 +420,13 @@ public class PoliceMissingAlertService {
         target.setClothing(source.getClothing());
         target.setFeature(source.getFeature());
         target.setPhotoUrl(source.getPhotoUrl());
+    }
+
+    private record Safe182Page(
+            List<PoliceMissingAlert> alerts,
+            int totalCount,
+            String resultCode,
+            String resultMessage
+    ) {
     }
 }

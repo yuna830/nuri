@@ -806,11 +806,11 @@
 }
 
 .police-slide-button.prev {
-  left: -12px;
+  left: -10px;
 }
 
 .police-slide-button.next {
-  right: -12px;
+  right: -10px;
 }
 
 .police-slide-button:hover {
@@ -833,13 +833,8 @@
   grid-template-columns: 92px 1fr;
   gap: 12px;
   align-items: stretch;
-  padding: 10px;
-  border-top: 1px solid var(--border-color);
+  padding: 10px 42px;
   background: #ffffff;
-}
-
-.police-missing-item:first-child {
-  border-top: 0;
 }
 
 .police-missing-item img {

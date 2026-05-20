@@ -46,6 +46,8 @@ function EmergencyPanel({
 }) {
 
   const [policeIndex, setPoliceIndex] = useState(0);
+  const [isPoliceSearchOpen, setIsPoliceSearchOpen] = useState(false);
+  const [policeSearchKeyword, setPoliceSearchKeyword] = useState("");
 
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
@@ -71,6 +73,26 @@ function EmergencyPanel({
   };
 
   const visiblePoliceAlert = policeAlerts?.[policeIndex] ?? null;
+  const filteredPoliceAlerts = (policeAlerts ?? []).filter((alert) => {
+    const keyword = policeSearchKeyword.trim();
+
+    if (!keyword) {
+      return true;
+    }
+
+    return [
+      alert.name,
+      alert.gender,
+      alert.age,
+      alert.ageNow,
+      alert.occurredDate,
+      alert.occurredAddress,
+      alert.feature,
+      alert.clothing,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).includes(keyword));
+  });
 
   const handlePrevPoliceAlert = () => {
     if (!policeAlerts?.length) return;
@@ -158,32 +180,9 @@ function EmergencyPanel({
 
               <button
                 type="button"
-                onClick={() => {
-                  const reportText = [
-                    "[안전드림 신고 참고 정보]",
-                    `대상자: ${selectedElder.name} (${selectedElder.relation})`,
-                    `나이/성별: ${selectedElder.age}세 / ${selectedElder.gender}`,
-                    `연락처: ${selectedElder.phone || "없음"}`,
-                    `현재 위치: ${selectedElder.currentLocation?.address || "위치 미수신"}`,
-                    `마지막 정상 위치: ${lastNormalLocation?.address || "기록 없음"}`,
-                    `안전 반경 중심: ${safeZoneForm?.address || selectedElder.address || "기록 없음"}`,
-                    `안전 반경: ${safeZoneForm?.radiusMeters ?? selectedElder.radius ?? 0}m`,
-                    `현재 상태: ${
-                      selectedElder.currentLocation
-                        ? `안전 반경 이탈 감지 (${distance}m)`
-                        : "위치 미수신"
-                    }`,
-                    `주요 질환: ${selectedElder.condition || "등록 없음"}`,
-                    `복약 정보: ${selectedElder.medicineCount || "없음"}`,
-                    "",
-                    "위 정보는 보호자 앱에서 자동 정리한 신고 참고 정보입니다.",
-                  ].join("\n");
-
-                  navigator.clipboard.writeText(reportText);
-                  alert("안전드림 신고 참고 정보가 복사되었습니다.");
-                }}
+                onClick={() => setIsPoliceSearchOpen(true)}
               >
-                신고 정보 복사
+                실종자 검색
               </button>
             </div>
           </div>
@@ -270,6 +269,75 @@ function EmergencyPanel({
               <button className="call-report-button" type="button" onClick={onCallNeedsReport}>
                 긴급 신고
               </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isPoliceSearchOpen && (
+        <div className="police-search-backdrop" onClick={() => setIsPoliceSearchOpen(false)}>
+          <section className="police-search-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="police-search-header">
+              <div>
+                <h2>경찰청 실종자 검색</h2>
+                <p>이름, 성별, 나이, 지역, 특징으로 검색할 수 있습니다.</p>
+              </div>
+
+              <button type="button" onClick={() => setIsPoliceSearchOpen(false)}>
+                닫기
+              </button>
+            </div>
+
+            <label className="police-search-field">
+              검색어
+              <input
+                value={policeSearchKeyword}
+                onChange={(event) => setPoliceSearchKeyword(event.target.value)}
+                placeholder="예: 서울, 여자, 44, 정희택"
+                autoFocus
+              />
+            </label>
+
+            <div className="police-search-results">
+              {filteredPoliceAlerts.length === 0 ? (
+                <p className="police-search-empty">검색 결과가 없습니다.</p>
+              ) : (
+                filteredPoliceAlerts.map((alert) => {
+                  const originalIndex = policeAlerts.findIndex((item) => item.id === alert.id);
+
+                  return (
+                    <button
+                      type="button"
+                      key={alert.id}
+                      className="police-search-result"
+                      onClick={() => {
+                        if (originalIndex >= 0) {
+                          setPoliceIndex(originalIndex);
+                        }
+
+                        setIsPoliceSearchOpen(false);
+                      }}
+                    >
+                      {alert.id && (
+                        <img
+                          src={`http://localhost:8181/api/police-missing-alerts/${alert.id}/photo`}
+                          alt={`${alert.name} 실종정보 사진`}
+                        />
+                      )}
+
+                      <span>
+                        <strong>{alert.name || "이름 정보 없음"}</strong>
+                        <em>
+                          {alert.gender || "성별 정보 없음"}
+                          {alert.ageNow ? ` · 현재 ${alert.ageNow}세` : ""}
+                        </em>
+                        <small>{formatPoliceOccurredDate(alert.occurredDate)}</small>
+                        <small>{alert.occurredAddress || "실종 장소 정보 없음"}</small>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </section>
         </div>
