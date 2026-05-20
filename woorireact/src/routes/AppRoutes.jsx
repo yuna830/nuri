@@ -10,7 +10,7 @@ import Login from "../pages/Common/Login";
 import SignUp from "../pages/Common/SignUp";
 import GuardianLogin from "../pages/Common/GuardianLogin";
 import GuardianSignUp from "../pages/Common/GuardianSignUp";
-import { ChatAssistant, FoodCamera } from "../Chat";
+import { ChatAssistant } from "../Chat";
 import GuardianPage from "../pages/Guardian/GuardianPage";
 import UserPage from "../pages/User/UserPage";
 import WeatherAlert from "../pages/User/WeatherAlert";
@@ -19,6 +19,11 @@ import LocationPage from "../pages/User/LocationPage";
 import ProfilePage from "../pages/User/ProfilePage";
 import JobPage from "../pages/User/JobPage";
 import WeatherGraph from "../pages/User/WeatherGraph";
+import AdminDashboard from "../pages/admin/AdminDashboard";
+import AdminSeniors from "../pages/admin/AdminSeniors";
+import AdminSeniorDetail from "../pages/admin/AdminSeniorDetail";
+import AdminWelfare from "../pages/admin/AdminWelfare";
+import AdminGuardians from "../pages/admin/AdminGuardians";
 
 function AppRoutes() {
   return (
@@ -45,7 +50,6 @@ function AppRoutes() {
 
         {/* Chat */}
         <Route path="/chat" element={<ChatAssistant />} />
-        <Route path="/food-camera" element={<FoodCamera />} />
 
         {/* Guardian */}
         <Route path="/guardian" element={<GuardianPage />} />
@@ -58,6 +62,13 @@ function AppRoutes() {
         <Route path="/jobs" element={<JobPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/weather-graph" element={<WeatherGraph />} />
+
+        {/* Admin */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/seniors" element={<AdminSeniors />} />
+        <Route path="/admin/seniors/:id" element={<AdminSeniorDetail />} />
+        <Route path="/admin/welfare" element={<AdminWelfare />} />
+        <Route path="/admin/guardians" element={<AdminGuardians />} />
       </Routes>
     </BrowserRouter>
   );
