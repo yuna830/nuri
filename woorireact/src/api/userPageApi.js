@@ -1,7 +1,21 @@
 import { reverseGeocodeByKakao } from "./kakaoLocalApi.js";
 
 const API_BASE = "http://localhost:8080";
-const FALL_API_BASE = import.meta.env.VITE_FALL_API_BASE || "http://127.0.0.1:8000";
+const getDefaultFallApiBase = () => {
+  const host = window.location.hostname;
+
+  if (host && host !== "localhost" && host !== "127.0.0.1") {
+    return `${window.location.protocol}//${host}:8000`;
+  }
+
+  return "http://127.0.0.1:8000";
+};
+
+const FALL_API_BASE = (
+  import.meta.env.VITE_FALL_API_BASE ||
+  localStorage.getItem("woori_fall_api_base") ||
+  getDefaultFallApiBase()
+).replace(/\/$/, "");
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 

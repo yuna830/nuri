@@ -638,3 +638,125 @@
     padding-top: 0;
   }
 }
+
+.jp-recommend-box {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 18px;
+  padding: 1.2rem;
+  margin-bottom: 1.2rem;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+}
+
+.jp-recommend-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.jp-recommend-head strong {
+  display: block;
+  font-size: 1rem;
+  color: #1e2a1f;
+  margin-bottom: 0.25rem;
+}
+
+.jp-recommend-head p {
+  font-size: 0.78rem;
+  color: #7a9a7c;
+}
+
+.jp-recommend-head span {
+  background: #fff7df;
+  border: 1px solid #efcf86;
+  border-radius: 999px;
+  color: #9a6a00;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.35rem 0.75rem;
+  white-space: nowrap;
+}
+
+.jp-recommend-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.jp-card-compact {
+  margin-bottom: 0;
+  padding: 1rem 1.1rem;
+}
+
+.jp-card-recommended {
+  border-color: #efcf86;
+  background: #fffdf7;
+}
+
+.jp-card-recommended .jp-card-bar {
+  background: #e0a018;
+}
+
+.jp-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.jp-match-badge {
+  background: #e0a018;
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.25rem 0.75rem;
+  white-space: nowrap;
+}
+
+.jp-source-badge {
+  background: #edf6ff;
+  color: #326c9e;
+  border: 1px solid #bdd9ef;
+}
+
+.jp-expired-badge {
+  background: #fff1f1;
+  color: #d93025;
+  border: 1px solid #f1b5b5;
+}
+
+.jp-match-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+}
+
+.jp-match-reasons span {
+  background: #fff7df;
+  border: 1px solid #efcf86;
+  border-radius: 999px;
+  color: #7a5700;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+}
+
+.jp-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  margin-top: 1.3rem;
+}
+
+.jp-modal-actions .jp-modal-apply {
+  margin-top: 0;
+}
+
+.jp-modal-secondary {
+  background: #5f7d61;
+}
