@@ -104,16 +104,27 @@ function WelfarePolicyQaButton({ senior = null }) {
                                 <strong>답변</strong>
                                 <p>{answer.answer}</p>
 
-                                {answer.evidence.length > 0 && (
+                                {answer.evidence?.length > 0 && (
                                     <div className="wpq-evidence">
-                                        <strong>근거</strong>
+                                        <strong>근거 문서</strong>
 
                                         <ul>
-                                            {answer.evidence.map((item, index) => (
-                                                <li key={`${item.title || "evidence"}-${index}`}>
-                                                    {item.title}
-                                                </li>
-                                            ))}
+                                            {answer.evidence.map((item, index) => {
+                                                const isPublicApi = item.source_type === "public_api";
+                                                const title = isPublicApi
+                                                    ? item.service_name || "공공데이터 복지 서비스"
+                                                    : item.filename || "PDF 문서";
+
+                                                const sourceLabel = isPublicApi ? "공공데이터" : "PDF";
+
+                                                return (
+                                                    <li key={`${item.document_id || "source"}-${item.chunk_index ?? index}`}>
+                                                        <span>{sourceLabel}</span>{" "}
+                                                        <strong>{title}</strong>
+                                                        {item.chunk_index != null ? ` #${item.chunk_index}` : ""}
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     </div>
                                 )}
