@@ -35,6 +35,11 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/senuri/, ''),
       },
+      '/seoul-openapi': {
+        target: 'http://openapi.seoul.go.kr:8088',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/seoul-openapi/, ''),
+      },
       '/weather-api': {
         target: 'https://apis.data.go.kr',
         changeOrigin: true,

@@ -4,7 +4,6 @@ import {
   createSosCancelAlert,
   deleteAlert,
   deleteAlerts,
-  deleteOldRequestAlerts,
   fetchLatestClimateAlerts,
   fetchSeniorAlerts,
   getCurrentSeniorId,
@@ -181,7 +180,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     if (!silent) setLoadingAlerts(true);
 
     try {
-      deleteOldRequestAlerts(seniorId).catch(() => {});
       const [seniorAlerts, climateAlerts] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
