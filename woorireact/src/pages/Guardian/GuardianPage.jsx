@@ -30,7 +30,7 @@ import {
   loadSafeZone,
   saveSafeZone,
 } from "../../utils/guardian/guardianSafeZone";
-import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
+import { buildDisplayedAlerts, isCallRequestAlert } from "../../utils/guardian/guardianAlert";
 import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
@@ -307,7 +307,7 @@ function GuardianPage() {
         const previousIds = knownAlertIdsRef.current;
 
         const newAlerts = nextAlerts.filter(
-          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true
+          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true && !isCallRequestAlert(alert)
         );
 
         knownAlertIdsRef.current = new Set(nextAlerts.map((alert) => String(alert.id)));
@@ -703,10 +703,17 @@ function GuardianPage() {
 
   const handleReadAlert = async (alertId) => {
     try {
+      const targetAlert = apiAlerts.find((alert) => String(alert.id) === String(alertId));
       const updatedAlert = await readAlert(alertId);
 
+      if (targetAlert?.type === "SOS" && targetAlert?.seniorId) {
+        localStorage.setItem(`sos_resolved_at:${targetAlert.seniorId}`, String(Date.now()));
+      }
+
       setApiAlerts((prev) =>
-        prev.map((alert) => (alert.id === alertId ? updatedAlert : alert))
+        prev.map((alert) => (
+          alert.id === alertId ? { ...alert, ...updatedAlert, isRead: true } : alert
+        ))
       );
     } catch (error) {
       console.error("알림 확인 처리 실패:", error);
@@ -935,7 +942,8 @@ function GuardianPage() {
       <GuardianHeader
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
-        onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+        onCallAlert={handleCallAlert}
+        onOpenEmergencyReport={handleOpenEmergencyReport}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1170,7 +1178,10 @@ function GuardianPage() {
 
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
+              if (guardianToast.id && guardianToast.type !== "CALL_REQUEST") {
+                await handleReadAlert(guardianToast.id);
+              }
               setGuardianToast(null);
             }}
           >
@@ -1190,7 +1201,7 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onCallAlert, onOpenEmergencyReport }) {
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
@@ -1213,8 +1224,30 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
           onReadAlert?.(alert.id);
         }
       }}
+      renderNotificationActions={(alert, { defaultAction, isRead }) => {
+        if (isRead || !alert?.isSos) {
+          return defaultAction;
+        }
+
+        return (
+          <div className="guardian-alert-actions">
+            <button type="button" onClick={(event) => {
+              event.stopPropagation();
+              onCallAlert?.(alert);
+            }}>
+              전화하기
+            </button>
+            <button type="button" className="danger" onClick={(event) => {
+              event.stopPropagation();
+              onOpenEmergencyReport?.(alert);
+            }}>
+              신고하기
+            </button>
+          </div>
+        );
+      }}
       actions={
-        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+        <button className="common-app-danger-button" type="button" onClick={() => onOpenEmergencyReport?.()}>
           긴급 신고
         </button>
       }

@@ -723,9 +723,9 @@
 .up-baseline-item {
   align-items: center;
   border-bottom: 1px solid #d4e8d6;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 78px;
   gap: 0.7rem;
-  justify-content: space-between;
   padding-bottom: 0.5rem;
 }
 
@@ -756,7 +756,12 @@
 .up-baseline-item strong {
   color: #2f6f9f;
   font-size: 0.86rem;
+  text-align: center;
   white-space: nowrap;
+}
+
+.up-baseline-item em {
+  text-align: right;
 }
 
 .up-slot-item.no_data b {

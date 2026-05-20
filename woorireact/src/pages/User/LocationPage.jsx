@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 
 import KakaoMap from "../../components/KakaoMap.jsx";
+import NearbyHelpPlaces from "../../components/user/NearbyHelpPlaces.jsx";
 import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
@@ -402,6 +403,13 @@ export default function LocationPage() {
               보호자가 설정한 안전 반경입니다. 이 범위를 벗어나면 보호자에게 즉시 알림이 전송됩니다.
             </div>
           </div>
+
+          <NearbyHelpPlaces
+            lat={currentPos?.[0]}
+            lon={currentPos?.[1]}
+            address={address}
+            compact
+          />
 
         </aside>
       </div>

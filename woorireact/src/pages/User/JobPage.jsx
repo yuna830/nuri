@@ -74,8 +74,9 @@ export default function JobPage() {
     () => new Set(recommendedJobs.map((job) => `${job.source}-${job.jobId}`)),
     [recommendedJobs],
   );
-  const visibleJobs = scoredJobs.slice(0, visibleCount);
-  const hasMoreVisible = scoredJobs.length > visibleCount || hasMoreSource;
+  const listJobs = scoredJobs.filter((job) => !recommendedIds.has(`${job.source}-${job.jobId}`));
+  const visibleJobs = listJobs.slice(0, visibleCount);
+  const hasMoreVisible = listJobs.length > visibleCount || hasMoreSource;
 
   const loadUntilEnough = useCallback(async ({ startPage = 1, targetCount = PAGE_SIZE, replace = false } = {}) => {
     setLoading(true);
@@ -195,7 +196,7 @@ export default function JobPage() {
     const jobCategory = categorizeJob(job);
     const expired = isExpired(job);
     const key = `${job.source}-${job.jobId}`;
-    const recommended = recommendedIds.has(key);
+    const recommended = compact || recommendedIds.has(key);
 
     return (
       <article
@@ -354,7 +355,7 @@ export default function JobPage() {
                     <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
                   </div>
                   <div className="jp-recommend-grid">
-                    {recommendedJobs.map((job, idx) => renderJobCard(job, idx, true))}
+              {recommendedJobs.slice(0, 5).map((job, idx) => renderJobCard(job, idx, true))}
                   </div>
                 </section>
               )}
@@ -375,7 +376,7 @@ export default function JobPage() {
               {!loading && !error && hasMoreVisible && (
                 <button className="jp-more-btn" type="button" onClick={handleMore}>
                   {visibleJobs.length > 0
-                    ? `더보기 (${visibleJobs.length} / ${scoredJobs.length + (hasMoreSource ? "+" : "")}건)`
+                    ? `더보기 (${visibleJobs.length + recommendedJobs.length} / ${scoredJobs.length + (hasMoreSource ? "+" : "")}건)`
                     : "이 조건의 공고 더 찾아보기"}
                 </button>
               )}

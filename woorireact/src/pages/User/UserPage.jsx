@@ -16,6 +16,7 @@ import {
   fetchActivitySlots,
   fetchActivityToday,
   fetchActivityTrend,
+  fetchFallEvents,
   fetchFallPattern,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
@@ -267,6 +268,90 @@ const isSameJson = (first, second) => JSON.stringify(first) === JSON.stringify(s
 
 const setChanged = (setter, nextValue) => {
   setter((prevValue) => (isSameJson(prevValue, nextValue) ? prevValue : nextValue));
+};
+
+const isTodayDateTime = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const today = new Date();
+  return (
+    date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate()
+  );
+};
+
+const isSosAlert = (alert) => {
+  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
+  return alert?.type === "SOS" || alert?.type === "SOS_CANCEL" || /SOS/.test(text);
+};
+
+const PENDING_SOS_CLEAR_GRACE_MS = 5000;
+
+const markPendingSos = (alertResult) => {
+  localStorage.setItem("pending_sos", "true");
+  localStorage.setItem("pending_sos_at", String(Date.now()));
+  if (alertResult?.id) {
+    localStorage.setItem("pending_sos_id", String(alertResult.id));
+  }
+};
+
+const clearPendingSosStorage = () => {
+  localStorage.removeItem("pending_sos");
+  localStorage.removeItem("pending_sos_at");
+  localStorage.removeItem("pending_sos_id");
+};
+
+const shouldClearPendingSos = (sosAlerts) => {
+  const pendingId = localStorage.getItem("pending_sos_id");
+  const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+
+  if (sosAlerts.length > 0 && sosAlerts.every((alert) => alert.isRead || alert.type === "SOS_CANCEL")) {
+    return true;
+  }
+
+  if (!pendingId && !pendingAt) {
+    return sosAlerts.length === 0;
+  }
+
+  if (pendingAt && Date.now() - pendingAt < PENDING_SOS_CLEAR_GRACE_MS) {
+    return false;
+  }
+
+  if (!pendingId) {
+    return sosAlerts.length === 0 || !sosAlerts.some((alert) => alert.type === "SOS" && !alert.isRead);
+  }
+
+  return !sosAlerts.some((alert) => String(alert.id) === pendingId && !alert.isRead);
+};
+
+const HANDLED_CALL_ALERTS_KEY = "handled_call_alert_ids";
+const HANDLED_CALL_SUPPRESS_UNTIL_KEY = "handled_call_alert_suppress_until";
+
+const getHandledCallAlertIds = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HANDLED_CALL_ALERTS_KEY) || "[]").map(String));
+  } catch {
+    return new Set();
+  }
+};
+
+const markCallAlertHandled = (alertId) => {
+  if (!alertId) return;
+
+  const handledIds = getHandledCallAlertIds();
+  handledIds.add(String(alertId));
+  localStorage.setItem(HANDLED_CALL_ALERTS_KEY, JSON.stringify([...handledIds].slice(-50)));
+  localStorage.setItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY, String(Date.now() + 30 * 1000));
+};
+
+const isCallAlertHandled = (alert) => {
+  const suppressUntil = Number(localStorage.getItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY) || 0);
+  if (suppressUntil > Date.now()) return true;
+  if (!alert?.id) return false;
+  return getHandledCallAlertIds().has(String(alert.id));
 };
 
 const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
@@ -787,7 +872,18 @@ export default function UserPage() {
       const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
       if (cancelled) return;
       setUserAlerts(alerts);
-      const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
+
+      const sosAlerts = alerts.filter(isSosAlert);
+      const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+      const sosResolvedAt = Number(localStorage.getItem(`sos_resolved_at:${seniorId}`) || 0);
+      if (pendingSos && ((pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
+        clearPendingSosStorage();
+        setPendingSos(false);
+      }
+
+      const callAlert = alerts.find((alert) => (
+        alert.type === "CALL_REQUEST" && !alert.isRead && !isCallAlertHandled(alert)
+      ));
       setIncomingCallAlert(callAlert || null);
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
@@ -799,17 +895,19 @@ export default function UserPage() {
       setSafeZoneExitAlert(safeExitAlert || null);
 
       const today = new Date();
-      setTodayFallCount(
-        alerts.filter((alert) => {
-          if (alert.type !== "FALL_DETECTED" && alert.type !== "FALL_RISK") return false;
-          const createdAt = new Date(alert.createdAt);
-          return (
-            createdAt.getFullYear() === today.getFullYear()
-            && createdAt.getMonth() === today.getMonth()
-            && createdAt.getDate() === today.getDate()
-          );
-        }).length
-      );
+      const alertFallCount = alerts.filter((alert) => {
+        if (alert.type !== "FALL_DETECTED" && alert.type !== "FALL_RISK") return false;
+        const createdAt = new Date(alert.createdAt);
+        return (
+          createdAt.getFullYear() === today.getFullYear()
+          && createdAt.getMonth() === today.getMonth()
+          && createdAt.getDate() === today.getDate()
+        );
+      }).length;
+
+      const fallEvents = await fetchFallEvents(1).catch(() => []);
+      const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
+      setTodayFallCount(Math.max(alertFallCount, modelFallCount));
     };
 
     loadCallRequest();
@@ -818,7 +916,7 @@ export default function UserPage() {
       cancelled = true;
       clearInterval(timerId);
     };
-  }, [initialSenior]);
+  }, [initialSenior, pendingSos]);
 
   const confirmSOS = async () => {
     setShowSOS(false);
@@ -830,12 +928,12 @@ export default function UserPage() {
     }
 
     try {
-      await createSosAlert({
+      const alertResult = await createSosAlert({
         seniorId: Number(seniorId),
         latitude: currentPos?.lat,
         longitude: currentPos?.lon,
       });
-      localStorage.setItem("pending_sos", "true");
+      markPendingSos(alertResult);
       setPendingSos(true);
     } catch (error) {
       console.error("SOS 전송 실패:", error);
@@ -855,13 +953,14 @@ export default function UserPage() {
       });
     }
 
-    localStorage.removeItem("pending_sos");
+    clearPendingSosStorage();
     setPendingSos(false);
     alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
 
   const handleReceiveCall = async () => {
     if (incomingCallAlert?.id) {
+      markCallAlertHandled(incomingCallAlert.id);
       await readAlert(incomingCallAlert.id).catch(() => {});
     }
     setIncomingCallAlert(null);
@@ -875,6 +974,7 @@ export default function UserPage() {
     const alertId = incomingCallAlert?.id;
     setIncomingCallAlert(null);
     if (alertId) {
+      markCallAlertHandled(alertId);
       await readAlert(alertId).catch(() => {});
     }
   };
@@ -913,6 +1013,33 @@ export default function UserPage() {
     if (route === "/profile") return userAlerts.some((alert) => alert.type === "PROFILE_UPDATE" && !alert.isRead);
     return false;
   };
+
+  const climatePreviewAlerts = (() => {
+    const list = [...weatherAlerts];
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    const time = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:00`;
+
+    if (!list.some((alert) => alert.type === "오늘 날씨")) {
+      list.push({
+        type: "오늘 날씨",
+        color: COLORS.green,
+        msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
+        time,
+      });
+    }
+
+    if (list.length < 2) {
+      list.push({
+        type: "환경 지수",
+        color: COLORS.green,
+        msg: "현재 확인된 환경 위험 알림이 없습니다. 평소처럼 활동하셔도 괜찮습니다.",
+        time,
+      });
+    }
+
+    return list.slice(0, 2);
+  })();
 
   return (
     <div className="up-root">
@@ -1133,7 +1260,7 @@ export default function UserPage() {
                 </button>
               </div>
 
-              {weatherAlerts.slice(0, 2).map((a, i) => (
+              {climatePreviewAlerts.map((a, i) => (
                 <div key={i} className="up-alert-item">
                   <span className="up-alert-badge" style={{
                     background: a.color,
@@ -1223,9 +1350,10 @@ export default function UserPage() {
               <button
                 style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
                 type="button"
+                aria-label="닫기"
                 onClick={() => setShowAllSchedules(false)}
               >
-                횞
+                X
               </button>
             </div>
             {isLoadingAllSchedules ? (

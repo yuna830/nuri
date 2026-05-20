@@ -88,9 +88,10 @@ const getAlertTitle = (alert) => {
     case "SAFE_ZONE":
     case "SAFE_ZONE_EXIT":
       return "안전 구역 이탈";
-    case "SOS":
     case "SOS_CANCEL":
-      return "SOS 알림";
+      return "SOS 잘못 누름";
+    case "SOS":
+      return "SOS 요청";
     default:
       return "새 알림";
   }
@@ -101,7 +102,6 @@ const getAlertCategory = (type) => {
     case "CALL_REQUEST":
     case "SAFE_ZONE":
     case "SAFE_ZONE_EXIT":
-    case "SOS":
       return "긴급";
     case "FALL_DETECTED":
     case "FALL_RISK":
@@ -115,13 +115,57 @@ const getAlertCategory = (type) => {
     case "WELFARE_REQUEST":
       return "요청";
     default:
-      return "기타";
+      return "정보";
   }
 };
 
 const isSafeZoneAlert = (type) => type === "SAFE_ZONE" || type === "SAFE_ZONE_EXIT";
+const isSosAlert = (alert) => {
+  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
+  return alert?.type === "SOS" || alert?.type === "SOS_CANCEL" || /SOS/.test(text);
+};
+const PENDING_SOS_CLEAR_GRACE_MS = 5000;
+
+const markPendingSos = (alertResult) => {
+  localStorage.setItem("pending_sos", "true");
+  localStorage.setItem("pending_sos_at", String(Date.now()));
+  if (alertResult?.id) {
+    localStorage.setItem("pending_sos_id", String(alertResult.id));
+  }
+};
+
+const clearPendingSosStorage = () => {
+  localStorage.removeItem("pending_sos");
+  localStorage.removeItem("pending_sos_at");
+  localStorage.removeItem("pending_sos_id");
+};
+
+const shouldClearPendingSos = (sosAlerts) => {
+  const pendingId = localStorage.getItem("pending_sos_id");
+  const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+
+  if (sosAlerts.length > 0 && sosAlerts.every((alert) => alert.isRead || alert.type === "SOS_CANCEL")) {
+    return true;
+  }
+
+  if (!pendingId && !pendingAt) {
+    return sosAlerts.length === 0;
+  }
+
+  if (pendingAt && Date.now() - pendingAt < PENDING_SOS_CLEAR_GRACE_MS) {
+    return false;
+  }
+
+  if (!pendingId) {
+    return sosAlerts.length === 0 || !sosAlerts.some((alert) => alert.type === "SOS" && !alert.isRead);
+  }
+
+  return !sosAlerts.some((alert) => String(alert.id) === pendingId && !alert.isRead);
+};
 
 const shouldShowAlert = (alert) => {
+  if (isSosAlert(alert)) return false;
+
   const category = getAlertCategory(alert.type);
   const createdAt = alert.createdAt || alert.time;
   if (REQUEST_CATEGORIES.has(category)) return isWithinDays(createdAt, 30);
@@ -139,7 +183,7 @@ const normalizeUserAlert = (alert) => ({
   canRead: Boolean(alert.id) && !isSafeZoneAlert(alert.type),
   canDelete: Boolean(alert.id),
   requiresGuardianConfirm: isSafeZoneAlert(alert.type),
-  danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT", "SOS"].includes(alert.type),
+  danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT"].includes(alert.type),
   sortTime: toDate(alert.createdAt || alert.time)?.getTime() || 0,
 });
 
@@ -184,6 +228,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
       ]);
+
+      const sosAlerts = seniorAlerts.filter(isSosAlert);
+      const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+      const sosResolvedAt = Number(localStorage.getItem(`sos_resolved_at:${seniorId}`) || 0);
+      if (pendingSos && ((pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
+        clearPendingSosStorage();
+        setPendingSos(false);
+      }
+
       const combined = [
         ...seniorAlerts.filter(shouldShowAlert).map(normalizeUserAlert),
         ...climateAlerts.filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time)).map(normalizeClimateAlert),
@@ -193,6 +246,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
           return b.sortTime - a.sortTime;
         })
         .slice(0, 40);
+
       setAlerts(combined);
       setSelectedAlertKeys((prev) => prev.filter((key) => combined.some((alert) => alert.key === key)));
     } finally {
@@ -202,9 +256,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
   useEffect(() => {
     loadAlerts();
-    const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
+    const timerId = setInterval(() => loadAlerts({ silent: true }), 10000);
     return () => clearInterval(timerId);
-  }, []);
+  }, [pendingSos]);
 
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
   const filteredAlerts = useMemo(() => alerts.filter((alert) => {
@@ -330,12 +384,12 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
     try {
       const position = await getCurrentPosition();
-      await createSosAlert({
+      const alertResult = await createSosAlert({
         seniorId: Number(seniorId),
         latitude: position?.latitude,
         longitude: position?.longitude,
       });
-      localStorage.setItem("pending_sos", "true");
+      markPendingSos(alertResult);
       setPendingSos(true);
     } catch (error) {
       console.error("SOS 전송 실패:", error);
@@ -357,7 +411,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       });
     }
 
-    localStorage.removeItem("pending_sos");
+    clearPendingSosStorage();
     setPendingSos(false);
     window.alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
@@ -496,7 +550,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         <div className="uch-sos-pending">
           <div>
             <strong>SOS가 보호자에게 전송되었어요.</strong>
-            <p>실수로 눌렀다면 아래 버튼을 눌러 표시를 취소해 주세요.</p>
+            <p>실수로 눌렀다면 아래 버튼을 눌러 취소 표시를 보내주세요.</p>
           </div>
           <button type="button" onClick={cancelPendingSos}>
             잘못 눌렀어요

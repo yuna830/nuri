@@ -296,7 +296,11 @@ export default function WeatherGraph() {
           fetchEnvironment(lat, lon);
           fetchHourly(lat, lon);
         },
-        () => { setChanged(setAddress, "서울"); fetchEnvironment(37.5665, 126.9780); fetchHourly(37.5665, 126.9780); }
+        () => {
+          setChanged(setAddress, "서울");
+          fetchEnvironment(37.5665, 126.9780);
+          fetchHourly(37.5665, 126.9780);
+        }
       );
     } else {
       setChanged(setAddress, "서울");
