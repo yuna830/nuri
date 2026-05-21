@@ -1,3 +1,5 @@
+import { sendWelfareSeniorAlert } from "./welfareAlertApi";
+
 const SERVICE_KEY =
     "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
@@ -177,5 +179,23 @@ export const recommendWelfareJobToSenior = async ({ seniorId, job }) => {
         throw new Error("Failed to recommend welfare job");
     }
 
-    return response.json();
+    const result = await response.json();
+
+    const alertResult = await sendWelfareSeniorAlert({
+        seniorId,
+        type: "JOB_RECOMMEND",
+        title: "일자리 추천",
+        message: `${job.recrtTitle || "추천 일자리"} 공고를 담당 복지사가 추천했습니다.`,
+        extra: {
+            jobId: job.jobId,
+            jobTitle: job.recrtTitle,
+            company: job.oranNm,
+            location: job.workPlcNm,
+        },
+    }).catch(() => null);
+
+    return {
+        ...result,
+        alertSent: Boolean(alertResult),
+    };
 };

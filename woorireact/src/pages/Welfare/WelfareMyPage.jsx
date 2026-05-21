@@ -322,7 +322,7 @@ function WelfareMyPage() {
             <div className="wm-page">
                 <header className="wm-header">
                     <div className="wm-brand-area">
-                        <strong className="wm-service-name">우리 woori</strong>
+                        <Link to="/welfare" className="wm-service-name">우리 woori</Link>
                     </div>
                 </header>
 
