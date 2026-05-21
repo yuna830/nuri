@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/guardians")
@@ -21,20 +22,21 @@ public class GuardianController {
     private final SeniorRepository seniorRepository;
     private final GuardianSeniorRepository guardianSeniorRepository;
 
-    public GuardianController(
-            GuardianRepository guardianRepository,
-            SeniorRepository seniorRepository,
-            GuardianSeniorRepository guardianSeniorRepository
-    ) {
+    public GuardianController(GuardianRepository guardianRepository, SeniorRepository seniorRepository, GuardianSeniorRepository guardianSeniorRepository) {
         this.guardianRepository = guardianRepository;
         this.seniorRepository = seniorRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
     }
 
+    @GetMapping
+    public List<GuardianListResponse> getGuardians() {
+        return guardianRepository.findAll().stream().map(this::toListResponse).toList();
+    }
+
     @PostMapping("/signup")
     public GuardianResponse signup(@RequestBody GuardianSignupRequest request) {
         if (guardianRepository.findByEmail(request.email()).isPresent()) {
-            throw new RuntimeException("이미 가입된 이메일입니다.");
+            throw new RuntimeException("Email already exists");
         }
 
         Guardian guardian = new Guardian();
@@ -42,42 +44,30 @@ public class GuardianController {
         guardian.setPhone(request.phone());
         guardian.setEmail(request.email());
         guardian.setPassword(hashPassword(request.password()));
+        guardian.setActive(true);
 
         Guardian savedGuardian = guardianRepository.save(guardian);
 
-        Senior senior = seniorRepository.findById(request.seniorId())
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
+        Senior senior = seniorRepository.findById(request.seniorId()).orElseThrow(() -> new RuntimeException("Senior not found"));
 
         GuardianSenior guardianSenior = new GuardianSenior();
         guardianSenior.setGuardianId(savedGuardian.getId());
         guardianSenior.setSeniorId(senior.getId());
         guardianSenior.setRelation(request.seniorRelation());
-
         guardianSeniorRepository.save(guardianSenior);
 
-        return new GuardianResponse(
-                savedGuardian.getId(),
-                savedGuardian.getName(),
-                savedGuardian.getPhone(),
-                savedGuardian.getEmail()
-        );
+        return toResponse(savedGuardian);
     }
 
     @PostMapping("/login")
     public GuardianResponse login(@RequestBody GuardianLoginRequest request) {
-        Guardian guardian = guardianRepository.findByEmail(request.email())
-                .orElseThrow(() -> new RuntimeException("가입된 보호자가 없습니다."));
+        Guardian guardian = guardianRepository.findByEmail(request.email()).orElseThrow(() -> new RuntimeException("Guardian not found"));
 
         if (!guardian.getPassword().equals(hashPassword(request.password()))) {
-            throw new RuntimeException("비밀번호가 일치하지 않습니다.");
+            throw new RuntimeException("Password mismatch");
         }
 
-        return new GuardianResponse(
-                guardian.getId(),
-                guardian.getName(),
-                guardian.getPhone(),
-                guardian.getEmail()
-        );
+        return toResponse(guardian);
     }
 
     @PostMapping("/find-email")
@@ -109,71 +99,27 @@ public class GuardianController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    private String normalizePhone(String phone) {
-        if (phone == null) {
-            return "";
-        }
-
-        return phone.replaceAll("[^0-9]", "");
-    }
-
-    private String maskEmail(String email) {
-        if (email == null || !email.contains("@")) {
-            return "";
-        }
-
-        String[] parts = email.split("@", 2);
-        String id = parts[0];
-        String domain = parts[1];
-
-        if (id.length() <= 2) {
-            return id.charAt(0) + "***@" + domain;
-        }
-
-        return id.substring(0, 2) + "***@" + domain;
-    }
-
-    public record FindEmailRequest(
-            String name,
-            String phone
-    ) {
-    }
-
-    public record FindEmailResponse(
-            String email
-    ) {
-    }
-
-    public record ResetPasswordRequest(
-            String email,
-            String phone,
-            String newPassword
-    ) {
-    }
-
     @GetMapping("/{id}")
     public GuardianResponse getGuardian(@PathVariable Long id) {
-        Guardian guardian = guardianRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+        Guardian guardian = guardianRepository.findById(id).orElseThrow(() -> new RuntimeException("Guardian not found"));
+        return toResponse(guardian);
+    }
 
-        return new GuardianResponse(
-                guardian.getId(),
-                guardian.getName(),
-                guardian.getPhone(),
-                guardian.getEmail()
-        );
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<GuardianResponse> updateActive(@PathVariable Long id, @RequestBody ActiveRequest request) {
+        return guardianRepository.findById(id)
+                .map(guardian -> {
+                    guardian.setActive(Boolean.TRUE.equals(request.active()));
+                    Guardian savedGuardian = guardianRepository.save(guardian);
+                    return ResponseEntity.ok(toResponse(savedGuardian));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{guardianId}/seniors")
-    public GuardianSenior connectSenior(
-            @PathVariable Long guardianId,
-            @RequestBody GuardianSeniorConnectRequest request
-    ) {
-        guardianRepository.findById(guardianId)
-                .orElseThrow(() -> new RuntimeException("Guardian not found"));
-
-        seniorRepository.findById(request.seniorId())
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
+    public GuardianSenior connectSenior(@PathVariable Long guardianId, @RequestBody GuardianSeniorConnectRequest request) {
+        guardianRepository.findById(guardianId).orElseThrow(() -> new RuntimeException("Guardian not found"));
+        seniorRepository.findById(request.seniorId()).orElseThrow(() -> new RuntimeException("Senior not found"));
 
         if (guardianSeniorRepository.existsByGuardianIdAndSeniorId(guardianId, request.seniorId())) {
             throw new RuntimeException("Already connected senior");
@@ -188,18 +134,15 @@ public class GuardianController {
     }
 
     @PostMapping("/{guardianId}/seniors/new")
-    public GuardianSenior createAndConnectSenior(
-            @PathVariable Long guardianId,
-            @RequestBody GuardianSeniorCreateRequest request
-    ) {
-        guardianRepository.findById(guardianId)
-                .orElseThrow(() -> new RuntimeException("Guardian not found"));
+    public GuardianSenior createAndConnectSenior(@PathVariable Long guardianId, @RequestBody GuardianSeniorCreateRequest request) {
+        guardianRepository.findById(guardianId).orElseThrow(() -> new RuntimeException("Guardian not found"));
 
         Senior senior = new Senior();
         senior.setName(request.name());
         senior.setPhone(request.phone());
         senior.setAddress(request.region());
         senior.setRegion(request.region());
+        senior.setActive(true);
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -212,70 +155,62 @@ public class GuardianController {
     }
 
     @DeleteMapping("/{guardianId}/seniors/{seniorId}")
-    public ResponseEntity<Void> disconnectSenior(
-            @PathVariable Long guardianId,
-            @PathVariable Long seniorId
-    ) {
-        GuardianSenior guardianSenior = guardianSeniorRepository
-                .findByGuardianIdAndSeniorId(guardianId, seniorId)
+    public ResponseEntity<Void> disconnectSenior(@PathVariable Long guardianId, @PathVariable Long seniorId) {
+        GuardianSenior guardianSenior = guardianSeniorRepository.findByGuardianIdAndSeniorId(guardianId, seniorId)
                 .orElseThrow(() -> new RuntimeException("Connected senior not found"));
-
         guardianSeniorRepository.delete(guardianSenior);
-
         return ResponseEntity.noContent().build();
     }
 
-    public record GuardianSeniorConnectRequest(
-            Long seniorId,
-            String relation
-    ) {
+    private GuardianResponse toResponse(Guardian guardian) {
+        return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), !Boolean.FALSE.equals(guardian.getActive()));
     }
 
-    public record GuardianSeniorCreateRequest(
-            String name,
-            String phone,
-            String region,
-            String relation
-    ) {
+    private GuardianListResponse toListResponse(Guardian guardian) {
+        List<GuardianSeniorSummaryResponse> seniors = guardianSeniorRepository.findByGuardianId(guardian.getId())
+                .stream()
+                .map(link -> seniorRepository.findById(link.getSeniorId())
+                        .map(senior -> new GuardianSeniorSummaryResponse(senior.getId(), senior.getName(), senior.getPhone(), link.getRelation())))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .toList();
+
+        return new GuardianListResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), !Boolean.FALSE.equals(guardian.getActive()), seniors);
+    }
+
+    private String normalizePhone(String phone) {
+        return phone == null ? "" : phone.replaceAll("[^0-9]", "");
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) return "";
+        String[] parts = email.split("@", 2);
+        String id = parts[0];
+        String domain = parts[1];
+        return id.length() <= 2 ? id.charAt(0) + "***@" + domain : id.substring(0, 2) + "***@" + domain;
     }
 
     private String hashPassword(String password) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] encoded = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-
             StringBuilder builder = new StringBuilder();
-            for (byte value : encoded) {
-                builder.append(String.format("%02x", value));
-            }
-
+            for (byte value : encoded) builder.append(String.format("%02x", value));
             return builder.toString();
         } catch (Exception error) {
-            throw new RuntimeException("비밀번호 암호화 실패");
+            throw new RuntimeException("Password hashing failed");
         }
     }
 
-    public record GuardianSignupRequest(
-            String name,
-            String phone,
-            String email,
-            String password,
-            Long seniorId,
-            String seniorRelation
-    ) {
-    }
-
-    public record GuardianLoginRequest(
-            String email,
-            String password
-    ) {
-    }
-
-    public record GuardianResponse(
-            Long id,
-            String name,
-            String phone,
-            String email
-    ) {
-    }
+    public record FindEmailRequest(String name, String phone) {}
+    public record FindEmailResponse(String email) {}
+    public record ResetPasswordRequest(String email, String phone, String newPassword) {}
+    public record GuardianSeniorConnectRequest(Long seniorId, String relation) {}
+    public record GuardianSeniorCreateRequest(String name, String phone, String region, String relation) {}
+    public record GuardianSignupRequest(String name, String phone, String email, String password, Long seniorId, String seniorRelation) {}
+    public record GuardianLoginRequest(String email, String password) {}
+    public record ActiveRequest(Boolean active) {}
+    public record GuardianResponse(Long id, String name, String phone, String email, Boolean active) {}
+    public record GuardianListResponse(Long id, String name, String phone, String email, Boolean active, List<GuardianSeniorSummaryResponse> seniors) {}
+    public record GuardianSeniorSummaryResponse(Long id, String name, String phone, String relation) {}
 }

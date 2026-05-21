@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import "../../css/user/WeatherGraph.css";
 import {
   fetchUVIndex,
@@ -296,7 +296,11 @@ export default function WeatherGraph() {
           fetchEnvironment(lat, lon);
           fetchHourly(lat, lon);
         },
-        () => { setChanged(setAddress, "서울"); fetchEnvironment(37.5665, 126.9780); fetchHourly(37.5665, 126.9780); }
+        () => {
+          setChanged(setAddress, "서울");
+          fetchEnvironment(37.5665, 126.9780);
+          fetchHourly(37.5665, 126.9780);
+        }
       );
     } else {
       setChanged(setAddress, "서울");
@@ -389,12 +393,6 @@ export default function WeatherGraph() {
   return (
     <div className="wg-root">
       <UserCommonHeader />
-      <UserSubHeader
-        maxWidth={1280}
-        title="🌤 오늘 날씨 상세"
-        right={`📍 ${address}`}
-        onBack={() => navigate("/user")}
-      />
 
       <div className="wg-layout">
         {loading && <div className="wg-loading">🌤 날씨 데이터 불러오는 중...</div>}
@@ -431,25 +429,17 @@ export default function WeatherGraph() {
               {envAdviceItems.length > 0 && (
                 <div className="wg-chart-card wg-env-advice-card">
                   <div className="wg-chart-title">⚠️ 오늘의 환경 주의사항</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+                  <div className="wg-env-advice-list">
                     {envAdviceItems.map((item, i) => (
-                      <div key={i} style={{
-                        background: item.bg,
-                        border: `1px solid ${item.border}`,
-                        borderRadius: "12px",
-                        padding: "0.9rem 1rem",
-                        borderLeft: `4px solid ${item.color}`,
-                      }}>
-                        <div style={{
-                          display: "flex", alignItems: "center", gap: "0.5rem",
-                          fontSize: "0.88rem", fontWeight: "700",
-                          color: item.color, marginBottom: "0.4rem",
-                        }}>
-                          <span>{item.icon}</span>
-                          <span>{item.title}</span>
-                        </div>
-                        <div style={{ fontSize: "0.82rem", color: C.text, lineHeight: "1.65" }}>
-                          {item.desc}
+                      <div
+                        key={i}
+                        className="wg-env-advice-item"
+                        style={{ "--advice-color": item.color, "--advice-bg": item.bg, "--advice-border": item.border }}
+                      >
+                        <div className="wg-env-advice-icon">{item.icon}</div>
+                        <div>
+                          <div className="wg-env-advice-title">{item.title}</div>
+                          <div className="wg-env-advice-desc">{item.desc}</div>
                         </div>
                       </div>
                     ))}
@@ -458,6 +448,13 @@ export default function WeatherGraph() {
               )}
 
               <div className="wg-side-column">
+                <div className="wg-location-card">
+                  <div className="wg-chart-title">📍 현재 주소</div>
+                  <div className="wg-location-card-body">
+                    <strong>{address}</strong>
+                  </div>
+                </div>
+
                 {adviceItems.length > 0 && (
                   <div className="wg-chart-card wg-advice-card">
                     <div className="wg-chart-title">👜 오늘의 준비물</div>

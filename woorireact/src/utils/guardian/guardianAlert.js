@@ -1,10 +1,24 @@
-export const isSameDate = (left, right) => {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
+export const isSameDate = (left, right) => (
+  left.getFullYear() === right.getFullYear()
+  && left.getMonth() === right.getMonth()
+  && left.getDate() === right.getDate()
+);
+
+export const isCallRequestAlert = (alert) => alert?.type === "CALL_REQUEST";
+
+export const isSosAlert = (alert) => {
+  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
+  return alert?.type === "SOS" || /SOS/.test(text);
 };
+
+export const isSosCancelAlert = (alert) => {
+  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
+  return alert?.type === "SOS_CANCEL" || /취소|해제|잘못/.test(text);
+};
+
+export const isSafeZoneAlert = (alert) => (
+  alert?.type === "SAFE_ZONE" || alert?.type === "SAFE_ZONE_EXIT"
+);
 
 export const formatAlertMessage = (alert) => {
   const originalMessage = alert.message ?? alert.title ?? "";
@@ -13,26 +27,14 @@ export const formatAlertMessage = (alert) => {
     return "알림 내용이 없습니다.";
   }
 
-  const nameMatch = originalMessage.match(/^(.+?)(?:님|이|가|은|는)/);
-  const seniorName = nameMatch?.[1] || alert.seniorName || alert.name || "보호 대상자";
+  const seniorName = alert.seniorName || alert.name || "보호 대상자";
 
-  const isSosCancel =
-    originalMessage.includes("취소") ||
-    originalMessage.includes("해제") ||
-    originalMessage.includes("수신");
-
-  if (isSosCancel) {
-    return `${seniorName}의 SOS 해제 알림`;
+  if (isSosCancelAlert(alert)) {
+    return `${seniorName}님 SOS 잘못 누름 알림`;
   }
 
-  const isSosRequest =
-    alert.type === "SOS" ||
-    originalMessage.includes("SOS 요청") ||
-    originalMessage.includes("SOS를 보냄") ||
-    originalMessage.includes("SOS 보냄");
-
-  if (isSosRequest) {
-    return `${seniorName}의 SOS 요청`;
+  if (isSosAlert(alert)) {
+    return `${seniorName}님 SOS 요청`;
   }
 
   return originalMessage;
@@ -40,19 +42,32 @@ export const formatAlertMessage = (alert) => {
 
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
   const today = new Date();
+  const todayAlerts = apiAlerts.filter((alert) => {
+    if (!alert.createdAt) return false;
+    if (isCallRequestAlert(alert)) return false;
 
-  return apiAlerts
+    const createdAt = new Date(alert.createdAt);
+
+    if (Number.isNaN(createdAt.getTime())) return false;
+
+    return isSameDate(createdAt, today);
+  });
+
+  const sosCancelAlerts = todayAlerts.filter(isSosCancelAlert);
+
+  return todayAlerts
     .filter((alert) => {
-      if (!alert.createdAt) return false;
+      if (!isSosAlert(alert) || isSosCancelAlert(alert)) return true;
 
-      const createdAt = new Date(alert.createdAt);
-
-      if (Number.isNaN(createdAt.getTime())) return false;
-
-      return isSameDate(createdAt, today);
+      const alertTime = new Date(alert.createdAt).getTime();
+      return !sosCancelAlerts.some((cancelAlert) => {
+        const isSameSenior = String(cancelAlert.seniorId || "") === String(alert.seniorId || "");
+        const cancelTime = new Date(cancelAlert.createdAt).getTime();
+        return isSameSenior && cancelTime >= alertTime;
+      });
     })
     .map((alert) => {
-      const isReported = reportedAlertIds.includes(String(alert.id));
+      const safeZone = isSafeZoneAlert(alert);
 
       return {
         id: alert.id,
@@ -69,9 +84,18 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
             })
           : "",
         message: formatAlertMessage(alert),
-        status: isReported ? "신고 완료" : alert.isRead ? "확인됨" : "미확인",
-        isSos: alert.type === "SOS",
-        isSafeZone: alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT",
+        status: reportedAlertIds.includes(String(alert.id))
+          ? "신고 완료"
+          : alert.isRead
+            ? safeZone
+              ? "만남 완료"
+              : isSosCancelAlert(alert)
+                ? "확인함"
+                : "조치완료"
+            : "미확인",
+        isSos: isSosAlert(alert) && !isSosCancelAlert(alert),
+        isSosCancel: isSosCancelAlert(alert),
+        isSafeZone: safeZone,
       };
     });
 };

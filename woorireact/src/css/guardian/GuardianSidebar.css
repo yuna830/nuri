@@ -196,6 +196,93 @@
   background: var(--main-color);
 }
 
+.guardian-activity-report {
+  padding: 16px;
+}
+
+.guardian-activity-report.normal {
+  background: #f7fbf6;
+}
+
+.guardian-activity-report.warning {
+  background: #fff8e8;
+  border-color: #f0c56b;
+}
+
+.guardian-activity-report.danger {
+  background: #fff1f1;
+  border-color: #ef9a9a;
+}
+
+.guardian-activity-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.guardian-activity-report-head span {
+  display: block;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.guardian-activity-report-head strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.guardian-activity-report-head em {
+  color: var(--text-sub);
+  flex-shrink: 0;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.guardian-activity-report p {
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 10px 0 0;
+}
+
+.guardian-activity-report-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.guardian-activity-report-list div {
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto;
+  padding-top: 8px;
+}
+
+.guardian-activity-report-list span {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guardian-activity-report-list strong {
+  color: #2f6f9f;
+  font-size: 13px;
+}
+
+.guardian-activity-report-list em {
+  color: var(--text-main);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .eyebrow,
 .summary-row > span,
 .last-seen-label {

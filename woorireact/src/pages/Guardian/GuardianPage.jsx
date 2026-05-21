@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell } from "lucide-react";
 import {
@@ -30,7 +30,8 @@ import {
   loadSafeZone,
   saveSafeZone,
 } from "../../utils/guardian/guardianSafeZone";
-import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
+import { buildDisplayedAlerts, isCallRequestAlert } from "../../utils/guardian/guardianAlert";
+import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
 import UserPanel from "./UserPanel";
@@ -42,6 +43,7 @@ import "../../css/guardian/GuardianPage.css";
 import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
 import "../../css/guardian/GuardianModal.css";
+import "../../css/user/UserCommonHeader.css";
 
 const saveLocalCareTeamMap = (profiles, guardian) => {
   if (!guardian || !Array.isArray(profiles)) return;
@@ -126,6 +128,13 @@ function GuardianPage() {
   const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
 
   const [policeAlerts, setPoliceAlerts] = useState([]);
+  const [activityReport, setActivityReport] = useState({
+    isLoading: false,
+    trend: null,
+    fallPattern: null,
+    error: "",
+    updatedAt: "",
+  });
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -133,6 +142,54 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  useEffect(() => {
+    if (!activeElderId) {
+      setActivityReport({ isLoading: false, trend: null, fallPattern: null, error: "", updatedAt: "" });
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadActivityReport = async () => {
+      setActivityReport((prev) => ({ ...prev, isLoading: true, error: "" }));
+
+      try {
+        const [trend, fallPattern] = await Promise.all([
+          fetchActivityTrend(1),
+          fetchFallPattern(),
+        ]);
+
+        if (!isMounted) return;
+
+        setActivityReport({
+          isLoading: false,
+          trend,
+          fallPattern,
+          error: "",
+          updatedAt: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+        });
+      } catch {
+        if (!isMounted) return;
+
+        setActivityReport({
+          isLoading: false,
+          trend: null,
+          fallPattern: null,
+          error: "활동 리포트를 불러오지 못했습니다.",
+          updatedAt: "",
+        });
+      }
+    };
+
+    loadActivityReport();
+    const intervalId = window.setInterval(loadActivityReport, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [activeElderId]);
 
   const displayedAlerts = useMemo(
     () => buildDisplayedAlerts(apiAlerts, reportedAlertIds),
@@ -250,7 +307,7 @@ function GuardianPage() {
         const previousIds = knownAlertIdsRef.current;
 
         const newAlerts = nextAlerts.filter(
-          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true
+          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true && !isCallRequestAlert(alert)
         );
 
         knownAlertIdsRef.current = new Set(nextAlerts.map((alert) => String(alert.id)));
@@ -343,8 +400,8 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          unreadAlertCount={unreadAlertCount}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          displayedAlerts={displayedAlerts}
+          onReadAlert={() => {}}
           onOpenEmergencyReport={() => {}}
         />
 
@@ -363,8 +420,8 @@ function GuardianPage() {
     return (
       <main className="guardian-page">
         <GuardianHeader
-          unreadAlertCount={unreadAlertCount}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
+          displayedAlerts={displayedAlerts}
+          onReadAlert={() => {}}
           onOpenEmergencyReport={() => {}}
         />
 
@@ -646,10 +703,17 @@ function GuardianPage() {
 
   const handleReadAlert = async (alertId) => {
     try {
+      const targetAlert = apiAlerts.find((alert) => String(alert.id) === String(alertId));
       const updatedAlert = await readAlert(alertId);
 
+      if (targetAlert?.type === "SOS" && targetAlert?.seniorId) {
+        localStorage.setItem(`sos_resolved_at:${targetAlert.seniorId}`, String(Date.now()));
+      }
+
       setApiAlerts((prev) =>
-        prev.map((alert) => (alert.id === alertId ? updatedAlert : alert))
+        prev.map((alert) => (
+          alert.id === alertId ? { ...alert, ...updatedAlert, isRead: true } : alert
+        ))
       );
     } catch (error) {
       console.error("알림 확인 처리 실패:", error);
@@ -876,9 +940,10 @@ function GuardianPage() {
   return (
     <main className="guardian-page">
       <GuardianHeader
-        unreadAlertCount={unreadAlertCount}
-        onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
-        onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+        displayedAlerts={displayedAlerts}
+        onReadAlert={handleReadAlert}
+        onCallAlert={handleCallAlert}
+        onOpenEmergencyReport={handleOpenEmergencyReport}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -978,6 +1043,7 @@ function GuardianPage() {
           onCreateAndConnectSenior={handleCreateAndConnectSenior}
           onDeleteElder={handleDeleteElder}
           onOpenMedicineAlert={handleOpenMedicineAlert}
+          activityReport={activityReport}
         />
 
         <LocationPanel
@@ -1004,14 +1070,11 @@ function GuardianPage() {
           onRouteDateChange={handleRouteDateChange}
           distance={distance}
           lastNormalLocation={lastNormalLocation}
-          isAlertPanelOpen={isAlertPanelOpen}
           isMissingReportOpen={isMissingReportOpen}
           missingDescription={missingDescription}
           setMissingDescription={setMissingDescription}
           missingImagePreview={missingImagePreview}
           isSubmittingMissingReport={isSubmittingMissingReport}
-          onOpenAlertPanel={() => setIsAlertPanelOpen(true)}
-          onCloseAlertPanel={() => setIsAlertPanelOpen(false)}
           onReadAlert={handleReadAlert}
           onCallAlert={handleCallAlert}
           onOpenEmergencyReport={handleOpenEmergencyReport}
@@ -1115,8 +1178,10 @@ function GuardianPage() {
 
           <button
             type="button"
-            onClick={() => {
-              setIsAlertPanelOpen(true);
+            onClick={async () => {
+              if (guardianToast.id && guardianToast.type !== "CALL_REQUEST") {
+                await handleReadAlert(guardianToast.id);
+              }
               setGuardianToast(null);
             }}
           >
@@ -1136,28 +1201,55 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ unreadAlertCount, onOpenAlertPanel, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onCallAlert, onOpenEmergencyReport }) {
+  const guardianNotifications = displayedAlerts.map((alert) => ({
+    id: alert.id,
+    title: alert.message || "보호 대상자 알림",
+    message: alert.time || "",
+    category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
+    time: alert.time,
+    isRead: alert.status !== "미확인",
+    danger: alert.isSos || alert.isSafeZone,
+    raw: alert,
+  }));
+
   return (
     <CommonHeader
       homePath="/guardian"
-      actions={
-        <>
-          <button
-            className="common-app-icon-button"
-            type="button"
-            onClick={onOpenAlertPanel}
-            aria-label="알림"
-          >
-            <Bell size={18} />
-            {unreadAlertCount > 0 && (
-              <span className="common-app-badge">{unreadAlertCount}</span>
-            )}
-          </button>
+      showNotificationButton
+      notifications={guardianNotifications}
+      notificationTabs={["전체", "긴급", "정보", "읽지 않음"]}
+      onReadNotification={(alert) => {
+        if (alert?.id) {
+          onReadAlert?.(alert.id);
+        }
+      }}
+      renderNotificationActions={(alert, { defaultAction, isRead }) => {
+        if (isRead || !alert?.isSos) {
+          return defaultAction;
+        }
 
-          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
-            긴급 신고
-          </button>
-        </>
+        return (
+          <div className="guardian-alert-actions">
+            <button type="button" onClick={(event) => {
+              event.stopPropagation();
+              onCallAlert?.(alert);
+            }}>
+              전화하기
+            </button>
+            <button type="button" className="danger" onClick={(event) => {
+              event.stopPropagation();
+              onOpenEmergencyReport?.(alert);
+            }}>
+              신고하기
+            </button>
+          </div>
+        );
+      }}
+      actions={
+        <button className="common-app-danger-button" type="button" onClick={() => onOpenEmergencyReport?.()}>
+          긴급 신고
+        </button>
       }
     />
   );

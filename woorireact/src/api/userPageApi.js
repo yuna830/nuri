@@ -1,7 +1,21 @@
 import { reverseGeocodeByKakao } from "./kakaoLocalApi.js";
 
 const API_BASE = "http://localhost:8080";
-const FALL_API_BASE = import.meta.env.VITE_FALL_API_BASE || "http://127.0.0.1:8000";
+const getDefaultFallApiBase = () => {
+  const host = window.location.hostname;
+
+  if (host && host !== "localhost" && host !== "127.0.0.1") {
+    return `${window.location.protocol}//${host}:8000`;
+  }
+
+  return "http://127.0.0.1:8000";
+};
+
+const FALL_API_BASE = (
+  import.meta.env.VITE_FALL_API_BASE ||
+  localStorage.getItem("woori_fall_api_base") ||
+  getDefaultFallApiBase()
+).replace(/\/$/, "");
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 
@@ -385,11 +399,11 @@ export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, addre
   return response.json();
 };
 
-export const createFallAlert = async ({ seniorId, latitude, longitude, address, score }) => {
+export const createFallAlert = async ({ seniorId, latitude, longitude, address, score, imageUrl }) => {
   const response = await fetch(`${API_BASE}/api/alerts/fall`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seniorId, latitude, longitude, address, score }),
+    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl }),
   });
 
   if (!response.ok) {
@@ -401,11 +415,95 @@ export const createFallAlert = async ({ seniorId, latitude, longitude, address, 
 
 export const getFallVideoUrl = () => `${FALL_API_BASE}/video`;
 
+export const getFallCaptureUrl = (filename) => {
+  if (!filename) return "";
+  const clean = String(filename).replace(/^captures[\\/]/, "");
+  return `${FALL_API_BASE}/captures/${encodeURIComponent(clean)}`;
+};
+
+export const fetchFallCaptures = async () => {
+  const response = await fetch(`${FALL_API_BASE}/captures`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Fall captures failed");
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.captures) ? data.captures : [];
+};
+
 export const fetchFallDetectionStatus = async () => {
   const response = await fetch(`${FALL_API_BASE}/status`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error("Fall detection server failed");
+  }
+
+  return response.json();
+};
+
+export const fetchActivityToday = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/today`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Activity today failed");
+  }
+
+  return response.json();
+};
+
+export const fetchActivityTrend = async (days = 7) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/trend?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Activity trend failed");
+  }
+
+  return response.json();
+};
+
+export const fetchFallEvents = async (days = 1) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/falls?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Fall events failed");
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.events) ? data.events : [];
+};
+
+export const fetchActivitySlots = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/slots`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Activity slots failed");
+  }
+
+  return response.json();
+};
+
+export const fetchActivityBaseline = async (days = 14) => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/baseline?days=${encodeURIComponent(days)}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Activity baseline failed");
+  }
+
+  return response.json();
+};
+
+export const fetchFallPattern = async () => {
+  const response = await fetch(`${FALL_API_BASE}/health/activity/fall-pattern`, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error("Fall pattern failed");
   }
 
   return response.json();
@@ -426,5 +524,35 @@ export const readAlert = async (alertId) => {
     throw new Error("Alert read failed");
   }
   return response.json();
+};
+
+export const deleteAlert = async (alertId) => {
+  const response = await fetch(`${API_BASE}/api/alerts/${alertId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error("Alert delete failed");
+  }
+};
+
+export const deleteAlerts = async (alertIds) => {
+  const response = await fetch(`${API_BASE}/api/alerts/bulk-delete`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: alertIds }),
+  });
+  if (!response.ok) {
+    throw new Error("Alert bulk delete failed");
+  }
+};
+
+export const deleteOldRequestAlerts = async (seniorId) => {
+  if (!seniorId) return;
+  const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}/old-requests`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error("Old request alert cleanup failed");
+  }
 };
 

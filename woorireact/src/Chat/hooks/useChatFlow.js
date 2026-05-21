@@ -101,7 +101,8 @@ export function useChatFlow({
       }
 
       if (firstSchedule) {
-        await savePendingSchedule(firstSchedule, options);
+        setPendingSchedule(firstSchedule);
+        answer(`${scheduleToText(firstSchedule)} 일정으로 이해했어요. 등록할까요?`, options);
         return;
       }
 
@@ -278,7 +279,7 @@ function getConfirmedSuggestedSchedule(text, messages) {
     .find((message) => message.role === "assistant" && message.content);
   const content = String(lastAssistantMessage?.content || "");
 
-  if (!/(일정에\s*추가|일정으로\s*등록|추가해\s*드릴까요|등록해\s*드릴까요)/.test(content)) {
+  if (!/(일정에\s*추가|일정으로\s*등록|일정을\s*잘\s*기억|일정으로\s*이해|추가해\s*드릴까요|등록해\s*드릴까요|등록할까요)/.test(content)) {
     return null;
   }
 
@@ -307,15 +308,21 @@ function extractSuggestedScheduleTitle(content) {
     normalized
       .split(/[.!?]/)
       .map((item) => item.trim())
-      .find((item) => /일정(?:에|으로)\s*(?:추가|등록)/.test(item)) || normalized;
-  const match = sentence.match(
+      .find((item) => /일정(?:에|으로)\s*(?:추가|등록)|일정을\s*잘\s*기억|일정으로\s*이해|등록할까요/.test(item)) || normalized;
+  const match =
+    sentence.match(
     /(?:오늘|내일|모레)?\s*(.+?)(?:을|를)?\s*일정(?:에|으로)\s*(?:추가|등록)/
-  );
+    ) ||
+    sentence.match(/(?:오늘|내일|모레|글피|\d{4}년\s*\d{1,2}월\s*\d{1,2}일)?\s*(.+?)(?:을|를)?\s*일정을\s*잘\s*기억/) ||
+    sentence.match(/(?:오늘|내일|모레|글피|\d{4}년\s*\d{1,2}월\s*\d{1,2}일)?\s*(.+?)\s*일정으로\s*이해/) ||
+    sentence.match(/(?:오늘|내일|모레|글피|\d{4}년\s*\d{1,2}월\s*\d{1,2}일)?\s*(.+?)\s*등록할까요/);
   if (!match) return "";
 
   return match[1]
+    .replace(/\*\*/g, "")
     .replace(/^(네|예|좋습니다|좋아요|알겠습니다|그럼|그렇다면|그러면)[,.\s]*/g, "")
-    .replace(/^(오늘|내일|모레)\s*/g, "")
+    .replace(/^(오늘|내일|모레|글피|\d{4}년\s*\d{1,2}월\s*\d{1,2}일(?:\s*[일월화수목금토]요일)?(?:이네요)?)[,.\s]*/g, "")
+    .replace(/\s*(은|는|이|가|을|를)$/g, "")
     .trim();
 }
 
