@@ -595,7 +595,7 @@ function WelfareDashboard() {
                 </main>
             </div>
 
-            <WelfarePolicyQaButton />
+            <WelfarePolicyQaButton seniorOptions={currentSeniors} />
         </div>
     );
 }

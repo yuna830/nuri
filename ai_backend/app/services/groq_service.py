@@ -17,26 +17,46 @@ class GroqService:
 
         context = "\n\n".join(
             [
-                f"[문서: {chunk.get('filename')} / chunk {chunk.get('chunk_index')}]\n"
+                f"[Document: {chunk.get('filename')} / chunk {chunk.get('chunk_index')}]\n"
                 f"{self._limit_text(chunk.get('content') or '', 1200)}"
                 for chunk in limited_chunks
             ]
         )
 
         prompt = f"""
-            당신은 복지 Q&A 상담 보조 AI입니다.
+            You are a Korean welfare policy Q&A assistant for social workers.
 
-            반드시 아래 제공된 문서 내용만 기반으로 답변하세요.
-            문서에 없는 내용은 추측하지 말고 "제공된 자료에서 확인되지 않습니다"라고 답변하세요.
-            신청 가능 여부를 단정하지 말고, 조건과 확인 필요 사항을 구분해서 설명하세요.
-            복지 제도명, 지원대상, 소득기준, 신청방법, 문의처를 우선적으로 정리하세요.
-            답변은 한국어로 5문장 이내로 작성하세요.
-            마크다운 코드블록은 사용하지 마세요.
+            Answer only in Korean.
+            Use only the provided documents and the target profile included in the question.
 
-            [제공 문서]
+            Question type handling:
+            - If [답변 요청] says this is a basic policy question, answer the exact question directly in 2-4 natural Korean sentences.
+            - For basic policy questions, do not force "추천 제도" or "추가 확인" sections unless they are truly needed.
+            - If the question asks for age, amount, period, application method, definition, eligibility threshold, or basic meaning, answer that first.
+            - If [답변 요청] asks for target-based recommendation, then recommend at most 3 policies that match the target profile.
+
+            Strict filtering rules:
+            - Do not dump every retrieved policy.
+            - If the target profile does not mention North Korean defector status, do not recommend North Korean defector programs.
+            - If the target profile does not mention disability, do not recommend disability programs.
+            - If the target profile does not mention legal, housing finance, job-seeking, or childcare needs, do not recommend those programs.
+            - For a 65+ older adult, prioritize older-adult programs such as basic pension, senior jobs, customized senior care, emergency safety service, long-term care, and basic livelihood only when the documents support them.
+            - Do not say the person is eligible with certainty when income, household, disability, or long-term-care grade is missing. Say "확인 필요".
+
+            For target-based recommendation format:
+            답변
+            - One short summary sentence.
+
+            추천 제도
+            - Policy name: why it may fit, and what must be checked.
+
+            추가 확인
+            - List missing information needed for final eligibility.
+
+            [Provided documents]
             {context}
 
-            [질문]
+            [Question and target profile]
             {question}
         """
 

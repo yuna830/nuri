@@ -11,14 +11,15 @@ class RagService:
         self.qdrant_service = QdrantService()
         self.groq_service = GroqService()
 
-    def ask(self, question: str, limit: int = 5) -> dict:
-        cached_vector = self.cache_service.get(question)
+    def ask(self, question: str, limit: int = 5, search_query: str | None = None) -> dict:
+        retrieval_query = (search_query or question).strip()
+        cached_vector = self.cache_service.get(retrieval_query)
 
         if cached_vector is not None:
             query_vector = cached_vector
         else:
-            query_vector = self.embedding_service.embed_text(question)
-            self.cache_service.set(question, query_vector)
+            query_vector = self.embedding_service.embed_text(retrieval_query)
+            self.cache_service.set(retrieval_query, query_vector)
 
         chunks = self.qdrant_service.search_chunks(
             query_vector=query_vector,
