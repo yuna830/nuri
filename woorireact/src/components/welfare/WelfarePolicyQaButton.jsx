@@ -154,9 +154,15 @@ function WelfarePolicyQaButton({ senior = null, seniorOptions = [] }) {
             setIsLoading(true);
             setErrorMessage("");
 
+            const recentMessages = messages.slice(-6).map((message) => ({
+                role: message.role,
+                text: message.text,
+            }));
+
             const data = await askWelfarePolicyQuestion({
                 question: trimmedQuestion,
                 senior: targetSenior,
+                history: recentMessages,
             });
 
             const currentWorker = JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");

@@ -58,13 +58,36 @@ function isBasicPolicyQuestion(question) {
         && !recommendationPatterns.some((pattern) => pattern.test(text));
 }
 
+// 메타 질문 분류 추가 
+function isMetaConversationQuestion(question) {
+    const text = String(question || "").replace(/\s+/g, "");
+
+    return /저런정보|이런정보|정보가있어야|필요해|좋아|왜필요|뭘입력|어떤정보/.test(text);
+}
+
 function buildQuestionWithSeniorContext(question, senior) {
     const trimmedQuestion = question.trim();
     const seniorContext = formatSeniorContext(senior);
     const isBasicQuestion = isBasicPolicyQuestion(trimmedQuestion);
+    const isMetaQuestion = isMetaConversationQuestion(trimmedQuestion);
 
     if (!seniorContext) {
         return trimmedQuestion;
+    }
+
+    if (isMetaQuestion) {
+        return [
+            seniorContext,
+            "",
+            "[질문]",
+            trimmedQuestion,
+            "",
+            "[답변 요청]",
+            "이 질문은 복지 제도 추천이 아니라 대화 내용이나 대상자 정보 입력 필요성에 대한 질문입니다.",
+            "최근 대화가 있으면 그 맥락을 참고해서 자연스럽게 답하세요.",
+            "복지 제도를 새로 추천하지 말고, 어떤 대상자 정보가 왜 필요한지 설명하세요.",
+            "답변은 2~4문장으로 짧게 작성하세요.",
+        ].join("\n");
     }
 
     if (isBasicQuestion) {
@@ -95,6 +118,58 @@ function buildQuestionWithSeniorContext(question, senior) {
     ].join("\n");
 }
 
+function getTargetKeywords(senior) {
+    const keywords = ["복지", "지원", "신청", "지원대상"];
+
+    const age = Number(senior?.age || 0);
+    const text = [
+        senior?.healthStatus,
+        senior?.incomeLevel,
+        senior?.basicLivelihoodStatus,
+        senior?.nearPovertyStatus,
+        senior?.livingAlone,
+        senior?.householdType,
+        senior?.disabilityStatus,
+        senior?.longTermCareGrade,
+        senior?.jobRequestStatus,
+        senior?.region,
+    ].filter(Boolean).join(" ");
+
+    if (age >= 65) {
+        keywords.push("노인", "어르신", "기초연금", "노인맞춤돌봄", "장기요양", "노인일자리");
+    }
+
+    if (age && age < 65) {
+        keywords.push("취약계층", "저소득층", "긴급복지", "생계지원", "의료비 지원", "주거지원");
+    }
+
+    if (/기초생활|수급|생계급여/.test(text)) {
+        keywords.push("기초생활보장", "생계급여", "의료급여", "주거급여", "교육급여");
+    }
+
+    if (/차상위/.test(text)) {
+        keywords.push("차상위계층", "본인부담경감", "자활", "요금감면");
+    }
+
+    if (/독거|1인|단독/.test(text)) {
+        keywords.push("돌봄", "안부확인", "응급안전", "방문지원");
+    }
+
+    if (/장애|장애인/.test(text)) {
+        keywords.push("장애인", "장애수당", "장애인연금", "활동지원", "보조기기");
+    }
+
+    if (/한부모/.test(text)) {
+        keywords.push("한부모가족", "양육비", "아동양육비");
+    }
+
+    if (/실직|구직|취업|일자리/.test(text)) {
+        keywords.push("일자리", "취업지원", "국민취업지원제도", "자활근로");
+    }
+
+    return keywords.join(" ");
+}
+
 function buildSearchQuery(question, senior) {
     if (!senior) {
         return question.trim();
@@ -113,13 +188,13 @@ function buildSearchQuery(question, senior) {
         senior.householdType || "",
         senior.disabilityStatus || "",
         senior.longTermCareGrade || "",
-        "노인 복지 기초연금 노인맞춤돌봄 응급안전안심서비스 장기요양 노인일자리",
+        getTargetKeywords(senior),
     ];
 
     return parts.filter(Boolean).join(" ");
 }
 
-export async function askWelfarePolicyQuestion({ question, senior = null, limit = 5 }) {
+export async function askWelfarePolicyQuestion({ question, senior = null, history = [], limit = 5 }) {
     const trimmedQuestion = question?.trim();
 
     if (!trimmedQuestion) {
@@ -127,6 +202,14 @@ export async function askWelfarePolicyQuestion({ question, senior = null, limit 
     }
 
     const questionWithContext = buildQuestionWithSeniorContext(trimmedQuestion, senior);
+
+    const historyText = history.length > 0
+        ? [
+            "[최근 대화]",
+            ...history.map((message) => `${message.role === "user" ? "복지사" : "AI"}: ${message.text}`),
+            "",
+        ].join("\n")
+        : "";
     const searchQuery = buildSearchQuery(trimmedQuestion, senior);
 
     const response = await fetch(`${FASTAPI_BASE_URL}/api/chat`, {
@@ -135,7 +218,7 @@ export async function askWelfarePolicyQuestion({ question, senior = null, limit 
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            question: questionWithContext,
+            question: `${historyText}${questionWithContext}`,
             search_query: searchQuery,
             limit,
         }),
