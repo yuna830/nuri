@@ -638,6 +638,26 @@
     text-decoration: none;
 }
 
+.wd-table-link-button {
+    max-width: 100%;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.wd-table-link-button:hover {
+    color: var(--main-color);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.wd-table-link-button:hover .wd-badge {
+    transform: translateY(-1px);
+}
+
 /* 뱃지 */
 .wd-badge {
     display: inline-block;
@@ -669,8 +689,9 @@
 }
 
 .wd-badge.alert-sos {
-    background-color: #ffe1e1;
-    color: #8a2f2f;
+    background-color: #e05252;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(224, 82, 82, 0.18);
 }
 
 .wd-badge.alert-job {

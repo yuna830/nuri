@@ -1,5 +1,23 @@
 // 복지사 페이지 공통 대상자 데이터 처리 유틸
 
+const WELFARE_DECISIONS_STORAGE_KEY = "welfareDecisions";
+const WELFARE_DECISION_DETAILS_STORAGE_KEY = "welfareDecisionDetails";
+
+const readJsonStorage = (key) => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(key) || "{}");
+        return saved && typeof saved === "object" ? saved : {};
+    } catch {
+        return {};
+    }
+};
+
+export const getSavedWelfareDecisions = () =>
+    readJsonStorage(WELFARE_DECISIONS_STORAGE_KEY);
+
+export const getSavedWelfareDecisionDetails = () =>
+    readJsonStorage(WELFARE_DECISION_DETAILS_STORAGE_KEY);
+
 export const getJobRequestGroup = (senior) =>
     Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
         ? "요청 있음"

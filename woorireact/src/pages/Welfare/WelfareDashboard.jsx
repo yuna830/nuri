@@ -8,7 +8,11 @@ import {
     UserRound,
 } from "lucide-react";
 
-import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
+import {
+    fetchWelfareAlerts,
+    fetchWelfareSeniors,
+    getCachedWelfareSeniors,
+} from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
@@ -56,15 +60,33 @@ const cloneFilters = (targetFilters) =>
         {}
     );
 
+const WELFARE_READ_NOTIFICATIONS_KEY = "welfare:read-notifications";
+
+const getSavedReadNotificationIds = () => {
+    try {
+        const savedIds = JSON.parse(localStorage.getItem(WELFARE_READ_NOTIFICATIONS_KEY) || "[]");
+        return Array.isArray(savedIds) ? savedIds : [];
+    } catch {
+        return [];
+    }
+};
+
 function WelfareDashboard() {
     const navigate = useNavigate();
     const currentWorker = JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
+    const initialCachedSeniors = getCachedWelfareSeniors({ page: 0, size: ITEM_PER_PAGE });
+    const initialRawSeniors = Array.isArray(initialCachedSeniors)
+        ? initialCachedSeniors
+        : initialCachedSeniors?.content;
+    const initialMappedSeniors = Array.isArray(initialRawSeniors)
+        ? initialRawSeniors.map(mapWelfareSenior)
+        : [];
 
-    const [seniors, setSeniors] = useState([]);
-    const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
+    const [seniors, setSeniors] = useState(initialMappedSeniors);
+    const [isLoadingSeniors, setIsLoadingSeniors] = useState(initialMappedSeniors.length === 0);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
-    const [dismissedNotifications, setDismissedNotifications] = useState([]);
+    const [dismissedNotifications, setDismissedNotifications] = useState(getSavedReadNotificationIds);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
@@ -73,8 +95,18 @@ function WelfareDashboard() {
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
     const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
     const [summaryFilter, setSummaryFilter] = useState("all");
-    const [serverTotalPages, setServerTotalPages] = useState(1);
-    const [serverTotalSeniors, setServerTotalSeniors] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(
+        Array.isArray(initialCachedSeniors) ? 1 : Math.max(1, initialCachedSeniors?.totalPages || 1)
+    );
+    const [serverTotalSeniors, setServerTotalSeniors] = useState(
+        Array.isArray(initialCachedSeniors)
+            ? initialMappedSeniors.length
+            : Number(initialCachedSeniors?.totalElements || initialMappedSeniors.length)
+    );
+
+    const openSeniorAssignmentGuide = () => {
+        window.alert("대상자 추가는 관리자 페이지에서 복지사를 배정한 뒤 반영됩니다.");
+    };
 
     useEffect(() => {
         let ignore = false;
@@ -371,14 +403,20 @@ function WelfareDashboard() {
         return notifications;
     });
 
-    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].filter(
-        (notification) => !dismissedNotifications.includes(notification.id)
-    );
+    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].map((notification) => ({
+        ...notification,
+        isRead: dismissedNotifications.includes(notification.id),
+    }));
 
     const dismissNotification = (notificationId) => {
-        setDismissedNotifications((previousIds) =>
-            previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
-        );
+        setDismissedNotifications((previousIds) => {
+            const nextIds = previousIds.includes(notificationId)
+                ? previousIds
+                : [...previousIds, notificationId];
+
+            localStorage.setItem(WELFARE_READ_NOTIFICATIONS_KEY, JSON.stringify(nextIds));
+            return nextIds;
+        });
     };
 
     return (
@@ -392,26 +430,17 @@ function WelfareDashboard() {
                     message: notification.message,
                     category: notification.category || notification.detailCategory || "정보",
                     time: notification.time,
-                    isRead: false,
+                    isRead: notification.isRead,
                     danger: notification.danger === true || notification.category === "긴급",
                     raw: notification,
                 }))}
                 notificationTabs={["전체", "긴급", "정보 미입력", "일자리", "복지", "읽지 않음"]}
                 onReadNotification={(notification) => dismissNotification(notification.id)}
-                onNotificationClick={(notification) => {
-                    if (notification.seniorId) {
-                        navigate(`/welfare/seniors/${notification.seniorId}`, {
-                            state: {
-                                category: notification.detailCategory || "기본 정보",
-                            },
-                        });
-                    }
-                }}
                 actions={
                     <button
                         className="common-app-danger-button"
                         type="button"
-                        onClick={() => navigate("/signup")}
+                        onClick={openSeniorAssignmentGuide}
                     >
                         대상자 추가
                     </button>
@@ -456,7 +485,7 @@ function WelfareDashboard() {
                     <button
                         type="button"
                         className="wd-sidebar-add-button"
-                        onClick={() => navigate("/signup")}
+                        onClick={openSeniorAssignmentGuide}
                     >
                         <UserPlus size={17} />
                         대상자 추가

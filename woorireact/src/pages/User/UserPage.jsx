@@ -329,6 +329,7 @@ const shouldClearPendingSos = (sosAlerts) => {
 
 const HANDLED_CALL_ALERTS_KEY = "handled_call_alert_ids";
 const HANDLED_CALL_SUPPRESS_UNTIL_KEY = "handled_call_alert_suppress_until";
+const HANDLED_CALL_ALERT_CUTOFF_KEY = "handled_call_alert_cutoff_at";
 
 const getHandledCallAlertIds = () => {
   try {
@@ -339,17 +340,21 @@ const getHandledCallAlertIds = () => {
 };
 
 const markCallAlertHandled = (alertId) => {
-  if (!alertId) return;
-
   const handledIds = getHandledCallAlertIds();
-  handledIds.add(String(alertId));
+  if (alertId) handledIds.add(String(alertId));
   localStorage.setItem(HANDLED_CALL_ALERTS_KEY, JSON.stringify([...handledIds].slice(-50)));
   localStorage.setItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY, String(Date.now() + 30 * 1000));
+  localStorage.setItem(HANDLED_CALL_ALERT_CUTOFF_KEY, String(Date.now() + 5000));
 };
 
 const isCallAlertHandled = (alert) => {
   const suppressUntil = Number(localStorage.getItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY) || 0);
   if (suppressUntil > Date.now()) return true;
+
+  const handledCutoff = Number(localStorage.getItem(HANDLED_CALL_ALERT_CUTOFF_KEY) || 0);
+  const createdAt = alert?.createdAt ? Date.parse(alert.createdAt) : 0;
+  if (handledCutoff && createdAt && createdAt <= handledCutoff) return true;
+
   if (!alert?.id) return false;
   return getHandledCallAlertIds().has(String(alert.id));
 };
@@ -874,16 +879,15 @@ export default function UserPage() {
       setUserAlerts(alerts);
 
       const sosAlerts = alerts.filter(isSosAlert);
+      const rawCallAlerts = alerts.filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
       const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
       const sosResolvedAt = Number(localStorage.getItem(`sos_resolved_at:${seniorId}`) || 0);
-      if (pendingSos && ((pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
+      if (pendingSos && (rawCallAlerts.length > 0 || (pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
         clearPendingSosStorage();
         setPendingSos(false);
       }
 
-      const callAlert = alerts.find((alert) => (
-        alert.type === "CALL_REQUEST" && !alert.isRead && !isCallAlertHandled(alert)
-      ));
+      const callAlert = rawCallAlerts.find((alert) => !isCallAlertHandled(alert));
       setIncomingCallAlert(callAlert || null);
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
@@ -959,10 +963,13 @@ export default function UserPage() {
   };
 
   const handleReceiveCall = async () => {
-    if (incomingCallAlert?.id) {
-      markCallAlertHandled(incomingCallAlert.id);
-      await readAlert(incomingCallAlert.id).catch(() => {});
-    }
+    const callAlertIds = userAlerts
+      .filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead)
+      .map((alert) => alert.id)
+      .filter(Boolean);
+    markCallAlertHandled(incomingCallAlert?.id);
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+
     setIncomingCallAlert(null);
 
     if (careTeam.guardianPhone) {
@@ -971,12 +978,13 @@ export default function UserPage() {
   };
 
   const handleDismissCallRequest = async () => {
-    const alertId = incomingCallAlert?.id;
+    const callAlertIds = userAlerts
+      .filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead)
+      .map((alert) => alert.id)
+      .filter(Boolean);
     setIncomingCallAlert(null);
-    if (alertId) {
-      markCallAlertHandled(alertId);
-      await readAlert(alertId).catch(() => {});
-    }
+    markCallAlertHandled(incomingCallAlert?.id);
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
   };
 
   const handleReadMedicineAlert = async () => {

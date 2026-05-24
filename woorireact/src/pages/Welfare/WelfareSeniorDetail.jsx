@@ -1,27 +1,109 @@
-import { Link, useParams, useLocation } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
 import {
     normalizeSenior,
-    applySavedWelfareDecision,
     formatAgeGender,
     formatGps,
 } from "../../utils/welfare/welfareSenior";
+import {
+    fetchWelfareSeniorDetail,
+    getCachedWelfareSeniorById,
+} from "../../api/welfareDashboardApi";
+import { sendWelfareSeniorAlert } from "../../api/welfareAlertApi";
 import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
 
 
 import "../../css/welfare/WelfareSeniorDetail.css";
+
+const COUNSELING_RECORDS_STORAGE_KEY = "welfareCounselingRecords";
+const WELFARE_DECISIONS_STORAGE_KEY = "welfareDecisions";
+const WELFARE_DECISION_DETAILS_STORAGE_KEY = "welfareDecisionDetails";
+const PROFILE_UPDATE_SECTION_OPTIONS = [
+    { id: "personal", label: "인적사항" },
+    { id: "body", label: "신체정보/알레르기" },
+    { id: "medication", label: "복약정보" },
+    { id: "chronic", label: "만성질환" },
+    { id: "mobility", label: "거동/인지" },
+    { id: "activity", label: "활동 조건" },
+    { id: "job", label: "일자리 희망 조건" },
+];
 
 const getSavedAddedSeniors = () => [];
 
 const findSavedSenior = (seniorId) =>
     getSavedAddedSeniors().find((senior) => String(senior.id) === String(seniorId));
 
+const readJsonStorage = (key, fallbackValue = {}) => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(key) || "null");
+        return saved && typeof saved === "object" ? saved : fallbackValue;
+    } catch {
+        return fallbackValue;
+    }
+};
+
+const getSavedCounselingRecords = () => readJsonStorage(COUNSELING_RECORDS_STORAGE_KEY);
+
+const findWelfareDemoCounselingRecords = (seniorId) => [
+    {
+        id: `${seniorId}-${new Date().toISOString().slice(0, 10)}`,
+        date: new Date().toISOString().slice(0, 10),
+        content: "아직 등록된 상담 기록이 없습니다.",
+    },
+];
+
+const saveWelfareDecision = (seniorId, decision, reason = "") => {
+    const savedDecisions = readJsonStorage(WELFARE_DECISIONS_STORAGE_KEY);
+    const savedDetails = readJsonStorage(WELFARE_DECISION_DETAILS_STORAGE_KEY);
+
+    localStorage.setItem(
+        WELFARE_DECISIONS_STORAGE_KEY,
+        JSON.stringify({
+            ...savedDecisions,
+            [seniorId]: decision,
+        })
+    );
+
+    localStorage.setItem(
+        WELFARE_DECISION_DETAILS_STORAGE_KEY,
+        JSON.stringify({
+            ...savedDetails,
+            [seniorId]: { decision, reason },
+        })
+    );
+};
+
+const unwrapSeniorDetail = (data) => {
+    if (!data) return null;
+    if (data.senior) return data.senior;
+    if (data.profile?.senior) return data.profile.senior;
+    return data;
+};
+
+const applySavedWelfareDecisionSafe = (target) => {
+    if (!target) return target;
+
+    const savedDecisions = readJsonStorage(WELFARE_DECISIONS_STORAGE_KEY);
+    const savedDecisionDetails = readJsonStorage(WELFARE_DECISION_DETAILS_STORAGE_KEY);
+    const savedDetail = savedDecisionDetails[target.id];
+    const savedDecision = savedDetail?.decision || savedDecisions[target.id];
+
+    return normalizeSenior({
+        ...target,
+        welfareDecision: savedDecision || target.welfareDecision,
+        jobMatchingStatus: savedDecision || target.jobMatchingStatus,
+        welfareDecisionReason: savedDetail?.reason ?? target.welfareDecisionReason,
+    });
+};
+
 function WelfareSeniorDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const location = useLocation();
-    const [senior, setSenior] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const initialSenior = location.state?.senior || getCachedWelfareSeniorById(id) || null;
+    const [senior, setSenior] = useState(initialSenior ? normalizeSenior(initialSenior) : null);
+    const [isLoading, setIsLoading] = useState(!initialSenior);
     const [message, setMessage] = useState("");
     const [counselingRecords, setCounselingRecords] = useState([]);
     const [selectedCounselingDate, setSelectedCounselingDate] = useState("");
@@ -31,6 +113,9 @@ function WelfareSeniorDetail() {
     const [draftDecision, setDraftDecision] = useState("미검토");
     const [draftRejectionReason, setDraftRejectionReason] = useState("");
     const [decisionStatusMessage, setDecisionStatusMessage] = useState("");
+    const [isSendingWelfareAlert, setIsSendingWelfareAlert] = useState(false);
+    const [welfareAlertStatusMessage, setWelfareAlertStatusMessage] = useState("");
+    const [profileRequestSection, setProfileRequestSection] = useState(PROFILE_UPDATE_SECTION_OPTIONS[0].id);
     const initialCategory = location.state?.category === "복지사 소견"
         ? "일자리 요청 상태"
         : location.state?.category || "기본 정보";
@@ -39,7 +124,17 @@ function WelfareSeniorDetail() {
     const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "전화 및 상담기록"];
 
     const applyLoadedSenior = (loadedSenior) => {
-        const nextSenior = applySavedWelfareDecision(loadedSenior);
+        const unwrappedSenior = unwrapSeniorDetail(loadedSenior);
+        if (!unwrappedSenior) {
+            setMessage("대상자 상세정보를 불러오지 못했습니다.");
+            return;
+        }
+
+        const previousSenior = senior || location.state?.senior || getCachedWelfareSeniorById(id) || {};
+        const nextSenior = applySavedWelfareDecisionSafe({
+            ...previousSenior,
+            ...unwrappedSenior,
+        });
         const savedReviews = JSON.parse(localStorage.getItem("welfareWorkRequestStatus") || "{}");
 
         if (savedReviews[nextSenior.id]) {
@@ -71,20 +166,14 @@ function WelfareSeniorDetail() {
                 setIsLoading(true);
                 setMessage("");
 
-                const response = await fetch(`${WELFARE_SENIOR_API_URL}/${id}`);
-
-                if (!response.ok) {
-                    throw new Error("Failed to load senior");
-                }
-
-                const data = await response.json();
+                const data = await fetchWelfareSeniorDetail(id);
 
                 if (!ignore) {
                     applyLoadedSenior(data);
                 }
             } catch {
                 if (!ignore) {
-                    const fallbackSenior = findSavedSenior(id) || findWelfareDemoSenior(id);
+                    const fallbackSenior = location.state?.senior || getCachedWelfareSeniorById(id) || findSavedSenior(id);
 
                     if (fallbackSenior) {
                         applyLoadedSenior(fallbackSenior);
@@ -174,7 +263,7 @@ function WelfareSeniorDetail() {
         try {
             setDecisionStatusMessage("");
 
-            const response = await fetch(`${WELFARE_SENIOR_API_URL}/${id}/decision`, {
+            const response = await fetch(`/api/seniors/${id}/decision`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -191,7 +280,7 @@ function WelfareSeniorDetail() {
 
             const updatedSenior = await response.json();
             saveWelfareDecision(id, draftDecision, reason);
-            setSenior(applySavedWelfareDecision({
+            setSenior(applySavedWelfareDecisionSafe({
                 ...updatedSenior,
                 workRequestStatus: "검토",
                 jobMatchingStatus: draftDecision,
@@ -219,6 +308,46 @@ function WelfareSeniorDetail() {
                 : "판정 정보가 일자리 요청 상태에 저장되었습니다."
         );
     }
+
+    const handleSendWelfareAlert = async (kind) => {
+        if (!senior || isSendingWelfareAlert) return;
+
+        const selectedProfileSection = PROFILE_UPDATE_SECTION_OPTIONS.find(
+            (option) => option.id === profileRequestSection
+        ) || PROFILE_UPDATE_SECTION_OPTIONS[0];
+
+        const alertPayload = kind === "profile"
+            ? {
+                type: "PROFILE_UPDATE_REQUEST",
+                title: `${selectedProfileSection.label} 수정 요청`,
+                message: `${senior.name}님, 담당 복지사가 ${selectedProfileSection.label} 확인 및 수정을 요청했습니다.`,
+                extra: {
+                    profileSection: selectedProfileSection.id,
+                    profileSectionLabel: selectedProfileSection.label,
+                },
+            }
+            : {
+                type: "WELFARE_REQUEST",
+                title: "복지사 상담 요청",
+                message: `${senior.name}님, 담당 복지사가 상담 확인을 요청했습니다.`,
+            };
+
+        try {
+            setIsSendingWelfareAlert(true);
+            setWelfareAlertStatusMessage("");
+
+            await sendWelfareSeniorAlert({
+                seniorId: senior.id,
+                ...alertPayload,
+            });
+
+            setWelfareAlertStatusMessage("사용자 알림으로 요청을 보냈습니다.");
+        } catch {
+            setWelfareAlertStatusMessage("요청 전송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        } finally {
+            setIsSendingWelfareAlert(false);
+        }
+    };
 
     const handleCounselingDateChange = (date) => {
         const nextRecord = counselingRecords.find((record) => record.date === date);
@@ -270,11 +399,15 @@ function WelfareSeniorDetail() {
             return {};
         }
 
+        const targetName = target.name || "대상자";
+        const targetInitial = targetName.slice(0, 1) || "대";
+        const targetId = target.id ?? id ?? "";
+
         return {
-            phone: target.phone || `010-1000-${String(target.id).padStart(4, "0")}`,
-            address: target.region,
-            guardianName: `${target.name[0]}보호자`,
-            guardianPhone: `010-2000-${String(target.id).padStart(4, "0")}`,
+            phone: target.phone || `010-1000-${String(targetId).padStart(4, "0")}`,
+            address: target.region || target.address || "주소 미입력",
+            guardianName: target.guardianName || `${targetInitial}보호자`,
+            guardianPhone: target.guardianPhone || `010-2000-${String(targetId).padStart(4, "0")}`,
             guardianRelation: target.gender === "여성" ? "자녀" : "배우자",
             diseaseInfo: target.healthStatus === "위험" ? "고혈압 / 당뇨" : target.healthStatus === "주의" ? "관절 통증" : "특이사항 없음",
             walkingStatus: target.healthStatus === "위험" ? "장시간 보행 어려움" : target.healthStatus === "주의" ? "짧은 거리 보행 가능" : "보행 가능",
@@ -313,7 +446,13 @@ function WelfareSeniorDetail() {
         <div className="wsd-page">
             <header className="wsd-header">
                 <div className="wsd-brand-area">
-                    <strong className="wsd-service-name">우리 woori</strong>
+                    <button
+                        type="button"
+                        className="wsd-service-name"
+                        onClick={() => navigate("/welfare")}
+                    >
+                        우리 woori
+                    </button>
                 </div>
 
                 <div className="wsd-header-title">대상자 상세정보</div>
@@ -328,6 +467,47 @@ function WelfareSeniorDetail() {
                             <p className="wsd-sub-text">{formatAgeGender(senior)} / {senior.region}</p>
                         )}
                     </div>
+
+                    {senior && (
+                        <div className="wsd-request-panel">
+                            <div className="wsd-request-title">사용자에게 요청 보내기</div>
+                            <label className="wsd-request-field">
+                                <span>수정 요청 항목</span>
+                                <select
+                                    value={profileRequestSection}
+                                    onChange={(event) => setProfileRequestSection(event.target.value)}
+                                    disabled={isSendingWelfareAlert}
+                                >
+                                    {PROFILE_UPDATE_SECTION_OPTIONS.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <div className="wsd-request-button-row">
+                                <button
+                                    type="button"
+                                    className="wsd-request-button"
+                                    onClick={() => handleSendWelfareAlert("profile")}
+                                    disabled={isSendingWelfareAlert}
+                                >
+                                    정보 수정 요청
+                                </button>
+                                <button
+                                    type="button"
+                                    className="wsd-request-button wsd-request-button-secondary"
+                                    onClick={() => handleSendWelfareAlert("counseling")}
+                                    disabled={isSendingWelfareAlert}
+                                >
+                                    상담 요청
+                                </button>
+                            </div>
+                            {welfareAlertStatusMessage && (
+                                <p className="wsd-request-message">{welfareAlertStatusMessage}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {isLoading && <p className="wsd-message">상세정보를 불러오는 중입니다.</p>}

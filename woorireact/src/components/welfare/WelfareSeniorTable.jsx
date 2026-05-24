@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { formatSeniorId } from "../../utils/welfare/welfareSenior";
 import {
     formatSeniorNameInfo,
@@ -7,6 +8,11 @@ import {
 import { shouldHideLastAccess } from "../../utils/welfare/welfareTime";
 
 function WelfareSeniorTable({ seniors }) {
+    const navigate = useNavigate();
+    const openDetail = (senior, category) => {
+        navigate(`/welfare/seniors/${senior.id}`, { state: { category, senior } });
+    };
+
     return (
         <div className="wd-table-box">
             <table className="wd-table" aria-label="대상자 목록">
@@ -26,11 +32,43 @@ function WelfareSeniorTable({ seniors }) {
                     {seniors.map((senior) => (
                         <tr key={senior.id}>
                             <td>{formatSeniorId(senior.id)}</td>
-                            <td><span className="wd-name-text">{formatSeniorNameInfo(senior)}</span></td>
-                            <td><span className="wd-cell-text">{senior.region}</span></td>
-                            <td><span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span></td>
+                            <td>
+                                <button
+                                    type="button"
+                                    className="wd-table-link-button wd-name-text"
+                                    onClick={() => openDetail(senior, "기본 정보")}
+                                >
+                                    {formatSeniorNameInfo(senior)}
+                                </button>
+                            </td>
+                            <td>
+                                <button
+                                    type="button"
+                                    className="wd-table-link-button wd-cell-text"
+                                    onClick={() => openDetail(senior, "기본 정보")}
+                                >
+                                    {senior.region}
+                                </button>
+                            </td>
+                            <td>
+                                <button
+                                    type="button"
+                                    className="wd-table-link-button"
+                                    onClick={() => openDetail(senior, "건강 정보")}
+                                >
+                                    <span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span>
+                                </button>
+                            </td>
                             <td><span className={getBadgeClass("alert", senior.alertStatus)}>{senior.alertStatus}</span></td>
-                            <td><span className={getBadgeClass("workRequest", getSeniorReviewStatus(senior))}>{getSeniorReviewStatus(senior)}</span></td>
+                            <td>
+                                <button
+                                    type="button"
+                                    className="wd-table-link-button"
+                                    onClick={() => openDetail(senior, "일자리 요청 상태")}
+                                >
+                                    <span className={getBadgeClass("workRequest", getSeniorReviewStatus(senior))}>{getSeniorReviewStatus(senior)}</span>
+                                </button>
+                            </td>
                             <td><span className="wd-cell-text">{shouldHideLastAccess(senior.lastAccess) ? "" : senior.lastAccess}</span></td>
                         </tr>
                     ))}

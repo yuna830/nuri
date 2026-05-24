@@ -1,4 +1,12 @@
 import { reverseGeocodeByKakao } from "./kakaoLocalApi.js";
+import {
+  deleteLocalAlert,
+  deleteLocalAlerts,
+  deleteOldLocalRequestAlerts,
+  getLocalSeniorAlerts,
+  isLocalAlertId,
+  markLocalAlertRead,
+} from "./localAlertStore";
 
 const API_BASE = "http://localhost:8080";
 const getDefaultFallApiBase = () => {
@@ -512,11 +520,17 @@ export const fetchFallPattern = async () => {
 export const fetchSeniorAlerts = async (seniorId) => {
   if (!seniorId) return [];
   const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}`);
-  if (!response.ok) return [];
-  return response.json();
+  const localAlerts = getLocalSeniorAlerts(seniorId);
+  if (!response.ok) return localAlerts;
+  const alerts = await response.json();
+  return [...(Array.isArray(alerts) ? alerts : []), ...localAlerts];
 };
 
 export const readAlert = async (alertId) => {
+  if (isLocalAlertId(alertId)) {
+    return markLocalAlertRead(alertId);
+  }
+
   const response = await fetch(`${API_BASE}/api/alerts/${alertId}/read`, {
     method: "PATCH",
   });
@@ -527,6 +541,11 @@ export const readAlert = async (alertId) => {
 };
 
 export const deleteAlert = async (alertId) => {
+  if (isLocalAlertId(alertId)) {
+    deleteLocalAlert(alertId);
+    return;
+  }
+
   const response = await fetch(`${API_BASE}/api/alerts/${alertId}`, {
     method: "DELETE",
   });
@@ -536,10 +555,19 @@ export const deleteAlert = async (alertId) => {
 };
 
 export const deleteAlerts = async (alertIds) => {
+  const localIds = alertIds.filter(isLocalAlertId);
+  const serverIds = alertIds.filter((alertId) => !isLocalAlertId(alertId));
+
+  if (localIds.length > 0) {
+    deleteLocalAlerts(localIds);
+  }
+
+  if (serverIds.length === 0) return;
+
   const response = await fetch(`${API_BASE}/api/alerts/bulk-delete`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids: alertIds }),
+    body: JSON.stringify({ ids: serverIds }),
   });
   if (!response.ok) {
     throw new Error("Alert bulk delete failed");
@@ -548,6 +576,7 @@ export const deleteAlerts = async (alertIds) => {
 
 export const deleteOldRequestAlerts = async (seniorId) => {
   if (!seniorId) return;
+  deleteOldLocalRequestAlerts(seniorId);
   const response = await fetch(`${API_BASE}/api/alerts/senior/${seniorId}/old-requests`, {
     method: "DELETE",
   });

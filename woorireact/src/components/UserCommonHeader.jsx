@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   createSosAlert,
   createSosCancelAlert,
@@ -203,6 +204,7 @@ const normalizeClimateAlert = (alert, index) => ({
 });
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -257,7 +259,32 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     loadAlerts();
     const timerId = setInterval(() => loadAlerts({ silent: true }), 10000);
-    return () => clearInterval(timerId);
+
+    const handleLocalAlertChange = (event) => {
+      const currentSeniorId = String(getCurrentSeniorId() || "");
+      const changedSeniorId = String(event.detail?.seniorId || "");
+
+      if (!changedSeniorId || changedSeniorId === currentSeniorId) {
+        loadAlerts({ silent: true });
+      }
+    };
+
+    const handleStorageChange = (event) => {
+      const currentSeniorId = String(getCurrentSeniorId() || "");
+
+      if (event.key === `woori-local-alerts:${currentSeniorId}`) {
+        loadAlerts({ silent: true });
+      }
+    };
+
+    window.addEventListener("woori-local-alerts-changed", handleLocalAlertChange);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      clearInterval(timerId);
+      window.removeEventListener("woori-local-alerts-changed", handleLocalAlertChange);
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, [pendingSos]);
 
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
@@ -333,6 +360,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       console.error("알림 확인 실패:", error);
       window.alert("알림 확인 처리에 실패했습니다.");
     }
+  };
+
+  const handleGoProfileSection = async (targetAlert) => {
+    if (targetAlert.canRead && !targetAlert.isRead) {
+      await handleReadAlert(targetAlert);
+    }
+
+    setIsAlertPanelOpen(false);
+    navigate(`/profile?section=${encodeURIComponent(targetAlert.raw?.profileSection || "personal")}`);
   };
 
   const removeAlertsFromList = (ids) => {
@@ -526,6 +562,10 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     <div className="uch-alert-action">
                       {userAlert.requiresGuardianConfirm ? (
                         <em className="waiting">보호자 확인 대기</em>
+                      ) : userAlert.raw?.type === "PROFILE_UPDATE_REQUEST" ? (
+                        <button type="button" onClick={() => handleGoProfileSection(userAlert)}>
+                          수정하러 가기
+                        </button>
                       ) : userAlert.canRead ? (
                         userAlert.isRead ? (
                           <em>확인됨</em>

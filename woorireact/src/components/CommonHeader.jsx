@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../css/common/CommonHeader.css";
 import "../css/user/UserCommonHeader.css";
@@ -22,6 +22,7 @@ function CommonHeader({
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [activeNotificationTab, setActiveNotificationTab] = useState(notificationTabs[0] || "전체");
+  const notificationTabsRef = useRef(null);
 
   useEffect(() => {
     if (!notificationTabs.includes(activeNotificationTab)) {
@@ -81,8 +82,20 @@ function CommonHeader({
   };
 
   const handleNotificationClick = (notification) => {
+    if (!onNotificationClick) return;
     onNotificationClick?.(notification.raw);
   };
+
+  const scrollNotificationTabs = (direction) => {
+    const currentIndex = notificationTabs.indexOf(activeNotificationTab);
+    const nextIndex = Math.min(Math.max(currentIndex + direction, 0), notificationTabs.length - 1);
+    setActiveNotificationTab(notificationTabs[nextIndex]);
+  };
+
+  useEffect(() => {
+    const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
+    activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [activeNotificationTab]);
 
   const handleReadClick = async (event, notification) => {
     event.stopPropagation();
@@ -159,7 +172,15 @@ function CommonHeader({
             </div>
 
             <div className="uch-alert-tabs-wrap common-alert-tabs-wrap">
-              <div className="uch-alert-tabs" role="tablist" aria-label="알림 분류">
+              <button
+                className="uch-alert-tabs-arrow"
+                type="button"
+                onClick={() => scrollNotificationTabs(-1)}
+                aria-label="이전 알림 카테고리"
+              >
+                &lt;
+              </button>
+              <div className="uch-alert-tabs" ref={notificationTabsRef} role="tablist" aria-label="알림 분류">
                 {notificationTabs.map((tab) => {
                   const count = getTabCount(tab);
 
@@ -177,6 +198,14 @@ function CommonHeader({
                   );
                 })}
               </div>
+              <button
+                className="uch-alert-tabs-arrow"
+                type="button"
+                onClick={() => scrollNotificationTabs(1)}
+                aria-label="다음 알림 카테고리"
+              >
+                &gt;
+              </button>
             </div>
 
             <div className="uch-alert-panel-list">
@@ -186,10 +215,10 @@ function CommonHeader({
                 filteredNotifications.map((notification) => (
                   <article
                     key={notification.key}
-                    className={`uch-alert-item common-alert-item ${notification.danger ? "danger" : ""} ${
+                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger ? "danger" : ""} ${
                       notification.isRead ? "read" : ""
                     }`}
-                    onClick={() => handleNotificationClick(notification)}
+                    onClick={onNotificationClick ? () => handleNotificationClick(notification) : undefined}
                   >
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">

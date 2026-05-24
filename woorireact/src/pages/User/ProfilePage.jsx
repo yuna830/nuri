@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
@@ -28,11 +28,20 @@ import "../../css/user/ProfilePage.css";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    const requestedSection = searchParams.get("section");
+
+    if (SECTIONS.some((section) => section.id === requestedSection)) {
+      setActiveSection(requestedSection);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const loadProfile = async () => {
