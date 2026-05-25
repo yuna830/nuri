@@ -666,3 +666,116 @@
   box-shadow: none;
   cursor: not-allowed;
 }
+
+.guardian-info-form-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 24, 20, 0.45);
+}
+
+.guardian-info-form-modal {
+  width: min(460px, 100%);
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(20, 24, 20, 0.24);
+}
+
+.guardian-info-form-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.guardian-info-form-header h2 {
+  margin: 0;
+  color: #1e2a1f;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.guardian-info-form-header p {
+  margin: 8px 0 0;
+  color: #5f715f;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.guardian-info-form-header button {
+  flex: 0 0 auto;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #f7fbf7;
+  color: #5f7d61;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guardian-info-form-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.guardian-info-form-field {
+  display: grid;
+  gap: 7px;
+}
+
+.guardian-info-form-field span {
+  color: #4f6f52;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.guardian-info-form-field input,
+.guardian-info-form-field select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfcfa;
+  color: #1e2a1f;
+  font: inherit;
+}
+
+.guardian-info-form-field input:focus,
+.guardian-info-form-field select:focus {
+  outline: 3px solid rgba(134, 167, 136, 0.22);
+  border-color: #86a788;
+  background: #ffffff;
+}
+
+.guardian-info-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.guardian-info-form-cancel,
+.guardian-info-form-submit {
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guardian-info-form-cancel {
+  border: 1px solid #d4e8d6;
+  background: #ffffff;
+  color: #5f7d61;
+}
+
+.guardian-info-form-submit {
+  background: #86a788;
+  color: #ffffff;
+}

@@ -3,6 +3,7 @@ package com.nuri.woori.controller;
 import com.nuri.woori.entity.WelfarePolicyChatHistory;
 import com.nuri.woori.repository.WelfarePolicyChatHistoryRepository;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
@@ -31,6 +32,20 @@ public class WelfarePolicyChatHistoryController {
         history.setEvidenceJson(request.evidenceJson());
 
         return repository.save(history);
+    }
+
+    // Q&A를 삭제하고 싶을 때
+    @DeleteMapping("/senior/{seniorId}")
+    public ResponseEntity<Void> deleteBySenior(@PathVariable Long seniorId) {
+        repository.deleteAll(repository.findBySeniorIdOrderByCreatedAtAsc(seniorId));
+        return ResponseEntity.noContent().build();
+    }
+
+    // 전체 Q&A를 삭제하고 싶을 때
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAll() {
+        repository.deleteAll();
+        return ResponseEntity.noContent().build();
     }
 
     public record CreateRequest(

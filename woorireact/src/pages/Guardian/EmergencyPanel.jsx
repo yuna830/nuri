@@ -1,4 +1,5 @@
 ﻿import { useState } from "react";
+import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -30,6 +31,8 @@ function EmergencyPanel({
   missingDescription,
   selectedRouteDate,
   onRouteDateChange,
+  onSafeZoneChange,
+  onSaveSafeZone,
   setMissingDescription,
   missingImagePreview,
   isSubmittingMissingReport,
@@ -48,6 +51,52 @@ function EmergencyPanel({
   const [policeIndex, setPoliceIndex] = useState(0);
   const [isPoliceSearchOpen, setIsPoliceSearchOpen] = useState(false);
   const [policeSearchKeyword, setPoliceSearchKeyword] = useState("");
+  const [activePanelTab, setActivePanelTab] = useState("today");
+  const [isSafeZoneEditorOpen, setIsSafeZoneEditorOpen] = useState(false);
+  const [safeZoneKeyword, setSafeZoneKeyword] = useState("");
+  const [safeZoneResults, setSafeZoneResults] = useState([]);
+  const [isSearchingSafeZone, setIsSearchingSafeZone] = useState(false);
+
+  const medicineLabel = selectedElder.medications?.length
+    ? selectedElder.medications.map((medicine) => medicine.name).join(" · ")
+    : "등록된 복약 정보 없음";
+
+  const firstMedicine = selectedElder.medications?.[0];
+
+  const defaultMedicationMessage = firstMedicine
+    ? `${selectedElder.name}님, ${firstMedicine.name} 복용 시간입니다. 약을 확인하고 제때 복용해주세요.`
+    : `${selectedElder.name}님, 오늘 복약 여부를 확인해주세요.`;
+
+  const [isMedicationReminderOpen, setIsMedicationReminderOpen] = useState(false);
+  const [medicationReminderMessage, setMedicationReminderMessage] = useState(defaultMedicationMessage);
+  const [medicationReminderStatus, setMedicationReminderStatus] = useState("ready");
+
+  const openMedicationReminder = () => {
+    setMedicationReminderMessage(defaultMedicationMessage);
+    setMedicationReminderStatus("ready");
+    setIsMedicationReminderOpen(true);
+  };
+
+  const closeMedicationReminder = () => {
+    setIsMedicationReminderOpen(false);
+  };
+
+  const handleSendMedicationReminder = () => {
+    if (!medicationReminderMessage.trim()) {
+      alert("알림 내용을 입력해주세요.");
+      return;
+    }
+
+    setMedicationReminderStatus("sent");
+  };
+
+  const handleMedicationConfirmed = () => {
+    setMedicationReminderStatus("taken");
+  };
+
+  const handleMedicationNotConfirmed = () => {
+    setMedicationReminderStatus("not-taken");
+  };
 
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
@@ -110,139 +159,475 @@ function EmergencyPanel({
     );
   };
 
+  const handleSearchSafeZone = async () => {
+    const keyword = safeZoneKeyword.trim();
+
+    if (!keyword) {
+      alert("검색할 주소를 입력해주세요.");
+      return;
+    }
+
+    setIsSearchingSafeZone(true);
+
+    try {
+      const results = await searchPlacesByKakao(keyword, { size: 5 });
+      setSafeZoneResults(results);
+    } catch (error) {
+      alert("주소 검색에 실패했습니다.");
+      setSafeZoneResults([]);
+    } finally {
+      setIsSearchingSafeZone(false);
+    }
+  };
+
+  const handleSelectSafeZone = (place) => {
+    const address =
+      place.road_address_name ||
+      place.address_name ||
+      place.display_name ||
+      "";
+
+    onSafeZoneChange({
+      target: {
+        name: "address",
+        value: address,
+      },
+    });
+
+    onSafeZoneChange({
+      target: {
+        name: "centerLatitude",
+        value: place.y || place.lat,
+      },
+    });
+
+    onSafeZoneChange({
+      target: {
+        name: "centerLongitude",
+        value: place.x || place.lon,
+      },
+    });
+
+    setSafeZoneKeyword(address);
+    setSafeZoneResults([]);
+  };
+
+
   return (
     <>
       <aside className="right-panel">
-        <section className="card route-card">
-          <div className="card-header">
-            <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
-            <input
-              className="route-date-input"
-              type="date"
-              value={selectedRouteDate}
-              onChange={(event) => onRouteDateChange(event.target.value)}
-              aria-label="이동 경로 날짜 선택"
-            />
+        <section className="card guardian-side-tabs-card">
+          <div className="guardian-side-tabs" role="tablist" aria-label="보호자 기능">
+            <button
+              type="button"
+              className={activePanelTab === "today" ? "active" : ""}
+              onClick={() => setActivePanelTab("today")}
+            >
+              오늘
+            </button>
+
+
+            <button
+              type="button"
+              className={activePanelTab === "welfare" ? "active" : ""}
+              onClick={() => setActivePanelTab("welfare")}
+            >
+              복지
+            </button>
+
+            <button
+              type="button"
+              className={activePanelTab === "safety" ? "active" : ""}
+              onClick={() => setActivePanelTab("safety")}
+            >
+              안전
+            </button>
           </div>
+        </section>
 
-          <ol className="route-list">
-            {routeHistory.length === 0 ? (
-              <li>
-                <span>이동 경로가 없습니다.</span>
-              </li>
-            ) : (
-              routeHistory
-                .slice()
-                .reverse()
-                .map((point, index) => (
-                  <li key={`${point.receivedAt}-${index}`}>
-                    <div className="route-time">
-                      <span>
-                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
-                          hour: "2-digit",
-                          hour12: true,
-                        }).replace(/\s?\d+시/, "")}
-                      </span>
+        {activePanelTab === "today" && (
+          <>
+            <section className="card route-card">
+              <div className="card-header">
+                <h2>{isTodayRoute ? "오늘 이동 경로" : "선택 날짜 이동 경로"}</h2>
+                <input
+                  className="route-date-input"
+                  type="date"
+                  value={selectedRouteDate}
+                  onChange={(event) => onRouteDateChange(event.target.value)}
+                  aria-label="이동 경로 날짜 선택"
+                />
+              </div>
 
-                      <strong className="route-address">{point.address}</strong>
-
-                      <span>
-                        {new Date(point.receivedAt).toLocaleTimeString("ko-KR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        }).replace(/오전|오후/g, "").trim()}
-                      </span>
-                    </div>
+              <ol className="route-list">
+                {routeHistory.length === 0 ? (
+                  <li>
+                    <span>이동 경로가 없습니다.</span>
                   </li>
-                ))
-            )}
-          </ol>
-        </section>
+                ) : (
+                  routeHistory
+                    .slice()
+                    .reverse()
+                    .map((point, index) => (
+                      <li key={`${point.receivedAt}-${index}`}>
+                        <div className="route-time">
+                          <span>
+                            {new Date(point.receivedAt)
+                              .toLocaleTimeString("ko-KR", {
+                                hour: "2-digit",
+                                hour12: true,
+                              })
+                              .replace(/\s?\d+시/, "")}
+                          </span>
 
-        <section className="card safe182-card">
-          <div className="card-header">
-            <h2>안전드림 연계</h2>
-          </div>
+                          <strong className="route-address">{point.address}</strong>
 
-          <div className="safe182-body">
-            <p>
-              현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
-            </p>
+                          <span>
+                            {new Date(point.receivedAt)
+                              .toLocaleTimeString("ko-KR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                              })
+                              .replace(/오전|오후/g, "")
+                              .trim()}
+                          </span>
+                        </div>
+                      </li>
+                    ))
+                )}
+              </ol>
+            </section>
 
-            <div className="safe182-actions">
-              <button
-                type="button"
-                onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
-              >
-                안전드림 열기
-              </button>
+            <section className="card guardian-today-summary">
 
-              <button
-                type="button"
-                onClick={() => setIsPoliceSearchOpen(true)}
-              >
-                실종자 검색
-              </button>
-            </div>
-          </div>
-        </section>
+              <div className="guardian-today-body">
+                <div>
+                  <span>마지막 정상 위치</span>
+                  <strong>
+                    {selectedElder.lastNormalLocation
+                      ? lastNormalLocation.address
+                      : "기록 없음"}
+                  </strong>
+                </div>
 
-        <section className="card police-missing-card">
-          <div className="card-header">
-            <h2>경찰청 실종정보</h2>
-          </div>
-
-          <div className="police-missing-list">
-            {!visiblePoliceAlert ? (
-              <p className="alert-empty">등록된 경찰청 실종정보가 없습니다.</p>
-            ) : (
-              <div className="police-missing-slider">
-                {policeAlerts?.length > 1 && (
+                <div className="guardian-safe-zone-summary">
                   <button
                     type="button"
-                    className="police-slide-button prev"
-                    onClick={handlePrevPoliceAlert}
-                    aria-label="이전 실종정보"
+                    className="guardian-safe-zone-text-button"
+                    onClick={() => setIsSafeZoneEditorOpen((prev) => !prev)}
                   >
-                    ‹
+                    <span>안전 반경</span>
+                    <strong>
+                      {safeZoneForm?.name || "집"} · {safeZoneForm?.radiusMeters ?? 500}m
+                    </strong>
+                    <small>{safeZoneForm?.address || "주소 정보 없음"}</small>
                   </button>
-                )}
 
-                <article className="police-missing-item">
-                  {visiblePoliceAlert.id && (
-                    <img
-                      src={`http://localhost:8181/api/police-missing-alerts/${visiblePoliceAlert.id}/photo`}
-                      alt={`${visiblePoliceAlert.name} 실종정보 사진`}
-                    />
+                  {isSafeZoneEditorOpen && (
+                    <div className="guardian-safe-zone-editor">
+                      <label>
+                        중심 이름
+                        <input
+                          name="name"
+                          value={safeZoneForm?.name || ""}
+                          onChange={onSafeZoneChange}
+                          placeholder="예: 집"
+                        />
+                      </label>
+
+                      <label>
+                        주소 검색
+                        <div className="guardian-safe-zone-search">
+                          <input
+                            value={safeZoneKeyword}
+                            onChange={(event) => setSafeZoneKeyword(event.target.value)}
+                            placeholder={safeZoneForm?.address || "주소를 검색하세요"}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                handleSearchSafeZone();
+                              }
+                            }}
+                          />
+
+                          <button type="button" onClick={handleSearchSafeZone}>
+                            {isSearchingSafeZone ? "검색 중" : "검색"}
+                          </button>
+                        </div>
+                      </label>
+
+                      {safeZoneResults.length > 0 && (
+                        <div className="guardian-safe-zone-results">
+                          {safeZoneResults.map((place, index) => (
+                            <button
+                              key={`${place.place_id || place.id || index}-${place.x || place.lon}`}
+                              type="button"
+                              onClick={() => handleSelectSafeZone(place)}
+                            >
+                              {place.place_name ||
+                                place.road_address_name ||
+                                place.address_name ||
+                                place.display_name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <label>
+                        반경
+                        <select
+                          name="radiusMeters"
+                          value={safeZoneForm?.radiusMeters ?? 500}
+                          onChange={onSafeZoneChange}
+                        >
+                          <option value={300}>300m</option>
+                          <option value={500}>500m</option>
+                          <option value={1000}>1km</option>
+                          <option value={1500}>1.5km</option>
+                          <option value={2000}>2km</option>
+                        </select>
+                      </label>
+
+                      <button type="button" onClick={onSaveSafeZone}>
+                        안전 반경 저장
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="card guardian-medication-card">
+              <button
+                type="button"
+                className="guardian-medication-button"
+                onClick={openMedicationReminder}
+              >
+                <span>오늘 먹어야 하는 약</span>
+                <strong>{medicineLabel}</strong>
+                <p>오늘 복약 여부를 확인해 주세요.</p>
+              </button>
+            </section>
+
+            {isMedicationReminderOpen && (
+              <div className="medication-reminder-backdrop" onClick={closeMedicationReminder}>
+                <section
+                  className="medication-reminder-modal"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="medication-reminder-header">
+                    <div>
+                      <h2>복약 알림 보내기</h2>
+                      <p>{selectedElder.name}님에게 복용 약 관련 알림을 보냅니다.</p>
+                    </div>
+
+                    <button type="button" onClick={closeMedicationReminder}>
+                      닫기
+                    </button>
+                  </div>
+
+                  {medicationReminderStatus === "ready" && (
+                    <div className="medication-reminder-form">
+                      <label>
+                        알림 보낼 약
+                        <select defaultValue={firstMedicine?.name || ""}>
+                          {selectedElder.medications?.length ? (
+                            selectedElder.medications.map((medicine, index) => (
+                              <option key={`${medicine.name}-${index}`} value={medicine.name}>
+                                {medicine.name}
+                                {medicine.interval ? ` / ${medicine.interval}` : ""}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="">등록된 복약 정보 없음</option>
+                          )}
+                        </select>
+                      </label>
+
+                      <label>
+                        알림 내용
+                        <textarea
+                          value={medicationReminderMessage}
+                          onChange={(event) => setMedicationReminderMessage(event.target.value)}
+                          rows={5}
+                        />
+                      </label>
+
+                      <div className="medication-reminder-actions">
+                        <button type="button" onClick={closeMedicationReminder}>
+                          취소
+                        </button>
+
+                        <button type="button" onClick={handleSendMedicationReminder}>
+                          알림 보내기
+                        </button>
+                      </div>
+                    </div>
                   )}
 
-                  <div>
-                    <strong>{visiblePoliceAlert.name}</strong>
-                    <span>
-                      {visiblePoliceAlert.gender}
-                      {visiblePoliceAlert.ageNow ? ` · 현재 ${visiblePoliceAlert.ageNow}세` : ""}
-                    </span>
-                    <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
-                    <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
-                    <small>자료 출처: 경찰청</small>
-                  </div>
-                </article>
+                  {medicationReminderStatus === "sent" && (
+                    <div className="medication-reminder-form">
+                      <p className="medication-reminder-result">
+                        복약 알림을 보냈습니다. 대상자가 복약 여부를 확인하면 이곳에서 상태를 볼 수 있습니다.
+                      </p>
 
-                {policeAlerts?.length > 1 && (
-                  <button
-                    type="button"
-                    className="police-slide-button next"
-                    onClick={handleNextPoliceAlert}
-                    aria-label="다음 실종정보"
-                  >
-                    ›
-                  </button>
-                )}
+                      <div className="medication-reminder-actions">
+                        <button type="button" onClick={() => setMedicationReminderStatus("ready")}>
+                          다시 보내기
+                        </button>
+
+                        <button type="button" onClick={closeMedicationReminder}>
+                          확인
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
               </div>
             )}
-          </div>
-        </section>
+
+            <section className="card guardian-checkin-card">
+              <div className="guardian-checkin-body">
+                <span>안부 묻기</span>
+                <strong>오늘 컨디션이나 식사 여부를 확인해 보세요.</strong>
+                <p>가까이 있지 않아도 짧게 연락해서 상태를 확인할 수 있습니다.</p>
+
+                <div className="guardian-checkin-actions">
+                  <button type="button" onClick={() => window.location.href = `tel:${selectedElder.phone}`}>
+                    전화하기
+                  </button>
+
+                  <button type="button">
+                    메시지 보내기
+                  </button>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {activePanelTab === "welfare" && (
+          <section className="card guardian-welfare-card">
+            <div className="card-header">
+              <h2>복지 확인</h2>
+            </div>
+
+            <div className="guardian-welfare-body">
+              <p>
+                {selectedElder.name}님의 나이, 건강 상태, 복약 정보 등을 바탕으로 받을 수 있는 복지 제도를 확인할 수 있습니다.
+              </p>
+
+              <div className="guardian-welfare-list">
+                <div>
+                  <strong>기초연금</strong>
+                  <span>65세 이상 대상자라면 우선 확인</span>
+                </div>
+
+                <div>
+                  <strong>노인 일자리 및 사회활동 지원</strong>
+                  <span>활동 가능 여부와 기초연금 수급 여부 확인</span>
+                </div>
+
+                <div>
+                  <strong>노인맞춤돌봄서비스</strong>
+                  <span>독거 여부, 돌봄 필요도 확인</span>
+                </div>
+              </div>
+
+              <button type="button" className="guardian-welfare-button">
+                복지사에게 문의
+              </button>
+            </div>
+          </section>
+        )}
+
+        {activePanelTab === "safety" && (
+          <>
+            <section className="card safe182-card">
+              <div className="card-header">
+                <h2>안전드림 연계</h2>
+              </div>
+
+              <div className="safe182-body">
+                <p>
+                  현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
+                </p>
+
+                <div className="safe182-actions">
+                  <button
+                    type="button"
+                    onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
+                  >
+                    안전드림 열기
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPoliceSearchOpen(true)}
+                  >
+                    실종자 검색
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="card police-missing-card">
+              <div className="card-header">
+                <h2>경찰청 실종정보</h2>
+              </div>
+
+              <div className="police-missing-list">
+                {!visiblePoliceAlert ? (
+                  <p className="alert-empty">등록된 경찰청 실종정보가 없습니다.</p>
+                ) : (
+                  <div className="police-missing-slider">
+                    {policeAlerts?.length > 1 && (
+                      <button
+                        type="button"
+                        className="police-slide-button prev"
+                        onClick={handlePrevPoliceAlert}
+                        aria-label="이전 실종정보"
+                      >
+                        ‹
+                      </button>
+                    )}
+
+                    <article className="police-missing-item">
+                      {visiblePoliceAlert.id && (
+                        <img
+                          src={`http://localhost:8181/api/police-missing-alerts/${visiblePoliceAlert.id}/photo`}
+                          alt={`${visiblePoliceAlert.name} 실종정보 사진`}
+                        />
+                      )}
+
+                      <div>
+                        <strong>{visiblePoliceAlert.name}</strong>
+                        <span>
+                          {visiblePoliceAlert.gender}
+                          {visiblePoliceAlert.ageNow ? ` · 현재 ${visiblePoliceAlert.ageNow}세` : ""}
+                        </span>
+                        <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
+                        <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
+                        <small>자료 출처: 경찰청</small>
+                      </div>
+                    </article>
+
+                    {policeAlerts?.length > 1 && (
+                      <button
+                        type="button"
+                        className="police-slide-button next"
+                        onClick={handleNextPoliceAlert}
+                        aria-label="다음 실종정보"
+                      >
+                        ›
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </aside>
 
       {isCallResultOpen && (

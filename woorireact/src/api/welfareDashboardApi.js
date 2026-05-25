@@ -1,5 +1,6 @@
 const WELFARE_API_BASE = "http://localhost:8181";
 
+// 복지 대상자 목록 불러오기 API 추가 (페이징 지원)
 export const fetchWelfareSeniors = async ({ page, size } = {}) => {
     const params = new URLSearchParams();
 
@@ -21,6 +22,7 @@ export const fetchWelfareSeniors = async ({ page, size } = {}) => {
     return response.json();
 };
 
+// 복지 알림 불러오기 API 추가
 export const fetchWelfareAlerts = async () => {
     const response = await fetch(`${WELFARE_API_BASE}/api/alerts/welfare`);
 
@@ -31,4 +33,42 @@ export const fetchWelfareAlerts = async () => {
     const data = await response.json();
 
     return Array.isArray(data) ? data : [];
+};
+
+// 사용자 상세 정보 불러오기 API 추가
+export const fetchWelfareSeniorDetail = async (seniorId) => {
+    const response = await fetch(`/api/seniors/${seniorId}`);
+
+    if (!response.ok) {
+        throw new Error("Failed to load senior detail");
+    }
+
+    return response.json();
+};
+
+// 복지 대상자 정보 업데이트 요청 API 추가
+export const requestSeniorInfoUpdate = async ({
+    seniorId,
+    missingFields = [],
+    toSenior = true,
+    toGuardian = true,
+}) => {
+    const response = await fetch("/api/alerts/info-update-request", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            seniorId,
+            missingFields,
+            toSenior,
+            toGuardian,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to request senior info update");
+    }
+
+    return response.json();
 };

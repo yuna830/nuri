@@ -71,6 +71,7 @@ export const mapSeniorProfileToElder = (profile) => {
     socialWorkerPhone: senior.socialWorkerPhone || profile.socialWorkerPhone || "",
     status: "unknown",
     age: senior.age ? `${senior.age}세` : "-",
+    birthDate: senior.birthDate || "",
     gender: senior.gender || "-",
     phone: senior.phone || "",
     address,

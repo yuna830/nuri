@@ -127,3 +127,10 @@ export function deleteGuardianSenior(guardianId, seniorId) {
     method: "DELETE",
   });
 }
+
+export function updateSeniorRequestedInfo(seniorId, data) {
+  return request(API_BASE_URL, `/api/seniors/${seniorId}/requested-info`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}

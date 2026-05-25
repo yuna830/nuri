@@ -1,5 +1,24 @@
 // 복지사 페이지 공통 대상자 데이터 처리 유틸
 
+const WELFARE_DECISIONS_STORAGE_KEY = "welfareDecisions";
+const WELFARE_DECISION_DETAILS_STORAGE_KEY = "welfareDecisionDetails";
+
+const getSavedWelfareDecisions = () => {
+    try {
+        return JSON.parse(localStorage.getItem(WELFARE_DECISIONS_STORAGE_KEY) || "{}");
+    } catch {
+        return {};
+    }
+};
+
+const getSavedWelfareDecisionDetails = () => {
+    try {
+        return JSON.parse(localStorage.getItem(WELFARE_DECISION_DETAILS_STORAGE_KEY) || "{}");
+    } catch {
+        return {};
+    }
+};
+
 export const getJobRequestGroup = (senior) =>
     Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
         ? "요청 있음"
@@ -34,12 +53,7 @@ export const normalizeSenior = (senior) => {
             placeName : `${senior.name || "대상자"} 자택`,
             radiusMeter : 500,
         },
-        lastGps : senior.lastGps || {
-            address : senior.region || "위치 미확인",
-            latitude : 37.5665,
-            longitude : 126.978,
-            recordedAt : "기록 없음",
-        },
+        lastGps : senior.lastGps || null,
     };
 };
 

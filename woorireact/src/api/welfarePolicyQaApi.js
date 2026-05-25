@@ -1,6 +1,7 @@
 const FASTAPI_BASE_URL = "http://localhost:8001";
 const SPRING_API_BASE_URL = "http://localhost:8181";
 
+// 값이 없거나 빈 문자열인 경우 "미입력"으로 표시하는 함수 추가
 function valueOrMissing(value) {
     if (value === null || value === undefined || value === "") {
         return "미입력";
@@ -9,6 +10,7 @@ function valueOrMissing(value) {
     return value;
 }
 
+// 대상자 정보를 질문 맥락에 포함시키는 함수 개선
 function formatSeniorContext(senior) {
     if (!senior) {
         return "";
@@ -39,6 +41,7 @@ function formatSeniorContext(senior) {
     ].join("\n");
 }
 
+// 질문이 복지 제도 자체에 대한 기본 질문인지 판별하는 함수 추가
 function isBasicPolicyQuestion(question) {
     const text = String(question || "").replace(/\s+/g, "");
 
@@ -65,6 +68,7 @@ function isMetaConversationQuestion(question) {
     return /저런정보|이런정보|정보가있어야|필요해|좋아|왜필요|뭘입력|어떤정보/.test(text);
 }
 
+// 질문에 대상자 정보 맥락을 추가하는 함수 개선
 function buildQuestionWithSeniorContext(question, senior) {
     const trimmedQuestion = question.trim();
     const seniorContext = formatSeniorContext(senior);
@@ -112,12 +116,14 @@ function buildQuestionWithSeniorContext(question, senior) {
         trimmedQuestion,
         "",
         "[답변 요청]",
-        "대상자 정보와 검색된 복지 제도 문서를 함께 참고해서 답변해 주세요.",
-        "대상자가 받을 가능성이 있는 제도, 신청 조건, 추가 확인이 필요한 정보를 설명해 주세요.",
-        "대상자 정보에 없는 소득, 장애 여부, 독거 여부 등은 단정하지 말고 추가 확인 필요로 표시해 주세요.",
+        "대상자 정보와 검색된 복지 제도 문서를 참고해서 사용자의 질문에만 직접 답변해 주세요.",
+        "같은 제도 설명, 신청 조건, 추가 확인 항목을 반복하지 마세요.",
+        "관련 제도가 1개면 그 제도만 간단히 설명하고, 별도의 '추천 제도' 섹션을 만들지 마세요.",
+        "답변은 5~8문장 또는 짧은 bullet 3~5개로 끝내세요.",
     ].join("\n");
 }
 
+// 검색 키워드 생성 함수 추가
 function getTargetKeywords(senior) {
     const keywords = ["복지", "지원", "신청", "지원대상"];
 
@@ -170,6 +176,7 @@ function getTargetKeywords(senior) {
     return keywords.join(" ");
 }
 
+// 검색 쿼리 생성 함수 추가
 function buildSearchQuery(question, senior) {
     if (!senior) {
         return question.trim();
@@ -194,6 +201,7 @@ function buildSearchQuery(question, senior) {
     return parts.filter(Boolean).join(" ");
 }
 
+// 복지 RAG 질문 API
 export async function askWelfarePolicyQuestion({ question, senior = null, history = [], limit = 5 }) {
     const trimmedQuestion = question?.trim();
 
@@ -236,6 +244,7 @@ export async function askWelfarePolicyQuestion({ question, senior = null, histor
     };
 }
 
+// 대화 내역 불러오기 API 추가
 export async function fetchWelfarePolicyChatHistory(seniorId) {
     if (!seniorId) return [];
 
@@ -248,6 +257,7 @@ export async function fetchWelfarePolicyChatHistory(seniorId) {
     return response.json();
 }
 
+// 대화 내역 저장 API 추가
 export async function saveWelfarePolicyChatHistory({
     seniorId,
     workerId,
@@ -274,4 +284,20 @@ export async function saveWelfarePolicyChatHistory({
     }
 
     return response.json();
+}
+
+// 대화 내역 삭제 API 추가
+export async function deleteWelfarePolicyChatHistory(seniorId) {
+    if (!seniorId) return;
+
+    const response = await fetch(
+        `${SPRING_API_BASE_URL}/api/welfare-policy-chat-histories/senior/${seniorId}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("복지 Q&A 대화 내역 삭제에 실패했습니다.");
+    }
 }

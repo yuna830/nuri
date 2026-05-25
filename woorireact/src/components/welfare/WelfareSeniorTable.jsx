@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { formatSeniorId } from "../../utils/welfare/welfareSenior";
 import {
     formatSeniorNameInfo,
@@ -6,7 +7,9 @@ import {
 } from "../../utils/welfare/welfareDashboardData";
 import { shouldHideLastAccess } from "../../utils/welfare/welfareTime";
 
-function WelfareSeniorTable({ seniors }) {
+function WelfareSeniorTable({ seniors, onSelectSenior }) {
+    const navigate = useNavigate();
+
     return (
         <div className="wd-table-box">
             <table className="wd-table" aria-label="대상자 목록">
@@ -24,7 +27,18 @@ function WelfareSeniorTable({ seniors }) {
 
                 <tbody>
                     {seniors.map((senior) => (
-                        <tr key={senior.id}>
+                        <tr
+                            key={senior.id}
+                            className="wd-clickable-row"
+                            onClick={() => {
+                                if (onSelectSenior) {
+                                    onSelectSenior(senior);
+                                    return;
+                                }
+
+                                navigate(`/welfare/seniors/${senior.id}`);
+                            }}
+                        >
                             <td>{formatSeniorId(senior.id)}</td>
                             <td><span className="wd-name-text">{formatSeniorNameInfo(senior)}</span></td>
                             <td><span className="wd-cell-text">{senior.region}</span></td>

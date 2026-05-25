@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
+import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { resolveUploadUrl } from "../../api/userPageApi";
 
 const SAFE_ZONE_SEARCH_CACHE_KEY = "safeZoneSearchCache";
@@ -134,7 +135,6 @@ function UserPanel({
   lastNormalLocation,
   safeZoneForm,
   formatShortAddress,
-  formatSafeZoneAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
   onSafeZoneChange,
@@ -153,7 +153,6 @@ function UserPanel({
   onConnectSenior,
   onCreateAndConnectSenior,
   onDeleteElder,
-  onOpenMedicineAlert,
   activityReport,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
@@ -408,27 +407,30 @@ function UserPanel({
             <div className="condition-row">
               <dt>복약 정보</dt>
               <dd>
+                {selectedElder.medications?.length ? (
+                  <ul className="profile-medicine-list">
+                    {selectedElder.medications.map((medicine, index) => (
+                      <li key={`${medicine.name}-${index}`}>
+                        {[medicine.name, medicine.startDate ? `${medicine.startDate}부터` : ""]
+                          .filter(Boolean)
+                          .join(" / ")}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  selectedElder.medicineCount || "없음"
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>안전 반경</dt>
+              <dd>
                 <button
                   className="medicine-info-text-button"
                   type="button"
-                  onClick={onOpenMedicineAlert}
+                  onClick={onToggleSafeZone}
                 >
-                  {selectedElder.medications?.length ? (
-                    <ul className="condition-list">
-                      {selectedElder.medications.map((medicine, index) => (
-                        <li key={`${medicine.name}-${index}`}>
-                          {[
-                              medicine.name,
-                              medicine.startDate ? `${medicine.startDate}부터` : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" / ")}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    selectedElder.medicineCount || "없음"
-                  )}
+                  {safeZoneForm?.name || "기본구역"} · {safeZoneForm?.radiusMeters ?? 500}m
                 </button>
               </dd>
             </div>
@@ -469,44 +471,6 @@ function UserPanel({
               ))}
             </div>
           )}
-        </section>
-
-        <section className="card location-summary">
-          <div className="summary-row">
-            <span>마지막 정상 위치</span>
-            <strong>
-              {selectedElder.lastNormalLocation
-                ? formatShortAddress(lastNormalLocation.address)
-                : "기록 없음"}
-            </strong>
-          </div>
-
-          <div className="summary-row safe-zone-summary">
-            <span>안전 반경 중심</span>
-
-            <button
-              className={`safe-zone-trigger ${isSafeZoneOpen ? "active" : ""}`}
-              type="button"
-              onClick={onToggleSafeZone}
-            >
-              <span className="safe-zone-top">
-                <span className="safe-zone-name-row">
-                  <span className="safe-zone-name">{safeZoneForm?.name || "기본구역"}</span>
-                  <span className="safe-zone-edit">수정</span>
-                </span>
-
-                {safeZoneForm?.address && (
-                  <span className="safe-zone-address">
-                    {formatSafeZoneAddress(safeZoneForm.address)}
-                  </span>
-                )}
-              </span>
-
-              <span className="safe-zone-radius">
-                반경 {safeZoneForm?.radiusMeters ?? 500}m 설정
-              </span>
-            </button>
-          </div>
         </section>
 
         {isSafeZoneOpen && (
@@ -663,7 +627,7 @@ function AddElderModal({
               onChange={(event) =>
                 setSeniorSearch((prev) => ({
                   ...prev,
-                  phone: event.target.value,
+                  phone: formatPhoneNumber(event.target.value),
                 }))
               }
               placeholder="전화번호"
@@ -744,7 +708,10 @@ function AddElderModal({
               <input
                 value={newSeniorForm.phone}
                 onChange={(event) =>
-                  setNewSeniorForm((prev) => ({ ...prev, phone: event.target.value }))
+                  setNewSeniorForm((prev) => ({
+                    ...prev,
+                    phone: formatPhoneNumber(event.target.value),
+                  }))
                 }
                 placeholder="010-0000-0000"
               />

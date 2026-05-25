@@ -169,6 +169,8 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
+  const [infoRequestAlert, setInfoRequestAlert] = useState(null);
+  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
   const alertTabsRef = useRef(null);
 
   const loadAlerts = async ({ silent = false } = {}) => {
@@ -186,6 +188,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
       ]);
+      const nextInfoRequestAlert = seniorAlerts.find((alert) =>
+        alert.type === "INFO_UPDATE_REQUEST"
+        && alert.isRead !== true
+        && !dismissedInfoRequestIds.includes(String(alert.id))
+      );
+
+      if (nextInfoRequestAlert) {
+        setInfoRequestAlert(nextInfoRequestAlert);
+      }
       const combined = [
         ...seniorAlerts.filter(shouldShowAlert).map(normalizeUserAlert),
         ...climateAlerts.filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time)).map(normalizeClimateAlert),
@@ -383,6 +394,45 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
           </>
         }
       />
+
+      {infoRequestAlert && (
+        <div className="uch-info-request-backdrop">
+          <section className="uch-info-request-modal">
+            <h2>정보 입력 요청</h2>
+            <p>{infoRequestAlert.message || "미입력 정보를 확인하고 입력해주세요."}</p>
+
+            <div className="uch-info-request-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedInfoRequestIds((prev) => [
+                    ...prev,
+                    String(infoRequestAlert.id),
+                  ]);
+                  setInfoRequestAlert(null);
+                }}
+              >
+                나중에
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setInfoRequestAlert(null);
+
+                  if (infoRequestAlert.id) {
+                    await readAlert(infoRequestAlert.id).catch(() => {});
+                  }
+
+                  navigate("/profile");
+                }}
+              >
+                정보 입력하기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isAlertPanelOpen && (
         <div className="uch-alert-backdrop" onClick={() => setIsAlertPanelOpen(false)}>

@@ -13,6 +13,10 @@ export const formatAlertMessage = (alert) => {
 
   const seniorName = alert.seniorName || alert.name || "보호 대상자";
 
+  if (alert.type === "INFO_UPDATE_REQUEST") {
+    return originalMessage || `${seniorName}님의 미입력 정보 확인이 필요합니다.`;
+  }
+
   const isSosCancel =
     originalMessage.includes("취소")
     || originalMessage.includes("해제")
@@ -35,6 +39,16 @@ export const formatAlertMessage = (alert) => {
   return originalMessage;
 };
 
+const isWithinDays = (value, days) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return Date.now() - date.getTime() <= days * 24 * 60 * 60 * 1000;
+};
+
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
   const today = new Date();
 
@@ -45,6 +59,10 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
       const createdAt = new Date(alert.createdAt);
 
       if (Number.isNaN(createdAt.getTime())) return false;
+
+      if (alert.type === "INFO_UPDATE_REQUEST") {
+        return isWithinDays(alert.createdAt, 30);
+      }
 
       return isSameDate(createdAt, today);
     })
