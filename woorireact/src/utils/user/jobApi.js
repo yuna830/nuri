@@ -258,11 +258,13 @@ export const getSavedJobProfile = () => {
       const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
       return {
+        seniorId: senior.id,
         age: senior.age,
         address: senior.address || senior.region || "",
         city: senior.city || senior.sido || "",
         district: senior.district || senior.sigungu || "",
         dong: senior.dong || "",
+        healthStatus: healthInfo.healthStatus,
         maxHours: healthInfo.maxHours || jobPreference.maxHours,
         maxDistance: healthInfo.maxDistance || jobPreference.maxDistance,
         payType: jobPreference.payType,

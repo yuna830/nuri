@@ -423,6 +423,44 @@
   background: #eaf5eb;
 }
 
+.up-health-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.up-health-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 1px solid #d9e6da;
+  background: #f7faf5;
+  color: #4f7451;
+  white-space: nowrap;
+}
+
+.up-health-status.good {
+  border-color: #cfe3d1;
+  background: #eef7ee;
+  color: #3f7748;
+}
+
+.up-health-status.caution {
+  border-color: #f2dc91;
+  background: #fff6ce;
+  color: #876a00;
+}
+
+.up-health-status.danger {
+  border-color: #f3c7c7;
+  background: #ffe8e8;
+  color: #b33939;
+}
+
 .up-schedule-date {
   min-height: 36px;
   border: 1px solid #d4e8d6;

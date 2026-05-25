@@ -14,6 +14,7 @@ import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
+import com.nuri.woori.service.HealthStatusMlService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -40,6 +41,7 @@ public class SeniorController {
     private final AlertRepository alertRepository;
     private final GuardianRepository guardianRepository;
     private final WelfareWorkerRepository welfareWorkerRepository;
+    private final HealthStatusMlService healthStatusMlService;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -49,7 +51,8 @@ public class SeniorController {
             LocationStatusRepository locationStatusRepository,
             AlertRepository alertRepository,
             GuardianRepository guardianRepository,
-            WelfareWorkerRepository welfareWorkerRepository
+            WelfareWorkerRepository welfareWorkerRepository,
+            HealthStatusMlService healthStatusMlService
     ) {
         this.seniorRepository = seniorRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -59,6 +62,7 @@ public class SeniorController {
         this.alertRepository = alertRepository;
         this.guardianRepository = guardianRepository;
         this.welfareWorkerRepository = welfareWorkerRepository;
+        this.healthStatusMlService = healthStatusMlService;
     }
 
     @PostMapping
@@ -77,7 +81,9 @@ public class SeniorController {
         senior.setActive(true);
 
         Senior savedSenior = seniorRepository.save(senior);
-        HealthInfo savedHealthInfo = healthInfoRepository.save(buildHealthInfo(savedSenior.getId(), request));
+        HealthInfo healthInfo = buildHealthInfo(savedSenior.getId(), request);
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
+        HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
         JobPreference savedJobPreference = jobPreferenceRepository.save(buildJobPreference(savedSenior.getId(), request));
 
         return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "Guardian", getGuardiansForSenior(savedSenior.getId()), getWelfareWorkerForSenior(savedSenior));
@@ -179,6 +185,7 @@ public class SeniorController {
         Senior savedSenior = seniorRepository.save(senior);
         HealthInfo healthInfo = healthInfoRepository.findTopBySeniorIdOrderByCreatedAtDesc(id).orElseGet(HealthInfo::new);
         copyHealthInfo(healthInfo, id, request);
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
         JobPreference jobPreference = jobPreferenceRepository.findTopBySeniorIdOrderByCreatedAtDesc(id).orElseGet(JobPreference::new);

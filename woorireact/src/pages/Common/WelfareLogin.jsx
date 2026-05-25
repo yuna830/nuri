@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import "../../css/common/Login.css";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = "";
 
 const welfareFeatures = [
   {

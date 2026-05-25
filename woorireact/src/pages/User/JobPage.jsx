@@ -11,10 +11,128 @@ import {
   isPastDate,
   scoreJobMatch,
 } from "../../utils/user/jobApi";
+import { isSeniorFriendlyJob } from "../../utils/job/seniorJobFilter";
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
 const API_PAGE_SIZE = 200;
+const MATCHING_API_LIMIT = 5;
+const MATCHING_CANDIDATE_LIMIT = 40;
+
+const getJobKey = (job) => `${job.source}-${job.jobId}`;
+const numberFrom = (value) => {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : null;
+};
+const textOfJob = (job) => [
+  job?.recrtTitle,
+  job?.oranNm,
+  job?.workPlcNm,
+  job?.jobclsNm,
+  job?.emplymShpNm,
+  job?.workTime,
+  job?.detCnts,
+].filter(Boolean).join(" ").toLowerCase();
+const includesAny = (text, keywords) =>
+  keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+
+const inferDailyHours = (job) => {
+  const weeklyHours = numberFrom(job.weekHours);
+  if (weeklyHours) return String(Math.max(1, Math.round(weeklyHours / 5)));
+
+  const timeHours = numberFrom(job.workTime);
+  if (timeHours) return String(Math.min(timeHours, 8));
+
+  return "3";
+};
+
+const inferWorkEnvironment = (job) => {
+  const text = textOfJob(job);
+  const indoor = includesAny(text, [
+    "\uc2e4\ub0b4",
+    "\ub3c4\uc11c\uad00",
+    "\uc8fc\ubbfc\uc13c\ud130",
+    "\uc13c\ud130",
+    "\uc0ac\ubb34",
+    "\ubb38\uc11c",
+    "library",
+    "office",
+    "center",
+  ]);
+  const outdoor = includesAny(text, [
+    "\uc57c\uc678",
+    "\uacf5\uc6d0",
+    "\ud658\uacbd",
+    "\uccad\uc18c",
+    "\ubbf8\ud654",
+    "\uacbd\ube44",
+    "outdoor",
+    "park",
+    "cleaning",
+  ]);
+
+  if (indoor && outdoor) return "mixed";
+  if (outdoor) return "outdoor";
+  return "indoor";
+};
+
+const inferPhysicalIntensity = (job) => {
+  const text = textOfJob(job);
+  if (includesAny(text, [
+    "\ubb34\uac70\uc6b4",
+    "\uc0c1\ud558\ucc28",
+    "\ubc30\ub2ec",
+    "\uc774\uc1a1",
+    "\uacc4\ub2e8",
+    "heavy",
+    "delivery",
+    "stairs",
+  ])) {
+    return "high";
+  }
+
+  if (includesAny(text, [
+    "\uccad\uc18c",
+    "\ubbf8\ud654",
+    "\uacbd\ube44",
+    "\uc870\ub9ac",
+    "\uc8fc\ubc29",
+    "cleaning",
+    "security",
+    "kitchen",
+  ])) {
+    return "medium";
+  }
+
+  return "low";
+};
+
+const inferTaskTags = (job) => {
+  const text = textOfJob(job);
+  const tags = [];
+  if (includesAny(text, ["\uc624\ub798", "\uc11c\uc11c", "\uc785\uc2dd", "standing"])) tags.push("long-standing");
+  if (includesAny(text, ["\ubb34\uac70\uc6b4", "\uc0c1\ud558\ucc28", "heavy"])) tags.push("heavy-carry");
+  if (includesAny(text, ["\uacc4\ub2e8", "stairs"])) tags.push("stairs");
+  if (includesAny(text, ["\uc548\ub0b4", "\uc751\ub300", "customer", "guide"])) tags.push("customer");
+  if (includesAny(text, ["\ubb38\uc11c", "\uc815\ub9ac", "document"])) tags.push("document");
+  if (includesAny(text, ["\ubc18\ubcf5", "repeat"])) tags.push("repeat");
+  return tags;
+};
+
+const toMatchingCandidate = (job) => ({
+  jobId: getJobKey(job),
+  title: job.recrtTitle || "",
+  organization: job.oranNm || "",
+  jobType: categorizeJob(job),
+  workEnvironment: inferWorkEnvironment(job),
+  physicalIntensity: inferPhysicalIntensity(job),
+  dailyHours: inferDailyHours(job),
+  commuteLevel: "walk-30",
+  taskTags: inferTaskTags(job),
+  closed: job.toDd ? isPastDate(job.toDd) : job.deadline === "closed",
+  workDays: job.workTime ? [job.workTime] : [],
+  workCondition: [job.detCnts, job.workTime, job.emplymShpNm].filter(Boolean).join(" "),
+});
 
 export default function JobPage() {
   const [jobs, setJobs] = useState([]);
@@ -29,6 +147,8 @@ export default function JobPage() {
   const [selected, setSelected] = useState(null);
   const [profile, setProfile] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
+  const [healthRecommendedJobs, setHealthRecommendedJobs] = useState([]);
+  const [recommendationMode, setRecommendationMode] = useState("local");
   const deferredSearch = useDeferredValue(search);
   const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
 
@@ -55,10 +175,13 @@ export default function JobPage() {
       .some((value) => String(value || "").includes(keyword));
   }, [deferredSearch]);
 
-  const filterJobs = useCallback((list) => list.filter((job) => {
-    if (hideExpired && isExpired(job)) return false;
-    return matchesCategory(job) && matchesSearch(job);
-  }), [hideExpired, isExpired, matchesCategory, matchesSearch]);
+  const filterJobs = useCallback((list) => {
+    return list.filter((job) => {
+      if (!isSeniorFriendlyJob(job)) return false;
+      if (hideExpired && isExpired(job)) return false;
+      return matchesCategory(job) && matchesSearch(job);
+    });
+  }, [hideExpired, isExpired, matchesCategory, matchesSearch]);
 
   const scoredJobs = useMemo(() => {
     return filterJobs(jobs)
@@ -69,14 +192,17 @@ export default function JobPage() {
       .sort((a, b) => b.match.score - a.match.score);
   }, [category, filterJobs, jobs, profile]);
 
-  const recommendedJobs = scoredJobs.slice(0, 5);
+  const matchingCandidateJobs = useMemo(
+    () => scoredJobs.slice(0, MATCHING_CANDIDATE_LIMIT),
+    [scoredJobs],
+  );
+  const fallbackRecommendedJobs = scoredJobs.slice(0, MATCHING_API_LIMIT);
+  const recommendedJobs = healthRecommendedJobs.length > 0 ? healthRecommendedJobs : fallbackRecommendedJobs;
   const recommendedIds = useMemo(
-    () => new Set(recommendedJobs.map((job) => `${job.source}-${job.jobId}`)),
+    () => new Set(recommendedJobs.map((job) => getJobKey(job))),
     [recommendedJobs],
   );
-  const listJobs = scoredJobs.filter((job) => !recommendedIds.has(`${job.source}-${job.jobId}`));
-  const visibleJobs = listJobs.slice(0, visibleCount);
-  const hasMoreVisible = listJobs.length > visibleCount || hasMoreSource;
+  const visibleRecommendedJobs = recommendedJobs.slice(0, MATCHING_API_LIMIT);
 
   const loadUntilEnough = useCallback(async ({ startPage = 1, targetCount = PAGE_SIZE, replace = false } = {}) => {
     setLoading(true);
@@ -139,6 +265,70 @@ export default function JobPage() {
     });
   }, [hasMoreSource, jobs.length, loadedPage, loading, loadUntilEnough, scoredJobs.length]);
 
+  useEffect(() => {
+    if (!profile?.seniorId || matchingCandidateJobs.length === 0) {
+      setHealthRecommendedJobs([]);
+      setRecommendationMode("local");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadHealthRecommendations = async () => {
+      try {
+        const response = await fetch(`/api/job-matching/seniors/${profile.seniorId}/recommendations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            limit: MATCHING_API_LIMIT,
+            jobs: matchingCandidateJobs.map(toMatchingCandidate),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`job matching failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const jobsByKey = new Map(matchingCandidateJobs.map((job) => [getJobKey(job), job]));
+        const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+        const mapped = recommendations
+          .map((recommendation) => {
+            const original = jobsByKey.get(recommendation.jobId);
+            if (!original) return null;
+
+            const reasons = [
+              ...(Array.isArray(recommendation.reasons) ? recommendation.reasons : []),
+              ...(Array.isArray(recommendation.warnings) ? recommendation.warnings : []),
+            ].filter(Boolean);
+
+            return {
+              ...original,
+              match: {
+                score: Number(recommendation.score) || 0,
+                grade: recommendation.grade,
+                reasons: reasons.slice(0, 3),
+                warnings: Array.isArray(recommendation.warnings) ? recommendation.warnings : [],
+              },
+            };
+          })
+          .filter(Boolean);
+
+        setHealthRecommendedJobs(mapped);
+        setRecommendationMode(mapped.length > 0 ? "health" : "local");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        setHealthRecommendedJobs([]);
+        setRecommendationMode("local");
+      }
+    };
+
+    loadHealthRecommendations();
+
+    return () => controller.abort();
+  }, [matchingCandidateJobs, profile?.seniorId]);
+
   const handleMore = async () => {
     if (loading) return;
     const nextVisibleCount = visibleCount + PAGE_SIZE;
@@ -195,7 +385,7 @@ export default function JobPage() {
     const color = EMPL_COLOR[job.emplymShp] || EMPL_COLOR.CM0105;
     const jobCategory = categorizeJob(job);
     const expired = isExpired(job);
-    const key = `${job.source}-${job.jobId}`;
+    const key = getJobKey(job);
     const recommended = compact || recommendedIds.has(key);
 
     return (
@@ -214,7 +404,11 @@ export default function JobPage() {
               <div className="jp-card-company">{job.oranNm || "기업명 미공개"}</div>
             </div>
             <div className="jp-card-badges">
-              {recommended && <div className="jp-match-badge">추천 {job.match.score}점</div>}
+              {recommended && (
+                <div className="jp-match-badge">
+                  {job.match?.grade || "추천"} {job.match?.score ?? 0}점
+                </div>
+              )}
               {expired && <div className="jp-card-badge jp-expired-badge">마감</div>}
               <div className="jp-card-badge jp-source-badge">{job.source}</div>
               <div className="jp-card-badge" style={{ background: "#eef6ef", color: "#5f7d61", border: "1px solid #b8d4ba" }}>
@@ -233,7 +427,7 @@ export default function JobPage() {
             {job.career && <span className="jp-card-tag">경력 {job.career}</span>}
           </div>
 
-          {recommended && job.match.reasons.length > 0 && (
+          {recommended && job.match?.reasons?.length > 0 && (
             <div className="jp-match-reasons">
               {job.match.reasons.map((reason) => <span key={reason}>{reason}</span>)}
             </div>
@@ -338,24 +532,28 @@ export default function JobPage() {
               <div className="jp-main-head">
                 <div className="jp-main-label">
                   {search
-                    ? `"${search}" 검색결과 · ${scoredJobs.length}건`
+                    ? `"${search}" 추천 공고 · ${visibleRecommendedJobs.length}건`
                     : category
-                      ? `${category} · ${scoredJobs.length}건`
-                      : `구인 목록 · ${scoredJobs.length}건 표시 중`}
+                      ? `${category} 추천 공고 · ${visibleRecommendedJobs.length}건`
+                      : `추천 공고 · ${visibleRecommendedJobs.length}건`}
                 </div>
               </div>
 
-              {recommendedJobs.length > 0 && (
+              {visibleRecommendedJobs.length > 0 && (
                 <section className="jp-recommend-box">
                   <div className="jp-recommend-head">
                     <div>
                       <strong>맞춤 추천 TOP 5</strong>
-                      <p>내 조건과 공고 정보를 기준으로 계산한 참고 점수예요.</p>
+                      <p>
+                        {recommendationMode === "health"
+                          ? "건강 상태와 활동 조건을 기준으로 계산한 추천이에요."
+                          : "내 조건과 공고 정보를 기준으로 계산한 참고 점수예요."}
+                      </p>
                     </div>
                     <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
                   </div>
                   <div className="jp-recommend-grid">
-              {recommendedJobs.slice(0, 5).map((job, idx) => renderJobCard(job, idx, true))}
+              {visibleRecommendedJobs.map((job, idx) => renderJobCard(job, idx, true))}
                   </div>
                 </section>
               )}
@@ -371,14 +569,11 @@ export default function JobPage() {
                 </div>
               )}
 
-              {visibleJobs.map((job, idx) => renderJobCard(job, idx))}
-
-              {!loading && !error && hasMoreVisible && (
-                <button className="jp-more-btn" type="button" onClick={handleMore}>
-                  {visibleJobs.length > 0
-                    ? `더보기 (${visibleJobs.length + recommendedJobs.length} / ${scoredJobs.length + (hasMoreSource ? "+" : "")}건)`
-                    : "이 조건의 공고 더 찾아보기"}
-                </button>
+              {!loading && !error && scoredJobs.length > 0 && visibleRecommendedJobs.length === 0 && (
+                <div className="jp-empty">
+                  <div className="jp-empty-icon">🔍</div>
+                  <div className="jp-empty-text">추천할 수 있는 공고가 없습니다.</div>
+                </div>
               )}
             </main>
           </>

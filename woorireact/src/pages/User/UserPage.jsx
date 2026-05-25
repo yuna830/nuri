@@ -88,6 +88,14 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
+const getHealthStatusFromProfile = (profile) => profile?.healthInfo?.healthStatus || null;
+
+const getHealthStatusClassName = (status) => {
+  if (status === "위험") return "danger";
+  if (status === "주의") return "caution";
+  return "good";
+};
+
 function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
@@ -410,6 +418,7 @@ export default function UserPage() {
   const [activitySlots, setActivitySlots] = useState(null);
   const [activityBaseline, setActivityBaseline] = useState(null);
   const [activityFallPattern, setActivityFallPattern] = useState(null);
+  const [healthStatus, setHealthStatus] = useState(() => getHealthStatusFromProfile(initialProfile));
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -773,6 +782,7 @@ export default function UserPage() {
               setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
               loadMatchedCareTeam(cachedSeniorId, freshProfile);
               setChanged(setHealthScores, getHealthScoresFromProfile(freshProfile));
+              setChanged(setHealthStatus, getHealthStatusFromProfile(freshProfile));
               return;
             }
           }
@@ -782,6 +792,7 @@ export default function UserPage() {
           setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
           loadMatchedCareTeam(cachedSeniorId, profile);
           setChanged(setHealthScores, getHealthScoresFromProfile(profile));
+          setChanged(setHealthStatus, getHealthStatusFromProfile(profile));
           return;
         }
 
@@ -800,6 +811,7 @@ export default function UserPage() {
         setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
         loadMatchedCareTeam(latest?.senior?.id, latest);
         setChanged(setHealthScores, getHealthScoresFromProfile(latest));
+        setChanged(setHealthStatus, getHealthStatusFromProfile(latest));
       } catch (error) {
         console.error("사용자 정보 조회 실패:", error);
       }
@@ -1291,9 +1303,16 @@ export default function UserPage() {
               <div className="up-card full">
                 <div className="up-card-head">
                   <div className="up-card-title">오늘의 활동 컨디션</div>
-                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
-                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
-                  </button>
+                  <div className="up-health-card-actions">
+                    {healthStatus && (
+                      <span className={`up-health-status ${getHealthStatusClassName(healthStatus)}`}>
+                        ML 건강 상태 {healthStatus}
+                      </span>
+                    )}
+                    <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}>
+                      {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
+                    </button>
+                  </div>
                 </div>
                 {activityToday.status === "ok" && activityToday.scores ? (
                   <RadarChart

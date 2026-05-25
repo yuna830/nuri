@@ -31,3 +31,18 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### ML experiments ###
+ml/**/.venv/
+ml/**/__pycache__/
+ml/**/artifacts*/
+ml/**/data/job_matching_dummy_*.csv
+ml/**/data/senuri_jobs.csv
+ml/**/data/hf_linkedin_job_postings.csv
+ml/**/data/hf_linkedin_jobs_normalized*.csv
+ml/**/data/nhanes_raw/
+ml/**/data/nhanes_health_rows.csv
+ml/**/data/nhanes_health_status_training*.csv
+ml/**/data/public_job_matching_training*.csv
+!ml/**/data/public_job_matching_training_example.csv
+ml/**/data/klosa*.csv
