@@ -1,4 +1,6 @@
 ﻿import { useState } from "react";
+import GuardianWelfarePanel from "./GuardianWelfarePanel";
+
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 const formatPoliceOccurredDate = (value) => {
@@ -507,50 +509,21 @@ function EmergencyPanel({
         )}
 
         {activePanelTab === "welfare" && (
-          <section className="card guardian-welfare-card">
-            <div className="card-header">
-              <h2>복지 확인</h2>
-            </div>
-
-            <div className="guardian-welfare-body">
-              <p>
-                {selectedElder.name}님의 나이, 건강 상태, 복약 정보 등을 바탕으로 받을 수 있는 복지 제도를 확인할 수 있습니다.
-              </p>
-
-              <div className="guardian-welfare-list">
-                <div>
-                  <strong>기초연금</strong>
-                  <span>65세 이상 대상자라면 우선 확인</span>
-                </div>
-
-                <div>
-                  <strong>노인 일자리 및 사회활동 지원</strong>
-                  <span>활동 가능 여부와 기초연금 수급 여부 확인</span>
-                </div>
-
-                <div>
-                  <strong>노인맞춤돌봄서비스</strong>
-                  <span>독거 여부, 돌봄 필요도 확인</span>
-                </div>
-              </div>
-
-              <button type="button" className="guardian-welfare-button">
-                복지사에게 문의
-              </button>
-            </div>
-          </section>
+          <GuardianWelfarePanel selectedElder={selectedElder} />
         )}
 
         {activePanelTab === "safety" && (
           <>
             <section className="card safe182-card">
               <div className="card-header">
-                <h2>안전드림 연계</h2>
+                <h2>실종 정보 확인</h2>
               </div>
 
               <div className="safe182-body">
                 <p>
-                  현재 위치와 보호 대상자 정보를 바탕으로 안전드림 신고에 사용할 내용을 준비합니다.
+                  연락이 되지 않거나 실종이 의심되는 경우 최근 위치를 먼저 확인하고,
+                  경찰청 공공데이터로 실종 경보와 검색 정보를 참고할 수 있습니다. <br />
+                  긴급 상황에서는 즉시 112 신고가 필요합니다.
                 </p>
 
                 <div className="safe182-actions">
@@ -558,7 +531,7 @@ function EmergencyPanel({
                     type="button"
                     onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
                   >
-                    안전드림 열기
+                    112 신고 안내
                   </button>
 
                   <button
@@ -573,7 +546,7 @@ function EmergencyPanel({
 
             <section className="card police-missing-card">
               <div className="card-header">
-                <h2>경찰청 실종정보</h2>
+                <h2>최근 실종 경보</h2>
               </div>
 
               <div className="police-missing-list">
@@ -624,6 +597,10 @@ function EmergencyPanel({
                     )}
                   </div>
                 )}
+
+                <small className="police-missing-report-hint">
+                  목격 정보가 있다면 112로 신고해주세요.
+                </small>
               </div>
             </section>
           </>
@@ -695,6 +672,12 @@ function EmergencyPanel({
                       type="button"
                       key={alert.id}
                       className="police-search-result"
+                      title={[
+                        alert.name || "이름 정보 없음",
+                        alert.gender || "",
+                        alert.ageNow ? `현재 ${alert.ageNow}세` : "",
+                        alert.occurredAddress || "",
+                      ].filter(Boolean).join(" · ")}
                       onClick={() => {
                         if (originalIndex >= 0) {
                           setPoliceIndex(originalIndex);
@@ -706,19 +689,9 @@ function EmergencyPanel({
                       {alert.id && (
                         <img
                           src={`http://localhost:8181/api/police-missing-alerts/${alert.id}/photo`}
-                          alt={`${alert.name} 실종정보 사진`}
+                          alt={`${alert.name || "실종자"} 실종정보 사진`}
                         />
                       )}
-
-                      <span>
-                        <strong>{alert.name || "이름 정보 없음"}</strong>
-                        <em>
-                          {alert.gender || "성별 정보 없음"}
-                          {alert.ageNow ? ` · 현재 ${alert.ageNow}세` : ""}
-                        </em>
-                        <small>{formatPoliceOccurredDate(alert.occurredDate)}</small>
-                        <small>{alert.occurredAddress || "실종 장소 정보 없음"}</small>
-                      </span>
                     </button>
                   );
                 })

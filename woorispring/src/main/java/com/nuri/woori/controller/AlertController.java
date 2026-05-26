@@ -138,6 +138,43 @@ public class AlertController {
     ) {
     }
 
+    @PostMapping("/welfare-consult-request")
+    public List<Alert> createWelfareConsultRequest(@RequestBody WelfareConsultRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String message = request.message() == null || request.message().isBlank()
+                ? senior.getName() + "님과 관련해 복지사 상담 확인이 필요합니다."
+                : request.message().trim();
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("WELFARE_CONSULT_REQUEST");
+                    alert.setTitle("복지사 상담 요청");
+                    alert.setMessage(message);
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record WelfareConsultRequest(
+            Long seniorId,
+            String message
+    ) {
+    }
+
     @PostMapping("/fall")
     public List<Alert> createFallAlert(@RequestBody FallAlertRequest request) {
         Senior senior = seniorRepository.findById(request.seniorId())
@@ -315,6 +352,28 @@ public class AlertController {
 
         alert.setIsRead(true);
         return alertRepository.save(alert);
+    }
+
+    @PatchMapping("/{id}/welfare-consult-response")
+    public Alert respondWelfareConsultation(
+            @PathVariable Long id,
+            @RequestBody WelfareConsultResponse request
+    ) {
+        Alert alert = alertRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+
+        alert.setIsRead(true);
+        alert.setGuardianResponseType(request.responseType());
+        alert.setGuardianScheduleAt(request.scheduleAt());
+        alert.setGuardianRespondedAt(LocalDateTime.now());
+
+        return alertRepository.save(alert);
+    }
+
+    public record WelfareConsultResponse(
+            String responseType,
+            String scheduleAt
+    ) {
     }
 
     public record SosAlertRequest(

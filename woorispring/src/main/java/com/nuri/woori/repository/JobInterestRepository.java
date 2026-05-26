@@ -8,4 +8,6 @@ import java.util.List;
 public interface JobInterestRepository extends JpaRepository<JobInterest, Long> {
 
     List<JobInterest> findAllByOrderByCreatedAtDesc();
+
+    List<JobInterest> findBySeniorIdOrderByCreatedAtDesc(Long seniorId);
 }

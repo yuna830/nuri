@@ -72,3 +72,34 @@ export const requestSeniorInfoUpdate = async ({
 
     return response.json();
 };
+
+export const requestGuardianConsultation = async ({ seniorId, message }) => {
+    const response = await fetch("/api/alerts/welfare-consult-request", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            seniorId,
+            message,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to request guardian consultation");
+    }
+
+    return response.json();
+};
+
+export const fetchSeniorAlerts = async (seniorId) => {
+    const response = await fetch(`/api/alerts/senior/${seniorId}`);
+
+    if (!response.ok) {
+        return [];
+    }
+
+    const data = await response.json();
+
+    return Array.isArray(data) ? data : [];
+};

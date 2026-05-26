@@ -8,7 +8,11 @@ import {
     formatGps,
 } from "../../utils/welfare/welfareSenior";
 import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
-import { fetchWelfareSeniorDetail } from "../../api/welfareDashboardApi";
+import {
+    fetchWelfareSeniorDetail,
+    requestGuardianConsultation,
+    fetchSeniorAlerts,
+} from "../../api/welfareDashboardApi";
 import KakaoMap from "../../components/KakaoMap";
 
 import "../../css/welfare/WelfareSeniorDetail.css";
@@ -157,6 +161,11 @@ function WelfareSeniorDetail() {
     const [draftCounselingMemo, setDraftCounselingMemo] = useState("");
     const [isMemoEditing, setIsMemoEditing] = useState(false);
     const [memoStatusMessage, setMemoStatusMessage] = useState("");
+    const [isSendingConsultRequest, setIsSendingConsultRequest] = useState(false);
+    const [consultRequestStatusMessage, setConsultRequestStatusMessage] = useState("");
+    const [isConsultRequestModalOpen, setIsConsultRequestModalOpen] = useState(false);
+    const [consultRequestMemo, setConsultRequestMemo] = useState("");
+    const [seniorAlerts, setSeniorAlerts] = useState([]);
     
     const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "전화 및 상담기록"];
     const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
@@ -279,6 +288,68 @@ function WelfareSeniorDetail() {
         };
     }, [id]);
 
+    useEffect(() => {
+        if (!senior?.id) return;
+
+        let ignore = false;
+
+        const loadSeniorAlerts = () => {
+            fetchSeniorAlerts(senior.id)
+                .then((data) => {
+                    if (!ignore) {
+                        setSeniorAlerts(Array.isArray(data) ? data : []);
+                    }
+                })
+                .catch(() => {
+                    if (!ignore) {
+                        setSeniorAlerts([]);
+                    }
+                });
+        };
+
+        loadSeniorAlerts();
+
+        const intervalId = window.setInterval(loadSeniorAlerts, 5000);
+
+        const handleFocus = () => {
+            loadSeniorAlerts();
+        };
+
+        window.addEventListener("focus", handleFocus);
+
+        return () => {
+            ignore = true;
+            window.clearInterval(intervalId);
+            window.removeEventListener("focus", handleFocus);
+        };
+    }, [senior?.id]);
+
+    const latestConsultRequest = seniorAlerts
+        .filter((alert) => alert.type === "WELFARE_CONSULT_REQUEST")
+        .slice()
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+
+    const latestConsultResponseType = latestConsultRequest?.guardianResponseType || "";
+    const latestConsultScheduleAt = latestConsultRequest?.guardianScheduleAt || "";
+    const hasImmediateConsultResponse = latestConsultResponseType === "now";
+    const hasScheduledConsultResponse = latestConsultResponseType === "schedule";
+
+    const consultResponseStatus = hasImmediateConsultResponse
+        ? "보호자가 지금 바로 상담 가능하다고 응답했습니다."
+        : hasScheduledConsultResponse
+            ? `보호자가 ${latestConsultScheduleAt} 상담을 희망했습니다.`
+            : "";
+
+    const consultRequestStatus = !latestConsultRequest
+        ? "상담 요청 전"
+        : hasImmediateConsultResponse
+            ? "보호자 즉시 상담 가능"
+            : hasScheduledConsultResponse
+                ? "보호자 상담 일정 응답"
+                : latestConsultRequest.isRead
+                    ? "보호자 확인 완료"
+                    : "보호자 확인 대기 중";
+
     const selectedCounselingRecord = useMemo(
         () => counselingRecords.find((record) => record.date === selectedCounselingDate),
         [counselingRecords, selectedCounselingDate]
@@ -326,7 +397,7 @@ function WelfareSeniorDetail() {
             return;
         }
 
-        const nextContent = draftCounselingMemo.trim() || "전화 및 상담기록이 없습니다.";
+        const nextContent = draftCounselingMemo.trim();
         const nextRecords = [
             {
                 id: `${senior.id}-${selectedCounselingDate}`,
@@ -417,6 +488,29 @@ function WelfareSeniorDetail() {
         </div>
     );
 
+    const handleGuardianConsultRequest = async () => {
+        if (!senior?.id) return;
+
+        try {
+            setIsSendingConsultRequest(true);
+            setConsultRequestStatusMessage("");
+
+            await requestGuardianConsultation({
+                seniorId: senior.id,
+                message: consultRequestMemo.trim() || `${senior.name}님과 관련해 복지사 상담 확인이 필요합니다.`,
+            });
+
+            setConsultRequestStatusMessage("보호자에게 상담 요청을 보냈습니다.");
+            setConsultRequestMemo("");
+            setIsConsultRequestModalOpen(false);
+        } catch (error) {
+            console.error("보호자 상담 요청 전송 실패:", error);
+            setConsultRequestStatusMessage("상담 요청 전송에 실패했습니다.");
+        } finally {
+            setIsSendingConsultRequest(false);
+        }
+    };
+
     const renderChipGroup = (label, values) => {
         const list = splitCsv(values);
 
@@ -494,12 +588,41 @@ function WelfareSeniorDetail() {
 
     const renderGuardianInfo = () => (
         <section className="wsd-detail-section">
-            <h2 className="wsd-section-title">보호자 정보</h2>
+            <div className="wsd-section-title-row">
+                <h2 className="wsd-section-title">보호자 정보</h2>
+            </div>
+
             {renderFields([
                 { label: "보호자 이름", value: detail.guardianName },
                 { label: "보호자 연락처", value: formatPhoneForDetail(detail.guardianPhone) },
                 { label: "관계", value: detail.guardianRelation },
+                { label: "상담 상태", value: consultRequestStatus },
+                { label: "대상자", value: `${senior.name}${senior.age ? ` (${senior.age}세)` : ""}` },
+                { label: "대상자 연락처", value: formatPhoneForDetail(detail.phone) },
+                { label: "거주 지역", value: detail.address, wide: true },
             ])}
+
+            <div className="wsd-consult-request-panel">
+                <div>
+                    <strong>보호자 상담 관리</strong>
+                    <p>
+                        복지 상담 확인이 필요할 때 보호자에게 상담 요청을 보낼 수 있습니다.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    className="wsd-consult-request-button"
+                    onClick={() => setIsConsultRequestModalOpen(true)}
+                    disabled={isSendingConsultRequest}
+                >
+                    상담 요청 보내기
+                </button>
+            </div>
+
+            {consultRequestStatusMessage && (
+                <p className="wsd-status-message">{consultRequestStatusMessage}</p>
+            )}
         </section>
     );
 
@@ -771,6 +894,40 @@ function WelfareSeniorDetail() {
                                             </label>
                                         </div>
 
+                                        {latestConsultRequest?.guardianResponseType && (
+                                            <div className="wsd-consult-action-strip">
+                                                <div>
+                                                    <strong>보호자가 지금 상담 가능합니다</strong>
+                                                    <span>필요하면 바로 전화하거나 상담기록을 작성하세요.</span>
+                                                </div>
+
+                                                <div className="wsd-consult-action-buttons">
+                                                    <a
+                                                        className="wsd-call-link-button"
+                                                        href={`tel:${String(detail.guardianPhone || "").replace(/\D/g, "")}`}
+                                                    >
+                                                        전화 걸기
+                                                    </a>
+
+                                                    <button
+                                                        type="button"
+                                                        className="wsd-secondary-action-button"
+                                                        onClick={() => {
+                                                            const today = new Date().toISOString().slice(0, 10);
+                                                            const memo = `${senior.name}님 보호자가 지금 바로 상담 가능하다고 응답했습니다. 보호자 연락처: ${formatPhoneForDetail(detail.guardianPhone)}`;
+
+                                                            setSelectedCounselingDate(today);
+                                                            setDraftCounselingMemo(memo);
+                                                            setIsMemoEditing(true);
+                                                            setMemoStatusMessage("");
+                                                        }}
+                                                    >
+                                                        기록 작성
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {isMemoEditing ? (
                                             <>
                                                 <textarea
@@ -796,11 +953,11 @@ function WelfareSeniorDetail() {
                                                     </button>
                                                 </div>
                                             </>
-                                        ) : (
+                                        ) : selectedCounselingRecord?.content ? (
                                             <p className="wsd-memo-text">
-                                                {selectedCounselingRecord?.content || "해당 날짜의 전화 및 상담기록이 없습니다."}
+                                                {selectedCounselingRecord.content}
                                             </p>
-                                        )}
+                                        ) : null}
 
                                         {memoStatusMessage && (
                                             <p className="wsd-status-message">{memoStatusMessage}</p>
@@ -812,6 +969,65 @@ function WelfareSeniorDetail() {
                     </>
                 )}
             </main>
+
+            {isConsultRequestModalOpen && (
+                <div className="wsd-consult-modal-backdrop">
+                    <section className="wsd-consult-modal">
+                        <div className="wsd-consult-modal-header">
+                            <h3>보호자 상담 요청</h3>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsConsultRequestModalOpen(false)}
+                                disabled={isSendingConsultRequest}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        <div className="wsd-consult-modal-body">
+                            <div className="wsd-consult-modal-summary">
+                                <span>보호자</span>
+                                <strong>{valueOrMissing(detail.guardianName)}</strong>
+                                <small>{formatPhoneForDetail(detail.guardianPhone)} · {valueOrMissing(detail.guardianRelation)}</small>
+                            </div>
+
+                            <div className="wsd-consult-modal-summary">
+                                <span>대상자</span>
+                                <strong>{senior.name}</strong>
+                                <small>{[formatAgeGender(senior), detail.address].filter(Boolean).join(" · ")}</small>
+                            </div>
+
+                            <label>
+                                요청 내용
+                                <textarea
+                                    value={consultRequestMemo}
+                                    onChange={(event) => setConsultRequestMemo(event.target.value)}
+                                    placeholder={`${senior.name}님과 관련해 복지사 상담 확인이 필요합니다.`}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="wsd-consult-modal-actions">
+                            <button
+                                type="button"
+                                onClick={() => setIsConsultRequestModalOpen(false)}
+                                disabled={isSendingConsultRequest}
+                            >
+                                취소
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleGuardianConsultRequest}
+                                disabled={isSendingConsultRequest}
+                            >
+                                {isSendingConsultRequest ? "전송 중..." : "요청 보내기"}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
 
             <WelfarePolicyQaButton senior={senior} />
         </div>

@@ -543,11 +543,22 @@ function GuardianPage() {
       <main className="guardian-page">
         <GuardianHeader
           displayedAlerts={displayedAlerts}
-          onReadAlert={() => {}}
-          onOpenEmergencyReport={() => {}}
+          onReadAlert={handleReadAlert}
+          onOpenEmergencyReport={() => handleOpenEmergencyReport()}
         />
 
-        <section className="guardian-empty">등록된 보호 대상자가 없습니다.</section>
+        <section className="guardian-empty-state">
+          <div className="guardian-empty-modal">
+            <div className="guardian-empty-icon">!</div>
+
+            <h2>등록된 보호 대상자가 없습니다</h2>
+
+            <p>
+              보호 대상자를 추가하면 위치 확인, 안전 반경 관리,
+              긴급 알림 기능을 사용할 수 있습니다.
+            </p>
+          </div>
+        </section>
       </main>
     );
   }

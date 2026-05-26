@@ -328,6 +328,192 @@
     line-height: 1.25;
 }
 
+.wsd-section-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 1.6rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #a9c9aa;
+}
+
+.wsd-section-title-row .wsd-section-title {
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.wsd-consult-request-button {
+    height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 9px;
+    background: #86a788;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wsd-consult-request-button:hover {
+    background: #6f9272;
+}
+
+.wsd-consult-request-button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.wsd-consult-request-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 22px;
+    padding: 16px 18px;
+    border: 1px solid #d7e4d2;
+    border-radius: 12px;
+    background: #f8fbf5;
+}
+
+.wsd-consult-request-panel strong {
+    display: block;
+    color: #1e2a1f;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.wsd-consult-request-panel p {
+    margin: 6px 0 0;
+    color: #667266;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.wsd-consult-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(17, 24, 39, 0.45);
+}
+
+.wsd-consult-modal {
+    width: min(520px, 100%);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 24px 64px rgba(17, 24, 39, 0.28);
+    overflow: hidden;
+}
+
+.wsd-consult-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #dfe8dc;
+}
+
+.wsd-consult-modal-header h3 {
+    margin: 0;
+    color: #1e2a1f;
+    font-size: 22px;
+    font-weight: 900;
+}
+
+.wsd-consult-modal-header button {
+    height: 38px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 9px;
+    background: #eef2ea;
+    color: #466b57;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.wsd-consult-modal-body {
+    display: grid;
+    gap: 14px;
+    padding: 22px 24px;
+}
+
+.wsd-consult-modal-summary {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f8f8f3;
+}
+
+.wsd-consult-modal-summary span {
+    color: #789078;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.wsd-consult-modal-summary strong {
+    color: #1e2a1f;
+    font-size: 16px;
+}
+
+.wsd-consult-modal-summary small {
+    color: #667266;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.wsd-consult-modal-body label {
+    display: grid;
+    gap: 8px;
+    color: #1e2a1f;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.wsd-consult-modal-body textarea {
+    min-height: 112px;
+    padding: 12px 14px;
+    border: 1px solid #d7e4d2;
+    border-radius: 10px;
+    resize: vertical;
+    color: #1e2a1f;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.wsd-consult-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 24px 24px;
+}
+
+.wsd-consult-modal-actions button {
+    height: 44px;
+    border: 0;
+    border-radius: 10px;
+    background: #f0f2ed;
+    color: #667266;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.wsd-consult-modal-actions button:last-child {
+    background: #86a788;
+    color: #ffffff;
+}
+
+.wsd-consult-modal-actions button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
 .wsd-section-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1105,6 +1291,69 @@
     border-top: 1px solid #e0eee0;
 }
 
+.wsd-consult-action-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 18px 0 22px;
+    padding: 14px 16px;
+    border: 1px solid #d6e3d4;
+    border-radius: 10px;
+    background: #f8fbf6;
+}
+
+.wsd-consult-action-strip strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #263b2a;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.wsd-consult-action-strip span {
+    display: block;
+    color: #6a7a68;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.wsd-consult-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.wsd-call-link-button,
+.wsd-secondary-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: #86a788;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.wsd-secondary-action-button {
+    background: #eef4ed;
+    color: #48624b;
+    border: 1px solid #cddccb;
+}
+
+.wsd-call-link-button:hover,
+.wsd-secondary-action-button:hover {
+    filter: brightness(0.97);
+}
+
 @media (max-width: 900px) {
     .wsd-header {
         padding: 0 20px;
@@ -1156,6 +1405,22 @@
     .wsd-medication-card dl,
     .wsd-requested-job-card dl {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .wsd-consult-action-strip {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .wsd-consult-action-buttons {
+        width: 100%;
+    }
+
+    .wsd-call-link-button,
+    .wsd-secondary-action-button {
+        flex: 1;
     }
 }
 
