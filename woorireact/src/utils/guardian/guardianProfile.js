@@ -85,6 +85,8 @@ export const mapSeniorProfileToElder = (profile) => {
     condition: makeConditionText(healthInfo),
     medications,
     medicineCount: healthInfo?.medicineCount || (medications.length ? `${medications.length}개` : "없음"),
+    incomeLevel: healthInfo?.incomeLevel || senior.incomeLevel || "",
+    householdType: healthInfo?.householdType || senior.householdType || "",
     healthInfo,
     jobPreference,
     battery: 75,

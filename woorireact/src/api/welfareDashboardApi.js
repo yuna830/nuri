@@ -121,17 +121,6 @@ export const fetchWelfareAlerts = async () => {
     return Array.isArray(data) ? data : [];
 };
 
-// 사용자 상세 정보 불러오기 API 추가
-export const fetchWelfareSeniorDetail = async (seniorId) => {
-    const response = await fetch(`/api/seniors/${seniorId}`);
-
-    if (!response.ok) {
-        throw new Error("Failed to load senior detail");
-    }
-
-    return response.json();
-};
-
 // 복지 대상자 정보 업데이트 요청 API 추가
 export const requestSeniorInfoUpdate = async ({
     seniorId,

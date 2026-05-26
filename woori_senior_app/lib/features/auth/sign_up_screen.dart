@@ -20,6 +20,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   final TextEditingController _regionController = TextEditingController();
 
   String _gender = '여성';
+  String _incomeLevel = '???';
+  String _householdType = '?? ??';
   bool _agreedToPrivacy = false;
   bool _isLoading = false;
   String _errorMessage = '';
@@ -65,6 +67,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
         birthDate: birthDate,
         gender: _gender,
         region: region,
+        incomeLevel: _incomeLevel,
+        householdType: _householdType,
       );
 
       final senior = response['senior'];
@@ -218,6 +222,24 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
                   const SizedBox(height: 18),
 
+                  _OptionSelector(
+                    label: '?? ??',
+                    value: _incomeLevel,
+                    options: const ['???', '??????', '?????', '???? 50% ??', '???? 100% ??', '??'],
+                    onChanged: (value) => setState(() => _incomeLevel = value),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  _OptionSelector(
+                    label: '?? ??',
+                    value: _householdType,
+                    options: const ['?? ??', '?? ??', '??? ??', '?? ??'],
+                    onChanged: (value) => setState(() => _householdType = value),
+                  ),
+
+                  const SizedBox(height: 18),
+
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -363,6 +385,44 @@ class _SignUpTextField extends StatelessWidget {
       textInputAction: textInputAction,
       onSubmitted: onSubmitted,
       decoration: _inputDecoration(hintText: hintText),
+    );
+  }
+}
+
+
+class _OptionSelector extends StatelessWidget {
+  const _OptionSelector({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SignUpLabel(label),
+        DropdownButtonFormField<String>(
+          value: value,
+          items: options
+              .map((option) => DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option),
+                  ))
+              .toList(),
+          onChanged: (next) {
+            if (next != null) onChanged(next);
+          },
+          decoration: _inputDecoration(hintText: label),
+        ),
+      ],
     );
   }
 }

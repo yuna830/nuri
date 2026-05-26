@@ -1325,21 +1325,21 @@ export default function UserPage() {
           <div className="up-content-row">
             <div className="up-card full">
               <div className="up-card-head">
-                <div className="up-card-title">빠른 실행</div>
+                <div className="up-card-title">복지제도 확인</div>
               </div>
-              <div className="up-quick-grid">
-                {menus.filter(m => !m.hideQuick).map((m, i) => (
-                  <button
-                    key={i}
-                    className="up-quick-btn"
-                    type="button"
-                    onClick={() => navigate(m.route)}
-                  >
-                    <span className="up-quick-icon">{m.icon}</span>
-                    <div className="up-quick-label">{m.label}</div>
-                    <div className="up-quick-desc">{m.desc}</div>
-                  </button>
-                ))}
+              <div className="up-welfare-check">
+                <div className="up-welfare-check-icon">🏛️</div>
+                <div className="up-welfare-check-copy">
+                  <strong>내 상황에 맞는 복지제도를 확인해보세요.</strong>
+                  <p>소득 정보와 단독/부부 가구 정보를 입력하면 보호자와 복지사가 함께 확인할 수 있어요.</p>
+                </div>
+                <button
+                  className="up-welfare-check-button"
+                  type="button"
+                  onClick={() => navigate("/profile?section=welfare")}
+                >
+                  정보 입력하기
+                </button>
               </div>
             </div>
           </div>

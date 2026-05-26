@@ -85,6 +85,8 @@ public class SeniorController {
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
+        healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setHouseholdType(request.householdType());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -309,6 +311,8 @@ public class SeniorController {
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
+        healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setHouseholdType(request.householdType());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -411,6 +415,14 @@ public class SeniorController {
 
         healthInfo.setSeniorId(id);
 
+        if (request.incomeLevel() != null) {
+            healthInfo.setIncomeLevel(request.incomeLevel());
+        }
+
+        if (request.householdType() != null) {
+            healthInfo.setHouseholdType(request.householdType());
+        }
+
         if (request.diabetes() != null) {
             healthInfo.setDiabetes(request.diabetes());
         }
@@ -494,6 +506,8 @@ public class SeniorController {
             String phone,
             String birthDate,
             String region,
+            String incomeLevel,
+            String householdType,
             String diabetes,
             String hypertension,
             String heartDisease,
@@ -767,6 +781,8 @@ public class SeniorController {
             String smoking,
             String drinking,
             String allergies,
+            String incomeLevel,
+            String householdType,
             String medicineCount,
             String medicationsJson,
             String diabetes,
