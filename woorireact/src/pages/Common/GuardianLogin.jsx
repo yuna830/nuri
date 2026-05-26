@@ -36,6 +36,8 @@ export default function GuardianLogin() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
   const handleLogin = async () => {
     if (!form.email.trim()) {
       setError("이메일을 입력해주세요.");
@@ -146,6 +148,11 @@ export default function GuardianLogin() {
         return;
       }
 
+      if (!passwordPattern.test(helpForm.newPassword.trim())) {
+        setHelpError("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/api/guardians/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -209,6 +216,11 @@ export default function GuardianLogin() {
 
     if (!response.ok) {
       alert("입력한 정보가 일치하지 않거나 비밀번호가 너무 짧습니다.");
+      return;
+    }
+
+    if (!passwordPattern.test(newPassword.trim())) {
+      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
       return;
     }
 
@@ -278,7 +290,7 @@ export default function GuardianLogin() {
               type="password"
               value={form.password}
               onChange={(event) => set("password", event.target.value)}
-              placeholder="비밀번호를 입력하세요"
+              placeholder="영문과 숫자를 포함해 6자 이상 입력하세요"
               onKeyDown={(event) => event.key === "Enter" && handleLogin()}
             />
 
@@ -378,7 +390,7 @@ export default function GuardianLogin() {
                   type="password"
                   value={helpForm.newPassword}
                   onChange={(event) => setHelp("newPassword", event.target.value)}
-                  placeholder="새로운 비밀번호를 입력하세요"
+                  placeholder="영문과 숫자를 포함해 6자 이상 입력하세요"
                 />
               </>
             )}

@@ -97,6 +97,7 @@ export const mapWelfareSenior = (item) => ({
     guardianName: item.guardianName,
     guardianPhone: item.guardianPhone,
     guardianId: item.guardianId,
+    hasGuardian: item.hasGuardian === true || item.hasGuardian === "true",
 
     healthInfo: item.healthInfo,
     healthStatus: item.healthStatus || "양호",

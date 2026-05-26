@@ -118,6 +118,8 @@ export default function WelfareLogin() {
     }
   };
 
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
   const handleResetWorkerPassword = async () => {
     const workerId = window.prompt("복지사 아이디를 입력하세요.");
     if (!workerId) return;
@@ -128,8 +130,8 @@ export default function WelfareLogin() {
     const newPassword = window.prompt("새 비밀번호를 입력하세요.");
     if (!newPassword) return;
 
-    if (newPassword.trim().length < 4) {
-      alert("비밀번호는 4자 이상 입력해주세요.");
+    if (!passwordPattern.test(newPassword.trim())) {
+      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
       return;
     }
 

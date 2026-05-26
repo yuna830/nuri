@@ -51,16 +51,18 @@ const isBlank = (value) =>
     String(value).trim() === "주소 미등록" ||
     String(value).trim() === "기록 없음";
 
-export const hasMissingRequiredSeniorInfo = (senior) => {
-    const requiredValues = [
-        senior.phone,
-        senior.address || senior.region,
-        senior.healthInfo || senior.healthStatus,
-        senior.birthDate || senior.age,
-        senior.gender,
-    ];
+export const hasMissingRequiredSeniorInfo = (senior) =>
+    getMissingSeniorInfoFields(senior).length > 0;
 
-    return requiredValues.some(isBlank);
+export const getMissingSeniorInfoFields = (senior) => {
+    const fields = [];
+
+    if (isBlank(senior.phone)) fields.push("연락처");
+    if (isBlank(senior.address) && isBlank(senior.region)) fields.push("주소");
+    if (isBlank(senior.birthDate) && isBlank(senior.age)) fields.push("생년월일/나이");
+    if (isBlank(senior.gender)) fields.push("성별");
+
+    return fields;
 };
 
 export const getSeniorSummaryCounts = (seniors = []) => ({

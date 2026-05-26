@@ -57,7 +57,6 @@ public class AlertController {
         return createGuardianAlerts(request, "SOS_CANCEL", "SOS 잘못 누름", "님이 SOS를 잘못 눌렀다고 알렸습니다.");
     }
 
-
     @PostMapping("/call")
     public List<Alert> createCallAlert(@RequestBody SosAlertRequest request) {
         return createGuardianAlerts(request, "CALL_REQUEST", "전화 요청", "님에게 보호자가 전화를 요청했습니다.");
@@ -73,6 +72,107 @@ public class AlertController {
                 "안전 구역 이탈",
                 "님이 안전 구역을 벗어났습니다. 현재 위치: " + address
         );
+    }
+
+    @PostMapping("/info-update-request")
+    public List<Alert> createInfoUpdateRequestAlert(@RequestBody InfoUpdateRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<Alert> alerts = new ArrayList<>();
+
+        boolean sendToSenior = request.toSenior() == null || request.toSenior();
+        boolean sendToGuardian = request.toGuardian() == null || request.toGuardian();
+
+        if (sendToSenior) {
+            Alert seniorAlert = new Alert();
+            seniorAlert.setSeniorId(request.seniorId());
+            seniorAlert.setGuardianId(null);
+            seniorAlert.setType("INFO_UPDATE_REQUEST");
+            seniorAlert.setTitle("정보 입력 요청");
+            seniorAlert.setMessage(buildInfoUpdateMessage(senior.getName(), request.missingFields()));
+            seniorAlert.setIsRead(false);
+            alerts.add(alertRepository.save(seniorAlert));
+        }
+
+        if (sendToGuardian) {
+            List<GuardianSenior> guardianSeniors =
+                    guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+            guardianSeniors.forEach(link -> {
+                Alert guardianAlert = new Alert();
+                guardianAlert.setSeniorId(request.seniorId());
+                guardianAlert.setGuardianId(link.getGuardianId());
+                guardianAlert.setType("INFO_UPDATE_REQUEST");
+                guardianAlert.setTitle("보호 대상자 정보 입력 요청");
+                guardianAlert.setMessage(buildGuardianInfoUpdateMessage(senior.getName(), request.missingFields()));
+                guardianAlert.setIsRead(false);
+                alerts.add(alertRepository.save(guardianAlert));
+            });
+        }
+
+        return alerts;
+    }
+
+    private String buildInfoUpdateMessage(String seniorName, List<String> missingFields) {
+        String fieldsText = missingFields == null || missingFields.isEmpty()
+                ? "필수 정보"
+                : String.join(", ", missingFields);
+
+        return seniorName + "님의 " + fieldsText + " 입력이 필요합니다. 정보를 확인하고 입력해주세요.";
+    }
+
+    private String buildGuardianInfoUpdateMessage(String seniorName, List<String> missingFields) {
+        String fieldsText = missingFields == null || missingFields.isEmpty()
+                ? "필수 정보"
+                : String.join(", ", missingFields);
+
+        return "연결된 보호 대상자 " + seniorName + "님의 " + fieldsText + " 입력이 필요합니다.";
+    }
+
+    public record InfoUpdateRequest(
+            Long seniorId,
+            List<String> missingFields,
+            Boolean toSenior,
+            Boolean toGuardian
+    ) {
+    }
+
+    @PostMapping("/welfare-consult-request")
+    public List<Alert> createWelfareConsultRequest(@RequestBody WelfareConsultRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String message = request.message() == null || request.message().isBlank()
+                ? senior.getName() + "님과 관련해 복지사 상담 확인이 필요합니다."
+                : request.message().trim();
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("WELFARE_CONSULT_REQUEST");
+                    alert.setTitle("복지사 상담 요청");
+                    alert.setMessage(message);
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record WelfareConsultRequest(
+            Long seniorId,
+            String message
+    ) {
     }
 
     @PostMapping("/fall")
@@ -252,6 +352,28 @@ public class AlertController {
 
         alert.setIsRead(true);
         return alertRepository.save(alert);
+    }
+
+    @PatchMapping("/{id}/welfare-consult-response")
+    public Alert respondWelfareConsultation(
+            @PathVariable Long id,
+            @RequestBody WelfareConsultResponse request
+    ) {
+        Alert alert = alertRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+
+        alert.setIsRead(true);
+        alert.setGuardianResponseType(request.responseType());
+        alert.setGuardianScheduleAt(request.scheduleAt());
+        alert.setGuardianRespondedAt(LocalDateTime.now());
+
+        return alertRepository.save(alert);
+    }
+
+    public record WelfareConsultResponse(
+            String responseType,
+            String scheduleAt
+    ) {
     }
 
     public record SosAlertRequest(

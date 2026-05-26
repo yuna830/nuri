@@ -72,6 +72,14 @@ public class JobInterestController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/senior/{seniorId}")
+    public List<JobInterestResponse> getBySenior(@PathVariable Long seniorId) {
+        return jobInterestRepository.findBySeniorIdOrderByCreatedAtDesc(seniorId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private JobInterestResponse toResponse(JobInterest interest) {
         Senior senior = interest.getSeniorId() == null
                 ? null

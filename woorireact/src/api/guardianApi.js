@@ -127,3 +127,24 @@ export function deleteGuardianSenior(guardianId, seniorId) {
     method: "DELETE",
   });
 }
+
+export function updateSeniorRequestedInfo(seniorId, data) {
+  return request(API_BASE_URL, `/api/seniors/${seniorId}/requested-info`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getSeniorJobInterests(seniorId) {
+  return requestArray(API_BASE_URL, `/api/job-interests/senior/${seniorId}`);
+}
+
+export function respondWelfareConsultation(alertId, { responseType, scheduleAt }) {
+  return request(API_BASE_URL, `/api/alerts/${alertId}/welfare-consult-response`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      responseType,
+      scheduleAt,
+    }),
+  });
+}

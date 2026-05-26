@@ -1,20 +1,24 @@
 package com.nuri.woori.controller;
 
 import com.nuri.woori.entity.PoliceMissingAlert;
-import com.nuri.woori.service.PoliceMissingAlertService;
-import org.springframework.web.bind.annotation.*;
 import com.nuri.woori.repository.PoliceMissingAlertRepository;
+import com.nuri.woori.service.PoliceMissingAlertService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Base64;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/police-missing-alerts")
@@ -32,7 +36,7 @@ public class PoliceMissingAlertController {
         this.policeMissingAlertRepository = policeMissingAlertRepository;
     }
 
-    @GetMapping
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8")
     public List<PoliceMissingAlert> getLatestAlerts() {
         return policeMissingAlertService.getLatestAlerts();
     }
@@ -42,11 +46,13 @@ public class PoliceMissingAlertController {
         PoliceMissingAlert alert = policeMissingAlertRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        if (alert.getPhotoUrl() == null || alert.getPhotoUrl().isBlank()) {
+        String photoBase64 = alert.getPhotoUrl();
+
+        if (photoBase64 == null || photoBase64.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        byte[] imageBytes = Base64.getMimeDecoder().decode(alert.getPhotoUrl());
+        byte[] imageBytes = Base64.getMimeDecoder().decode(photoBase64);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
@@ -73,17 +79,14 @@ public class PoliceMissingAlertController {
             @RequestParam String from,
             @RequestParam String to
     ) {
-        LocalDate start = LocalDate.parse(from);
-        LocalDate end = LocalDate.parse(to);
+        return policeMissingAlertService.syncAlerts(
+                LocalDate.parse(from),
+                LocalDate.parse(to)
+        );
+    }
 
-        Map<String, PoliceMissingAlert> result = new LinkedHashMap<>();
-
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            for (PoliceMissingAlert alert : policeMissingAlertService.syncAlerts(date)) {
-                result.put(alert.getExternalKey(), alert);
-            }
-        }
-
-        return new ArrayList<>(result.values());
+    @PostMapping("/sync-all")
+    public List<PoliceMissingAlert> syncAllAlerts() {
+        return policeMissingAlertService.syncAllAlerts();
     }
 }

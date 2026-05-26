@@ -102,17 +102,36 @@ export default function KakaoMap({
         lat: safeZone.centerLatitude,
         lng: safeZone.centerLongitude,
       });
+      const radius = Number(safeZone.radiusMeters || 500);
+      const latOffset = radius / 111000;
+      const lngOffset = radius / (111000 * Math.cos((safeZone.centerLatitude * Math.PI) / 180));
+
+      const bounds = new maps.LatLngBounds();
+      bounds.extend(new maps.LatLng(safeZone.centerLatitude + latOffset, safeZone.centerLongitude));
+      bounds.extend(new maps.LatLng(safeZone.centerLatitude - latOffset, safeZone.centerLongitude));
+      bounds.extend(new maps.LatLng(safeZone.centerLatitude, safeZone.centerLongitude + lngOffset));
+      bounds.extend(new maps.LatLng(safeZone.centerLatitude, safeZone.centerLongitude - lngOffset));
+
+      if (currentLocation) {
+        bounds.extend(toLatLng(maps, currentLocation));
+      }
+
+      mapRef.current.setBounds(bounds);
+
       const circle = new maps.Circle({
         center: safeZoneCenter,
-        radius: safeZone.radiusMeters,
+        radius,
         strokeWeight: 2,
         strokeColor: "#4F6F52",
         strokeOpacity: 0.85,
         fillColor: "#86A788",
         fillOpacity: 0.18,
       });
+
       const marker = new maps.Marker({ position: safeZoneCenter });
-      const info = new maps.InfoWindow({ content: `<div style="padding:6px 10px;font-size:12px;">${safeZoneLabel}</div>` });
+      const info = new maps.InfoWindow({
+        content: `<div style="padding:6px 10px;font-size:12px;">${safeZoneLabel}</div>`,
+      });
 
       circle.setMap(mapRef.current);
       marker.setMap(mapRef.current);
@@ -123,7 +142,9 @@ export default function KakaoMap({
     if (currentLocation) {
       const position = toLatLng(maps, currentLocation);
       const marker = new maps.Marker({ position });
-      const info = new maps.InfoWindow({ content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>` });
+      const info = new maps.InfoWindow({
+        content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>`,
+      });
 
       marker.setMap(mapRef.current);
       maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
@@ -137,6 +158,7 @@ export default function KakaoMap({
         strokeColor: "#C93A32",
         strokeOpacity: 0.85,
       });
+
       polyline.setMap(mapRef.current);
       overlaysRef.current.push(polyline);
     }

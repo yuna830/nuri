@@ -8,6 +8,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     question: str
+    search_query: str | None = None
     limit: int = 5
 
 
@@ -34,6 +35,7 @@ def chat(request: ChatRequest):
     rag_service = RagService()
     result = rag_service.ask(
         question=question,
+        search_query=request.search_query,
         limit=request.limit,
     )
 

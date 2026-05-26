@@ -3,20 +3,21 @@
 const WELFARE_DECISIONS_STORAGE_KEY = "welfareDecisions";
 const WELFARE_DECISION_DETAILS_STORAGE_KEY = "welfareDecisionDetails";
 
-const readJsonStorage = (key) => {
+const getSavedWelfareDecisions = () => {
     try {
-        const saved = JSON.parse(localStorage.getItem(key) || "{}");
-        return saved && typeof saved === "object" ? saved : {};
+        return JSON.parse(localStorage.getItem(WELFARE_DECISIONS_STORAGE_KEY) || "{}");
     } catch {
         return {};
     }
 };
 
-export const getSavedWelfareDecisions = () =>
-    readJsonStorage(WELFARE_DECISIONS_STORAGE_KEY);
-
-export const getSavedWelfareDecisionDetails = () =>
-    readJsonStorage(WELFARE_DECISION_DETAILS_STORAGE_KEY);
+const getSavedWelfareDecisionDetails = () => {
+    try {
+        return JSON.parse(localStorage.getItem(WELFARE_DECISION_DETAILS_STORAGE_KEY) || "{}");
+    } catch {
+        return {};
+    }
+};
 
 export const getJobRequestGroup = (senior) =>
     Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
@@ -52,12 +53,7 @@ export const normalizeSenior = (senior) => {
             placeName : `${senior.name || "대상자"} 자택`,
             radiusMeter : 500,
         },
-        lastGps : senior.lastGps || {
-            address : senior.region || "위치 미확인",
-            latitude : 37.5665,
-            longitude : 126.978,
-            recordedAt : "기록 없음",
-        },
+        lastGps : senior.lastGps || null,
     };
 };
 
