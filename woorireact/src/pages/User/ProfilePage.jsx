@@ -8,6 +8,7 @@ import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
+  CURRENT_BENEFITS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
@@ -328,9 +329,11 @@ export default function ProfilePage() {
         return (
           <section className="pr-section">
             <div className="pr-section-title">복지정보</div>
-            <div className="pr-hint">복지 지원 대상 여부를 확인하기 위한 소득/가구 정보를 선택해주세요.</div>
+            <div className="pr-hint">복지 지원 대상 여부와 이미 받고 있는 혜택을 확인하기 위한 정보입니다.</div>
             <ChipField label="소득 구분" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
             <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
+            <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
+            <TextareaField label="그 밖에 받고 있는 혜택이나 참고사항" value={form.welfareMemo} onChange={(value) => set("welfareMemo", value)} rows={4} />
           </section>
         );
 

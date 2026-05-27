@@ -377,6 +377,41 @@
   line-height: 1.5;
 }
 
+.lp-safe-zone-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.lp-safe-zone-item {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+}
+
+.lp-safe-zone-item.active {
+  border-color: #86a788;
+  box-shadow: 0 0 0 2px rgba(134, 167, 136, 0.14);
+}
+
+.lp-safe-zone-item strong,
+.lp-safe-zone-item span {
+  display: block;
+}
+
+.lp-safe-zone-item strong {
+  color: #1e2a1f;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.lp-safe-zone-item span {
+  color: #7a9a7c;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .lp-clear-btn {
   background: transparent;
   border: 1px solid #d4e8d6;

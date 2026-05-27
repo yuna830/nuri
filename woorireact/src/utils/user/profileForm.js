@@ -54,6 +54,16 @@ export const REST_NEEDS = [NONE, "1시간마다 쉬어야 함", "30분마다 쉬
 export const AVOID_ENVIRONMENTS = ["소음 많은 곳", "먼지 많은 곳", "덥거나 추운 곳", "미끄러운 바닥", "사람 많은 곳", "혼자 하는 작업"];
 export const INCOME_LEVELS = [NONE, "기초생활수급자", "차상위계층", "중위소득 50% 이하", "중위소득 100% 이하", "일반"];
 export const HOUSEHOLD_TYPES = [NONE, "독거 가구", "부부 가구", "자녀와 동거", "기타 가구"];
+export const CURRENT_BENEFITS = [
+  "기초연금",
+  "노인맞춤돌봄서비스",
+  "장기요양등급",
+  "응급안전안심서비스",
+  "기초생활보장",
+  "의료급여",
+  "주거급여",
+  "노인일자리 사업",
+];
 export const SECTIONS = [
   { id: "personal", label: "인적사항" },
   { id: "body", label: "신체정보" },
@@ -156,6 +166,8 @@ export const defaultForm = {
   allergies: "",
   incomeLevel: NONE,
   householdType: NONE,
+  currentBenefits: [],
+  welfareMemo: "",
   medicineCount: NONE,
   medications: [],
   diabetes: NONE,
@@ -260,6 +272,8 @@ export const profileToForm = (profile = {}) => {
     allergies: healthInfo.allergies ?? "",
     incomeLevel: healthInfo.incomeLevel ?? senior.incomeLevel ?? NONE,
     householdType: healthInfo.householdType ?? senior.householdType ?? NONE,
+    currentBenefits: splitCsv(healthInfo.currentBenefits),
+    welfareMemo: healthInfo.welfareMemo ?? "",
     medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
     medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
     diabetes: healthInfo.diabetes ?? NONE,
@@ -352,6 +366,8 @@ export const formToProfile = (profile, form) => {
       allergies: normalized.allergies,
       incomeLevel: normalized.incomeLevel,
       householdType: normalized.householdType,
+      currentBenefits: normalized.currentBenefits.join(","),
+      welfareMemo: normalized.welfareMemo,
       medicineCount: normalized.medicineCount,
       medications: normalized.medications,
       medicationsJson: JSON.stringify(normalized.medications),

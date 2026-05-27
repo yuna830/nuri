@@ -87,6 +87,8 @@ public class SeniorController {
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -308,6 +310,8 @@ public class SeniorController {
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -778,6 +782,8 @@ public class SeniorController {
             String allergies,
             String incomeLevel,
             String householdType,
+            List<String> currentBenefits,
+            String welfareMemo,
             String medicineCount,
             String medicationsJson,
             String diabetes,

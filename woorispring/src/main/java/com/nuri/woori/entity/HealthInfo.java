@@ -26,6 +26,13 @@ public class HealthInfo {
     private String allergies;
     private String incomeLevel;
     private String householdType;
+
+    @Column(columnDefinition = "TEXT")
+    private String currentBenefits;
+
+    @Column(columnDefinition = "TEXT")
+    private String welfareMemo;
+
     private String medicineCount;
 
     @Column(columnDefinition = "TEXT")
