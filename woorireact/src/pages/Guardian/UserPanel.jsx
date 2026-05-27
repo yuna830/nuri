@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
-import { resolveUploadUrl } from "../../api/userPageApi";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi";
+import { updateSeniorRequestedInfo } from "../../api/guardianApi";
 
-const SAFE_ZONE_SEARCH_CACHE_KEY = "safeZoneSearchCache";
-const SAFE_ZONE_SEARCH_COOLDOWN_KEY = "safeZoneSearchCooldownUntil";
-const SAFE_ZONE_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
-const SAFE_ZONE_SEARCH_COOLDOWN_MS = 2 * 60 * 1000;
 const ACTIVITY_LABELS = {
   activity: "활동성",
   stability: "안정성",
@@ -67,65 +63,6 @@ const getActivityReportSummary = (activityReport) => {
   };
 };
 
-const readSearchCache = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SAFE_ZONE_SEARCH_CACHE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-};
-
-const searchSafeZonePlaces = async (keyword) => {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  const now = Date.now();
-  const cooldownUntil = Number(localStorage.getItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY) || 0);
-
-  if (cooldownUntil > now) {
-    throw new Error("SEARCH_COOLDOWN");
-  }
-
-  const cache = readSearchCache();
-  const cached = cache[normalizedKeyword];
-
-  if (cached && now - cached.savedAt < SAFE_ZONE_SEARCH_CACHE_TTL_MS) {
-    return cached.results;
-  }
-
-  const results = await searchPlacesByKakao(keyword, { size: 5 }).catch(async (error) => {
-    if (error.message === "KAKAO_RATE_LIMIT" || error.message === "KAKAO_COOLDOWN") {
-      localStorage.setItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY, String(now + SAFE_ZONE_SEARCH_COOLDOWN_MS));
-      throw new Error("SEARCH_RATE_LIMIT");
-    }
-
-    const response = await fetch(
-      `/nominatim/search?format=json&q=${encodeURIComponent(keyword)}&limit=5&countrycodes=kr`
-    );
-
-    if (response.status === 429) {
-      localStorage.setItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY, String(now + SAFE_ZONE_SEARCH_COOLDOWN_MS));
-      throw new Error("SEARCH_RATE_LIMIT");
-    }
-
-    if (!response.ok) {
-      throw new Error("SEARCH_FAILED");
-    }
-
-    return response.json();
-  });
-  localStorage.setItem(
-    SAFE_ZONE_SEARCH_CACHE_KEY,
-    JSON.stringify({
-      ...cache,
-      [normalizedKeyword]: {
-        savedAt: now,
-        results,
-      },
-    })
-  );
-
-  return results;
-};
-
 function UserPanel({
   selectedElder,
   selectedElderId,
@@ -133,13 +70,13 @@ function UserPanel({
   isOutsideSafeZone,
   distance,
   lastNormalLocation,
+  safeZones,
   safeZoneForm,
   formatShortAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
-  onSafeZoneChange,
-  onSelectSafeZonePlace,
-  onSaveSafeZone,
+  onSelectSafeZoneForm,
+  onDeleteSafeZone,
   isAddElderOpen,
   seniorSearch,
   setSeniorSearch,
@@ -160,9 +97,6 @@ function UserPanel({
     return savedImages ? JSON.parse(savedImages) : {};
   });
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [safeZoneKeyword, setSafeZoneKeyword] = useState("");
-  const [safeZoneResults, setSafeZoneResults] = useState([]);
-  const [isSearchingSafeZone, setIsSearchingSafeZone] = useState(false);
 
   const profileMenuRef = useRef(null);
 
@@ -189,7 +123,11 @@ function UserPanel({
     navigate("/user");
   };
 
-  const guardianProfileImage = profileImages[selectedElderId] ?? null;
+  const savedGuardianProfileImage = profileImages[selectedElderId] ?? null;
+
+  const guardianProfileImage = savedGuardianProfileImage
+    ? resolveUploadUrl(savedGuardianProfileImage)
+    : null;
 
   const userProfileImage = selectedElder?.profileImageUrl
     ? resolveUploadUrl(selectedElder.profileImageUrl)
@@ -228,15 +166,17 @@ function UserPanel({
     document.getElementById("profileImageInput").click();
   };
 
-  const handleProfileImageChange = (event) => {
+  const handleProfileImageChange = async (event) => {
     const file = event.target.files[0];
 
-    if (!file) return;
+    if (!file || !selectedElder?.id) return;
 
-    const reader = new FileReader();
+    try {
+      const { imageUrl } = await uploadProfileImage(file);
 
-    reader.onload = () => {
-      const imageUrl = reader.result;
+      await updateSeniorRequestedInfo(selectedElder.id, {
+        profileImageUrl: imageUrl,
+      });
 
       setProfileImages((prev) => {
         const next = {
@@ -248,66 +188,42 @@ function UserPanel({
         return next;
       });
 
+      selectedElder.profileImageUrl = imageUrl;
       setIsProfileMenuOpen(false);
-    };
-
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    } catch (error) {
+      console.error("프로필 사진 저장 실패:", error);
+      alert("프로필 사진 저장에 실패했습니다.");
+    } finally {
+      event.target.value = "";
+    }
   };
 
   const handleChangeProfileImage = () => {
     document.getElementById("profileImageInput").click();
   };
 
-  const handleDeleteProfileImage = () => {
-    setProfileImages((prev) => {
-      const next = { ...prev };
-      delete next[selectedElderId];
-
-      localStorage.setItem("guardianProfileImages", JSON.stringify(next));
-      return next;
-    });
-
-    setIsProfileMenuOpen(false);
-  };
-
-  const handleSearchSafeZone = async () => {
-    const keyword = safeZoneKeyword.trim();
-
-    if (keyword.length < 2) {
-      alert("장소나 주소를 2글자 이상 입력해 주세요.");
-      return;
-    }
+  const handleDeleteProfileImage = async () => {
+    if (!selectedElder?.id) return;
 
     try {
-      setIsSearchingSafeZone(true);
-      const results = await searchSafeZonePlaces(keyword);
-      setSafeZoneResults(results);
+      await updateSeniorRequestedInfo(selectedElder.id, {
+        profileImageUrl: "",
+      });
+
+      setProfileImages((prev) => {
+        const next = { ...prev };
+        delete next[selectedElderId];
+
+        localStorage.setItem("guardianProfileImages", JSON.stringify(next));
+        return next;
+      });
+
+      selectedElder.profileImageUrl = "";
+      setIsProfileMenuOpen(false);
     } catch (error) {
-      console.error("장소 검색 실패:", error);
-      if (error.message === "SEARCH_RATE_LIMIT" || error.message === "SEARCH_COOLDOWN") {
-        alert("장소 검색 요청이 너무 많아요. 잠시 후 다시 검색해 주세요.");
-      } else {
-        alert("장소 검색에 실패했습니다.");
-      }
-    } finally {
-      setIsSearchingSafeZone(false);
+      console.error("프로필 사진 삭제 실패:", error);
+      alert("프로필 사진 삭제에 실패했습니다.");
     }
-  };
-
-  const handleSelectSafeZone = (place) => {
-    onSelectSafeZonePlace({
-      display_name:
-        place.display_name ||
-        place.road_address_name ||
-        place.address_name ||
-        place.place_name,
-      lat: place.lat || place.y,
-      lon: place.lon || place.x,
-    });
-
-    setSafeZoneKeyword("");
-    setSafeZoneResults([]);
   };
 
   return (
@@ -475,81 +391,40 @@ function UserPanel({
 
         {isSafeZoneOpen && (
           <section className="card safe-zone-card">
-            <h2>안전 반경 설정</h2>
+            <div className="safe-zone-card-header">
+              <h2>안전 반경 관리</h2>
+              <span>{safeZones.length}/3</span>
+            </div>
 
-            <label>
-              장소 이름
-              <input
-                name="name"
-                value={safeZoneForm.name}
-                onChange={onSafeZoneChange}
-              />
-            </label>
-
-            <label>
-              주소
-              <input
-                name="address"
-                value={safeZoneForm.address || ""}
-                onChange={onSafeZoneChange}
-                placeholder="예: 서울특별시 광진구 자양동"
-              />
-            </label>
-
-            <label>
-              위치 검색
-              <div className="safe-zone-search">
-                <input
-                  value={safeZoneKeyword}
-                  onChange={(event) => setSafeZoneKeyword(event.target.value)}
-                  placeholder={safeZoneForm.address || "예: 자양고등학교"}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      handleSearchSafeZone();
-                    }
-                  }}
-                />
-
-                <button type="button" onClick={handleSearchSafeZone}>
-                  {isSearchingSafeZone ? "검색 중" : "검색"}
-                </button>
-              </div>
-            </label>
-
-            {safeZoneResults.length > 0 && (
-              <div className="safe-zone-results">
-                {safeZoneResults.map((place, index) => (
+            <div className="safe-zone-list">
+              {safeZones.map((zone) => (
+                <article
+                  key={zone.id}
+                  className={`safe-zone-list-item${zone.id === safeZoneForm.id ? " active" : ""}`}
+                >
                   <button
-                    key={`${place.place_id || place.id || index}-${place.lat || place.y}-${place.lon || place.x}`}
                     type="button"
-                    onClick={() => handleSelectSafeZone(place)}
+                    className="safe-zone-list-content"
+                    onClick={() => onSelectSafeZoneForm(zone.id)}
                   >
-                    {place.display_name ||
-                      place.place_name ||
-                      place.road_address_name ||
-                      place.address_name}
+                    <strong>{zone.name || "안전 반경"}</strong>
+                    <span>{zone.radiusMeters ?? 500}m</span>
+                    <small>{zone.address || "주소 정보 없음"}</small>
                   </button>
-                ))}
-              </div>
-            )}
 
-            <label>
-              반경
-              <select
-                name="radiusMeters"
-                value={safeZoneForm.radiusMeters}
-                onChange={onSafeZoneChange}
-              >
-                <option value={300}>300m</option>
-                <option value={500}>500m</option>
-                <option value={1000}>1km</option>
-                <option value={1500}>1.5km</option>
-              </select>
-            </label>
-
-            <button className="primary-button" type="button" onClick={onSaveSafeZone}>
-              저장
-            </button>
+                  {safeZones.length > 1 && (
+                    <button
+                      type="button"
+                      className="safe-zone-remove-button"
+                      onClick={() => onDeleteSafeZone(zone.id)}
+                      aria-label={`${zone.name || "안전 반경"} 삭제`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
           </section>
         )}
       </aside>

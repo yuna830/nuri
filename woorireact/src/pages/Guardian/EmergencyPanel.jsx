@@ -2,6 +2,8 @@
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
+import { sendCheckInMessage } from "../../api/guardianApi.js";
+import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -21,12 +23,74 @@ const formatPoliceOccurredDate = (value) => {
   return value;
 };
 
+const normalizeText = (value) => String(value || "").trim();
+
+const getAgeGroup = (age) => {
+  const number = Number(String(age || "").replace(/\D/g, ""));
+
+  if (!Number.isFinite(number) || number <= 0) {
+    return "";
+  }
+
+  return `${Math.floor(number / 10) * 10}대`;
+};
+
+const getRegionTokens = (address) => {
+  return normalizeText(address)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+};
+
+const getMissingSimilarity = (elder, alert) => {
+  if (!elder || !alert) {
+    return null;
+  }
+
+  const matches = [];
+
+  const elderGender = normalizeText(elder.gender);
+  const alertGender = normalizeText(alert.gender);
+
+  if (elderGender && alertGender && elderGender === alertGender) {
+    matches.push("성별 일치");
+  }
+
+  const elderAgeGroup = getAgeGroup(elder.age);
+  const alertAgeGroup = getAgeGroup(alert.ageNow || alert.age);
+
+  if (elderAgeGroup && alertAgeGroup && elderAgeGroup === alertAgeGroup) {
+    matches.push("나이대 유사");
+  }
+
+  const elderRegions = getRegionTokens(elder.address || elder.region);
+  const alertRegions = getRegionTokens(alert.occurredAddress);
+
+  const hasRegionMatch = elderRegions.some((region) =>
+    alertRegions.some((alertRegion) => alertRegion.includes(region) || region.includes(alertRegion))
+  );
+ 
+  if (hasRegionMatch) {
+    matches.push("지역 유사");
+  }
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return {
+    label: matches.length >= 2 ? "조건 일부 유사" : "조건 1개 일치",
+    matches,
+  };
+};
+
 function EmergencyPanel({
   selectedElder,
   displayedAlerts,
   policeAlerts,
   routeHistory,
   lastNormalLocation,
+  safeZones = [],
   safeZoneForm,
   distance,
   isMissingReportOpen,
@@ -34,6 +98,7 @@ function EmergencyPanel({
   selectedRouteDate,
   onRouteDateChange,
   onSafeZoneChange,
+  onAddSafeZoneForm,
   onSaveSafeZone,
   setMissingDescription,
   missingImagePreview,
@@ -124,6 +189,7 @@ function EmergencyPanel({
   };
 
   const visiblePoliceAlert = policeAlerts?.[policeIndex] ?? null;
+  const policeSimilarity = getMissingSimilarity(selectedElder, visiblePoliceAlert);
   const filteredPoliceAlerts = (policeAlerts ?? []).filter((alert) => {
     const keyword = policeSearchKeyword.trim();
 
@@ -212,6 +278,48 @@ function EmergencyPanel({
 
     setSafeZoneKeyword(address);
     setSafeZoneResults([]);
+  };
+
+  const defaultCheckInMessage = `${selectedElder.name}님, 오늘 컨디션은 어떠세요? 식사는 잘 챙기셨나요?`;
+
+  const [isCheckInMessageOpen, setIsCheckInMessageOpen] = useState(false);
+  const [checkInMessage, setCheckInMessage] = useState(defaultCheckInMessage);
+  const [isSendingCheckInMessage, setIsSendingCheckInMessage] = useState(false);
+
+  const openCheckInMessage = () => {
+    setCheckInMessage(defaultCheckInMessage);
+    setIsCheckInMessageOpen(true);
+  };
+
+  const closeCheckInMessage = () => {
+    setIsCheckInMessageOpen(false);
+  };
+
+  const handleSendCheckInMessage = async () => {
+    if (!checkInMessage.trim()) {
+      alert("메시지 내용을 입력해주세요.");
+      return;
+    }
+
+    const guardianId = getCurrentGuardianId();
+
+    try {
+      setIsSendingCheckInMessage(true);
+
+      await sendCheckInMessage({
+        seniorId: selectedElder.id,
+        guardianId,
+        message: checkInMessage.trim(),
+      });
+
+      alert("안부 메시지를 보냈습니다.");
+      setIsCheckInMessageOpen(false);
+    } catch (error) {
+      console.error("안부 메시지 전송 실패:", error);
+      alert("안부 메시지 전송에 실패했습니다.");
+    } finally {
+      setIsSendingCheckInMessage(false);
+    }
   };
 
 
@@ -314,17 +422,34 @@ function EmergencyPanel({
                 </div>
 
                 <div className="guardian-safe-zone-summary">
-                  <button
-                    type="button"
-                    className="guardian-safe-zone-text-button"
-                    onClick={() => setIsSafeZoneEditorOpen((prev) => !prev)}
-                  >
-                    <span>안전 반경</span>
-                    <strong>
+                  <span className="guardian-safe-zone-label">안전 반경</span>
+
+                  <div className="guardian-safe-zone-main-row">
+                    <button
+                      type="button"
+                      className="guardian-safe-zone-value-button"
+                      onClick={() => setIsSafeZoneEditorOpen((prev) => !prev)}
+                    >
                       {safeZoneForm?.name || "집"} · {safeZoneForm?.radiusMeters ?? 500}m
-                    </strong>
-                    <small>{safeZoneForm?.address || "주소 정보 없음"}</small>
-                  </button>
+                    </button>
+
+                    {safeZones.length < 3 && (
+                      <button
+                        type="button"
+                        className="guardian-safe-zone-add-button"
+                        onClick={() => {
+                          onAddSafeZoneForm();
+                          setIsSafeZoneEditorOpen(true);
+                        }}
+                      >
+                        추가
+                      </button>
+                    )}
+                  </div>
+
+                  <small className="guardian-safe-zone-address-text">
+                    {safeZoneForm?.address || "주소 정보 없음"}
+                  </small>
 
                   {isSafeZoneEditorOpen && (
                     <div className="guardian-safe-zone-editor">
@@ -492,20 +617,64 @@ function EmergencyPanel({
               <div className="guardian-checkin-body">
                 <span>안부 묻기</span>
                 <strong>오늘 컨디션이나 식사 여부를 확인해 보세요.</strong>
-                <p>가까이 있지 않아도 짧게 연락해서 상태를 확인할 수 있습니다.</p>
 
                 <div className="guardian-checkin-actions">
                   <button type="button" onClick={() => window.location.href = `tel:${selectedElder.phone}`}>
                     전화하기
                   </button>
 
-                  <button type="button">
+                  <button type="button" onClick={openCheckInMessage}>
                     메시지 보내기
                   </button>
                 </div>
               </div>
             </section>
           </>
+        )}
+
+        {isCheckInMessageOpen && (
+          <div className="medication-reminder-backdrop" onClick={closeCheckInMessage}>
+            <section
+              className="medication-reminder-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="medication-reminder-header">
+                <div>
+                  <h2>안부 메시지 보내기</h2>
+                  <p>{selectedElder.name}님에게 안부 확인 메시지를 보냅니다.</p>
+                </div>
+
+                <button type="button" onClick={closeCheckInMessage}>
+                  닫기
+                </button>
+              </div>
+
+              <div className="medication-reminder-form">
+                <label>
+                  메시지 내용
+                  <textarea
+                    value={checkInMessage}
+                    onChange={(event) => setCheckInMessage(event.target.value)}
+                    rows={5}
+                  />
+                </label>
+
+                <div className="medication-reminder-actions">
+                  <button type="button" onClick={closeCheckInMessage}>
+                    취소
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendCheckInMessage}
+                    disabled={isSendingCheckInMessage}
+                  >
+                    {isSendingCheckInMessage ? "전송 중..." : "메시지 보내기"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
         )}
 
         {activePanelTab === "welfare" && (
@@ -574,13 +743,21 @@ function EmergencyPanel({
                       )}
 
                       <div>
-                        <strong>{visiblePoliceAlert.name}</strong>
+                        <strong>
+                          {visiblePoliceAlert.name}
+                          {policeSimilarity && (
+                            <span className="police-similarity-name">
+                              ({policeSimilarity.matches.join(" · ")})
+                            </span>
+                          )}
+                        </strong>
                         <span>
                           {visiblePoliceAlert.gender}
                           {visiblePoliceAlert.ageNow ? ` · 현재 ${visiblePoliceAlert.ageNow}세` : ""}
                         </span>
                         <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
                         <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
+
                         <small>자료 출처: 경찰청</small>
                       </div>
                     </article>
@@ -686,11 +863,13 @@ function EmergencyPanel({
                         setIsPoliceSearchOpen(false);
                       }}
                     >
-                      {alert.id && (
+                      {alert.id ? (
                         <img
                           src={`http://localhost:8181/api/police-missing-alerts/${alert.id}/photo`}
                           alt={`${alert.name || "실종자"} 실종정보 사진`}
                         />
+                      ) : (
+                        <span className="police-search-photo-placeholder">사진 없음</span>
                       )}
                     </button>
                   );

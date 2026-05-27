@@ -1,13 +1,33 @@
-export const getDefaultSafeZone = (elder) => ({
-  name: "기본구역",
-  address: elder.address,
-  centerLatitude: elder.center.lat,
-  centerLongitude: elder.center.lng,
-  radiusMeters: elder.radius,
+export const getDefaultSafeZones = (elder) => ([
+  {
+    id: "default-home",
+    name: "집",
+    address: elder.address,
+    centerLatitude: elder.center.lat,
+    centerLongitude: elder.center.lng,
+    radiusMeters: elder.radius || 500,
+  },
+]);
+
+export const getPrimarySafeZone = (safeZones, elder) => {
+  if (Array.isArray(safeZones) && safeZones.length > 0) {
+    return safeZones[0];
+  }
+
+  return getDefaultSafeZones(elder)[0];
+};
+
+const normalizeSafeZone = (safeZone, elder, index = 0) => ({
+  id: safeZone.id ?? `local-${index}`,
+  name: safeZone.name || "안전 반경",
+  address: safeZone.address || elder.address,
+  centerLatitude: safeZone.centerLatitude ?? elder.center.lat,
+  centerLongitude: safeZone.centerLongitude ?? elder.center.lng,
+  radiusMeters: safeZone.radiusMeters ?? elder.radius ?? 500,
 });
 
-export const loadSafeZone = async (elder) => {
-  const cacheKey = `guardian-safe-zone:${elder.id}`;
+export const loadSafeZones = async (elder) => {
+  const cacheKey = `guardian-safe-zones:${elder.id}`;
 
   try {
     const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
@@ -22,33 +42,53 @@ export const loadSafeZone = async (elder) => {
   const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${elder.id}`);
 
   if (!response.ok || response.status === 204) {
-    return getDefaultSafeZone(elder);
+    return getDefaultSafeZones(elder);
   }
 
-  const safeZone = await response.json();
+  const safeZones = await response.json();
 
-  const normalizedSafeZone = {
-    name: safeZone.name || "기본구역",
-    address: safeZone.address || elder.address,
-    centerLatitude: safeZone.centerLatitude ?? elder.center.lat,
-    centerLongitude: safeZone.centerLongitude ?? elder.center.lng,
-    radiusMeters: safeZone.radiusMeters ?? elder.radius,
-  };
+  const normalizedSafeZones = Array.isArray(safeZones) && safeZones.length > 0
+    ? safeZones.map((safeZone, index) => normalizeSafeZone(safeZone, elder, index))
+    : getDefaultSafeZones(elder);
 
   try {
     sessionStorage.setItem(
       cacheKey,
-      JSON.stringify({ savedAt: Date.now(), data: normalizedSafeZone })
+      JSON.stringify({ savedAt: Date.now(), data: normalizedSafeZones })
     );
   } catch {
     // ignore storage failure
   }
 
-  return normalizedSafeZone;
+  return normalizedSafeZones;
 };
 
-export const saveSafeZone = async (seniorId, safeZoneForm) => {
+export const createSafeZone = async (seniorId, safeZoneForm) => {
   const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: safeZoneForm.name,
+      address: safeZoneForm.address,
+      centerLatitude: safeZoneForm.centerLatitude,
+      centerLongitude: safeZoneForm.centerLongitude,
+      radiusMeters: safeZoneForm.radiusMeters,
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(`안전 반경 추가 실패: ${response.status}${message ? ` ${message}` : ""}`);
+  }
+
+  sessionStorage.removeItem(`guardian-safe-zones:${seniorId}`);
+  return response.json();
+};
+
+export const updateSafeZone = async (seniorId, safeZoneId, safeZoneForm) => {
+  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -63,19 +103,37 @@ export const saveSafeZone = async (seniorId, safeZoneForm) => {
   });
 
   if (!response.ok) {
-    throw new Error("안전 구역 저장 실패");
+    const message = await response.text().catch(() => "");
+    throw new Error(`안전 반경 수정 실패: ${response.status}${message ? ` ${message}` : ""}`);
   }
 
-  const savedSafeZone = await response.json();
+  sessionStorage.removeItem(`guardian-safe-zones:${seniorId}`);
+  return response.json();
+};
 
-  try {
-    sessionStorage.setItem(
-      `guardian-safe-zone:${seniorId}`,
-      JSON.stringify({ savedAt: Date.now(), data: savedSafeZone })
-    );
-  } catch {
-    // ignore storage failure
+export const deleteSafeZone = async (seniorId, safeZoneId) => {
+  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("안전 반경 삭제 실패");
   }
 
-  return savedSafeZone;
+  sessionStorage.removeItem(`guardian-safe-zones:${seniorId}`);
+};
+
+export const saveSafeZone = async (seniorId, safeZoneForm) => {
+  const id = String(safeZoneForm.id || "");
+
+  if (
+    id &&
+    !id.startsWith("default") &&
+    !id.startsWith("local") &&
+    !id.startsWith("new")
+  ) {
+    return updateSafeZone(seniorId, safeZoneForm.id, safeZoneForm);
+  }
+
+  return createSafeZone(seniorId, safeZoneForm);
 };

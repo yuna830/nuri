@@ -403,6 +403,10 @@ public class SeniorController {
             senior.setAddress(request.region());
         }
 
+        if (request.profileImageUrl() != null) {
+            senior.setProfileImageUrl(request.profileImageUrl());
+        }
+
         Senior savedSenior = seniorRepository.save(senior);
 
         HealthInfo healthInfo = healthInfoRepository
@@ -494,6 +498,7 @@ public class SeniorController {
             String phone,
             String birthDate,
             String region,
+            String profileImageUrl,
             String diabetes,
             String hypertension,
             String heartDisease,
@@ -651,7 +656,10 @@ public class SeniorController {
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        SafeZones safeZone = safeZonesRepository.findBySeniorId(senior.getId()).orElse(null);
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
@@ -688,7 +696,10 @@ public class SeniorController {
                 ? null
                 : guardianRepository.findById(link.getGuardianId()).orElse(null);
 
-        SafeZones safeZone = safeZonesRepository.findBySeniorId(senior.getId()).orElse(null);
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())

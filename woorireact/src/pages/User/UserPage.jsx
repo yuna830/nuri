@@ -340,6 +340,7 @@ export default function UserPage() {
   const [safeZone, setSafeZone] = useState(null);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+  const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -793,6 +794,9 @@ export default function UserPage() {
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
 
+      const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
+      setCheckInMessageAlert(checkInAlert || null);
+
       const safeExitAlert = alerts.find((alert) => (
         (alert.type === "SAFE_ZONE_EXIT" || alert.type === "SAFE_ZONE") && !alert.isRead
       ));
@@ -885,6 +889,14 @@ export default function UserPage() {
     }
 
     setMedicineAlert(null);
+  };
+
+  const handleReadCheckInMessageAlert = async () => {
+    if (checkInMessageAlert?.id) {
+      await readAlert(checkInMessageAlert.id).catch(() => {});
+    }
+
+    setCheckInMessageAlert(null);
   };
 
   const openAllSchedules = async () => {
@@ -1285,6 +1297,26 @@ export default function UserPage() {
                 type="button"
                 onClick={handleReadMedicineAlert}
               >
+                확인했어요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkInMessageAlert && (
+        <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💬</div>
+            <div className="up-modal-title">
+              {checkInMessageAlert.title || "보호자 안부 메시지"}
+            </div>
+            <div className="up-modal-desc">
+              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
+            </div>
+
+            <div className="up-modal-row single">
+              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
                 확인했어요
               </button>
             </div>
