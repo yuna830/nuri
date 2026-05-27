@@ -24,6 +24,8 @@ public class HealthInfo {
     private String smoking;
     private String drinking;
     private String allergies;
+    private String incomeLevel;
+    private String householdType;
     private String medicineCount;
 
     @Column(columnDefinition = "TEXT")

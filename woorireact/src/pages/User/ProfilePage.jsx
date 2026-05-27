@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
@@ -10,6 +10,8 @@ import {
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
+  HOUSEHOLD_TYPES,
+  INCOME_LEVELS,
   JOB_CONDITIONS,
   JOB_TYPES,
   MEDICINE_COUNTS,
@@ -28,11 +30,20 @@ import "../../css/user/ProfilePage.css";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    const requestedSection = searchParams.get("section");
+
+    if (SECTIONS.some((section) => section.id === requestedSection)) {
+      setActiveSection(requestedSection);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -304,6 +315,16 @@ export default function ProfilePage() {
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} onChange={(value) => set("maxDistance", value)} />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+          </section>
+        );
+
+      case "welfare":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">????</div>
+            <div className="pr-hint">???? ??? ??? ??? ??? ??/?? ??? ??????.</div>
+            <ChipField label="?? ??" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
+            <ChipField label="?? ??" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
           </section>
         );
 

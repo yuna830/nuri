@@ -28,6 +28,8 @@ function normalizeElderForWelfare(elder) {
     region: elder.address,
     healthStatus: elder.condition,
     medicationInfo: elder.medications?.map((item) => item.name).filter(Boolean).join(", "),
+    incomeLevel: elder.incomeLevel,
+    householdType: elder.householdType,
     welfareDecision: elder.welfareDecision,
     welfareDecisionReason: elder.welfareDecisionReason,
   };

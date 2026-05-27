@@ -16,6 +16,7 @@ public class Guardian {
     private String phone;
     private String email;
     private String password;
+    private Boolean active = true;
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public Long getId() {
@@ -54,7 +55,16 @@ public class Guardian {
         this.password = password;
     }
 
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 }
+

@@ -41,7 +41,25 @@ alter table seniors
 alter table health_info
     add column if not exists allergies varchar(255);
 
+alter table health_info
+    add column if not exists income_level varchar(255);
+
+alter table health_info
+    add column if not exists household_type varchar(255);
+
 alter table alerts
     add column if not exists image_url varchar(255);
 
 
+
+alter table seniors
+    add column if not exists active boolean default true;
+
+alter table seniors
+    add column if not exists welfare_worker_id bigint;
+
+alter table guardians
+    add column if not exists active boolean default true;
+
+alter table welfare_workers
+    add column if not exists active boolean default true;

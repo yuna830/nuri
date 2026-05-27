@@ -188,11 +188,23 @@
   color: #ffffff;
 }
 
+.chat-message-image {
+  display: block;
+  width: min(260px, 100%);
+  margin-bottom: 10px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
 .chatbot-input {
   display: flex;
   gap: 10px;
   padding: 18px 22px;
   border-top: 1px solid #edf1e8;
+}
+
+.chat-photo-input {
+  display: none;
 }
 
 .chat-schedule-confirm {
@@ -281,6 +293,20 @@
   font-size: 18px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.chatbot-input .chat-photo-button {
+  width: 56px;
+  min-width: 56px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.chatbot-input .chat-photo-button:disabled {
+  background: #a9b8b6;
+  border-color: #a9b8b6;
+  cursor: not-allowed;
 }
 
 .chatbot-input .voice-record-button {

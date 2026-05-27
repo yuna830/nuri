@@ -102,6 +102,8 @@ class SeniorApi {
     required String birthDate,
     required String gender,
     required String region,
+    String incomeLevel = '',
+    String householdType = '',
   }) async {
     final response = await http.post(
       Uri.parse('$apiBaseUrl/api/seniors'),
@@ -112,6 +114,8 @@ class SeniorApi {
         'birthDate': birthDate,
         'gender': gender,
         'region': region,
+        'incomeLevel': incomeLevel,
+        'householdType': householdType,
 
         'age': '',
         'disabilityGrade': '',

@@ -26,6 +26,11 @@
     font-weight: 700;
     color: #86a788;
     white-space: nowrap;
+    text-decoration: none;
+}
+
+.wm-service-name:hover {
+    color: #5f8a62;
 }
 
 .wm-content {

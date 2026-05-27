@@ -48,6 +48,8 @@ export const JOB_CONDITIONS = [
 export const DISABILITY_GRADES = [NONE, "1급", "2급", "3급", "4급", "5급", "6급"];
 export const DISABILITY_TYPES = [NONE, "지체장애", "시각장애", "청각장애", "언어장애", "지적장애", "정신장애", "기타"];
 export const MEDICINE_COUNTS = [NONE, "1~2개", "3~5개", "6개 이상"];
+export const INCOME_LEVELS = [NONE, "??????", "?????", "???? 50% ??", "???? 100% ??", "??"];
+export const HOUSEHOLD_TYPES = [NONE, "?? ??", "?? ??", "??? ??", "?? ??"];
 export const SECTIONS = [
   { id: "personal", label: "인적사항" },
   { id: "body", label: "신체정보" },
@@ -55,6 +57,7 @@ export const SECTIONS = [
   { id: "chronic", label: "만성질환" },
   { id: "mobility", label: "거동/인지" },
   { id: "activity", label: "활동조건" },
+  { id: "welfare", label: "????" },
   { id: "job", label: "일자리" },
 ];
 
@@ -147,6 +150,8 @@ export const defaultForm = {
   smoking: NONE,
   drinking: NONE,
   allergies: "",
+  incomeLevel: NONE,
+  householdType: NONE,
   medicineCount: NONE,
   medications: [],
   diabetes: NONE,
@@ -247,6 +252,8 @@ export const profileToForm = (profile = {}) => {
     smoking: healthInfo.smoking ?? NONE,
     drinking: healthInfo.drinking ?? NONE,
     allergies: healthInfo.allergies ?? "",
+    incomeLevel: healthInfo.incomeLevel ?? senior.incomeLevel ?? NONE,
+    householdType: healthInfo.householdType ?? senior.householdType ?? NONE,
     medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
     medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
     diabetes: healthInfo.diabetes ?? NONE,
@@ -335,6 +342,8 @@ export const formToProfile = (profile, form) => {
       smoking: normalized.smoking,
       drinking: normalized.drinking,
       allergies: normalized.allergies,
+      incomeLevel: normalized.incomeLevel,
+      householdType: normalized.householdType,
       medicineCount: normalized.medicineCount,
       medications: normalized.medications,
       medicationsJson: JSON.stringify(normalized.medications),

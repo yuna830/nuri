@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../css/common/CommonHeader.css";
 import "../css/user/UserCommonHeader.css";
 
 const DEFAULT_NOTIFICATION_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
-const READ_STATUSES = new Set(["확인됨", "읽음", "read", "READ", "resolved", "RESOLVED"]);
+const READ_STATUSES = new Set(["확인됨", "읽음", "확인함", "조치완료", "만남 완료", "read", "READ", "resolved", "RESOLVED"]);
 
 function CommonHeader({
   logoText = "우리 woori",
@@ -17,10 +17,12 @@ function CommonHeader({
   showNotificationButton = false,
   onReadNotification,
   onNotificationClick,
+  renderNotificationActions,
 }) {
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [activeNotificationTab, setActiveNotificationTab] = useState(notificationTabs[0] || "전체");
+  const notificationTabsRef = useRef(null);
 
   useEffect(() => {
     if (!notificationTabs.includes(activeNotificationTab)) {
@@ -79,13 +81,50 @@ function CommonHeader({
     return normalizedNotifications.filter((notification) => notification.category === tab).length;
   };
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationClick = (notification) => {
+    if (!onNotificationClick) return;
     onNotificationClick?.(notification.raw);
-
-    if (!notification.isRead && onReadNotification) {
-      await onReadNotification(notification.raw);
-    }
   };
+
+  const scrollNotificationTabs = (direction) => {
+    const currentIndex = notificationTabs.indexOf(activeNotificationTab);
+    const nextIndex = Math.min(Math.max(currentIndex + direction, 0), notificationTabs.length - 1);
+    setActiveNotificationTab(notificationTabs[nextIndex]);
+  };
+
+  useEffect(() => {
+    const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
+    activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [activeNotificationTab]);
+
+  const handleReadClick = async (event, notification) => {
+    event.stopPropagation();
+
+    if (!notification.id || notification.isRead || !onReadNotification) return;
+    await onReadNotification(notification.raw);
+  };
+
+  const getActionLabel = (notification) => {
+    if (notification.raw?.isSosCancel) return "확인함";
+    if (notification.raw?.isSafeZone) return "만남";
+    return "조치완료";
+  };
+
+  const getReadLabel = (notification) => {
+    if (notification.raw?.isSosCancel) return "확인함";
+    if (notification.raw?.isSafeZone) return "만남 완료";
+    return "조치완료";
+  };
+
+  const renderDefaultAction = (notification) => (
+    notification.isRead ? (
+      <em>{getReadLabel(notification)}</em>
+    ) : (
+      <button type="button" onClick={(event) => handleReadClick(event, notification)}>
+        {getActionLabel(notification)}
+      </button>
+    )
+  );
 
   return (
     <>
@@ -133,7 +172,15 @@ function CommonHeader({
             </div>
 
             <div className="uch-alert-tabs-wrap common-alert-tabs-wrap">
-              <div className="uch-alert-tabs" role="tablist" aria-label="알림 분류">
+              <button
+                className="uch-alert-tabs-arrow"
+                type="button"
+                onClick={() => scrollNotificationTabs(-1)}
+                aria-label="이전 알림 카테고리"
+              >
+                &lt;
+              </button>
+              <div className="uch-alert-tabs" ref={notificationTabsRef} role="tablist" aria-label="알림 분류">
                 {notificationTabs.map((tab) => {
                   const count = getTabCount(tab);
 
@@ -151,6 +198,14 @@ function CommonHeader({
                   );
                 })}
               </div>
+              <button
+                className="uch-alert-tabs-arrow"
+                type="button"
+                onClick={() => scrollNotificationTabs(1)}
+                aria-label="다음 알림 카테고리"
+              >
+                &gt;
+              </button>
             </div>
 
             <div className="uch-alert-panel-list">
@@ -160,21 +215,31 @@ function CommonHeader({
                 filteredNotifications.map((notification) => (
                   <article
                     key={notification.key}
-                    className={`uch-alert-item common-alert-item ${notification.danger ? "danger" : ""} ${
+                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger ? "danger" : ""} ${
                       notification.isRead ? "read" : ""
                     }`}
-                    onClick={() => handleNotificationClick(notification)}
+                    onClick={onNotificationClick ? () => handleNotificationClick(notification) : undefined}
                   >
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
                         <span className={notification.isRead ? "read" : "unread"}>
-                          {notification.isRead ? "확인됨" : "확인 필요"}
+                          {notification.isRead ? getReadLabel(notification) : "확인 필요"}
                         </span>
                         <span>{notification.category}</span>
                       </div>
                       <strong>{notification.title}</strong>
                       <p>{notification.message}</p>
                       {notification.time && <span>{notification.time}</span>}
+                    </div>
+
+                    <div className="uch-alert-action">
+                      {renderNotificationActions
+                        ? renderNotificationActions(notification.raw, {
+                            defaultAction: renderDefaultAction(notification),
+                            onRead: (event) => handleReadClick(event, notification),
+                            isRead: notification.isRead,
+                          })
+                        : renderDefaultAction(notification)}
                     </div>
                   </article>
                 ))

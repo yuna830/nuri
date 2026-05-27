@@ -19,6 +19,7 @@ public class WelfareWorker {
     private String region;
     private String phone;
     private String email;
+    private Boolean active = true;
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public Long getId() {
@@ -89,7 +90,16 @@ public class WelfareWorker {
         this.email = email;
     }
 
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 }
+

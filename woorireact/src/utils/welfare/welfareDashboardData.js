@@ -147,6 +147,16 @@ export const getSummaryCounts = (seniors) => ({
 });
 
 export const getBadgeClass = (type, value) => {
+    const normalizedValue = String(value || "").toUpperCase();
+
+    if (type === "alert" && normalizedValue.includes("SOS")) {
+        return "wd-badge alert-sos";
+    }
+
+    if (type === "alert" && (normalizedValue === "NONE" || normalizedValue === "없음")) {
+        return "wd-badge alert-none";
+    }
+
     const classMap = {
         health: { "양호": "health-good", "주의": "health-caution", "위험": "health-danger" },
         alert: {
