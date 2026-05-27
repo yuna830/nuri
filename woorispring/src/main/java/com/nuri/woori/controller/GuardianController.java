@@ -6,8 +6,10 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -65,6 +67,10 @@ public class GuardianController {
 
         if (!guardian.getPassword().equals(hashPassword(request.password()))) {
             throw new RuntimeException("Password mismatch");
+        }
+
+        if (Boolean.FALSE.equals(guardian.getActive())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");
         }
 
         return toResponse(guardian);

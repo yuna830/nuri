@@ -1,98 +1,143 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getSeniorGuardians, getSeniorWelfareWorker } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
 import { useAdminData } from "./useAdminData";
 
+const TEXT = {
+  title: "\uc5b4\ub974\uc2e0 \uad00\ub9ac",
+  description: "\uc804\uccb4 \uc5b4\ub974\uc2e0 \ubaa9\ub85d\uacfc \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac, \uc5f0\uacb0 \ubcf4\ud638\uc790, \uacc4\uc815 \uc0c1\ud0dc\ub97c \uad00\ub9ac\ud569\ub2c8\ub2e4.",
+  searchPlaceholder: "\uc774\ub984, \uc8fc\uc18c, \ubcf5\uc9c0\uc0ac \uac80\uc0c9",
+  loading: "\uc5b4\ub974\uc2e0 \ubaa9\ub85d\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.",
+  name: "\uc774\ub984",
+  age: "\ub098\uc774",
+  welfare: "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac",
+  guardians: "\uc5f0\uacb0 \ubcf4\ud638\uc790",
+  status: "\uc0c1\ud0dc",
+  unassigned: "\ubbf8\ubc30\uc815",
+  active: "\ud65c\uc131",
+  inactive: "\ube44\ud65c\uc131",
+  all: "\uc804\uccb4",
+  unlinked: "\uc5f0\uacb0 \ud544\uc694",
+  guardianUnlinked: "\ubcf4\ud638\uc790 \ubbf8\uc5f0\uacb0",
+  welfareUnassigned: "\ubcf5\uc9c0\uc0ac \ubbf8\ubc30\uc815",
+};
+
 function AdminSeniors() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { seniors, welfareById, guardianById, isLoading, loadError } = useAdminData();
   const [keyword, setKeyword] = useState("");
+  const filter = searchParams.get("filter") || "all";
+  const filterOptions = [
+    { value: "all", label: TEXT.all },
+    { value: "unlinked", label: TEXT.unlinked },
+    { value: "guardian", label: TEXT.guardianUnlinked },
+    { value: "welfare", label: TEXT.welfareUnassigned },
+  ];
 
   const filteredSeniors = useMemo(() => {
     const value = keyword.trim().toLowerCase();
+    const connectionFilteredSeniors = seniors.filter((senior) => {
+      const worker = getSeniorWelfareWorker(senior, welfareById);
+      const guardians = getSeniorGuardians(senior, guardianById);
 
-    if (!value) return seniors;
+      if (filter === "guardian") return guardians.length === 0;
+      if (filter === "welfare") return !worker;
+      if (filter === "unlinked") return !worker || guardians.length === 0;
 
-    return seniors.filter((senior) =>
+      return true;
+    });
+
+    if (!value) return connectionFilteredSeniors;
+
+    return connectionFilteredSeniors.filter((senior) =>
       [senior.name, senior.age, senior.address, getSeniorWelfareWorker(senior, welfareById)?.name]
         .join(" ")
         .toLowerCase()
         .includes(value)
     );
-  }, [keyword, seniors, welfareById]);
+  }, [filter, guardianById, keyword, seniors, welfareById]);
 
   return (
     <AdminLayout>
       <header className="admin-page-header">
-      <h1>어르신 관리</h1>
-      <p>전체 어르신 목록과 담당 복지사, 연결 보호자, 계정 상태를 관리합니다.</p>
-    </header>
+        <h1>{TEXT.title}</h1>
+        <p>{TEXT.description}</p>
+      </header>
 
-    <div className="admin-toolbar">
-      <input
-        className="admin-search"
-        type="search"
-        value={keyword}
-        placeholder="이름, 주소, 복지사 검색"
-        onChange={(event) => setKeyword(event.target.value)}
-      />
-    </div>
-
-    {loadError ? (
-      <p className="admin-error-note">{loadError}</p>
-    ) : isLoading ? (
-      <p className="admin-empty">어르신 목록을 불러오는 중입니다.</p>
-    ) : (
-      <div className="admin-table-box">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>이름</th>
-              <th>나이</th>
-              <th>담당 복지사</th>
-              <th>연결 보호자</th>
-              <th>상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSeniors.map((senior) => {
-              const worker = getSeniorWelfareWorker(senior, welfareById);
-              const guardians = getSeniorGuardians(senior, guardianById);
-
-              return (
-                <tr
-                  key={senior.id}
-                  className="admin-clickable-row"
-                  onClick={() => navigate(`/admin/seniors/${senior.id}`)}
-                >
-                  <td className="admin-name-cell">{senior.name}</td>
-                  <td>{senior.age ? `${senior.age}세` : "-"}</td>
-                  <td>
-                    {worker?.name || (
-                      <span className="admin-badge warning">미배정</span>
-                    )}
-                  </td>
-                  <td>
-                    {guardians.map((guardian) => guardian.name).join(", ") || "-"}
-                  </td>
-                  <td>
-                    <span
-                      className={`admin-badge ${
-                        senior.active ? "active" : "inactive"
-                      }`}
-                    >
-                      {senior.active ? "활성" : "비활성"}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="admin-toolbar">
+        <input
+          className="admin-search"
+          type="search"
+          value={keyword}
+          placeholder={TEXT.searchPlaceholder}
+          onChange={(event) => setKeyword(event.target.value)}
+        />
+        <div className="admin-filter-tabs" aria-label="\uc5b4\ub974\uc2e0 \ud544\ud130">
+          {filterOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`admin-filter-tab${filter === option.value ? " active" : ""}`}
+              onClick={() => {
+                if (option.value === "all") {
+                  setSearchParams({});
+                } else {
+                  setSearchParams({ filter: option.value });
+                }
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
-    )}
+
+      {loadError ? (
+        <p className="admin-error-note">{loadError}</p>
+      ) : isLoading ? (
+        <p className="admin-empty">{TEXT.loading}</p>
+      ) : (
+        <div className="admin-table-box">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>{TEXT.name}</th>
+                <th>{TEXT.age}</th>
+                <th>{TEXT.welfare}</th>
+                <th>{TEXT.guardians}</th>
+                <th>{TEXT.status}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSeniors.map((senior) => {
+                const worker = getSeniorWelfareWorker(senior, welfareById);
+                const guardians = getSeniorGuardians(senior, guardianById);
+
+                return (
+                  <tr
+                    key={senior.id}
+                    className={`admin-clickable-row ${senior.active ? "" : "admin-inactive-row"}`}
+                    onClick={() => navigate(`/admin/seniors/${senior.id}`)}
+                  >
+                    <td className="admin-name-cell">{senior.name}</td>
+                    <td>{senior.age ? `${senior.age}\uc138` : "-"}</td>
+                    <td>{worker?.name || <span className="admin-badge warning">{TEXT.unassigned}</span>}</td>
+                    <td>{guardians.map((guardian) => guardian.name).join(", ") || "-"}</td>
+                    <td>
+                      <span className={`admin-badge ${senior.active ? "active" : "inactive"}`}>
+                        {senior.active ? TEXT.active : TEXT.inactive}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AdminLayout>
   );
 }

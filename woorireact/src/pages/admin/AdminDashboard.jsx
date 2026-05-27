@@ -1,4 +1,5 @@
 import { ShieldCheck, UserCheck, UserRound, UsersRound } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import {
   getGuardianSeniorNames,
@@ -12,15 +13,24 @@ import { useAdminData } from "./useAdminData";
 function AdminDashboard() {
   const { seniors, welfareWorkers, guardians, welfareById, guardianById, isLoading, loadError } = useAdminData();
 
-  const unlinkedSeniorCount = seniors.filter(
-    (senior) => !senior.welfareId || (senior.guardianIds || []).length === 0
-  ).length;
+  const needsConnectionCount = seniors.filter((senior) => {
+    const worker = getSeniorWelfareWorker(senior, welfareById);
+    const seniorGuardians = getSeniorGuardians(senior, guardianById);
+
+    return !worker || seniorGuardians.length === 0;
+  }).length;
 
   const summaryCards = [
     { label: "\uc5b4\ub974\uc2e0", value: seniors.length, icon: UserRound },
     { label: "\ubcf5\uc9c0\uc0ac", value: welfareWorkers.length, icon: ShieldCheck },
     { label: "\ubcf4\ud638\uc790", value: guardians.length, icon: UsersRound },
-    { label: "\ubbf8\uc5f0\uacb0 \uc5b4\ub974\uc2e0", value: unlinkedSeniorCount, icon: UserCheck },
+    {
+      label: "\uc5f0\uacb0 \ud544\uc694 \uc5b4\ub974\uc2e0",
+      value: needsConnectionCount,
+      icon: UserCheck,
+      to: "/admin/seniors?filter=unlinked",
+      hint: "\ubcf4\ud638\uc790 \ub610\ub294 \ubcf5\uc9c0\uc0ac \uc5f0\uacb0 \ud544\uc694",
+    },
   ];
 
   return (
@@ -41,13 +51,21 @@ function AdminDashboard() {
               const Icon = card.icon;
 
               return (
-                <article key={card.label} className="admin-summary-card">
+                <Link
+                  key={card.label}
+                  className={`admin-summary-card${card.to ? " clickable" : ""}`}
+                  to={card.to || "#"}
+                  onClick={(event) => {
+                    if (!card.to) event.preventDefault();
+                  }}
+                >
                   <div>
                     <span>{card.label}</span>
                     <strong>{card.value}</strong>
+                    {card.hint ? <em>{card.hint}</em> : null}
                   </div>
                   <Icon size={28} />
-                </article>
+                </Link>
               );
             })}
           </section>
@@ -75,7 +93,7 @@ function AdminDashboard() {
                     const seniorGuardians = getSeniorGuardians(senior, guardianById);
 
                     return (
-                      <tr key={senior.id}>
+                      <tr key={senior.id} className={senior.active ? "" : "admin-inactive-row"}>
                         <td className="admin-name-cell">{senior.name}</td>
                         <td>{senior.age ? `${senior.age}\uc138` : "-"}</td>
                         <td>{worker?.name || <span className="admin-badge warning">{"\ubbf8\ubc30\uc815"}</span>}</td>
@@ -100,7 +118,7 @@ function AdminDashboard() {
                 {welfareWorkers.map((worker) => (
                   <div key={worker.id} className="admin-linked-item">
                     <strong>{worker.name}</strong>
-                    <span>{`${worker.center} · \ub2f4\ub2f9 \uc5b4\ub974\uc2e0 ${getWorkerSeniorCount(worker.id, seniors)}\uba85`}</span>
+                    <span>{`${worker.center} / \ub2f4\ub2f9 \uc5b4\ub974\uc2e0 ${getWorkerSeniorCount(worker.id, seniors)}\uba85`}</span>
                   </div>
                 ))}
               </div>

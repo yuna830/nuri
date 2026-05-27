@@ -14,11 +14,14 @@ import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import com.nuri.woori.repository.WelfareWorkerRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
@@ -41,6 +44,7 @@ public class SeniorController {
     private final GuardianSeniorRepository guardianSeniorRepository;
     private final LocationStatusRepository locationStatusRepository;
     private final AlertRepository alertRepository;
+    private final WelfareWorkerRepository welfareWorkerRepository;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -50,7 +54,8 @@ public class SeniorController {
             GuardianRepository guardianRepository,
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
-            AlertRepository alertRepository
+            AlertRepository alertRepository,
+            WelfareWorkerRepository welfareWorkerRepository
     ) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
@@ -60,6 +65,7 @@ public class SeniorController {
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.locationStatusRepository = locationStatusRepository;
         this.alertRepository = alertRepository;
+        this.welfareWorkerRepository = welfareWorkerRepository;
     }
 
     @PostMapping
@@ -191,6 +197,24 @@ public class SeniorController {
         return toProfileResponse(senior);
     }
 
+    @PatchMapping("/{id}/welfare-worker")
+    public SeniorProfileResponse updateSeniorWelfareWorker(
+            @PathVariable Long id,
+            @RequestBody SeniorWelfareWorkerRequest request
+    ) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (request.welfareWorkerId() != null) {
+            welfareWorkerRepository.findById(request.welfareWorkerId())
+                    .orElseThrow(() -> new RuntimeException("Welfare worker not found"));
+        }
+
+        senior.setWelfareWorkerId(request.welfareWorkerId());
+        Senior savedSenior = seniorRepository.save(senior);
+
+        return toProfileResponse(savedSenior);
+    }
     @PostMapping("/login")
     public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
         String name = request.name() == null ? "" : request.name().trim();
@@ -198,6 +222,10 @@ public class SeniorController {
 
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (Boolean.FALSE.equals(senior.getActive())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");
+        }
 
         senior.setLastLoginAt(LocalDateTime.now());
         Senior savedSenior = seniorRepository.save(senior);
@@ -810,6 +838,11 @@ public class SeniorController {
             List<String> hopeJobType,
             List<String> hopeCondition,
             String memo
+    ) {
+    }
+
+    public record SeniorWelfareWorkerRequest(
+            Long welfareWorkerId
     ) {
     }
 

@@ -23,15 +23,32 @@ const TEXT = {
 };
 
 function AdminGuardians() {
-  const { seniors, guardians, isLoading, loadError, reload } = useAdminData();
+  const { seniors, guardians, isLoading, loadError } = useAdminData();
   const [updatingId, setUpdatingId] = useState(null);
+  const [activeOverrides, setActiveOverrides] = useState({});
+  const [actionMessage, setActionMessage] = useState(null);
+
+  const displayGuardians = guardians.map((guardian) => ({
+    ...guardian,
+    active: activeOverrides[guardian.id] ?? guardian.active,
+  }));
 
   const toggleActive = async (guardian) => {
     setUpdatingId(guardian.id);
+    setActionMessage(null);
 
     try {
-      await updateGuardianActive(guardian.id, !guardian.active);
-      await reload();
+      const updatedGuardian = await updateGuardianActive(guardian.id, !guardian.active);
+      setActiveOverrides((current) => ({ ...current, [guardian.id]: updatedGuardian.active }));
+      setActionMessage({
+        type: "success",
+        text: "\uacc4\uc815 \uc0c1\ud0dc\uac00 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+      });
+    } catch (error) {
+      setActionMessage({
+        type: "error",
+        text: "\uacc4\uc815 \uc0c1\ud0dc \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -45,10 +62,13 @@ function AdminGuardians() {
       </header>
 
       {loadError ? <p className="admin-empty">{TEXT.error}</p> : null}
+      {actionMessage ? (
+        <p className={`admin-action-message ${actionMessage.type}`}>{actionMessage.text}</p>
+      ) : null}
 
       {isLoading ? (
         <p className="admin-empty">{TEXT.loading}</p>
-      ) : guardians.length === 0 ? (
+      ) : displayGuardians.length === 0 ? (
         <p className="admin-empty">{TEXT.empty}</p>
       ) : (
         <div className="admin-table-box">
@@ -64,11 +84,11 @@ function AdminGuardians() {
               </tr>
             </thead>
             <tbody>
-              {guardians.map((guardian) => {
+              {displayGuardians.map((guardian) => {
                 const seniorNames = getGuardianSeniorNames(guardian, seniors);
 
                 return (
-                  <tr key={guardian.id}>
+                  <tr key={guardian.id} className={guardian.active ? "" : "admin-inactive-row"}>
                     <td className="admin-name-cell">{guardian.name}</td>
                     <td>{guardian.relation || "-"}</td>
                     <td>{guardian.phone || "-"}</td>
