@@ -47,6 +47,12 @@ alter table health_info
 alter table health_info
     add column if not exists household_type varchar(255);
 
+alter table health_info
+    add column if not exists rest_need varchar(255);
+
+alter table health_info
+    add column if not exists avoid_environment text;
+
 alter table alerts
     add column if not exists image_url varchar(255);
 

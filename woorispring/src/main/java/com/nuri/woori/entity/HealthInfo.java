@@ -59,5 +59,10 @@ public class HealthInfo {
     @Column(columnDefinition = "TEXT")
     private String disabledWork;
 
+    private String restNeed;
+
+    @Column(columnDefinition = "TEXT")
+    private String avoidEnvironment;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 }
