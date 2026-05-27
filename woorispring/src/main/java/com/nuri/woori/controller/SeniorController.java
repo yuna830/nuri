@@ -4,6 +4,7 @@ import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.JobPreference;
 import com.nuri.woori.entity.Senior;
 import com.nuri.woori.entity.SafeZones;
+import com.nuri.woori.controller.SeniorController.FindNameResponse;
 import com.nuri.woori.entity.Guardian;
 import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.LocationStatus;
@@ -50,8 +51,7 @@ public class SeniorController {
             GuardianRepository guardianRepository,
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
-            AlertRepository alertRepository
-    ) {
+            AlertRepository alertRepository) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -133,8 +133,7 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null
-        );
+                null);
     }
 
     @GetMapping
@@ -160,8 +159,7 @@ public class SeniorController {
     @GetMapping("/search-exact")
     public List<SeniorProfileResponse> searchSeniorExact(
             @RequestParam String name,
-            @RequestParam String phone
-    ) {
+            @RequestParam String phone) {
         String trimmedName = name == null ? "" : name.trim();
         String normalizedPhone = normalizePhone(phone);
 
@@ -262,31 +260,26 @@ public class SeniorController {
     }
 
     public record FindNameRequest(
-            String phone
-    ) {
+            String phone) {
     }
 
     public record FindNameResponse(
-            String name
-    ) {
+            String name) {
     }
 
     public record FindPhoneRequest(
             String name,
-            String region
-    ) {
+            String region) {
     }
 
     public record FindPhoneResponse(
-            String phone
-    ) {
+            String phone) {
     }
 
     @PutMapping("/{id}")
     public SeniorProfileResponse updateSenior(
             @PathVariable Long id,
-            @RequestBody SeniorCreateRequest request
-    ) {
+            @RequestBody SeniorCreateRequest request) {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
@@ -364,15 +357,13 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null
-        );
+                null);
     }
 
     @PatchMapping("/{id}/decision")
     public SeniorProfileResponse updateWelfareDecision(
             @PathVariable Long id,
-            @RequestBody WelfareDecisionRequest request
-    ) {
+            @RequestBody WelfareDecisionRequest request) {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
@@ -388,8 +379,7 @@ public class SeniorController {
     @PatchMapping("/{id}/requested-info")
     public SeniorProfileResponse updateRequestedInfo(
             @PathVariable Long id,
-            @RequestBody SeniorRequestedInfoUpdateRequest request
-    ) {
+            @RequestBody SeniorRequestedInfoUpdateRequest request) {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
@@ -409,6 +399,10 @@ public class SeniorController {
         if (request.region() != null) {
             senior.setRegion(request.region());
             senior.setAddress(request.region());
+        }
+
+        if (request.profileImageUrl() != null) {
+            senior.setProfileImageUrl(request.profileImageUrl());
         }
 
         Senior savedSenior = seniorRepository.save(senior);
@@ -510,6 +504,7 @@ public class SeniorController {
             String phone,
             String birthDate,
             String region,
+            String profileImageUrl,
             String incomeLevel,
             String householdType,
             String diabetes,
@@ -529,15 +524,13 @@ public class SeniorController {
             String hasSurgery,
             String surgeryDetail,
             String otherDisease,
-            String medicationsJson
-    ) {
+            String medicationsJson) {
     }
 
     @GetMapping("/welfare")
     public Object getWelfareSeniors(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
+            @RequestParam(required = false) Integer size) {
         if (page == null && size == null) {
             return seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
                     .stream()
@@ -548,8 +541,7 @@ public class SeniorController {
         int pageNumber = Math.max(0, page == null ? 0 : page);
         int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
         Page<Senior> seniorPage = seniorRepository.findAll(
-                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id"))
-        );
+                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id")));
 
         return new WelfareSeniorPageResponse(
                 seniorPage.getContent()
@@ -559,8 +551,7 @@ public class SeniorController {
                 seniorPage.getTotalElements(),
                 seniorPage.getTotalPages(),
                 seniorPage.getNumber(),
-                seniorPage.getSize()
-        );
+                seniorPage.getSize());
     }
 
     private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
@@ -615,8 +606,7 @@ public class SeniorController {
                 latestLocation == null ? null : latestLocation.getLatitude(),
                 latestLocation == null ? null : latestLocation.getLongitude(),
                 latestLocation == null ? null : latestLocation.getReceivedAt(),
-                hasGuardian
-        );
+                hasGuardian);
     }
 
     public record WelfareSeniorListResponse(
@@ -641,14 +631,12 @@ public class SeniorController {
             Double lastGpsLatitude,
             Double lastGpsLongitude,
             LocalDateTime lastGpsRecordedAt,
-            Boolean hasGuardian
-    ) {
+            Boolean hasGuardian) {
     }
 
     public record WelfareDecisionRequest(
             String decision,
-            String reason
-    ) {
+            String reason) {
     }
 
     public record WelfareSeniorPageResponse(
@@ -656,8 +644,7 @@ public class SeniorController {
             Long totalElements,
             Integer totalPages,
             Integer page,
-            Integer size
-    ) {
+            Integer size) {
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {
@@ -669,7 +656,10 @@ public class SeniorController {
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        SafeZones safeZone = safeZonesRepository.findBySeniorId(senior.getId()).orElse(null);
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
@@ -684,8 +674,7 @@ public class SeniorController {
                 "",
                 "",
                 safeZone,
-                latestLocation
-        );
+                latestLocation);
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -706,7 +695,10 @@ public class SeniorController {
                 ? null
                 : guardianRepository.findById(link.getGuardianId()).orElse(null);
 
-        SafeZones safeZone = safeZonesRepository.findBySeniorId(senior.getId()).orElse(null);
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
 
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
@@ -721,8 +713,7 @@ public class SeniorController {
                 guardian == null ? "" : guardian.getName(),
                 guardian == null ? "" : guardian.getPhone(),
                 safeZone,
-                latestLocation
-        );
+                latestLocation);
     }
 
     private Integer toInteger(String value) {
@@ -815,14 +806,12 @@ public class SeniorController {
             List<String> hopeDays,
             List<String> hopeJobType,
             List<String> hopeCondition,
-            String memo
-    ) {
+            String memo) {
     }
 
     public record SeniorLoginRequest(
             String name,
-            String phone
-    ) {
+            String phone) {
     }
 
     public record SeniorProfileResponse(
@@ -834,7 +823,6 @@ public class SeniorController {
             String guardianName,
             String guardianPhone,
             SafeZones safeZone,
-            LocationStatus lastGps
-    ) {
+            LocationStatus lastGps) {
     }
 }

@@ -173,6 +173,33 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
   const alertTabsRef = useRef(null);
 
+  const isFilled = (value) => {
+    return value !== null && value !== undefined && String(value).trim() !== "";
+  };
+
+  const isInfoRequestResolved = (alert, profile) => {
+    const senior = profile?.senior || {};
+    const message = alert?.message || "";
+
+    if (message.includes("성별") && !isFilled(senior.gender)) {
+      return false;
+    }
+
+    if (message.includes("생년월일") && !isFilled(senior.birthDate)) {
+      return false;
+    }
+
+    if (message.includes("연락처") && !isFilled(senior.phone)) {
+      return false;
+    }
+
+    if (message.includes("주소") && !isFilled(senior.region || senior.address)) {
+      return false;
+    }
+
+    return true;
+  };
+
   const loadAlerts = async ({ silent = false } = {}) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) {
@@ -184,28 +211,57 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
     try {
       deleteOldRequestAlerts(seniorId).catch(() => {});
-      const [seniorAlerts, climateAlerts] = await Promise.all([
+
+      const [seniorAlerts, climateAlerts, currentProfile] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
+        fetch(`http://localhost:8080/api/seniors/${seniorId}`)
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null),
       ]);
+
+      const resolvedInfoRequestAlerts = seniorAlerts.filter((alert) =>
+        alert.type === "INFO_UPDATE_REQUEST"
+        && alert.isRead !== true
+        && isInfoRequestResolved(alert, currentProfile)
+      );
+
+      resolvedInfoRequestAlerts.forEach((alert) => {
+        readAlert(alert.id).catch(() => {});
+      });
+
       const nextInfoRequestAlert = seniorAlerts.find((alert) =>
         alert.type === "INFO_UPDATE_REQUEST"
         && alert.isRead !== true
         && !dismissedInfoRequestIds.includes(String(alert.id))
+        && !isInfoRequestResolved(alert, currentProfile)
       );
 
       if (nextInfoRequestAlert) {
         setInfoRequestAlert(nextInfoRequestAlert);
+      } else {
+        setInfoRequestAlert(null);
       }
+
+      const resolvedInfoRequestIds = new Set(
+        resolvedInfoRequestAlerts.map((alert) => alert.id)
+      );
+
       const combined = [
-        ...seniorAlerts.filter(shouldShowAlert).map(normalizeUserAlert),
-        ...climateAlerts.filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time)).map(normalizeClimateAlert),
+        ...seniorAlerts
+          .filter((alert) => !resolvedInfoRequestIds.has(alert.id))
+          .filter(shouldShowAlert)
+          .map(normalizeUserAlert),
+        ...climateAlerts
+          .filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time))
+          .map(normalizeClimateAlert),
       ]
         .sort((a, b) => {
           if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
           return b.sortTime - a.sortTime;
         })
         .slice(0, 40);
+
       setAlerts(combined);
       setSelectedAlertKeys((prev) => prev.filter((key) => combined.some((alert) => alert.key === key)));
     } finally {

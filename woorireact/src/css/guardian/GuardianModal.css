@@ -322,7 +322,7 @@
 }
 
 .police-search-modal {
-  width: min(640px, 100%);
+  width: min(760px, 100%);
   max-height: min(760px, calc(100vh - 48px));
   overflow-y: auto;
   border-radius: 10px;
@@ -388,7 +388,8 @@
 
 .police-search-results {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 14px;
   margin-top: 16px;
 }
 
@@ -403,33 +404,48 @@
 
 .police-search-result {
   width: 100%;
-  min-height: 106px;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 10px;
+  aspect-ratio: 3 / 4;
+  display: block;
+  padding: 0;
   border: 1px solid #d8ddd2;
   border-radius: 8px;
-  background: #ffffff;
-  color: inherit;
-  text-align: left;
+  background: #f8f8f3;
+  overflow: hidden;
+  cursor: pointer;
 }
 
 .police-search-result:hover,
 .police-search-result:focus-visible {
   border-color: var(--main-color);
-  background: #f7fbf6;
+  box-shadow: 0 8px 18px rgba(79, 111, 82, 0.18);
   outline: none;
 }
 
 .police-search-result img {
-  width: 72px;
-  height: 92px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.police-search-result img,
+.police-search-photo-placeholder {
+  width: 96px;
+  height: 116px;
+  object-fit: cover;
   border: 1px solid #d8ddd2;
   border-radius: 6px;
   background: #f8f8f3;
+}
+
+.police-search-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #69705f;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .police-search-result span {
@@ -463,8 +479,23 @@
   color: #ffffff;
 }
 
-.alert-emergency-button:hover {
+.alert-emergency-button:hover,
+.alert-emergency-button:focus-visible {
+  background: #9f382f;
+  color: #ffffff;
+  outline: none;
+}
+
+.alert-emergency-button:active {
+  background: #7f2d26;
+  color: #ffffff;
+}
+
+.guardian-page .alert-emergency-button:hover,
+.guardian-page .alert-emergency-button:focus-visible,
+.guardian-page .alert-emergency-button:active {
   background: #8f382f;
+  color: #ffffff;
 }
 
 .alert-meet-button {

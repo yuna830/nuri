@@ -58,6 +58,13 @@ export function sendMedicineAlert({ seniorId, guardianId, message }) {
   });
 }
 
+export function sendCheckInMessage({ seniorId, guardianId, message }) {
+  return request(API_BASE_URL, "/api/alerts/check-in-message", {
+    method: "POST",
+    body: JSON.stringify({ seniorId, guardianId, message }),
+  });
+}
+
 export function getMissingReports() {
   return requestArray(API_BASE_URL, "/api/missing-reports");
 }
