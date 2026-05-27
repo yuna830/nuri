@@ -275,6 +275,33 @@ public class AlertController {
         return alertRepository.save(alert);
     }
 
+    @PostMapping("/check-in-message")
+    public Alert createCheckInMessageAlert(@RequestBody CheckInMessageAlertRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(null);
+        alert.setType("CHECK_IN_MESSAGE");
+        alert.setTitle("보호자 안부 메시지");
+        alert.setMessage(
+                request.message() == null || request.message().isBlank()
+                        ? senior.getName() + "님, 오늘 컨디션은 어떠세요? 식사는 잘 챙기셨나요?"
+                        : request.message().trim()
+        );
+        alert.setIsRead(false);
+
+        return alertRepository.save(alert);
+    }
+
+    public record CheckInMessageAlertRequest(
+            Long seniorId,
+            Long guardianId,
+            String message
+    ) {
+    }
+
     @PostMapping("/camera")
     public List<Alert> createCameraAlert(@RequestBody CameraAlertRequest request) {
         Senior senior = seniorRepository.findById(request.seniorId())

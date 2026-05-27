@@ -15,6 +15,7 @@ import {
 } from "../../api/welfareDashboardApi";
 import KakaoMap from "../../components/KakaoMap";
 
+import { resolveUploadUrl } from "../../api/userPageApi.js";
 import "../../css/welfare/WelfareSeniorDetail.css";
 
 const getSavedAddedSeniors = () => [];
@@ -556,7 +557,7 @@ function WelfareSeniorDetail() {
             <div className="wsd-profile-summary-card">
                 <div className="wsd-profile-photo-large">
                     {senior.profileImageUrl ? (
-                        <img src={senior.profileImageUrl} alt={`${senior.name} 프로필`} />
+                        <img src={resolveUploadUrl(senior.profileImageUrl)} alt={`${senior.name} 프로필`} />
                     ) : (
                         <span>{senior.name?.slice(0, 1) || "?"}</span>
                     )}
@@ -838,7 +839,7 @@ function WelfareSeniorDetail() {
                                 <div className="wsd-sidebar-profile-card">
                                     <div className="wsd-sidebar-profile-photo">
                                         {senior.profileImageUrl ? (
-                                            <img src={senior.profileImageUrl} alt={`${senior.name} 프로필`} />
+                                            <img src={resolveUploadUrl(senior.profileImageUrl)} alt={`${senior.name} 프로필`} />
                                         ) : (
                                             <span>{senior.name?.slice(0, 1) || "?"}</span>
                                         )}
