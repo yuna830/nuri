@@ -295,6 +295,44 @@ public class AlertController {
         return alertRepository.save(alert);
     }
 
+    @PostMapping("/check-in-reply")
+    public List<Alert> createCheckInReplyAlert(@RequestBody CheckInReplyRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianSeniors =
+                guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianSeniors.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String reply = request.reply() == null || request.reply().isBlank()
+                ? "답변 없음"
+                : request.reply().trim();
+
+        return guardianSeniors.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("CHECK_IN_REPLY");
+                    alert.setTitle("안부 답변");
+                    alert.setMessage(senior.getName() + "님이 안부 메시지에 '" + reply + "'라고 답했습니다.");
+                    alert.setIsRead(false);
+
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record CheckInReplyRequest(
+            Long seniorId,
+            String reply,
+            String originalMessage
+    ) {
+    }
+
     public record CheckInMessageAlertRequest(
             Long seniorId,
             Long guardianId,

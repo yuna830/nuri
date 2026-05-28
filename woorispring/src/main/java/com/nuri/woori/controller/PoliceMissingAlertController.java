@@ -76,7 +76,24 @@ public class PoliceMissingAlertController {
 
     @DeleteMapping
     public ResponseEntity<Void> deleteAllAlerts() {
-        policeMissingAlertRepository.deleteAll();
+        policeMissingAlertRepository.deleteAllInBatch();
+
+        Path imageDirectory = Paths.get("uploads", "police-missing");
+
+        if (Files.exists(imageDirectory)) {
+            try (var paths = Files.walk(imageDirectory)) {
+                paths
+                        .filter(Files::isRegularFile)
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (Exception ignored) {
+                            }
+                        });
+            } catch (Exception ignored) {
+            }
+        }
+
         return ResponseEntity.noContent().build();
     }
 

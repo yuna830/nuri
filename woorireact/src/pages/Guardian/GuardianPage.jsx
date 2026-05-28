@@ -385,6 +385,27 @@ function GuardianPage() {
       nextElders.map(async (elder) => [elder.id, await loadSafeZones(elder)])
     );
 
+    const nextSafeZoneForms = Object.fromEntries(safeZoneEntries);
+    setSafeZoneForms(nextSafeZoneForms);
+
+    setSelectedSafeZoneIds((prev) => {
+      const next = { ...prev };
+
+      nextElders.forEach((elder) => {
+        const zones = nextSafeZoneForms[elder.id] || [];
+        const savedId = localStorage.getItem(`guardian-selected-safe-zone:${elder.id}`);
+
+        if (savedId && zones.some((zone) => String(zone.id) === savedId)) {
+          next[elder.id] = savedId;
+          return;
+        }
+
+        next[elder.id] = zones[zones.length - 1]?.id || zones[0]?.id;
+      });
+
+      return next;
+    });
+
     setSafeZoneForms(Object.fromEntries(safeZoneEntries));
 
     if (nextElders.length > 0) {
@@ -686,6 +707,8 @@ function GuardianPage() {
   const handleSelectSafeZoneForm = (safeZoneId) => {
     if (!activeElderId) return;
 
+    localStorage.setItem(`guardian-selected-safe-zone:${activeElderId}`, String(safeZoneId));
+
     setSelectedSafeZoneIds((prev) => ({
       ...prev,
       [activeElderId]: safeZoneId,
@@ -715,27 +738,35 @@ function GuardianPage() {
 
     if (!seniorId) {
       alert("보호 대상자를 먼저 선택해주세요.");
-      return;
+      return false;
     }
 
     try {
+      const currentZones = safeZoneForms[seniorId] ?? getDefaultSafeZones(selectedElder);
+      const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
+
+      if (!exists && currentZones.length >= 3) {
+        alert("안전 반경은 최대 3개까지 등록할 수 있습니다.");
+        return false;
+      }
+
       const savedSafeZone = await saveSafeZone(seniorId, safeZoneForm);
 
       setSafeZoneForms((prev) => {
-        const currentZones = prev[seniorId] ?? getDefaultSafeZones(selectedElder);
-        const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
+        const latestZones = prev[seniorId] ?? getDefaultSafeZones(selectedElder);
+        const hasSameZone = latestZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
 
         return {
           ...prev,
-          [seniorId]: exists
-            ? currentZones.map((zone) =>
-                String(zone.id) === String(safeZoneForm.id)
-                  ? savedSafeZone
-                  : zone
+          [seniorId]: hasSameZone
+            ? latestZones.map((zone) =>
+                String(zone.id) === String(safeZoneForm.id) ? savedSafeZone : zone
               )
-            : [...currentZones, savedSafeZone],
+            : [...latestZones, savedSafeZone],
         };
       });
+
+      localStorage.setItem(`guardian-selected-safe-zone:${seniorId}`, String(savedSafeZone.id));
 
       setSelectedSafeZoneIds((prev) => ({
         ...prev,
@@ -743,9 +774,11 @@ function GuardianPage() {
       }));
 
       alert("안전 반경이 저장되었습니다.");
+      return true;
     } catch (error) {
       console.error("안전 반경 저장 실패:", error);
       alert("안전 반경 저장에 실패했습니다.");
+      return false;
     }
   };
 
@@ -1353,6 +1386,7 @@ function GuardianPage() {
 
         <LocationPanel
           selectedElder={selectedElder}
+          safeZones={safeZones}
           safeZoneForm={safeZoneForm}
           hasCurrentLocation={hasCurrentLocation}
           location={location}

@@ -19,7 +19,6 @@ export default function GuardianLogin() {
     email: "",
     password: "",
   });
-  const [error, setError] = useState("");
 
   const [helpMode, setHelpMode] = useState(null);
   const [helpForm, setHelpForm] = useState({
@@ -40,32 +39,36 @@ export default function GuardianLogin() {
 
   const handleLogin = async () => {
     if (!form.email.trim()) {
-      setError("이메일을 입력해주세요.");
+      alert("이메일을 입력해주세요.");
       return;
     }
 
     if (!form.password.trim()) {
-      setError("비밀번호를 입력해주세요.");
+      alert("비밀번호를 입력해주세요.");
       return;
     }
 
-    const response = await fetch(`${API_BASE}/api/guardians/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
+    try {
+      const response = await fetch(`${API_BASE}/api/guardians/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
 
-    if (!response.ok) {
-      setError("이메일 또는 비밀번호를 확인해주세요.");
-      return;
+      if (!response.ok) {
+        alert("이메일 또는 비밀번호를 확인해주세요.");
+        return;
+      }
+
+      const guardian = await response.json();
+
+      sessionStorage.setItem("currentGuardian", JSON.stringify(guardian));
+      navigate("/guardian");
+    } catch {
+      alert("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
     }
-
-    const guardian = await response.json();
-
-    sessionStorage.setItem("currentGuardian", JSON.stringify(guardian));
-    navigate("/guardian");
   };
 
   const openHelpModal = (mode) => {
@@ -272,8 +275,6 @@ export default function GuardianLogin() {
               <br />
               더 안전한 돌봄을 돕습니다.
             </div>
-
-            {error && <div className="login-error">⚠️ {error}</div>}
 
             <label className="login-label">이메일</label>
             <input

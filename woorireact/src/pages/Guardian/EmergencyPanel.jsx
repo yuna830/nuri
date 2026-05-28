@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
@@ -69,7 +69,7 @@ const getMissingSimilarity = (elder, alert) => {
   const hasRegionMatch = elderRegions.some((region) =>
     alertRegions.some((alertRegion) => alertRegion.includes(region) || region.includes(alertRegion))
   );
- 
+
   if (hasRegionMatch) {
     matches.push("지역 유사");
   }
@@ -284,7 +284,44 @@ function EmergencyPanel({
 
   const [isCheckInMessageOpen, setIsCheckInMessageOpen] = useState(false);
   const [checkInMessage, setCheckInMessage] = useState(defaultCheckInMessage);
+  const checkInStorageKey = `guardian-checkin-messages-${selectedElder.id}`;
+
+  const [savedCheckInMessages, setSavedCheckInMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(checkInStorageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(checkInStorageKey, JSON.stringify(savedCheckInMessages));
+  }, [checkInStorageKey, savedCheckInMessages]);
+
   const [isSendingCheckInMessage, setIsSendingCheckInMessage] = useState(false);
+
+  const handleSaveCheckInMessage = () => {
+    const message = checkInMessage.trim();
+
+    if (!message) {
+      alert("저장할 메시지 내용을 입력해주세요.");
+      return;
+    }
+
+    if (savedCheckInMessages.includes(message)) {
+      alert("이미 저장된 메시지입니다.");
+      return;
+    }
+
+    if (savedCheckInMessages.length >= 3) {
+      alert("안부 메시지는 최대 3개까지 저장할 수 있습니다.");
+      return;
+    }
+
+    setSavedCheckInMessages((prev) => [...prev, message]);
+    alert("안부 메시지가 저장되었습니다.");
+  };
 
   const openCheckInMessage = () => {
     setCheckInMessage(defaultCheckInMessage);
@@ -320,6 +357,36 @@ function EmergencyPanel({
     } finally {
       setIsSendingCheckInMessage(false);
     }
+  };
+
+  const handleSendSavedCheckInMessage = async (message) => {
+    const confirmed = window.confirm(`이 메시지를 보내시겠습니까?\n\n${message}`);
+
+    if (!confirmed) return;
+
+    const guardianId = getCurrentGuardianId();
+
+    try {
+      setIsSendingCheckInMessage(true);
+
+      await sendCheckInMessage({
+        seniorId: selectedElder.id,
+        guardianId,
+        message,
+      });
+
+      alert("안부 메시지를 보냈습니다.");
+      setIsCheckInMessageOpen(false);
+    } catch (error) {
+      console.error("안부 메시지 전송 실패:", error);
+      alert("안부 메시지 전송에 실패했습니다.");
+    } finally {
+      setIsSendingCheckInMessage(false);
+    }
+  };
+
+  const handleRemoveCheckInMessage = (message) => {
+    setSavedCheckInMessages((prev) => prev.filter((item) => item !== message));
   };
 
 
@@ -438,8 +505,12 @@ function EmergencyPanel({
                         type="button"
                         className="guardian-safe-zone-add-button"
                         onClick={() => {
+                          const beforeCount = safeZones.length;
                           onAddSafeZoneForm();
-                          setIsSafeZoneEditorOpen(true);
+
+                          if (beforeCount < 3) {
+                            setIsSafeZoneEditorOpen(true);
+                          }
                         }}
                       >
                         추가
@@ -515,7 +586,16 @@ function EmergencyPanel({
                         </select>
                       </label>
 
-                      <button type="button" onClick={onSaveSafeZone}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const saved = await onSaveSafeZone();
+
+                          if (saved) {
+                            setIsSafeZoneEditorOpen(false);
+                          }
+                        }}
+                      >
                         안전 반경 저장
                       </button>
                     </div>
@@ -652,6 +732,31 @@ function EmergencyPanel({
               <div className="medication-reminder-form">
                 <label>
                   메시지 내용
+                  {savedCheckInMessages.length > 0 && (
+                    <div className="checkin-saved-list">
+                      {savedCheckInMessages.map((message) => (
+                        <div key={message} className="checkin-saved-item">
+                          <button
+                            type="button"
+                            className="checkin-saved-message"
+                            onClick={() => handleSendSavedCheckInMessage(message)}
+                            disabled={isSendingCheckInMessage}
+                          >
+                            {message}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="checkin-saved-remove"
+                            onClick={() => handleRemoveCheckInMessage(message)}
+                            aria-label="저장된 메시지 삭제"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <textarea
                     value={checkInMessage}
                     onChange={(event) => setCheckInMessage(event.target.value)}
@@ -666,10 +771,9 @@ function EmergencyPanel({
 
                   <button
                     type="button"
-                    onClick={handleSendCheckInMessage}
-                    disabled={isSendingCheckInMessage}
+                    onClick={handleSaveCheckInMessage}
                   >
-                    {isSendingCheckInMessage ? "전송 중..." : "메시지 보내기"}
+                    완료
                   </button>
                 </div>
               </div>

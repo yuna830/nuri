@@ -1086,6 +1086,59 @@
   padding: 1rem;
 }
 
+.checkin-user-modal {
+  padding: 2rem;
+  text-align: left;
+}
+
+.checkin-user-message {
+  display: flex;
+  gap: 6px;
+  color: #1e2a1f;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.55;
+  word-break: keep-all;
+  margin-bottom: 1.2rem;
+}
+
+.checkin-user-message strong {
+  flex-shrink: 0;
+  color: #48694b;
+}
+
+.checkin-user-message span {
+  flex: 1;
+}
+
+.checkin-user-reply-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px;
+  border: 1px solid #d8e2d3;
+  border-radius: 10px;
+  color: #1e2a1f;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.checkin-user-send-button {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #86a788;
+  color: #ffffff;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .up-sos-pending {
     left: 1rem;

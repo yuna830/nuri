@@ -3,6 +3,7 @@ import KakaoMap from "../../components/KakaoMap.jsx";
 
 function LocationPanel({
   selectedElder,
+  safeZones = [],
   safeZoneForm,
   hasCurrentLocation,
   location,
@@ -89,6 +90,7 @@ function LocationPanel({
           zoom={4}
           className="leaflet-map"
           safeZone={safeZoneForm}
+          safeZones={safeZones}
           currentLocation={hasCurrentLocation ? location : null}
           currentLabel={`${selectedElder.name} 현재 위치<br />${distance}m 거리`}
           safeZoneLabel={`${safeZoneForm.name} 안전 반경 중심`}

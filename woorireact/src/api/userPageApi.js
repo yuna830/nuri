@@ -585,3 +585,17 @@ export const deleteOldRequestAlerts = async (seniorId) => {
   }
 };
 
+// 보호자 안부 답장 전송
+export const sendCheckInReply = async ({ seniorId, reply, originalMessage }) => {
+  const response = await fetch(`${API_BASE}/api/alerts/check-in-reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId, reply, originalMessage }),
+  });
+
+  if (!response.ok) {
+    throw new Error("check-in reply failed");
+  }
+
+  return response.json();
+};

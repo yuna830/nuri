@@ -25,6 +25,7 @@ import {
   readAlert,
   resolveUploadUrl,
   reverseGeocode,
+  sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
@@ -504,6 +505,7 @@ export default function UserPage() {
 
   const [medicineAlert, setMedicineAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+  const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1082,6 +1084,32 @@ export default function UserPage() {
     }
 
     setCheckInMessageAlert(null);
+    setCheckInReplyMessage("");
+  };
+
+  const handleReplyCheckInMessageAlert = async () => {
+    const reply = checkInReplyMessage.trim();
+
+    if (!reply) {
+      alert("답장 내용을 입력해주세요.");
+      return;
+    }
+
+    const seniorId = getCurrentSeniorId(initialSenior);
+
+    try {
+      await sendCheckInReply({
+        seniorId,
+        reply,
+        originalMessage: checkInMessageAlert?.message || "",
+      });
+
+      await handleReadCheckInMessageAlert();
+      alert("보호자에게 답장을 보냈습니다.");
+    } catch (error) {
+      console.error("안부 답장 전송 실패:", error);
+      alert("답장 전송에 실패했습니다.");
+    }
   };
 
   const openAllSchedules = async () => {
@@ -1544,20 +1572,27 @@ export default function UserPage() {
 
       {checkInMessageAlert && (
         <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
-          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">💬</div>
-            <div className="up-modal-title">
-              {checkInMessageAlert.title || "보호자 안부 메시지"}
-            </div>
-            <div className="up-modal-desc">
-              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
+          <div className="up-modal checkin-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="checkin-user-message">
+              <strong>{careTeam.guardianName || "보호자"} :</strong>
+              <span>{checkInMessageAlert.message || "안부 메시지를 보냈습니다."}</span>
             </div>
 
-            <div className="up-modal-row single">
-              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
-                확인했어요
-              </button>
-            </div>
+            <textarea
+              className="checkin-user-reply-textarea"
+              value={checkInReplyMessage}
+              onChange={(event) => setCheckInReplyMessage(event.target.value)}
+              placeholder="답장을 입력해주세요."
+              rows={4}
+            />
+
+            <button
+              className="checkin-user-send-button"
+              type="button"
+              onClick={handleReplyCheckInMessageAlert}
+            >
+              답장 보내기
+            </button>
           </div>
         </div>
       )}

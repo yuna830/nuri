@@ -115,6 +115,8 @@ const getAlertCategory = (type) => {
     case "JOB_CONTACT_REQUEST":
     case "WELFARE_REQUEST":
       return "요청";
+    case "CHECK_IN_REPLY":
+      return "답장";
     default:
       return "기타";
   }
@@ -142,6 +144,7 @@ const normalizeUserAlert = (alert) => ({
   requiresGuardianConfirm: isSafeZoneAlert(alert.type),
   danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT", "SOS"].includes(alert.type),
   sortTime: toDate(alert.createdAt || alert.time)?.getTime() || 0,
+  type: alert.type,
 });
 
 const normalizeClimateAlert = (alert, index) => ({
@@ -568,12 +571,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     </label>
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
-                        <span className={userAlert.isRead ? "read" : "unread"}>
-                          {userAlert.isRead ? "확인됨" : "확인 필요"}
-                        </span>
                         <span>{userAlert.category}</span>
                       </div>
-                      <strong>{userAlert.title}</strong>
+                      {userAlert.type !== "CHECK_IN_REPLY" && <strong>{userAlert.title}</strong>}
                       <p>{userAlert.message}</p>
                       {userAlert.time && <span>{userAlert.time}</span>}
                     </div>
