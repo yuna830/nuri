@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./ChatAssistant.css";
 import ChatView from "./components/ChatView";
 import ScheduleRegister from "./components/ScheduleRegister";
@@ -17,6 +18,7 @@ import {
   scheduleToText,
   todayValue,
 } from "./utils/scheduleText";
+import { withUserGreeting } from "./utils/userGreeting";
 
 const getResolvedSeniorId = () => {
   const fromStorage = getCurrentSeniorId();
@@ -34,6 +36,7 @@ const getResolvedSeniorId = () => {
 };
 
 export default function ChatAssistant() {
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [savedSchedules, setSavedSchedules] = useState([]);
@@ -43,7 +46,7 @@ export default function ChatAssistant() {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요.",
+      content: withUserGreeting("안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요."),
     },
   ]);
 
@@ -72,6 +75,13 @@ export default function ChatAssistant() {
     setChatSchedules(normalized);
     return normalized;
   }
+
+  useEffect(() => {
+    if (searchParams.get("mode") === "schedule") {
+      setEditingSchedule(null);
+      setMode("schedule");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadSchedules() {

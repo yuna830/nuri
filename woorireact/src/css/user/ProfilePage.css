@@ -13,10 +13,28 @@
   color: #1e2a1f;
 }
 
+.pr-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid #a9c9aa;
+}
+
+.pr-section-header h2 {
+  margin: 0;
+}
+
+.pr-section-actions {
+  margin-left: auto;
+}
+
 .pr-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1100px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -67,14 +85,20 @@
 }
 
 .pr-reset-btn {
-  background: transparent;
-  color: #7a9a7c;
-  border: 1px solid #d4e8d6;
+  background: #fff4e6;
+  color: #b66a00;
+  border: 1px solid #f0d080;
   border-radius: 8px;
   padding: 0.45rem 1rem;
   font-size: 0.88rem;
+  font-weight: 700;
   font-family: "Noto Sans KR", sans-serif;
   cursor: pointer;
+}
+
+.pr-reset-btn:hover {
+  background: #ffe8c2;
+  border-color: #e0a943;
 }
 
 .pr-save-btn {
@@ -91,13 +115,18 @@
 }
 
 .pr-layout {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+.pr-layout aside {
+  position: sticky;
+  top: 80px;
 }
 
 .pr-sidenav {
@@ -106,8 +135,30 @@
   border: 1px solid #d4e8d6;
   box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
   overflow: hidden;
-  position: sticky;
-  top: 80px;
+}
+
+.pr-side-actions {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.pr-side-actions .pr-reset-btn,
+.pr-side-actions .pr-save-btn {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.pr-reset-btn:disabled,
+.pr-save-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .pr-sidenav-item {
@@ -357,7 +408,7 @@
   border: 1px solid #b8d4ba;
   border-radius: 12px;
   padding: 1rem 1.3rem;
-  margin-top: 0.9rem;
+  margin: 0.9rem 0 1.4rem;
   display: flex;
   align-items: center;
   gap: 2rem;
@@ -446,4 +497,85 @@
   width: 16px;
   height: 16px;
   accent-color: #86a788;
+}
+
+.pr-save-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 42, 31, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.pr-save-popup {
+  width: min(360px, 100%);
+  border: 1px solid #d4e8d6;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(30, 42, 31, 0.18);
+  padding: 2rem 1.6rem;
+  text-align: center;
+}
+
+.pr-save-spinner,
+.pr-save-check {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+}
+
+.pr-save-spinner {
+  border: 5px solid #eef6ef;
+  border-top-color: #86a788;
+  animation: pr-spin 0.8s linear infinite;
+}
+
+.pr-save-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #86a788;
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(134, 167, 136, 0.3);
+}
+
+.pr-save-popup-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1e2a1f;
+  margin-bottom: 0.45rem;
+}
+
+.pr-save-popup-desc {
+  color: #6f8f72;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+@keyframes pr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .pr-nav {
+    padding: 0 1rem;
+  }
+
+  .pr-layout {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+
+  .pr-layout aside {
+    position: static;
+  }
 }

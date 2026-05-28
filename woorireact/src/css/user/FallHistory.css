@@ -16,7 +16,7 @@
 .fh-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1100px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -57,9 +57,134 @@
 }
 
 .fh-layout {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.fh-live-card {
+  background: #ffffff;
+  border: 1px solid #d4e8d6;
+  border-radius: 18px;
+  box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.fh-live-card.danger {
+  border-color: #f0a4a4;
+  box-shadow: 0 8px 28px rgba(224, 82, 82, 0.16);
+}
+
+.fh-live-head,
+.fh-live-foot {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 1.5rem;
+}
+
+.fh-live-head {
+  border-bottom: 1px solid #d4e8d6;
+}
+
+.fh-live-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fh-live-tech {
+    color: #6f8a70;
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.fh-live-foot {
+  border-top: 1px solid #d4e8d6;
+  color: #5f7d61;
+  font-size: 0.9rem;
+}
+
+.fh-live-kicker {
+  color: #7a9a7c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+
+.fh-live-title {
+  color: #1e2a1f;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.fh-live-badge {
+  background: #eef6ef;
+  border: 1px solid #b8d4ba;
+  border-radius: 999px;
+  color: #5f7d61;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+}
+
+.fh-live-badge.ok {
+  background: #e9f7eb;
+  color: #3f7d48;
+}
+
+.fh-live-badge.danger {
+  background: #e05252;
+  border-color: #e05252;
+  color: #ffffff;
+}
+
+.fh-video-wrap {
+  background: #172018;
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.fh-video {
+  display: block;
+  height: clamp(420px, 48vw, 560px);
+  object-fit: cover;
+  width: 100%;
+}
+
+.fh-video-placeholder {
+  align-items: center;
+  color: #d4e8d6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  justify-content: center;
+  min-height: 420px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.fh-summary-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fh-stat-value.small {
+  font-size: 2rem;
+}
+
+.fh-video-placeholder code {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.fh-video-icon {
+  font-size: 2.2rem;
 }
 
 .fh-summary {
@@ -306,6 +431,88 @@
   background: #fff8f8;
 }
 
+.fh-capture {
+  border: 1px solid #f5c6c6;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 0.8rem;
+  max-height: 260px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.fh-pagination {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+  margin-top: 1.2rem;
+}
+
+.fh-pagination button {
+  background: #ffffff;
+  border: 1px solid #b8d4ba;
+  border-radius: 10px;
+  color: #5f7d61;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.55rem 1rem;
+}
+
+.fh-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.fh-popup-overlay {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  z-index: 3000;
+}
+
+.fh-popup {
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
+  max-width: 420px;
+  padding: 2.4rem;
+  text-align: center;
+  width: calc(100% - 2rem);
+}
+
+.fh-popup-icon {
+  font-size: 3.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.fh-popup-title {
+  color: #1e2a1f;
+  font-size: 1.45rem;
+  font-weight: 900;
+  margin-bottom: 0.8rem;
+}
+
+.fh-popup p {
+  color: #5f7d61;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.fh-popup-wait {
+  background: #fdf0f0;
+  border: 1px solid #f5c6c6;
+  border-radius: 999px;
+  color: #e05252;
+  display: inline-flex;
+  font-weight: 900;
+  margin-top: 1.3rem;
+  padding: 0.65rem 1.1rem;
+}
+
 .fh-empty {
   text-align: center;
   padding: 4rem 2rem;
@@ -335,6 +542,21 @@
 
   .fh-layout {
     padding: 1rem;
+  }
+
+  .fh-live-head,
+  .fh-live-foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fh-video-wrap,
+  .fh-video-placeholder {
+    min-height: 320px;
+  }
+
+  .fh-video {
+    height: 320px;
   }
 
   .fh-summary {

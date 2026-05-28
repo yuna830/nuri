@@ -4,7 +4,8 @@ import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const kakaoRestApiKey = env.VITE_KAKAO_REST_API_KEY || ''
+  const kakaoRestApiKey = (env.VITE_KAKAO_REST_API_KEY || '').trim()
+  const apiProxyTarget = (env.VITE_API_PROXY_TARGET || 'http://localhost:8080').trim()
 
   return {
   plugins: [
@@ -27,13 +28,18 @@ export default defineConfig(({ mode }) => {
         secure: false,
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiProxyTarget,
         changeOrigin: true,
       },
       '/senuri': {
         target: 'http://apis.data.go.kr',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/senuri/, ''),
+      },
+      '/seoul-openapi': {
+        target: 'http://openapi.seoul.go.kr:8088',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/seoul-openapi/, ''),
       },
       '/weather-api': {
         target: 'https://apis.data.go.kr',

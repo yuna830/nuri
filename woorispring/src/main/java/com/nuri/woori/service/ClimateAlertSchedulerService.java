@@ -7,6 +7,7 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.ClimateAlertRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -211,7 +212,11 @@ public class ClimateAlertSchedulerService {
 
     private void saveIfAbsent(Long seniorId, ClimateCandidate candidate) {
         if (seniorId == null) return;
-        if (climateAlertRepository.findBySeniorIdAndEventId(seniorId, candidate.eventId()).isPresent()) return;
+
+        if (climateAlertRepository.findBySeniorIdAndEventId(seniorId, candidate.eventId()).isPresent()) {
+            return;
+        }
+
         ClimateAlert alert = new ClimateAlert();
         alert.setSeniorId(seniorId);
         alert.setEventId(candidate.eventId());
@@ -222,7 +227,12 @@ public class ClimateAlertSchedulerService {
         alert.setSource(candidate.source());
         alert.setAlertDate(candidate.issuedAt().toLocalDate());
         alert.setIssuedAt(candidate.issuedAt());
-        climateAlertRepository.save(alert);
+
+        try {
+            climateAlertRepository.save(alert);
+        } catch (DataIntegrityViolationException error) {
+            // 이미 같은 seniorId + eventId 알림이 저장된 경우 무시
+        }
     }
 
     private JsonNode fetchItems(String url) throws Exception {

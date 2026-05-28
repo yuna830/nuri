@@ -2,47 +2,92 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import "../../css/common/SignUp.css";
-import { SEOUL_WELFARE_CENTERS, WELFARE_WORKERS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
 
-const DEMO_WORKER_ID = "welfare01";
+const AUTH_API_BASE = "http://localhost:8080";
+const WELFARE_API_BASE = "http://localhost:8181";
 
 export default function WelfareSignup() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     workerId: "",
+    email: "",
     password: "",
     passwordConfirm: "",
     center: "",
   });
   const [error, setError] = useState("");
+  const [centerResults, setCenterResults] = useState([]);
+  const [centerSearchMessage, setCenterSearchMessage] = useState("");
 
   const set = (key, value) => {
     setForm((previousForm) => ({ ...previousForm, [key]: value }));
   };
 
-  const getSavedWorkers = () => {
+  const handleCenterSearch = async () => {
+    const keyword = form.center.trim();
+
+    if (keyword.length < 2) {
+      alert("소속 기관명을 2글자 이상 입력해주세요.");
+      return;
+    }
+
     try {
-      return JSON.parse(localStorage.getItem(WELFARE_WORKERS_STORAGE_KEY) || "[]");
+      setCenterResults([]);
+      setCenterSearchMessage("");
+
+      const response = await fetch(
+        `${WELFARE_API_BASE}/api/welfare-centers?keyword=${encodeURIComponent(keyword)}`
+      );
+
+      if (!response.ok) {
+        setError("소속 기관 검색에 실패했습니다.");
+        return;
+      }
+
+      const centers = await response.json();
+      setCenterResults(centers);
+
+      if (centers.length === 0) {
+        setError("");
+        setCenterSearchMessage("검색 결과가 없습니다. 직접 입력할 수 있습니다.");
+        return;
+      }
+
+      setError("");
+      setCenterSearchMessage("");
     } catch {
-      return [];
+      setError("서버에 연결할 수 없습니다.");
     }
   };
 
-  const handleSignup = () => {
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
+  const handleSignup = async () => {
     const name = form.name.trim();
     const workerId = form.workerId.trim();
+    const email = form.email.trim();
     const password = form.password.trim();
     const passwordConfirm = form.passwordConfirm.trim();
-    const center = form.center.trim() || "우리복지센터";
+    const center = form.center.trim();
 
     if (!name) {
-      setError("이름을 입력해주세요.");
+      alert("이름을 입력해주세요.");
       return;
     }
 
     if (!workerId) {
-      setError("복지사 아이디를 입력해주세요.");
+      alert("복지사 아이디를 입력해주세요.");
+      return;
+    }
+
+    if (!email) {
+      alert("이메일을 입력해주세요.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("올바른 이메일 형식으로 입력해주세요.");
       return;
     }
 
@@ -52,12 +97,12 @@ export default function WelfareSignup() {
     }
 
     if (!password) {
-      setError("비밀번호를 입력해주세요.");
+      alert("비밀번호를 입력해주세요.");
       return;
     }
 
-    if (password.length < 4) {
-      setError("비밀번호는 4자 이상 입력해주세요.");
+    if (!passwordPattern.test(password)) {
+      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
       return;
     }
 
@@ -66,42 +111,51 @@ export default function WelfareSignup() {
       return;
     }
 
-    const savedWorkers = getSavedWorkers();
-    const isDuplicatedWorkerId =
-      workerId === DEMO_WORKER_ID ||
-      savedWorkers.some((worker) => worker.workerId === workerId);
-
-    if (isDuplicatedWorkerId) {
-      setError("이미 등록된 복지사 아이디입니다.");
+    if (!center) {
+      alert("소속 기관을 입력해주세요.");
       return;
     }
 
-    const newWorker = {
-      id: `W-${Date.now()}`,
-      workerId,
-      name,
-      password,
-      role: "복지사",
-      center,
-    };
+    try {
+      const response = await fetch(`${AUTH_API_BASE}/api/welfare-workers/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          workerId,
+          email, 
+          password,
+          center,
+          role: "복지사",
+        }),
+      });
 
-    localStorage.setItem(
-      WELFARE_WORKERS_STORAGE_KEY,
-      JSON.stringify([...savedWorkers, newWorker])
-    );
+      if (response.status === 409) {
+        setError("이미 등록된 복지사 아이디입니다.");
+        return;
+      }
 
-    const workerWithoutPassword = { ...newWorker };
-    delete workerWithoutPassword.password;
+      if (!response.ok) {
+        setError("회원가입에 실패했습니다.");
+        return;
+      }
 
-    sessionStorage.setItem(
-      "currentWelfareWorker",
-      JSON.stringify({
-        ...workerWithoutPassword,
-        loginAt: new Date().toISOString(),
-      })
-    );
+      const worker = await response.json();
 
-    navigate("/welfare");
+      sessionStorage.setItem(
+        "currentWelfareWorker",
+        JSON.stringify({
+          ...worker,
+          loginAt: new Date().toISOString(),
+        })
+      );
+
+      navigate("/welfare");
+    } catch {
+      setError("서버에 연결할 수 없습니다.");
+    }
   };
 
   return (
@@ -129,30 +183,41 @@ export default function WelfareSignup() {
         <section className="su-section">
           <div className="su-section-title">복지사 회원가입</div>
 
-          <div className="su-row">
-            <div className="su-field">
-              <label className="su-label">
-                이름 <span className="su-required">*</span>
-              </label>
-              <input
-                className="su-input"
-                value={form.name}
-                onChange={(event) => set("name", event.target.value)}
-                placeholder="예: 김복지"
-              />
-            </div>
+          <div className="su-field">
+            <label className="su-label">
+              이름 <span className="su-required">*</span>
+            </label>
+            <input
+              className="su-input"
+              value={form.name}
+              onChange={(event) => set("name", event.target.value)}
+              placeholder="이름을 입력하세요"
+            />
+          </div>
 
-            <div className="su-field">
-              <label className="su-label">
-                복지사 아이디 <span className="su-required">*</span>
-              </label>
-              <input
-                className="su-input"
-                value={form.workerId}
-                onChange={(event) => set("workerId", event.target.value)}
-                placeholder="예: worker01"
-              />
-            </div>
+          <div className="su-field">
+            <label className="su-label">
+              복지사 아이디 <span className="su-required">*</span>
+            </label>
+            <input
+              className="su-input"
+              value={form.workerId}
+              onChange={(event) => set("workerId", event.target.value)}
+              placeholder="예: worker01"
+            />
+          </div>
+
+          <div className="su-field">
+            <label className="su-label">
+              이메일 <span className="su-required">*</span>
+            </label>
+            <input
+              className="su-input"
+              type="email"
+              value={form.email}
+              onChange={(event) => set("email", event.target.value)}
+              placeholder="예: worker@woori.kr"
+            />
           </div>
 
           <div className="su-row">
@@ -165,7 +230,7 @@ export default function WelfareSignup() {
                 type="password"
                 value={form.password}
                 onChange={(event) => set("password", event.target.value)}
-                placeholder="비밀번호"
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
 
@@ -178,50 +243,59 @@ export default function WelfareSignup() {
                 type="password"
                 value={form.passwordConfirm}
                 onChange={(event) => set("passwordConfirm", event.target.value)}
-                placeholder="비밀번호 확인"
-                onKeyDown={(event) => event.key === "Enter" && handleSignup()}
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
-          </div>
-        </section>
-
-        <section className="su-section">
-          <div className="su-section-title">소속 기관 정보</div>
-
-          <div className="su-hint">
-            소속 기관을 입력하면 복지사 계정 정보에 함께 저장됩니다. 검색 결과가 없으면 직접 입력할 수 있습니다.
           </div>
 
           <div className="su-field su-suggest-wrap">
             <label className="su-label">
               소속 기관 <span className="su-required">*</span>
             </label>
-            <input
-              className="su-input"
-              value={form.center}
-              onChange={(event) => set("center", event.target.value)}
-              placeholder="예: 우리복지센터"
-            />
-            {form.center.trim().length > 0 && !SEOUL_WELFARE_CENTERS.includes(form.center.trim()) && (
+
+            <div className="su-search-row">
+              <input
+                className="su-input"
+                value={form.center}
+                onChange={(event) => {
+                  set("center", event.target.value);
+                  setCenterResults([]);
+                  setCenterSearchMessage("");
+                }}
+                placeholder="예: 우리복지센터"
+                onKeyDown={(event) => event.key === "Enter" && handleCenterSearch()}
+              />
+
+              <button
+                className="su-search-btn"
+                type="button"
+                onClick={handleCenterSearch}
+              >
+                검색
+              </button>
+            </div>
+
+            {centerSearchMessage && (
+              <p className="su-suggest-empty">{centerSearchMessage}</p>
+            )}
+
+            {centerResults.length > 0 && (
               <div className="su-suggest-list">
-                {SEOUL_WELFARE_CENTERS
-                  .filter((center) => center.includes(form.center.trim()))
-                  .map((center) => (
-                    <button
-                      type="button"
-                      key={center}
-                      className="su-suggest-item"
-                      onClick={() => set("center", center)}
-                    >
-                      {center}
-                    </button>
-                  ))
-                }
-                {SEOUL_WELFARE_CENTERS.filter((center) => center.includes(form.center.trim())).length === 0 && (
-                  <p className="su-suggest-empty">
-                    검색 결과가 없습니다. 직접 입력해주세요.
-                  </p>
-                )}
+                {centerResults.map((center) => (
+                  <button
+                    type="button"
+                    key={`${center.code}-${center.name}`}
+                    className="su-suggest-item"
+                    onClick={() => {
+                      set("center", center.name);
+                      setCenterResults([]);
+                      setCenterSearchMessage("");
+                    }}
+                  >
+                    <strong>{center.name}</strong>
+                    {center.type && <span>{center.type}</span>}
+                  </button>
+                ))}
               </div>
             )}
           </div>

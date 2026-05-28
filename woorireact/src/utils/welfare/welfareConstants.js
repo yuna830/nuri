@@ -1,6 +1,6 @@
 // 복지사 페이지 공통 상수
 
-export const WELFARE_SENIOR_API_URL = "http://localhost:8083/api/welfare/seniors";
+export const WELFARE_SENIOR_API_URL = "http://localhost:8080/api/seniors/welfare";
 
 // localStorage 키
 export const WELFARE_DECISION_STORAGE_KEY = "welfareDecisions";

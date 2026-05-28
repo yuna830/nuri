@@ -8,9 +8,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ClimateAlertRepository extends JpaRepository<ClimateAlert, Long> {
-    List<ClimateAlert> findBySeniorIdAndAlertDateOrderByIssuedAtDesc(Long seniorId, LocalDate alertDate);
+    List<ClimateAlert> findTop6BySeniorIdAndAlertDateOrderByIssuedAtDesc(Long seniorId, LocalDate alertDate);
 
-    List<ClimateAlert> findTop3BySeniorIdOrderByIssuedAtDesc(Long seniorId);
+    List<ClimateAlert> findTop6BySeniorIdOrderByIssuedAtDesc(Long seniorId);
 
     Optional<ClimateAlert> findBySeniorIdAndEventId(Long seniorId, String eventId);
 }

@@ -1,6 +1,6 @@
-// 복지사 페이지 공통 시간 관련 유틸
-
-import { LAST_ACCESS_ALERT_HOURS, NIGHT_START_HOUR, NIGHT_END_HOUR } from "./welfareConstants";
+const NIGHT_START_HOUR = 22;
+const NIGHT_END_HOUR = 6;
+const LAST_ACCESS_ALERT_HOURS = 4;
 
 export const getLastAccessHours = (lastAccess) => {
     if (!lastAccess) {
