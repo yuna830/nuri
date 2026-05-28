@@ -1,6 +1,7 @@
-stt_server/ 
+﻿stt_server/ 
 woorispring/uploads/
 .venv
 .png
 .jpg
 .jpeg
+chat_server/
