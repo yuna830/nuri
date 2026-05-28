@@ -762,14 +762,15 @@ function GuardianPage() {
     }
 
     try {
-      const isNewZone = String(safeZoneId).startsWith("new-");
+      const idText = String(safeZoneId);
+      const isSavedZone = /^\d+$/.test(idText);
 
-      if (!isNewZone) {
+      if (isSavedZone) {
         await deleteSafeZone(seniorId, safeZoneId);
       }
 
       const nextZones = currentZones.filter(
-        (zone) => String(zone.id) !== String(safeZoneId)
+        (zone) => String(zone.id) !== idText
       );
 
       setSafeZoneForms((prev) => ({

@@ -95,6 +95,8 @@ public class SeniorController {
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -117,6 +119,8 @@ public class SeniorController {
         healthInfo.setMaxHours(request.maxHours());
         healthInfo.setMaxDistance(request.maxDistance());
         healthInfo.setDisabledWork(join(request.disabledWork()));
+        healthInfo.setRestNeed(request.restNeed());
+        healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -336,6 +340,8 @@ public class SeniorController {
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
@@ -358,6 +364,8 @@ public class SeniorController {
         healthInfo.setMaxHours(request.maxHours());
         healthInfo.setMaxDistance(request.maxDistance());
         healthInfo.setDisabledWork(join(request.disabledWork()));
+        healthInfo.setRestNeed(request.restNeed());
+        healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -804,6 +812,8 @@ public class SeniorController {
             String allergies,
             String incomeLevel,
             String householdType,
+            List<String> currentBenefits,
+            String welfareMemo,
             String medicineCount,
             String medicationsJson,
             String diabetes,
@@ -826,6 +836,8 @@ public class SeniorController {
             String maxHours,
             String maxDistance,
             List<String> disabledWork,
+            String restNeed,
+            List<String> avoidEnvironment,
             String payType,
             List<String> hopeDays,
             List<String> hopeJobType,

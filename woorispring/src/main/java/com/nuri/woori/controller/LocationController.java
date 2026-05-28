@@ -43,6 +43,22 @@ public class LocationController {
 
     @PostMapping
     public LocationStatus saveLocation(@RequestBody LocationSaveRequest request) {
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(request.seniorId())
+                .orElse(null);
+
+        if (latestLocation != null
+                && latestLocation.getLatitude() != null
+                && latestLocation.getLongitude() != null
+                && calculateDistanceMeters(
+                latestLocation.getLatitude(),
+                latestLocation.getLongitude(),
+                request.latitude(),
+                request.longitude()
+        ) < 50) {
+            return latestLocation;
+        }
+
         LocationStatus locationStatus = new LocationStatus();
         locationStatus.setSeniorId(request.seniorId());
         locationStatus.setLatitude(request.latitude());

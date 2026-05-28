@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 
@@ -61,6 +61,7 @@ export default function LocationPage() {
   const navigate = useNavigate();
   const [currentPos, setCurrentPos] = useState(null);
   const [safeZone, setSafeZone] = useState(DEFAULT_SAFE_ZONE);
+  const [safeZones, setSafeZones] = useState([]);
   const [address, setAddress] = useState("불러오는 중...");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,6 +69,7 @@ export default function LocationPage() {
   const [coords, setCoords] = useState(null);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [historyByDate, setHistoryByDate] = useState({});
+  const lastSavedLocationRef = useRef(null);
 
   const isInRange = currentPos
     ? getDistanceMeters(
@@ -87,6 +89,13 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
 
+    const lastSavedLocation = lastSavedLocationRef.current;
+    const movedMeters = lastSavedLocation
+      ? getDistanceMeters({ lat: lastSavedLocation.lat, lng: lastSavedLocation.lon }, { lat, lng: lon })
+      : Infinity;
+
+    if (movedMeters < 50) return;
+
     await fetch("http://localhost:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -98,6 +107,8 @@ export default function LocationPage() {
         accuracy,
       }),
     }).catch(() => {});
+
+    lastSavedLocationRef.current = { lat, lon };
   };
 
   const loadLocationHistory = useCallback(async (date) => {
@@ -124,14 +135,19 @@ export default function LocationPage() {
         cache: "no-store",
       });
       if (!response.ok || response.status === 204) return;
-      const nextSafeZone = await response.json();
-      setSafeZone({
-        name: nextSafeZone.name || "자택",
-        address: nextSafeZone.address || "안전 반경 주소 미설정",
-        centerLatitude: nextSafeZone.centerLatitude ?? DEFAULT_SAFE_ZONE.centerLatitude,
-        centerLongitude: nextSafeZone.centerLongitude ?? DEFAULT_SAFE_ZONE.centerLongitude,
-        radiusMeters: nextSafeZone.radiusMeters ?? SAFE_RADIUS,
-      });
+      const data = await response.json();
+      const zones = Array.isArray(data) ? data : [data];
+      const normalizedZones = zones.filter(Boolean).map((zone) => ({
+        ...zone,
+        name: zone.name || "안전 장소",
+        address: zone.address || "안전 반경 주소 미설정",
+        centerLatitude: zone.centerLatitude ?? DEFAULT_SAFE_ZONE.centerLatitude,
+        centerLongitude: zone.centerLongitude ?? DEFAULT_SAFE_ZONE.centerLongitude,
+        radiusMeters: zone.radiusMeters ?? SAFE_RADIUS,
+      }));
+
+      setSafeZones(normalizedZones);
+      setSafeZone(normalizedZones[0] || DEFAULT_SAFE_ZONE);
     } catch (e) {
       console.error("안전 반경 조회 실패:", e);
     }
@@ -142,6 +158,22 @@ export default function LocationPage() {
     const timerId = setInterval(loadSafeZone, 10 * 1000);
     return () => clearInterval(timerId);
   }, [loadSafeZone]);
+
+  useEffect(() => {
+    if (!currentPos || safeZones.length === 0) return;
+
+    const nearest = safeZones
+      .map((zone) => ({
+        zone,
+        distance: getDistanceMeters(
+          { lat: zone.centerLatitude, lng: zone.centerLongitude },
+          { lat: currentPos[0], lng: currentPos[1] }
+        ),
+      }))
+      .sort((first, second) => first.distance - second.distance)[0]?.zone;
+
+    if (nearest) setSafeZone(nearest);
+  }, [currentPos, safeZones]);
 
   const updateLocation = useCallback(async (lat, lon, accuracy) => {
   setCurrentPos([lat, lon]);
@@ -402,6 +434,16 @@ export default function LocationPage() {
             <div className="lp-range-desc">
               보호자가 설정한 안전 반경입니다. 이 범위를 벗어나면 보호자에게 즉시 알림이 전송됩니다.
             </div>
+            {safeZones.length > 1 && (
+              <div className="lp-safe-zone-list">
+                {safeZones.map((zone) => (
+                  <div className={`lp-safe-zone-item ${zone.id === safeZone.id ? "active" : ""}`} key={zone.id || zone.name}>
+                    <strong>{zone.name}</strong>
+                    <span>{zone.address}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <NearbyHelpPlaces

@@ -292,12 +292,12 @@ function UserPanel({
               <dd>{selectedElder.age}</dd>
             </div>
             <div>
-              <dt>?? ??</dt>
-              <dd>{selectedElder.incomeLevel || "???"}</dd>
+              <dt>소득 수준</dt>
+              <dd>{selectedElder.incomeLevel || "미등록"}</dd>
             </div>
             <div>
-              <dt>?? ??</dt>
-              <dd>{selectedElder.householdType || "???"}</dd>
+              <dt>가구 형태</dt>
+              <dd>{selectedElder.householdType || "미등록"}</dd>
             </div>
             <div>
               <dt>담당 복지사</dt>
