@@ -1,3 +1,5 @@
+import { getJobLocation } from "../job/jobLocation";
+
 const SENURI_SERVICE_KEY =
   import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
@@ -6,6 +8,7 @@ const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
 const jobListCache = new Map();
+const DETAIL_CONCURRENCY = 8;
 
 export const EMPL_MAP = {
   CM0101: "정규직",
@@ -94,7 +97,7 @@ const writeJobCache = (cacheKey, data) => {
 };
 
 export const categorizeJob = (job) => {
-  const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, job.workPlcNm);
+  const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, getJobLocation(job));
   for (const category of JOB_CATEGORY_FILTERS) {
     if (!category.keywords.length) continue;
     if (category.keywords.some((keyword) => text.includes(keyword))) return category.label;
@@ -134,6 +137,7 @@ const parseDeadlineDate = (text) => {
 const normalizeSenuriJob = (item) => ({
   jobId: item.querySelector("jobId")?.textContent || "",
   source: "노인일자리",
+  age: item.querySelector("age")?.textContent || "",
   recrtTitle: item.querySelector("recrtTitle")?.textContent || "",
   oranNm: item.querySelector("oranNm")?.textContent || "",
   emplymShp: item.querySelector("emplymShp")?.textContent || "CM0105",
@@ -168,6 +172,85 @@ export const parseJobList = (xmlText) => {
   };
 };
 
+const parseSenuriJobDetail = (xmlText) => {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(xmlText, "text/xml");
+  const item = xml.querySelector("item");
+
+  if (!item) return null;
+
+  return {
+    jobId: item.querySelector("jobId")?.textContent || item.querySelector("wantedAuthNo")?.textContent || "",
+    age: item.querySelector("age")?.textContent || "",
+    wantedTitle: item.querySelector("wantedTitle")?.textContent || "",
+    plbizNm: item.querySelector("plbizNm")?.textContent || "",
+    plDetAddr: item.querySelector("plDetAddr")?.textContent || "",
+    etcItm: item.querySelector("etcItm")?.textContent || "",
+    clltPrnnum: item.querySelector("clltPrnnum")?.textContent || "",
+  };
+};
+
+const mergeSenuriJobDetail = (job, detail) => {
+  if (!detail) return job;
+
+  return {
+    ...job,
+    age: job.age || detail.age || "",
+    wantedTitle: job.wantedTitle || detail.wantedTitle || "",
+    recrtTitle: job.recrtTitle || detail.wantedTitle || "",
+    plbizNm: job.plbizNm || detail.plbizNm || "",
+    oranNm: job.oranNm || detail.plbizNm || "",
+    plDetAddr: job.plDetAddr || detail.plDetAddr || "",
+    etcItm: job.etcItm || detail.etcItm || "",
+    detCnts: job.detCnts || detail.etcItm || "",
+    clltPrnnum: job.clltPrnnum || detail.clltPrnnum || "",
+  };
+};
+
+const fetchSenuriJobDetail = async (jobId) => {
+  if (!jobId) return null;
+
+  const cacheKey = `senuri-detail-${jobId}`;
+  const cached = readJobCache(cacheKey);
+
+  if (cached) return cached;
+
+  const response = await fetch(
+    `/senuri/B552474/SenuriService/getJobInfo?ServiceKey=${SENURI_SERVICE_KEY}&id=${encodeURIComponent(jobId)}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Senuri Job Detail API failed: ${response.status}`);
+  }
+
+  const detail = parseSenuriJobDetail(await response.text());
+  writeJobCache(cacheKey, detail);
+
+  return detail;
+};
+
+const enrichSenuriJobsWithDetails = async (jobs) => {
+  const enrichedJobs = [...jobs];
+  const targets = enrichedJobs
+    .map((job, index) => ({ job, index }))
+    .filter(({ job }) => job.jobId && !getJobLocation(job));
+
+  for (let index = 0; index < targets.length; index += DETAIL_CONCURRENCY) {
+    const chunk = targets.slice(index, index + DETAIL_CONCURRENCY);
+
+    await Promise.all(chunk.map(async ({ job, index: jobIndex }) => {
+      try {
+        const detail = await fetchSenuriJobDetail(job.jobId);
+        enrichedJobs[jobIndex] = mergeSenuriJobDetail(job, detail);
+      } catch {
+        enrichedJobs[jobIndex] = job;
+      }
+    }));
+  }
+
+  return enrichedJobs;
+};
+
 const normalizeSeoulJob = (row) => ({
   jobId: row.JO_REQST_NO || row.JO_REGIST_NO || "",
   source: "서울일자리",
@@ -200,7 +283,12 @@ const fetchSenuriJobList = async (pageNo, emplymShp, numOfRows) => {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Senuri Job API failed: ${response.status}`);
 
-  return parseJobList(await response.text());
+  const data = parseJobList(await response.text());
+
+  return {
+    ...data,
+    list: await enrichSenuriJobsWithDetails(data.list),
+  };
 };
 
 const fetchSeoulJobInfo = async (pageNo, numOfRows) => {
@@ -315,12 +403,13 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
   }
 
   const regionTokens = getRegionTokens(profile);
-  const jobLocation = normalize(textOf(job.workPlcNm, job.plDetAddr));
+  const jobLocationText = textOf(getJobLocation(job), job.plDetAddr);
+  const jobLocation = normalize(jobLocationText);
   const matchedRegion = regionTokens.find((token) => jobLocation.includes(normalize(token)));
   if (matchedRegion) {
     score += MATCH_SCORE_WEIGHTS.region;
     reasons.push(`${matchedRegion} 근무지`);
-  } else if (/서울/.test(textOf(job.workPlcNm, job.plDetAddr))) {
+  } else if (/서울/.test(jobLocationText)) {
     score += Math.round(MATCH_SCORE_WEIGHTS.region * 0.45);
     reasons.push("서울 지역 공고");
   }

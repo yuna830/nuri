@@ -29,6 +29,29 @@ python predict_health_status.py `
   --input data\predict_sample.json
 ```
 
+## v2 실험 흐름
+
+기존 앱 모델은 `artifacts`에 그대로 두고, Kaggle/AI Hub 등 외부 데이터 실험은 `artifacts_v2`에서 진행합니다.
+
+```powershell
+cd D:\nuri\nuri-geonhee\woorispring\ml\health_status_model
+
+.\.venv\Scripts\python.exe prepare_health_training_v2.py `
+  --output data\processed\health_status_training_v2.csv `
+  --summary data\processed\health_status_training_v2_summary.json
+
+.\.venv\Scripts\python.exe train_health_status_model.py `
+  --input data\processed\health_status_training_v2.csv `
+  --output-dir artifacts_v2
+
+.\.venv\Scripts\python.exe compare_health_models.py `
+  --input data\predict_sample.json
+```
+
+외부 CSV 파일은 `data\external` 아래에 넣으면 됩니다. 변환 스크립트는 이미 앱 입력 컬럼 형태인 CSV는 그대로 사용하고, Kaggle Diabetes/Heart 계열처럼 컬럼명이 다른 CSV는 가능한 범위에서 `age`, `gender`, `height`, `weight`, `diabetes`, `hypertension`, `heart_disease`, `medicine_count`, `walking_aid`, `recent_fall`, `max_hours` 형태로 맞춥니다.
+
+검증 전까지 `artifacts`는 덮어쓰지 않습니다.
+
 ## 입력 컬럼
 
 - `age`

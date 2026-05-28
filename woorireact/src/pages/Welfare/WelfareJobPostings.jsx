@@ -1,25 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, UserRound } from "lucide-react";
 
 import {
     EMPL_MAP,
     JOB_CATEGORY_FILTERS,
     categorizeJob,
+    enrichWelfareJobsWithDetails,
     fetchWelfareJobList,
     formatDate,
     recommendWelfareJobToSenior,
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniorDetail, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import { getJobLocation } from "../../utils/job/jobLocation";
 import { isSeniorFriendlyJob } from "../../utils/job/seniorJobFilter";
 
 
 import "../../css/welfare/WelfareJobPostings.css";
 
 const PAGE_SIZE = 20;
-const API_PAGE_SIZE = 200;
+const API_PAGE_SIZE = 600;
 const MAX_JOB_COUNT = 200;
+const MAX_SOURCE_PAGES = 3;
 const RECOMMENDATION_LIMIT = 5;
 const RECOMMENDATION_CANDIDATE_LIMIT = 80;
 
@@ -28,10 +31,35 @@ const numberFrom = (value) => {
     return match ? Number(match[0]) : null;
 };
 
+const displayValue = (value) => {
+    const text = String(value || "").trim();
+    return text || "-";
+};
+
+const formatAgeGender = (senior) => {
+    const age = senior?.age ? `${senior.age}세` : "";
+    const gender = senior?.gender || "";
+    return [age, gender].filter(Boolean).join(" / ") || "나이/성별 미등록";
+};
+
+const formatHours = (value) => {
+    const text = String(value || "").trim();
+    if (!text) return "-";
+    return text.includes("시간") ? text : `하루 ${text}시간`;
+};
+
+const healthStatusClass = (value) => {
+    const text = String(value || "");
+    if (text.includes("위험")) return "danger";
+    if (text.includes("주의")) return "warning";
+    if (text.includes("양호")) return "good";
+    return "empty";
+};
+
 const jobText = (job) => [
     job?.recrtTitle,
     job?.oranNm,
-    job?.workPlcNm,
+    getJobLocation(job),
     job?.jobclsNm,
     job?.emplymShpNm,
     job?.detCnts,
@@ -55,7 +83,7 @@ const extractRegionName = (text) => {
 };
 
 const getJobRegion = (job) =>
-    extractRegionName(compactText([job?.workPlcNm, job?.recrtTitle, job?.oranNm, job?.plDetAddr]));
+    extractRegionName(compactText([getJobLocation(job), job?.recrtTitle, job?.oranNm, job?.plDetAddr]));
 
 const getSeniorRegion = (senior) =>
     extractRegionName(compactText([
@@ -136,7 +164,7 @@ const inferTaskTags = (job) => {
 };
 
 const getRegionNotice = (job) => {
-    const text = compactText([job.workPlcNm, job.recrtTitle, job.oranNm, job.plDetAddr]);
+    const text = compactText([getJobLocation(job), job.recrtTitle, job.oranNm, job.plDetAddr]);
     const region = getJobRegion(job);
 
     if (region) return `${region} 지역 공고`;
@@ -202,7 +230,7 @@ const toMatchingCandidate = (job, isExpired, senior) => ({
     taskTags: inferTaskTags(job),
     closed: isExpired(job),
     workDays: [],
-    workCondition: [job.workPlcNm, job.detCnts, job.workTime, job.emplymShpNm, job.acptMthd].filter(Boolean).join(" "),
+    workCondition: [getJobLocation(job), job.detCnts, job.workTime, job.emplymShpNm, job.acptMthd].filter(Boolean).join(" "),
 });
 
 function WelfareJobPostings() {
@@ -272,7 +300,7 @@ function WelfareJobPostings() {
         return (
             job.recrtTitle?.includes(keyword) ||
             job.oranNm?.includes(keyword) ||
-            job.workPlcNm?.includes(keyword) ||
+            getJobLocation(job)?.includes(keyword) ||
             job.jobclsNm?.includes(keyword)
         );
     }, [searchKeyword]);
@@ -322,21 +350,37 @@ function WelfareJobPostings() {
         setLoadError("");
 
         try {
-            const result = await fetchWelfareJobList(1, "", API_PAGE_SIZE);
             const merged = new Map();
+            let pageNo = 1;
+            let limitedJobs = [];
 
-            (result.list || []).forEach((job) => {
-                if (job.jobId) {
-                    merged.set(job.jobId, job);
+            while (limitedJobs.length < MAX_JOB_COUNT && pageNo <= MAX_SOURCE_PAGES) {
+                const result = await fetchWelfareJobList(pageNo, "", API_PAGE_SIZE);
+
+                (result.list || []).forEach((job) => {
+                    if (job.jobId) {
+                        merged.set(job.jobId, job);
+                    }
+                });
+
+                limitedJobs = Array.from(merged.values())
+                    .filter(isSeniorFriendlyJob)
+                    .slice(0, MAX_JOB_COUNT);
+
+                if (!result.list?.length) {
+                    break;
                 }
-            });
 
-            const limitedJobs = Array.from(merged.values())
+                pageNo += 1;
+            }
+
+            const enrichedJobs = await enrichWelfareJobsWithDetails(limitedJobs);
+            const displayableJobs = enrichedJobs
                 .filter(isSeniorFriendlyJob)
                 .slice(0, MAX_JOB_COUNT);
 
-            setJobs(limitedJobs);
-            setTotalCount(limitedJobs.length);
+            setJobs(displayableJobs);
+            setTotalCount(displayableJobs.length);
             setVisibleCount(PAGE_SIZE);
         } catch {
             setLoadError("일자리 공고를 불러오지 못했습니다.");
@@ -563,6 +607,46 @@ function WelfareJobPostings() {
                         ))}
                     </nav>
 
+                    {isRecommendationPage && (
+                        <aside className="wj-senior-profile-card" aria-label="추천 대상자 정보">
+                            <div className="wj-senior-profile-avatar" aria-hidden="true">
+                                <UserRound size={34} strokeWidth={2.1} />
+                            </div>
+
+                            <div className="wj-senior-profile-heading">
+                                <strong>{targetSenior?.name || "대상자"}</strong>
+                                <span>{formatAgeGender(targetSenior)}</span>
+                            </div>
+
+                            <dl className="wj-senior-profile-list">
+                                <div>
+                                    <dt>거주 지역</dt>
+                                    <dd>{displayValue(targetSenior?.region || targetSenior?.address)}</dd>
+                                </div>
+                                <div>
+                                    <dt>연락처</dt>
+                                    <dd>{displayValue(targetSenior?.phone)}</dd>
+                                </div>
+                                <div>
+                                    <dt>건강 상태</dt>
+                                    <dd>
+                                        <span className={`wj-senior-health-badge wj-senior-health-${healthStatusClass(getHealthValue(targetSenior, ["healthStatus"]))}`}>
+                                            {displayValue(getHealthValue(targetSenior, ["healthStatus"]))}
+                                        </span>
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>보행 조건</dt>
+                                    <dd>{displayValue(getHealthValue(targetSenior, ["walkingStatus", "walkingAid", "maxDistance"]))}</dd>
+                                </div>
+                                <div>
+                                    <dt>활동 가능</dt>
+                                    <dd>{formatHours(getHealthValue(targetSenior, ["maxHours", "preferredWorkTime"]))}</dd>
+                                </div>
+                            </dl>
+                        </aside>
+                    )}
+
                     <div className="wj-main-area">
                         <div className="wj-search-row">
                             <Search size={16} className="wj-search-icon" />
@@ -630,6 +714,7 @@ function WelfareJobPostings() {
                         <div className="wj-job-list">
                             {displayJobs.map((job) => {
                                 const jobCategory = categorizeJob(job);
+                                const jobLocation = getJobLocation(job);
                                 const employmentText =
                                     EMPL_MAP[job.emplymShp] || job.emplymShpNm || "기타";
                                 const matchReasons = [
@@ -684,9 +769,9 @@ function WelfareJobPostings() {
                                         {isRecommendationPage ? (
                                             <>
                                                 <div className="wj-recommend-chip-row">
-                                                    {job.workPlcNm && (
+                                                    {jobLocation && (
                                                         <span className="wj-recommend-chip wj-recommend-chip-soft">
-                                                            {job.workPlcNm}
+                                                            {jobLocation}
                                                         </span>
                                                     )}
                                                     <span className="wj-recommend-chip wj-recommend-chip-soft">
@@ -736,9 +821,9 @@ function WelfareJobPostings() {
                                             </>
                                         ) : (
                                             <div className="wj-job-meta">
-                                                {job.workPlcNm && (
+                                                {jobLocation && (
                                                     <span className="wj-meta-item">
-                                                        📍 {job.workPlcNm}
+                                                        📍 {jobLocation}
                                                     </span>
                                                 )}
 
@@ -903,7 +988,7 @@ function WelfareJobPostings() {
 
                                     <div className="wj-modal-row">
                                         <strong>근무지</strong>
-                                        <span>{selectedJob.workPlcNm || "-"}</span>
+                                        <span>{getJobLocation(selectedJob) || "-"}</span>
                                     </div>
 
                                     {selectedJob.plDetAddr && (

@@ -35,6 +35,7 @@ PREDICT_REQUIRED_COLUMNS = [column for column in REQUIRED_COLUMNS if column != "
 
 FEATURE_COLUMNS = [
     "age_num",
+    "advanced_age_flag",
     "bmi",
     "medicine_count_num",
     "physical_limitation_count_num",
@@ -96,6 +97,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
     features = pd.DataFrame(index=working.index)
     features["age_num"] = working["age"].map(extract_max_number).fillna(0)
+    features["advanced_age_flag"] = (features["age_num"] >= 85).astype(int)
     features["medicine_count_num"] = working["medicine_count"].map(extract_max_number).fillna(0)
     features["physical_limitation_count_num"] = working["physical_limitation_count"].map(extract_max_number).fillna(0)
     features["max_hours_num"] = working["max_hours"].map(extract_max_number).fillna(0)

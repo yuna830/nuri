@@ -11,11 +11,13 @@ import {
   isPastDate,
   scoreJobMatch,
 } from "../../utils/user/jobApi";
+import { getJobLocation } from "../../utils/job/jobLocation";
 import { isSeniorFriendlyJob } from "../../utils/job/seniorJobFilter";
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
 const API_PAGE_SIZE = 200;
+const MAX_JOB_COUNT = 200;
 const MATCHING_API_LIMIT = 5;
 const MATCHING_CANDIDATE_LIMIT = 40;
 
@@ -27,7 +29,7 @@ const numberFrom = (value) => {
 const textOfJob = (job) => [
   job?.recrtTitle,
   job?.oranNm,
-  job?.workPlcNm,
+  getJobLocation(job),
   job?.jobclsNm,
   job?.emplymShpNm,
   job?.workTime,
@@ -131,7 +133,7 @@ const toMatchingCandidate = (job) => ({
   taskTags: inferTaskTags(job),
   closed: job.toDd ? isPastDate(job.toDd) : job.deadline === "closed",
   workDays: job.workTime ? [job.workTime] : [],
-  workCondition: [job.detCnts, job.workTime, job.emplymShpNm].filter(Boolean).join(" "),
+  workCondition: [getJobLocation(job), job.detCnts, job.workTime, job.emplymShpNm].filter(Boolean).join(" "),
 });
 
 export default function JobPage() {
@@ -171,7 +173,7 @@ export default function JobPage() {
   const matchesSearch = useCallback((job) => {
     const keyword = deferredSearch.trim();
     if (!keyword) return true;
-    return [job.recrtTitle, job.oranNm, job.workPlcNm, job.jobclsNm, job.source]
+    return [job.recrtTitle, job.oranNm, getJobLocation(job), job.jobclsNm, job.source]
       .some((value) => String(value || "").includes(keyword));
   }, [deferredSearch]);
 
@@ -189,7 +191,8 @@ export default function JobPage() {
         ...job,
         match: scoreJobMatch(job, profile || {}, category),
       }))
-      .sort((a, b) => b.match.score - a.match.score);
+      .sort((a, b) => b.match.score - a.match.score)
+      .slice(0, MAX_JOB_COUNT);
   }, [category, filterJobs, jobs, profile]);
 
   const matchingCandidateJobs = useMemo(
@@ -221,12 +224,15 @@ export default function JobPage() {
         result.list.forEach((job) => merged.set(`${job.source}-${job.jobId}`, job));
         nextJobs = Array.from(merged.values());
 
-        const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
+        const targetLimit = Math.min(targetCount, MAX_JOB_COUNT);
+        const filteredCount = filterJobs(nextJobs).length;
+        const enoughForCategory = filteredCount >= targetLimit;
+        const reachedJobLimit = filteredCount >= MAX_JOB_COUNT;
         const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
         const emptyPage = result.list.length === 0;
         const reachedSafetyLimit = nextPage >= 20;
 
-        shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
+        shouldContinue = !enoughForCategory && !reachedJobLimit && !loadedAll && !emptyPage && !reachedSafetyLimit;
         nextPage += 1;
       }
 
@@ -369,7 +375,7 @@ export default function JobPage() {
           jobId: job.jobId,
           jobTitle: job.recrtTitle,
           company: job.oranNm,
-          location: job.workPlcNm,
+          location: getJobLocation(job),
           applicationType: "ONLINE",
           status: "검토 대기",
         }),
@@ -384,6 +390,7 @@ export default function JobPage() {
     const empl = EMPL_MAP[job.emplymShp] || job.emplymShpNm || "기타";
     const color = EMPL_COLOR[job.emplymShp] || EMPL_COLOR.CM0105;
     const jobCategory = categorizeJob(job);
+    const jobLocation = getJobLocation(job);
     const expired = isExpired(job);
     const key = getJobKey(job);
     const recommended = compact || recommendedIds.has(key);
@@ -421,7 +428,7 @@ export default function JobPage() {
           </div>
 
           <div className="jp-card-tags">
-            {job.workPlcNm && <span className="jp-card-tag">{job.workPlcNm}</span>}
+            {jobLocation && <span className="jp-card-tag">{jobLocation}</span>}
             {job.jobclsNm && <span className="jp-card-tag">{job.jobclsNm}</span>}
             {job.weekHours && <span className="jp-card-tag">주 {job.weekHours}시간</span>}
             {job.career && <span className="jp-card-tag">경력 {job.career}</span>}
@@ -593,7 +600,7 @@ export default function JobPage() {
                 { key: "출처", val: selected.source },
                 { key: "추천점수", val: `${selected.match?.score ?? scoreJobMatch(selected, profile || {}, category).score}점` },
                 { key: "고용형태", val: EMPL_MAP[selected.emplymShp] || selected.emplymShpNm || "기타" },
-                { key: "근무지", val: selected.workPlcNm },
+                { key: "근무지", val: getJobLocation(selected) },
                 { key: "상세주소", val: selected.plDetAddr },
                 { key: "직종", val: selected.jobclsNm },
                 { key: "근무시간", val: selected.workTime },

@@ -1,10 +1,12 @@
 import { sendWelfareSeniorAlert } from "./welfareAlertApi";
+import { getJobLocation } from "../utils/job/jobLocation";
 
 const SERVICE_KEY =
     "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
 const jobListCache = new Map();
+const DETAIL_CONCURRENCY = 8;
 
 export const EMPL_MAP = {
     CM0101: "정규직",
@@ -86,6 +88,8 @@ export const parseJobList = (xmlText) => {
     return {
         list: Array.from(items).map((item) => ({
             jobId: item.querySelector("jobId")?.textContent || "",
+            source: "노인일자리",
+            age: item.querySelector("age")?.textContent || "",
             recrtTitle: item.querySelector("recrtTitle")?.textContent || "",
             oranNm: item.querySelector("oranNm")?.textContent || "",
             emplymShp: item.querySelector("emplymShp")?.textContent || "CM0105",
@@ -102,6 +106,41 @@ export const parseJobList = (xmlText) => {
             clltPrnnum: item.querySelector("clltPrnnum")?.textContent || "",
         })),
         total: Number(total) || 0,
+    };
+};
+
+const parseJobDetail = (xmlText) => {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, "text/xml");
+    const item = xml.querySelector("item");
+
+    if (!item) return null;
+
+    return {
+        jobId: item.querySelector("jobId")?.textContent || item.querySelector("wantedAuthNo")?.textContent || "",
+        age: item.querySelector("age")?.textContent || "",
+        wantedTitle: item.querySelector("wantedTitle")?.textContent || "",
+        plbizNm: item.querySelector("plbizNm")?.textContent || "",
+        plDetAddr: item.querySelector("plDetAddr")?.textContent || "",
+        etcItm: item.querySelector("etcItm")?.textContent || "",
+        clltPrnnum: item.querySelector("clltPrnnum")?.textContent || "",
+    };
+};
+
+const mergeJobDetail = (job, detail) => {
+    if (!detail) return job;
+
+    return {
+        ...job,
+        age: job.age || detail.age || "",
+        wantedTitle: job.wantedTitle || detail.wantedTitle || "",
+        recrtTitle: job.recrtTitle || detail.wantedTitle || "",
+        plbizNm: job.plbizNm || detail.plbizNm || "",
+        oranNm: job.oranNm || detail.plbizNm || "",
+        plDetAddr: job.plDetAddr || detail.plDetAddr || "",
+        etcItm: job.etcItm || detail.etcItm || "",
+        detCnts: job.detCnts || detail.etcItm || "",
+        clltPrnnum: job.clltPrnnum || detail.clltPrnnum || "",
     };
 };
 
@@ -128,6 +167,50 @@ export const fetchWelfareJobList = async (pageNo = 1, emplymShp = "", numOfRows 
     writeJobCache(cacheKey, data);
 
     return data;
+};
+
+export const fetchWelfareJobDetail = async (jobId) => {
+    if (!jobId) return null;
+
+    const cacheKey = `detail-${jobId}`;
+    const cached = readJobCache(cacheKey);
+
+    if (cached) return cached;
+
+    const response = await fetch(
+        `/senuri/B552474/SenuriService/getJobInfo?ServiceKey=${SERVICE_KEY}&id=${encodeURIComponent(jobId)}`
+    );
+
+    if (!response.ok) {
+        throw new Error(`Job detail API failed: ${response.status}`);
+    }
+
+    const detail = parseJobDetail(await response.text());
+    writeJobCache(cacheKey, detail);
+
+    return detail;
+};
+
+export const enrichWelfareJobsWithDetails = async (jobs) => {
+    const enrichedJobs = [...jobs];
+    const targets = enrichedJobs
+        .map((job, index) => ({ job, index }))
+        .filter(({ job }) => job.jobId && !getJobLocation(job));
+
+    for (let index = 0; index < targets.length; index += DETAIL_CONCURRENCY) {
+        const chunk = targets.slice(index, index + DETAIL_CONCURRENCY);
+
+        await Promise.all(chunk.map(async ({ job, index: jobIndex }) => {
+            try {
+                const detail = await fetchWelfareJobDetail(job.jobId);
+                enrichedJobs[jobIndex] = mergeJobDetail(job, detail);
+            } catch {
+                enrichedJobs[jobIndex] = job;
+            }
+        }));
+    }
+
+    return enrichedJobs;
 };
 
 export const fetchWelfareJobApplications = async () => {
@@ -159,6 +242,7 @@ export const updateWelfareJobApplicationStatus = async (id, status) => {
 };
 
 export const recommendWelfareJobToSenior = async ({ seniorId, job }) => {
+    const jobLocation = getJobLocation(job);
     const response = await fetch("/api/job-interests", {
         method: "POST",
         headers: {
@@ -169,7 +253,7 @@ export const recommendWelfareJobToSenior = async ({ seniorId, job }) => {
             jobId: job.jobId,
             jobTitle: job.recrtTitle,
             company: job.oranNm,
-            location: job.workPlcNm,
+            location: jobLocation,
             applicationType: "RECOMMEND",
             status: "검토 대기",
         }),
@@ -190,7 +274,7 @@ export const recommendWelfareJobToSenior = async ({ seniorId, job }) => {
             jobId: job.jobId,
             jobTitle: job.recrtTitle,
             company: job.oranNm,
-            location: job.workPlcNm,
+            location: jobLocation,
         },
     }).catch(() => null);
 

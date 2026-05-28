@@ -217,6 +217,19 @@
     color: #e05252;
 }
 
+.wsd-detail-value.wsd-review-complete,
+.wsd-detail-value.wsd-review-pending {
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.wsd-detail-value.wsd-review-pending {
+    color: var(--text-color);
+}
+
 .wsd-category-layout {
     display: grid;
     grid-template-columns: 200px 1fr;

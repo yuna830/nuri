@@ -36,10 +36,14 @@ build/
 ml/**/.venv/
 ml/**/__pycache__/
 ml/**/artifacts*/
+logs/
 ml/**/data/job_matching_dummy_*.csv
 ml/**/data/senuri_jobs.csv
 ml/**/data/hf_linkedin_job_postings.csv
 ml/**/data/hf_linkedin_jobs_normalized*.csv
+ml/**/data/external/
+ml/**/data/processed/
+ml/**/data/validation/
 ml/**/data/nhanes_raw/
 ml/**/data/nhanes_health_rows.csv
 ml/**/data/nhanes_health_status_training*.csv

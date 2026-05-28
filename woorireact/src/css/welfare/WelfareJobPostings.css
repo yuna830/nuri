@@ -76,12 +76,15 @@
 }
 
 .wj-page-recommendation .wj-content {
-    max-width: 900px;
+    max-width: 1240px;
     padding-top: 6px;
 }
 
 .wj-page-recommendation .wj-layout {
-    display: block;
+    display: grid;
+    grid-template-columns: 270px minmax(0, 900px);
+    justify-content: center;
+    gap: 18px;
 }
 
 .wj-page-recommendation .wj-sidebar,
@@ -95,6 +98,111 @@
     background: #fffef8;
     padding: 22px 10px 18px;
     box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+}
+
+.wj-senior-profile-card {
+    position: sticky;
+    top: 84px;
+    border: 1px solid #cfe0cf;
+    border-radius: 16px;
+    background: #fffef8;
+    padding: 24px 22px;
+    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
+}
+
+.wj-senior-profile-avatar {
+    width: 74px;
+    height: 74px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    background: #eef6ef;
+    color: #86a788;
+    display: grid;
+    place-items: center;
+}
+
+.wj-senior-profile-heading {
+    text-align: center;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #ded8c8;
+}
+
+.wj-senior-profile-heading strong {
+    display: block;
+    color: #17231a;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.wj-senior-profile-heading span {
+    display: block;
+    margin-top: 8px;
+    color: #6f7d70;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.wj-senior-profile-list {
+    margin: 18px 0 0;
+}
+
+.wj-senior-profile-list div {
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 34px;
+}
+
+.wj-senior-profile-list div + div {
+    margin-top: 8px;
+}
+
+.wj-senior-profile-list dt {
+    color: #6f7d70;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.wj-senior-profile-list dd {
+    margin: 0;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.4;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.wj-senior-health-badge {
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.wj-senior-health-good {
+    background: #e7f1e9;
+    color: #2f6d45;
+}
+
+.wj-senior-health-warning {
+    background: #fff0ba;
+    color: #8a6100;
+}
+
+.wj-senior-health-danger {
+    background: #ffe0e1;
+    color: #a22929;
+}
+
+.wj-senior-health-empty {
+    background: #eeeeee;
+    color: #666666;
 }
 
 .wj-recommend-summary {
@@ -798,6 +906,14 @@
 
     .wj-layout {
         grid-template-columns: 1fr;
+    }
+
+    .wj-page-recommendation .wj-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .wj-senior-profile-card {
+        position: static;
     }
 
     .wj-sidebar {
