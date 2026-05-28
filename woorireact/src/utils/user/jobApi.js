@@ -355,6 +355,10 @@ export const getSavedJobProfile = () => {
         healthStatus: healthInfo.healthStatus,
         maxHours: healthInfo.maxHours || jobPreference.maxHours,
         maxDistance: healthInfo.maxDistance || jobPreference.maxDistance,
+        restNeed: healthInfo.restNeed || "",
+        avoidEnvironment: healthInfo.avoidEnvironment
+          ? String(healthInfo.avoidEnvironment).split(",").filter(Boolean)
+          : [],
         payType: jobPreference.payType,
         preferredCategories: jobPreference.categories || jobPreference.preferredCategories || [],
         hopeDays: jobPreference.hopeDays

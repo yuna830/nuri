@@ -11,13 +11,14 @@ import {
 import {
     fetchWelfareAlerts,
     fetchWelfareSeniors,
-    getCachedWelfareSeniors,
+    requestSeniorInfoUpdate,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
 import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
 import {
+    getMissingSeniorInfoFields,
     getSeniorSummaryCounts,
     hasMissingRequiredSeniorInfo,
     isEmergencyPendingSenior,
@@ -60,33 +61,21 @@ const cloneFilters = (targetFilters) =>
         {}
     );
 
-const WELFARE_READ_NOTIFICATIONS_KEY = "welfare:read-notifications";
-
-const getSavedReadNotificationIds = () => {
-    try {
-        const savedIds = JSON.parse(localStorage.getItem(WELFARE_READ_NOTIFICATIONS_KEY) || "[]");
-        return Array.isArray(savedIds) ? savedIds : [];
-    } catch {
-        return [];
-    }
-};
-
 function WelfareDashboard() {
     const navigate = useNavigate();
-    const currentWorker = JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
-    const initialCachedSeniors = getCachedWelfareSeniors({ page: 0, size: ITEM_PER_PAGE });
-    const initialRawSeniors = Array.isArray(initialCachedSeniors)
-        ? initialCachedSeniors
-        : initialCachedSeniors?.content;
-    const initialMappedSeniors = Array.isArray(initialRawSeniors)
-        ? initialRawSeniors.map(mapWelfareSenior)
-        : [];
+    const currentWorker = useMemo(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
+        } catch {
+            return null;
+        }
+    }, []);
 
-    const [seniors, setSeniors] = useState(initialMappedSeniors);
-    const [isLoadingSeniors, setIsLoadingSeniors] = useState(initialMappedSeniors.length === 0);
+    const [seniors, setSeniors] = useState([]);
+    const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
-    const [dismissedNotifications, setDismissedNotifications] = useState(getSavedReadNotificationIds);
+    const [dismissedNotifications, setDismissedNotifications] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
@@ -95,20 +84,23 @@ function WelfareDashboard() {
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
     const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
     const [summaryFilter, setSummaryFilter] = useState("all");
-    const [serverTotalPages, setServerTotalPages] = useState(
-        Array.isArray(initialCachedSeniors) ? 1 : Math.max(1, initialCachedSeniors?.totalPages || 1)
-    );
-    const [serverTotalSeniors, setServerTotalSeniors] = useState(
-        Array.isArray(initialCachedSeniors)
-            ? initialMappedSeniors.length
-            : Number(initialCachedSeniors?.totalElements || initialMappedSeniors.length)
-    );
-
-    const openSeniorAssignmentGuide = () => {
-        window.alert("대상자 추가는 관리자 페이지에서 복지사를 배정한 뒤 반영됩니다.");
-    };
+    const [serverTotalPages, setServerTotalPages] = useState(1);
+    const [serverTotalSeniors, setServerTotalSeniors] = useState(0);
+    const [infoRequestTarget, setInfoRequestTarget] = useState(null);
+    const [infoRequestTargets, setInfoRequestTargets] = useState({
+        toSenior: true,
+        toGuardian: true,
+    });
 
     useEffect(() => {
+        if (!currentWorker) {
+            navigate("/wlogin", { replace: true });
+        }
+    }, [currentWorker, navigate]);
+
+    useEffect(() => {
+        if (!currentWorker) return;
+
         let ignore = false;
 
         const loadSeniors = async () => {
@@ -147,9 +139,11 @@ function WelfareDashboard() {
         return () => {
             ignore = true;
         };
-    }, [currentPage]);
+    }, [currentPage, currentWorker]);
 
     useEffect(() => {
+        if (!currentWorker) return;
+
         let ignore = false;
 
         const loadWelfareAlerts = async () => {
@@ -175,7 +169,7 @@ function WelfareDashboard() {
             ignore = true;
             clearInterval(timerId);
         };
-    }, []);
+    }, [currentWorker]);
 
     const regionOptions = useMemo(() => ["서울 전체", ...SEOUL_DISTRICTS], []);
 
@@ -403,20 +397,63 @@ function WelfareDashboard() {
         return notifications;
     });
 
-    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].map((notification) => ({
-        ...notification,
-        isRead: dismissedNotifications.includes(notification.id),
-    }));
+    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].filter(
+        (notification) => !dismissedNotifications.includes(notification.id)
+    );
 
     const dismissNotification = (notificationId) => {
-        setDismissedNotifications((previousIds) => {
-            const nextIds = previousIds.includes(notificationId)
-                ? previousIds
-                : [...previousIds, notificationId];
+        setDismissedNotifications((previousIds) =>
+            previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
+        );
+    };
 
-            localStorage.setItem(WELFARE_READ_NOTIFICATIONS_KEY, JSON.stringify(nextIds));
-            return nextIds;
-        });
+    const handleSelectSenior = (senior) => {
+        if (summaryFilter === "missingInfo") {
+            setInfoRequestTarget(senior);
+            setInfoRequestTargets({
+                toSenior: true,
+                toGuardian: Boolean(senior.hasGuardian),
+            });
+            return;
+        }
+
+        navigate(`/welfare/seniors/${senior.id}`);
+    };
+
+    const handleSendInfoRequest = async () => {
+        if (!infoRequestTarget) return;
+
+        const missingFields = getMissingSeniorInfoFields(infoRequestTarget);
+
+        if (!infoRequestTargets.toSenior && !infoRequestTargets.toGuardian) {
+            alert("요청 대상을 선택해주세요.");
+            return;
+        }
+
+        try {
+            const createdAlerts = await requestSeniorInfoUpdate({
+                seniorId: infoRequestTarget.id,
+                missingFields,
+                toSenior: infoRequestTargets.toSenior,
+                toGuardian: infoRequestTargets.toGuardian,
+            });
+
+            const hasGuardianAlert = createdAlerts.some((alert) => alert.guardianId);
+            const hasSeniorAlert = createdAlerts.some((alert) => alert.seniorId && !alert.guardianId);
+
+            if (infoRequestTargets.toGuardian && !hasGuardianAlert) {
+                alert("사용자에게 요청은 보냈지만, 연결된 보호자가 없어 보호자 알림은 전송되지 않았습니다.");
+            } else if (infoRequestTargets.toSenior && !hasSeniorAlert) {
+                alert("보호자에게 요청은 보냈지만, 사용자 알림은 전송되지 않았습니다.");
+            } else {
+                alert("정보 입력 요청을 보냈습니다.");
+            }
+
+            setInfoRequestTarget(null);
+        } catch (error) {
+            console.error("정보 입력 요청 실패:", error);
+            alert("정보 입력 요청을 보내지 못했습니다.");
+        }
     };
 
     return (
@@ -430,17 +467,26 @@ function WelfareDashboard() {
                     message: notification.message,
                     category: notification.category || notification.detailCategory || "정보",
                     time: notification.time,
-                    isRead: notification.isRead,
+                    isRead: false,
                     danger: notification.danger === true || notification.category === "긴급",
                     raw: notification,
                 }))}
                 notificationTabs={["전체", "긴급", "정보 미입력", "일자리", "복지", "읽지 않음"]}
                 onReadNotification={(notification) => dismissNotification(notification.id)}
+                onNotificationClick={(notification) => {
+                    if (notification.seniorId) {
+                        navigate(`/welfare/seniors/${notification.seniorId}`, {
+                            state: {
+                                category: notification.detailCategory || "기본 정보",
+                            },
+                        });
+                    }
+                }}
                 actions={
                     <button
                         className="common-app-danger-button"
                         type="button"
-                        onClick={openSeniorAssignmentGuide}
+                        onClick={() => navigate("/signup")}
                     >
                         대상자 추가
                     </button>
@@ -485,7 +531,7 @@ function WelfareDashboard() {
                     <button
                         type="button"
                         className="wd-sidebar-add-button"
-                        onClick={openSeniorAssignmentGuide}
+                        onClick={() => navigate("/signup")}
                     >
                         <UserPlus size={17} />
                         대상자 추가
@@ -496,6 +542,7 @@ function WelfareDashboard() {
                     <WelfareSummaryCards
                         mode="seniors"
                         counts={seniorSummaryCounts}
+                        activeKey={summaryFilter}
                         onFilter={handleSeniorSummaryFilter}
                     />
 
@@ -586,7 +633,10 @@ function WelfareDashboard() {
                         <p className="wd-data-message">등록된 대상자가 없습니다.</p>
                     )}
 
-                    <WelfareSeniorTable seniors={currentSeniors} />
+                    <WelfareSeniorTable
+                        seniors={currentSeniors}
+                        onSelectSenior={handleSelectSenior}
+                    />
 
                     <div className="wd-pager">
                         <button
@@ -624,7 +674,82 @@ function WelfareDashboard() {
                 </main>
             </div>
 
-            <WelfarePolicyQaButton />
+            {infoRequestTarget && (
+                <div className="wd-modal-backdrop" onClick={() => setInfoRequestTarget(null)}>
+                    <section className="wd-info-request-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="wd-info-request-header">
+                            <h2>정보 입력 요청</h2>
+
+                            <button
+                                type="button"
+                                className="wd-info-request-close"
+                                onClick={() => setInfoRequestTarget(null)}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        <div className="wd-info-request-fields">
+                            <span>미입력 항목</span>
+                            <strong>{getMissingSeniorInfoFields(infoRequestTarget).join(", ")}</strong>
+                        </div>
+
+                        <div className="wd-info-request-options">
+                            <label className="wd-info-request-option">
+                                <input
+                                    type="checkbox"
+                                    checked={infoRequestTargets.toSenior}
+                                    onChange={(event) =>
+                                        setInfoRequestTargets((prev) => ({
+                                            ...prev,
+                                            toSenior: event.target.checked,
+                                        }))
+                                    }
+                                />
+                                <span>사용자에게 요청</span>
+                            </label>
+
+                            <label className="wd-info-request-option">
+                                <input
+                                    type="checkbox"
+                                    checked={infoRequestTargets.toGuardian}
+                                    disabled={!infoRequestTarget?.hasGuardian}
+                                    onChange={(event) =>
+                                        setInfoRequestTargets((prev) => ({
+                                            ...prev,
+                                            toGuardian: event.target.checked,
+                                        }))
+                                    }
+                                />
+                                <span>
+                                    {infoRequestTarget?.hasGuardian
+                                        ? "보호자에게 요청"
+                                        : "보호자에게 요청 (연결된 보호자 없음)"}
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="wd-info-request-actions">
+                            <button
+                                type="button"
+                                className="wd-info-request-cancel"
+                                onClick={() => setInfoRequestTarget(null)}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                className="wd-info-request-submit"
+                                onClick={handleSendInfoRequest}
+                            >
+                                요청 보내기
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            <WelfarePolicyQaButton seniorOptions={currentSeniors} />
         </div>
     );
 }

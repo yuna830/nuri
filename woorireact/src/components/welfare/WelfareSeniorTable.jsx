@@ -7,11 +7,8 @@ import {
 } from "../../utils/welfare/welfareDashboardData";
 import { shouldHideLastAccess } from "../../utils/welfare/welfareTime";
 
-function WelfareSeniorTable({ seniors }) {
+function WelfareSeniorTable({ seniors, onSelectSenior }) {
     const navigate = useNavigate();
-    const openDetail = (senior, category) => {
-        navigate(`/welfare/seniors/${senior.id}`, { state: { category, senior } });
-    };
 
     return (
         <div className="wd-table-box">
@@ -30,45 +27,24 @@ function WelfareSeniorTable({ seniors }) {
 
                 <tbody>
                     {seniors.map((senior) => (
-                        <tr key={senior.id}>
+                        <tr
+                            key={senior.id}
+                            className="wd-clickable-row"
+                            onClick={() => {
+                                if (onSelectSenior) {
+                                    onSelectSenior(senior);
+                                    return;
+                                }
+
+                                navigate(`/welfare/seniors/${senior.id}`);
+                            }}
+                        >
                             <td>{formatSeniorId(senior.id)}</td>
-                            <td>
-                                <button
-                                    type="button"
-                                    className="wd-table-link-button wd-name-text"
-                                    onClick={() => openDetail(senior, "기본 정보")}
-                                >
-                                    {formatSeniorNameInfo(senior)}
-                                </button>
-                            </td>
-                            <td>
-                                <button
-                                    type="button"
-                                    className="wd-table-link-button wd-cell-text"
-                                    onClick={() => openDetail(senior, "기본 정보")}
-                                >
-                                    {senior.region}
-                                </button>
-                            </td>
-                            <td>
-                                <button
-                                    type="button"
-                                    className="wd-table-link-button"
-                                    onClick={() => openDetail(senior, "건강 정보")}
-                                >
-                                    <span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span>
-                                </button>
-                            </td>
+                            <td><span className="wd-name-text">{formatSeniorNameInfo(senior)}</span></td>
+                            <td><span className="wd-cell-text">{senior.region}</span></td>
+                            <td><span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span></td>
                             <td><span className={getBadgeClass("alert", senior.alertStatus)}>{senior.alertStatus}</span></td>
-                            <td>
-                                <button
-                                    type="button"
-                                    className="wd-table-link-button"
-                                    onClick={() => openDetail(senior, "일자리 요청 상태")}
-                                >
-                                    <span className={getBadgeClass("workRequest", getSeniorReviewStatus(senior))}>{getSeniorReviewStatus(senior)}</span>
-                                </button>
-                            </td>
+                            <td><span className={getBadgeClass("workRequest", getSeniorReviewStatus(senior))}>{getSeniorReviewStatus(senior)}</span></td>
                             <td><span className="wd-cell-text">{shouldHideLastAccess(senior.lastAccess) ? "" : senior.lastAccess}</span></td>
                         </tr>
                     ))}

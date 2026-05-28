@@ -43,6 +43,22 @@ public class LocationController {
 
     @PostMapping
     public LocationStatus saveLocation(@RequestBody LocationSaveRequest request) {
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(request.seniorId())
+                .orElse(null);
+
+        if (latestLocation != null
+                && latestLocation.getLatitude() != null
+                && latestLocation.getLongitude() != null
+                && calculateDistanceMeters(
+                latestLocation.getLatitude(),
+                latestLocation.getLongitude(),
+                request.latitude(),
+                request.longitude()
+        ) < 50) {
+            return latestLocation;
+        }
+
         LocationStatus locationStatus = new LocationStatus();
         locationStatus.setSeniorId(request.seniorId());
         locationStatus.setLatitude(request.latitude());
@@ -57,20 +73,40 @@ public class LocationController {
     }
 
     private void createSafeZoneExitAlertsIfNeeded(LocationSaveRequest request) {
-        SafeZones safeZone = safeZonesRepository.findBySeniorId(request.seniorId()).orElse(null);
+        List<SafeZones> safeZones = safeZonesRepository.findBySeniorIdOrderByIdAsc(request.seniorId());
 
-        if (safeZone == null || safeZone.getCenterLatitude() == null || safeZone.getCenterLongitude() == null) {
+        if (safeZones.isEmpty()) {
             return;
         }
 
-        double distanceMeters = calculateDistanceMeters(
-                safeZone.getCenterLatitude(),
-                safeZone.getCenterLongitude(),
-                request.latitude(),
-                request.longitude()
-        );
+        double nearestDistanceMeters = Double.MAX_VALUE;
+        SafeZones nearestSafeZone = null;
 
-        if (distanceMeters <= safeZone.getRadiusMeters()) {
+        for (SafeZones safeZone : safeZones) {
+            if (safeZone.getCenterLatitude() == null || safeZone.getCenterLongitude() == null) {
+                continue;
+            }
+
+            int radiusMeters = safeZone.getRadiusMeters() == null ? 500 : safeZone.getRadiusMeters();
+
+            double distanceMeters = calculateDistanceMeters(
+                    safeZone.getCenterLatitude(),
+                    safeZone.getCenterLongitude(),
+                    request.latitude(),
+                    request.longitude()
+            );
+
+            if (distanceMeters <= radiusMeters) {
+                return;
+            }
+
+            if (distanceMeters < nearestDistanceMeters) {
+                nearestDistanceMeters = distanceMeters;
+                nearestSafeZone = safeZone;
+            }
+        }
+
+        if (nearestSafeZone == null) {
             return;
         }
 
@@ -85,6 +121,9 @@ public class LocationController {
 
         Senior senior = seniorRepository.findById(request.seniorId()).orElse(null);
         String seniorName = senior == null ? "보호 대상자" : senior.getName();
+        String safeZoneName = nearestSafeZone.getName() == null || nearestSafeZone.getName().isBlank()
+                ? "안전 반경"
+                : nearestSafeZone.getName();
 
         List<GuardianSenior> guardians = guardianSeniorRepository.findBySeniorId(request.seniorId());
 
@@ -94,7 +133,11 @@ public class LocationController {
             alert.setGuardianId(guardian.getGuardianId());
             alert.setType("SAFE_ZONE_EXIT");
             alert.setTitle("안전 반경 이탈");
-            alert.setMessage(seniorName + "님이 안전 반경을 벗어났습니다. 현재 거리: " + Math.round(distanceMeters) + "m");
+            alert.setMessage(
+                    seniorName + "님이 등록된 안전 반경을 모두 벗어났습니다. "
+                            + "가장 가까운 반경: " + safeZoneName
+                            + " · 현재 거리: " + Math.round(nearestDistanceMeters) + "m"
+            );
             alert.setLatitude(request.latitude());
             alert.setLongitude(request.longitude());
             alert.setIsRead(false);

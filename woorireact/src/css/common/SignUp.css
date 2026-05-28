@@ -569,7 +569,7 @@
 }
 
 .su-btn-prev {
-  background: transparent;
+  background: #ffffff;
   border: 1px solid #d4e8d6;
   border-radius: 10px;
   padding: 0.75rem 1.8rem;
@@ -577,6 +577,7 @@
   font-family: "Noto Sans KR", sans-serif;
   color: #7a9a7c;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.08);
 }
 
 .su-btn-prev:hover {

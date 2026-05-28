@@ -87,7 +87,8 @@
 
 .wpq-question-input {
     width: 100%;
-    min-height: 104px;
+    min-height: 62px;
+    max-height: 92px;
     border: 1px solid #dde6d7;
     border-radius: 8px;
     padding: 13px 14px;
@@ -104,6 +105,89 @@
 .wpq-question-input:focus {
     border-color: #86a788;
     box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.16);
+}
+
+.wpq-target-field {
+    display: grid;
+    gap: 7px;
+    margin-top: 12px;
+    color: #334038;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.wpq-target-field select {
+    width: 100%;
+    height: 40px;
+    border: 1px solid #dde6d7;
+    border-radius: 8px;
+    background-color: white;
+    color: #1f2933;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0 12px;
+    outline: none;
+}
+
+.wpq-target-field select:focus {
+    border-color: #86a788;
+    box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.16);
+}
+
+.wpq-chat-history {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 230px;
+    max-height: 380px;
+    overflow-y: auto;
+    margin: 14px 0 12px;
+    padding: 12px;
+    border: 1px solid #e4eadf;
+    border-radius: 8px;
+    background-color: #f8faf5;
+}
+
+.wpq-chat-empty {
+    margin: auto;
+    color: #6b756c;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.wpq-chat-message {
+    max-width: 92%;
+    padding: 11px 12px;
+    border-radius: 8px;
+    color: #243027;
+    line-height: 1.6;
+    word-break: keep-all;
+}
+
+.wpq-chat-message p {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.wpq-chat-message.user {
+    align-self: flex-end;
+    background-color: #86a788;
+    color: white;
+}
+
+.wpq-chat-message.assistant {
+    align-self: flex-start;
+    border: 1px solid #dde6d7;
+    background-color: white;
+}
+
+.wpq-message-target {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 900;
+    opacity: 0.86;
 }
 
 .wpq-action-row {

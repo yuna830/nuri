@@ -15,6 +15,7 @@ import {
   createAndConnectSenior,
   deleteGuardianSenior,
   sendMedicineAlert,
+  updateSeniorRequestedInfo,
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
@@ -26,11 +27,12 @@ import {
   appendLatestLocationToElder,
 } from "../../utils/guardian/guardianLocation";
 import {
-  getDefaultSafeZone,
-  loadSafeZone,
+  getDefaultSafeZones,
+  loadSafeZones,
   saveSafeZone,
+  deleteSafeZone,
 } from "../../utils/guardian/guardianSafeZone";
-import { buildDisplayedAlerts, isCallRequestAlert } from "../../utils/guardian/guardianAlert";
+import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
@@ -69,6 +71,83 @@ const saveLocalCareTeamMap = (profiles, guardian) => {
   }
 };
 
+const INFO_REQUEST_FIELDS = [
+  {
+    key: "gender",
+    label: "성별",
+    aliases: ["성별"],
+    type: "select",
+    options: ["남성", "여성"],
+  },
+  {
+    key: "phone",
+    label: "연락처",
+    aliases: ["연락처", "전화번호"],
+    type: "tel",
+    placeholder: "01012345678",
+  },
+  {
+    key: "birthDate",
+    label: "생년월일",
+    aliases: ["생년월일", "나이"],
+    type: "date",
+  },
+  {
+    key: "region",
+    label: "주소",
+    aliases: ["주소", "거주 지역"],
+    type: "text",
+    placeholder: "서울 광진구 자양동 794-10",
+  },
+];
+
+const isEmptyInfoValue = (value) => {
+  const text = String(value ?? "").trim();
+  return !text || text === "-" || text.includes("미등록") || text.includes("없음");
+};
+
+const getInfoRequestFieldKeys = (alert, elder) => {
+  const message = `${alert?.message ?? ""} ${alert?.title ?? ""}`;
+  const requestedKeys = INFO_REQUEST_FIELDS
+    .filter((field) => field.aliases.some((alias) => message.includes(alias)))
+    .map((field) => field.key);
+
+  if (requestedKeys.length > 0) {
+    return requestedKeys;
+  }
+
+  return INFO_REQUEST_FIELDS
+    .filter((field) => {
+      if (field.key === "region") return isEmptyInfoValue(elder?.address);
+      if (field.key === "birthDate") return isEmptyInfoValue(elder?.birthDate) && isEmptyInfoValue(elder?.age);
+      return isEmptyInfoValue(elder?.[field.key]);
+    })
+    .map((field) => field.key);
+};
+
+const buildInfoRequestForm = (elder) => ({
+  gender: isEmptyInfoValue(elder?.gender) ? "" : elder.gender,
+  phone: elder?.phone || "",
+  birthDate: elder?.birthDate || "",
+  region: isEmptyInfoValue(elder?.address) ? "" : elder.address,
+});
+
+const isInfoRequestStillNeeded = (alert, elders) => {
+  const targetElder = elders.find(
+    (elder) => String(elder.id) === String(alert?.seniorId)
+  );
+
+  if (!targetElder) {
+    return true;
+  }
+
+  return getInfoRequestFieldKeys(alert, targetElder).some((key) => {
+    if (key === "region") return isEmptyInfoValue(targetElder.address);
+    if (key === "birthDate") return isEmptyInfoValue(targetElder.birthDate) && isEmptyInfoValue(targetElder.age);
+    return isEmptyInfoValue(targetElder[key]);
+  });
+};
+
 function GuardianPage() {
   const navigate = useNavigate();
 
@@ -82,6 +161,7 @@ function GuardianPage() {
   const [seniorSearchResults, setSeniorSearchResults] = useState([]);
   const [isSearchingSenior, setIsSearchingSenior] = useState(false);
   const [hasSearchedSenior, setHasSearchedSenior] = useState(false);
+  const [selectedSafeZoneIds, setSelectedSafeZoneIds] = useState({});
 
   const [newSeniorForm, setNewSeniorForm] = useState({
     name: "",
@@ -134,6 +214,39 @@ function GuardianPage() {
     fallPattern: null,
     error: "",
     updatedAt: "",
+  });
+
+  const [infoRequestAlert, setInfoRequestAlert] = useState(null);
+  const [isElderEditOpen, setIsElderEditOpen] = useState(false);
+  const [editingElder, setEditingElder] = useState(null);
+  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
+
+  const [infoRequestFormAlert, setInfoRequestFormAlert] = useState(null);
+  const [infoRequestFieldKeys, setInfoRequestFieldKeys] = useState([]);
+  const [infoRequestForm, setInfoRequestForm] = useState({
+    gender: "",
+    phone: "",
+    birthDate: "",
+    region: "",
+    diabetes: "",
+    hypertension: "",
+    heartDisease: "",
+    jointDisease: "",
+    dementia: "",
+    walkingAid: "",
+    recentFall: "",
+    hasSurgery: "",
+    surgeryDetail: "",
+    otherDisease: "",
+    medications: [
+      {
+        name: "",
+        startDate: "",
+        interval: "",
+        dailyCount: "",
+        ongoing: true,
+      },
+    ],
   });
 
   const selectedElder = useMemo(
@@ -269,7 +382,7 @@ function GuardianPage() {
     setElders(nextElders);
 
     const safeZoneEntries = await Promise.all(
-      nextElders.map(async (elder) => [elder.id, await loadSafeZone(elder)])
+      nextElders.map(async (elder) => [elder.id, await loadSafeZones(elder)])
     );
 
     setSafeZoneForms(Object.fromEntries(safeZoneEntries));
@@ -307,11 +420,22 @@ function GuardianPage() {
         const previousIds = knownAlertIdsRef.current;
 
         const newAlerts = nextAlerts.filter(
-          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true && !isCallRequestAlert(alert)
+          (alert) => !previousIds.has(String(alert.id)) && alert.isRead !== true
         );
 
         knownAlertIdsRef.current = new Set(nextAlerts.map((alert) => String(alert.id)));
         setApiAlerts(nextAlerts);
+
+        const nextInfoRequestAlert = nextAlerts.find((alert) =>
+          alert.type === "INFO_UPDATE_REQUEST"
+          && alert.isRead !== true
+          && !dismissedInfoRequestIds.includes(String(alert.id))
+          && isInfoRequestStillNeeded(alert, elders)
+        );
+
+        if (nextInfoRequestAlert) {
+          setInfoRequestAlert(nextInfoRequestAlert);
+        }
 
         if (didLoadAlertsRef.current && newAlerts.length > 0) {
           const latestAlert = newAlerts[0];
@@ -329,7 +453,7 @@ function GuardianPage() {
       .catch((error) => {
         console.error("알림 조회 실패:", error);
       });
-  }, [navigate]);
+  }, [navigate, dismissedInfoRequestIds, elders]);
 
   useEffect(() => {
     const loadSeniors = async () => {
@@ -405,13 +529,13 @@ function GuardianPage() {
           onOpenEmergencyReport={() => {}}
         />
 
-        <section className="guardian-loading">
-          <div className="guardian-loading-card">
+        <div className="guardian-loading-backdrop" role="status" aria-live="polite">
+          <section className="guardian-loading-modal">
             <div className="guardian-loading-spinner" />
-            <strong>보호 대상자 정보를 불러오는 중입니다.</strong>
+            <strong>보호 대상자 정보를 불러오는 중입니다</strong>
             <span>잠시만 기다려주세요.</span>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
     );
   }
@@ -425,12 +549,27 @@ function GuardianPage() {
           onOpenEmergencyReport={() => {}}
         />
 
-        <section className="guardian-empty">등록된 보호 대상자가 없습니다.</section>
+        <section className="guardian-empty-state">
+          <div className="guardian-empty-modal">
+            <div className="guardian-empty-icon">!</div>
+
+            <h2>등록된 보호 대상자가 없습니다</h2>
+
+            <p>
+              보호 대상자를 추가하면 위치 확인, 안전 반경 관리,
+              긴급 알림 기능을 사용할 수 있습니다.
+            </p>
+          </div>
+        </section>
       </main>
     );
   }
 
-  const safeZoneForm = safeZoneForms[activeElderId] ?? getDefaultSafeZone(selectedElder);
+  const selectedSafeZoneId = selectedSafeZoneIds[activeElderId];
+  const safeZones = safeZoneForms[activeElderId] ?? getDefaultSafeZones(selectedElder);
+  const safeZoneForm = safeZones.find((zone) => String(zone.id) === String(selectedSafeZoneId))
+    ?? safeZones[0]
+    ?? getDefaultSafeZones(selectedElder)[0];
 
   const safeZoneCenter = {
     lat: safeZoneForm.centerLatitude,
@@ -495,16 +634,62 @@ function GuardianPage() {
     if (!activeElderId) return;
 
     setSafeZoneForms((prev) => {
-      const currentSafeZone = prev[activeElderId] ?? safeZoneForm;
+      const currentZones = prev[activeElderId] ?? getDefaultSafeZones(selectedElder);
+      const currentZoneId = safeZoneForm.id;
 
       return {
         ...prev,
-        [activeElderId]: {
-          ...currentSafeZone,
-          [name]: ["name", "address"].includes(name) ? value : Number(value),
-        },
+        [activeElderId]: currentZones.map((zone) =>
+          String(zone.id) === String(currentZoneId)
+            ? {
+                ...zone,
+                [name]: ["name", "address"].includes(name) ? value : Number(value),
+              }
+            : zone
+        ),
       };
     });
+  };
+
+  const handleAddSafeZoneForm = () => {
+    if (!activeElderId) return;
+
+    setSafeZoneForms((prev) => {
+      const currentZones = prev[activeElderId] ?? getDefaultSafeZones(selectedElder);
+
+      if (currentZones.length >= 3) {
+        alert("안전 반경은 최대 3개까지 등록할 수 있습니다.");
+        return prev;
+      }
+
+      const newZone = {
+        id: `new-${Date.now()}`,
+        name: "",
+        address: selectedElder.address || "",
+        centerLatitude: selectedElder.center.lat,
+        centerLongitude: selectedElder.center.lng,
+        radiusMeters: 500,
+      };
+
+      setSelectedSafeZoneIds((ids) => ({
+        ...ids,
+        [activeElderId]: newZone.id,
+      }));
+
+      return {
+        ...prev,
+        [activeElderId]: [...currentZones, newZone],
+      };
+    });
+  };
+
+  const handleSelectSafeZoneForm = (safeZoneId) => {
+    if (!activeElderId) return;
+
+    setSelectedSafeZoneIds((prev) => ({
+      ...prev,
+      [activeElderId]: safeZoneId,
+    }));
   };
 
   const handleSelectSafeZonePlace = (place) => {
@@ -536,22 +721,72 @@ function GuardianPage() {
     try {
       const savedSafeZone = await saveSafeZone(seniorId, safeZoneForm);
 
-      setSafeZoneForms((prev) => ({
+      setSafeZoneForms((prev) => {
+        const currentZones = prev[seniorId] ?? getDefaultSafeZones(selectedElder);
+        const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
+
+        return {
+          ...prev,
+          [seniorId]: exists
+            ? currentZones.map((zone) =>
+                String(zone.id) === String(safeZoneForm.id)
+                  ? savedSafeZone
+                  : zone
+              )
+            : [...currentZones, savedSafeZone],
+        };
+      });
+
+      setSelectedSafeZoneIds((prev) => ({
         ...prev,
-        [seniorId]: {
-          name: savedSafeZone.name || safeZoneForm.name,
-          address: savedSafeZone.address || safeZoneForm.address,
-          centerLatitude: savedSafeZone.centerLatitude ?? safeZoneForm.centerLatitude,
-          centerLongitude: savedSafeZone.centerLongitude ?? safeZoneForm.centerLongitude,
-          radiusMeters: savedSafeZone.radiusMeters ?? safeZoneForm.radiusMeters,
-        },
+        [seniorId]: savedSafeZone.id,
       }));
 
-      alert("안전 구역이 저장되었습니다.");
-      setIsSafeZoneOpen(false);
+      alert("안전 반경이 저장되었습니다.");
     } catch (error) {
-      console.error("안전 구역 저장 실패:", error);
-      alert("안전 구역 저장에 실패했습니다.");
+      console.error("안전 반경 저장 실패:", error);
+      alert("안전 반경 저장에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteSafeZone = async (safeZoneId) => {
+    const seniorId = activeElderId;
+
+    if (!seniorId || !safeZoneId) return;
+
+    const currentZones = safeZoneForms[seniorId] ?? getDefaultSafeZones(selectedElder);
+
+    if (currentZones.length <= 1) {
+      alert("안전 반경은 최소 1개 이상 필요합니다.");
+      return;
+    }
+
+    try {
+      const idText = String(safeZoneId);
+      const isSavedZone = /^\d+$/.test(idText);
+
+      if (isSavedZone) {
+        await deleteSafeZone(seniorId, safeZoneId);
+      }
+
+      const nextZones = currentZones.filter(
+        (zone) => String(zone.id) !== idText
+      );
+
+      setSafeZoneForms((prev) => ({
+        ...prev,
+        [seniorId]: nextZones,
+      }));
+
+      setSelectedSafeZoneIds((prev) => ({
+        ...prev,
+        [seniorId]: nextZones[0]?.id,
+      }));
+
+      alert("안전 반경이 삭제되었습니다.");
+    } catch (error) {
+      console.error("안전 반경 삭제 실패:", error);
+      alert("안전 반경 삭제에 실패했습니다.");
     }
   };
 
@@ -703,20 +938,89 @@ function GuardianPage() {
 
   const handleReadAlert = async (alertId) => {
     try {
-      const targetAlert = apiAlerts.find((alert) => String(alert.id) === String(alertId));
       const updatedAlert = await readAlert(alertId);
 
-      if (targetAlert?.type === "SOS" && targetAlert?.seniorId) {
-        localStorage.setItem(`sos_resolved_at:${targetAlert.seniorId}`, String(Date.now()));
-      }
-
       setApiAlerts((prev) =>
-        prev.map((alert) => (
-          alert.id === alertId ? { ...alert, ...updatedAlert, isRead: true } : alert
-        ))
+        prev.map((alert) => (String(alert.id) === String(alertId) ? updatedAlert : alert))
+      );
+
+      setInfoRequestAlert((currentAlert) =>
+        String(currentAlert?.id) === String(alertId) ? null : currentAlert
       );
     } catch (error) {
       console.error("알림 확인 처리 실패:", error);
+    }
+  };
+
+  const openInfoRequestForm = (alert) => {
+    const targetElder = elders.find(
+      (elder) => String(elder.id) === String(alert.seniorId)
+    );
+
+    if (!targetElder) {
+      window.alert("정보를 입력할 보호 대상자를 찾을 수 없습니다.");
+      return;
+    }
+
+    const requestedKeys = getInfoRequestFieldKeys(alert, targetElder);
+
+    setSelectedElderId(targetElder.id);
+    setEditingElder(targetElder);
+    setInfoRequestFormAlert(alert);
+    setInfoRequestFieldKeys(requestedKeys.length > 0 ? requestedKeys : ["gender"]);
+    setInfoRequestForm((prev) => ({
+      ...prev,
+      ...buildInfoRequestForm(targetElder),
+    }));
+    setIsElderEditOpen(true);
+    setInfoRequestAlert(null);
+  };
+
+  const handleInfoRequestFormChange = (key, value) => {
+    setInfoRequestForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSubmitInfoRequestForm = async () => {
+    if (!editingElder?.id) return;
+
+    const payload = infoRequestFieldKeys.reduce((nextPayload, key) => {
+      const value = String(infoRequestForm[key] ?? "").trim();
+
+      if (value) {
+        nextPayload[key] = value;
+      }
+
+      return nextPayload;
+    }, {});
+
+    if (Object.keys(payload).length === 0) {
+      window.alert("입력할 정보를 작성해주세요.");
+      return;
+    }
+
+    try {
+      await updateSeniorRequestedInfo(editingElder.id, payload);
+
+      if (infoRequestFormAlert?.id) {
+        setDismissedInfoRequestIds((prev) => [
+          ...new Set([...prev, String(infoRequestFormAlert.id)]),
+        ]);
+        await handleReadAlert(infoRequestFormAlert.id);
+      }
+
+      await reloadGuardianSeniors();
+
+      setIsElderEditOpen(false);
+      setEditingElder(null);
+      setInfoRequestFormAlert(null);
+      setInfoRequestFieldKeys([]);
+      window.alert("보호 대상자 정보가 저장되었습니다.");
+    } catch (error) {
+      console.error("정보 입력 저장 실패:", error);
+      window.alert("정보 저장에 실패했습니다.");
     }
   };
 
@@ -942,8 +1246,7 @@ function GuardianPage() {
       <GuardianHeader
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
-        onCallAlert={handleCallAlert}
-        onOpenEmergencyReport={handleOpenEmergencyReport}
+        onOpenEmergencyReport={() => handleOpenEmergencyReport()}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1020,10 +1323,10 @@ function GuardianPage() {
           hasCurrentLocation={hasCurrentLocation}
           isOutsideSafeZone={isOutsideSafeZone}
           distance={distance}
+          safeZones={safeZones}
           safeZoneForm={safeZoneForm}
           lastNormalLocation={lastNormalLocation}
           formatShortAddress={formatShortAddress}
-          formatSafeZoneAddress={formatSafeZoneAddress}
           isSafeZoneOpen={isSafeZoneOpen}
           isAddElderOpen={isAddElderOpen}
           seniorSearch={seniorSearch}
@@ -1037,6 +1340,8 @@ function GuardianPage() {
           onSafeZoneChange={handleSafeZoneChange}
           onSelectSafeZonePlace={handleSelectSafeZonePlace}
           onSaveSafeZone={handleSaveSafeZone}
+          onSelectSafeZoneForm={handleSelectSafeZoneForm}
+          onDeleteSafeZone={handleDeleteSafeZone}
           onCloseAddElder={() => setIsAddElderOpen(false)}
           onSearchSenior={handleSearchSenior}
           onConnectSenior={handleConnectSenior}
@@ -1066,8 +1371,12 @@ function GuardianPage() {
           policeAlerts={policeAlerts}
           routeHistory={routeHistory}
           selectedRouteDate={selectedRouteDate}
+          safeZones={safeZones}
           safeZoneForm={safeZoneForm}
           onRouteDateChange={handleRouteDateChange}
+          onSafeZoneChange={handleSafeZoneChange}
+          onSaveSafeZone={handleSaveSafeZone}
+          onAddSafeZoneForm={handleAddSafeZoneForm}
           distance={distance}
           lastNormalLocation={lastNormalLocation}
           isMissingReportOpen={isMissingReportOpen}
@@ -1178,10 +1487,7 @@ function GuardianPage() {
 
           <button
             type="button"
-            onClick={async () => {
-              if (guardianToast.id && guardianToast.type !== "CALL_REQUEST") {
-                await handleReadAlert(guardianToast.id);
-              }
+            onClick={() => {
               setGuardianToast(null);
             }}
           >
@@ -1197,11 +1503,125 @@ function GuardianPage() {
           </button>
         </div>
       )}
+
+      {infoRequestAlert && (
+        <div className="guardian-info-request-backdrop">
+          <section className="guardian-info-request-modal">
+            <h2>보호 대상자 정보 입력 요청</h2>
+            <p>{infoRequestAlert.message || "보호 대상자의 미입력 정보를 입력해주세요."}</p>
+
+            <div className="guardian-info-request-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedInfoRequestIds((prev) => [
+                    ...prev,
+                    String(infoRequestAlert.id),
+                  ]);
+                  setInfoRequestAlert(null);
+                }}
+              >
+                나중에
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openInfoRequestForm(infoRequestAlert)}
+              >
+                정보 입력하기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {isElderEditOpen && editingElder && (
+        <div className="guardian-info-form-backdrop">
+          <section className="guardian-info-form-modal">
+            <div className="guardian-info-form-header">
+              <div>
+                <h2>보호 대상자 정보 입력</h2>
+                <p>{editingElder.name}님의 미입력 정보를 작성해주세요.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsElderEditOpen(false);
+                  setEditingElder(null);
+                  setInfoRequestFormAlert(null);
+                  setInfoRequestFieldKeys([]);
+                }}
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="guardian-info-form-fields">
+              {INFO_REQUEST_FIELDS
+                .filter((field) => infoRequestFieldKeys.includes(field.key))
+                .map((field) => (
+                  <label key={field.key} className="guardian-info-form-field">
+                    <span>{field.label}</span>
+
+                    {field.type === "select" ? (
+                      <select
+                        value={infoRequestForm[field.key] || ""}
+                        onChange={(event) =>
+                          handleInfoRequestFormChange(field.key, event.target.value)
+                        }
+                      >
+                        <option value="">선택해주세요</option>
+                        {field.options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={field.type}
+                        value={infoRequestForm[field.key] || ""}
+                        placeholder={field.placeholder || ""}
+                        onChange={(event) =>
+                          handleInfoRequestFormChange(field.key, event.target.value)
+                        }
+                      />
+                    )}
+                  </label>
+                ))}
+            </div>
+
+            <div className="guardian-info-form-actions">
+              <button
+                type="button"
+                className="guardian-info-form-cancel"
+                onClick={() => {
+                  setIsElderEditOpen(false);
+                  setEditingElder(null);
+                  setInfoRequestFormAlert(null);
+                  setInfoRequestFieldKeys([]);
+                }}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="guardian-info-form-submit"
+                onClick={handleSubmitInfoRequestForm}
+              >
+                저장하기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
 
-function GuardianHeader({ displayedAlerts = [], onReadAlert, onCallAlert, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport }) {
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
@@ -1224,30 +1644,8 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onCallAlert, onOpen
           onReadAlert?.(alert.id);
         }
       }}
-      renderNotificationActions={(alert, { defaultAction, isRead }) => {
-        if (isRead || !alert?.isSos) {
-          return defaultAction;
-        }
-
-        return (
-          <div className="guardian-alert-actions">
-            <button type="button" onClick={(event) => {
-              event.stopPropagation();
-              onCallAlert?.(alert);
-            }}>
-              전화하기
-            </button>
-            <button type="button" className="danger" onClick={(event) => {
-              event.stopPropagation();
-              onOpenEmergencyReport?.(alert);
-            }}>
-              신고하기
-            </button>
-          </div>
-        );
-      }}
       actions={
-        <button className="common-app-danger-button" type="button" onClick={() => onOpenEmergencyReport?.()}>
+        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
           긴급 신고
         </button>
       }

@@ -17,7 +17,7 @@ public class PoliceMissingAlertSchedulerService {
         try {
             policeMissingAlertService.syncTodayAlerts();
         } catch (Exception error) {
-            System.out.println("경찰청 실종정보 자동 동기화 실패: " + error.getMessage());
+            System.out.println("Police missing alert auto sync failed: " + error.getMessage());
         }
     }
 }

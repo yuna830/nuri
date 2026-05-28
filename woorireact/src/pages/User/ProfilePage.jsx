@@ -7,14 +7,21 @@ import { uploadProfileImage } from "../../api/userPageApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
+  AVOID_ENVIRONMENTS,
+  CURRENT_BENEFITS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
+  HOUSEHOLD_TYPES,
+  INCOME_LEVELS,
   JOB_CONDITIONS,
   JOB_TYPES,
   MEDICINE_COUNTS,
   NONE,
+  REST_NEEDS,
   SECTIONS,
+  VISION_LEVELS,
+  HEARING_LEVELS,
   WORK_TYPES,
   calculateAge,
   calcBMI,
@@ -294,9 +301,9 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-title">거동/인지/감각</div>
             <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} onSelect={(value) => set("walkingAid", value)} />
-            <ChipField label="치매/인지 어려움" value={form.dementia} options={[NONE, "경도", "중증"]} onSelect={(value) => set("dementia", value)} />
-            <ChipField label="시력 어려움" value={form.vision} options={[NONE, "경도", "중증", "실명"]} onSelect={(value) => set("vision", value)} />
-            <ChipField label="청력 어려움" value={form.hearing} options={[NONE, "경도", "중증"]} onSelect={(value) => set("hearing", value)} />
+            <ChipField label="기억하거나 판단하는 데 어려움" value={form.dementia} options={[NONE, "가끔 헷갈림", "도움이 자주 필요함"]} onSelect={(value) => set("dementia", value)} />
+            <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} onSelect={(value) => set("vision", value)} />
+            <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
             <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
             <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} onSelect={(value) => set("hasSurgery", value)} />
             {form.hasSurgery === "있음" && <TextareaField label="수술 내용" value={form.surgeryDetail} onChange={(value) => set("surgeryDetail", value)} />}
@@ -313,6 +320,20 @@ export default function ProfilePage() {
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} onChange={(value) => set("maxDistance", value)} />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+            <ChipField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onSelect={(value) => set("restNeed", value)} />
+            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
+          </section>
+        );
+
+      case "welfare":
+        return (
+          <section className="pr-section">
+            <div className="pr-section-title">복지정보</div>
+            <div className="pr-hint">복지 지원 대상 여부와 이미 받고 있는 혜택을 확인하기 위한 정보입니다.</div>
+            <ChipField label="소득 구분" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
+            <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
+            <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
+            <TextareaField label="그 밖에 받고 있는 혜택이나 참고사항" value={form.welfareMemo} onChange={(value) => set("welfareMemo", value)} rows={4} />
           </section>
         );
 

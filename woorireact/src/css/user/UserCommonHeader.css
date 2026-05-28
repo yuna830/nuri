@@ -556,6 +556,59 @@
   font-weight: 600;
 }
 
+.uch-info-request-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(35, 45, 34, 0.42);
+}
+
+.uch-info-request-modal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 28px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(34, 45, 34, 0.2);
+}
+
+.uch-info-request-modal h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+
+.uch-info-request-modal p {
+  margin: 0;
+  line-height: 1.6;
+  color: #526852;
+  font-weight: 700;
+}
+
+.uch-info-request-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.uch-info-request-actions button {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid #d5e3d4;
+  background: #fff;
+  color: #6d806d;
+  font-weight: 800;
+}
+
+.uch-info-request-actions button:last-child {
+  border-color: #8faa8d;
+  background: #8faa8d;
+  color: #fff;
+}
+
 @media (max-width: 900px) {
   .uch-header-inner,
   .uch-sub-inner {

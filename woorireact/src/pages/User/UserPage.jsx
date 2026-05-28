@@ -27,6 +27,7 @@ import {
   reverseGeocode,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
@@ -88,12 +89,49 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
-const getHealthStatusFromProfile = (profile) => profile?.healthInfo?.healthStatus || null;
+const buildUserWelfarePerson = (profile, userName, userRegion) => {
+  const senior = profile?.senior ?? {};
+  const healthInfo = profile?.healthInfo ?? {};
+  const medicationInfo = Array.isArray(healthInfo.medications)
+    ? healthInfo.medications.map((item) => item?.name || item).filter(Boolean).join(", ")
+    : "";
+  const diseases = [
+    healthInfo.diabetes,
+    healthInfo.hypertension,
+    healthInfo.heartDisease,
+    healthInfo.jointDisease,
+    healthInfo.stroke,
+    healthInfo.kidneyDisease,
+    healthInfo.lungDisease,
+    healthInfo.liverDisease,
+    healthInfo.cancer,
+    healthInfo.dementia,
+    healthInfo.vision,
+    healthInfo.hearing,
+    healthInfo.recentFall,
+  ].filter((value) => value && value !== "없음");
 
-const getHealthStatusClassName = (status) => {
-  if (status === "위험") return "danger";
-  if (status === "주의") return "caution";
-  return "good";
+  return normalizePerson({
+    id: senior.id,
+    name: senior.name || userName,
+    age: senior.age,
+    gender: senior.gender,
+    region: senior.region || senior.address || userRegion,
+    address: senior.address || senior.region || userRegion,
+    healthStatus: healthInfo.healthStatus,
+    condition: diseases.join(", "),
+    diseases,
+    medicationInfo,
+    medicineCount: healthInfo.medicineCount,
+    incomeLevel: healthInfo.incomeLevel,
+    household: healthInfo.householdType,
+    householdType: healthInfo.householdType,
+    currentBenefits: healthInfo.currentBenefits,
+    welfareMemo: healthInfo.welfareMemo,
+    welfareDecision: senior.welfareDecision,
+    welfareDecisionReason: senior.welfareDecisionReason,
+    healthInfo,
+  });
 };
 
 function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
@@ -154,6 +192,32 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 }
 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
+
+const DEFAULT_ACTIVITY_TODAY = {
+  status: "reference",
+  scores: { activity: 55, balance: 55, routine: 55, safety: 60 },
+  labels: { activity: "활동량", balance: "균형", routine: "생활 리듬", safety: "안전" },
+  overall_note: "아직 실측 데이터가 부족해 기본 참고 지표로 표시합니다.",
+  data_quality: { level: "insufficient", message: "감지 서버가 충분한 기록을 모으면 실제 활동 지표로 바뀝니다." },
+};
+
+const DEFAULT_ACTIVITY_SLOTS = {
+  slots: {
+    morning: { label: "오전", status: "empty", data_points: 0, scores: {} },
+    afternoon: { label: "오후", status: "empty", data_points: 0, scores: {} },
+    evening: { label: "저녁", status: "empty", data_points: 0, scores: {} },
+  },
+};
+
+const DEFAULT_ACTIVITY_BASELINE = {
+  status: "pending",
+  message: "활동 기록이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+};
+
+const DEFAULT_FALL_PATTERN = {
+  status: "pending",
+  message: "낙상 기록이 생기면 전후 활동 변화를 보여줍니다.",
+};
 
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
   const slotList = slots?.slots ? Object.entries(slots.slots) : [];
@@ -405,6 +469,7 @@ export default function UserPage() {
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
@@ -413,12 +478,11 @@ export default function UserPage() {
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
-  const [activityToday, setActivityToday] = useState(null);
+  const [activityToday, setActivityToday] = useState(DEFAULT_ACTIVITY_TODAY);
   const [activityTrend, setActivityTrend] = useState(null);
-  const [activitySlots, setActivitySlots] = useState(null);
-  const [activityBaseline, setActivityBaseline] = useState(null);
-  const [activityFallPattern, setActivityFallPattern] = useState(null);
-  const [healthStatus, setHealthStatus] = useState(() => getHealthStatusFromProfile(initialProfile));
+  const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
+  const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
+  const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -439,6 +503,7 @@ export default function UserPage() {
   const [safeZone, setSafeZone] = useState(null);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+  const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -453,18 +518,18 @@ export default function UserPage() {
           fetchFallPattern(),
         ]);
         if (!isMounted) return;
-        setActivityToday(today);
+        setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
         setActivityTrend(trend);
-        setActivitySlots(slots);
-        setActivityBaseline(baseline);
-        setActivityFallPattern(fallPattern);
+        setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(fallPattern || DEFAULT_FALL_PATTERN);
       } catch {
         if (!isMounted) return;
-        setActivityToday(null);
+        setActivityToday(DEFAULT_ACTIVITY_TODAY);
         setActivityTrend(null);
-        setActivitySlots(null);
-        setActivityBaseline(null);
-        setActivityFallPattern(null);
+        setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(DEFAULT_FALL_PATTERN);
       }
     };
 
@@ -713,7 +778,8 @@ export default function UserPage() {
       })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
-          if (data) setSafeZone(data);
+          const zones = Array.isArray(data) ? data : data ? [data] : [];
+          if (zones.length > 0) setSafeZone(zones[0]);
         })
         .catch(() => {});
     };
@@ -777,22 +843,22 @@ export default function UserPage() {
               const freshProfile = await response.json();
 
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
               setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
               loadMatchedCareTeam(cachedSeniorId, freshProfile);
               setChanged(setHealthScores, getHealthScoresFromProfile(freshProfile));
-              setChanged(setHealthStatus, getHealthStatusFromProfile(freshProfile));
               return;
             }
           }
 
           setChanged(setUserName, profile?.senior?.name || "사용자");
+          setChanged(setCurrentProfile, profile);
           setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
           setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
           loadMatchedCareTeam(cachedSeniorId, profile);
           setChanged(setHealthScores, getHealthScoresFromProfile(profile));
-          setChanged(setHealthStatus, getHealthStatusFromProfile(profile));
           return;
         }
 
@@ -806,12 +872,12 @@ export default function UserPage() {
 
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
+        setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
         setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
         setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
         loadMatchedCareTeam(latest?.senior?.id, latest);
         setChanged(setHealthScores, getHealthScoresFromProfile(latest));
-        setChanged(setHealthStatus, getHealthStatusFromProfile(latest));
       } catch (error) {
         console.error("사용자 정보 조회 실패:", error);
       }
@@ -904,6 +970,9 @@ export default function UserPage() {
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
+
+      const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
+      setCheckInMessageAlert(checkInAlert || null);
 
       const safeExitAlert = alerts.find((alert) => (
         (alert.type === "SAFE_ZONE_EXIT" || alert.type === "SAFE_ZONE") && !alert.isRead
@@ -1007,6 +1076,14 @@ export default function UserPage() {
     setMedicineAlert(null);
   };
 
+  const handleReadCheckInMessageAlert = async () => {
+    if (checkInMessageAlert?.id) {
+      await readAlert(checkInMessageAlert.id).catch(() => {});
+    }
+
+    setCheckInMessageAlert(null);
+  };
+
   const openAllSchedules = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
     const today = todayValue();
@@ -1060,6 +1137,18 @@ export default function UserPage() {
 
     return list.slice(0, 2);
   })();
+
+  const welfarePerson = buildUserWelfarePerson(currentProfile, userName, userRegion);
+  const welfareMatches = findWelfarePrograms({
+    question: "내 상황에 맞는 복지 제도를 추천해줘",
+    person: welfarePerson,
+    limit: 3,
+  });
+
+  const currentBenefits = String(currentProfile?.healthInfo?.currentBenefits || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   return (
     <div className="up-root">
@@ -1303,18 +1392,11 @@ export default function UserPage() {
               <div className="up-card full">
                 <div className="up-card-head">
                   <div className="up-card-title">오늘의 활동 컨디션</div>
-                  <div className="up-health-card-actions">
-                    {healthStatus && (
-                      <span className={`up-health-status ${getHealthStatusClassName(healthStatus)}`}>
-                        ML 건강 상태 {healthStatus}
-                      </span>
-                    )}
-                    <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}>
-                      {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
-                    </button>
-                  </div>
+                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
+                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
+                  </button>
                 </div>
-                {activityToday.status === "ok" && activityToday.scores ? (
+                {activityToday.scores ? (
                   <RadarChart
                     scores={activityToday.scores}
                     labels={activityToday.labels}
@@ -1344,20 +1426,33 @@ export default function UserPage() {
           <div className="up-content-row">
             <div className="up-card full">
               <div className="up-card-head">
-                <div className="up-card-title">빠른 실행</div>
+                <div className="up-card-title">복지제도 확인</div>
               </div>
-              <div className="up-quick-grid">
-                {menus.filter(m => !m.hideQuick).map((m, i) => (
-                  <button
-                    key={i}
-                    className="up-quick-btn"
-                    type="button"
-                    onClick={() => navigate(m.route)}
-                  >
-                    <span className="up-quick-icon">{m.icon}</span>
-                    <div className="up-quick-label">{m.label}</div>
-                    <div className="up-quick-desc">{m.desc}</div>
-                  </button>
+              <div className="up-welfare-check">
+                <div className="up-welfare-check-icon">🏛️</div>
+                <div className="up-welfare-check-copy">
+                  <strong>내 상황에 맞는 복지제도를 확인해보세요.</strong>
+                  <p>
+                    {currentBenefits.length
+                      ? `현재 등록된 혜택: ${currentBenefits.join(" · ")}`
+                      : "현재 받고 있는 혜택을 입력하면 중복 신청 여부를 더 쉽게 확인할 수 있어요."}
+                  </p>
+                </div>
+                <button
+                  className="up-welfare-check-button"
+                  type="button"
+                  onClick={() => navigate("/profile?section=welfare")}
+                >
+                  복지정보 수정
+                </button>
+              </div>
+              <div className="up-welfare-programs">
+                {welfareMatches.map(({ program, reasons }) => (
+                  <article className="up-welfare-program" key={program.id}>
+                    <strong>{program.name}</strong>
+                    <p>{program.summary}</p>
+                    <span>{reasons[0]}</span>
+                  </article>
                 ))}
               </div>
             </div>
@@ -1440,6 +1535,26 @@ export default function UserPage() {
                 type="button"
                 onClick={handleReadMedicineAlert}
               >
+                확인했어요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkInMessageAlert && (
+        <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💬</div>
+            <div className="up-modal-title">
+              {checkInMessageAlert.title || "보호자 안부 메시지"}
+            </div>
+            <div className="up-modal-desc">
+              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
+            </div>
+
+            <div className="up-modal-row single">
+              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
                 확인했어요
               </button>
             </div>

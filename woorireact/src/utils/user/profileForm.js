@@ -48,6 +48,22 @@ export const JOB_CONDITIONS = [
 export const DISABILITY_GRADES = [NONE, "1급", "2급", "3급", "4급", "5급", "6급"];
 export const DISABILITY_TYPES = [NONE, "지체장애", "시각장애", "청각장애", "언어장애", "지적장애", "정신장애", "기타"];
 export const MEDICINE_COUNTS = [NONE, "1~2개", "3~5개", "6개 이상"];
+export const VISION_LEVELS = [NONE, "글씨가 조금 흐림", "큰 글씨만 보임", "거의 보이지 않음"];
+export const HEARING_LEVELS = [NONE, "작은 소리가 잘 안 들림", "큰 소리로 말해야 들림", "거의 들리지 않음"];
+export const REST_NEEDS = [NONE, "1시간마다 쉬어야 함", "30분마다 쉬어야 함", "자주 쉬어야 함"];
+export const AVOID_ENVIRONMENTS = ["소음 많은 곳", "먼지 많은 곳", "덥거나 추운 곳", "미끄러운 바닥", "사람 많은 곳", "혼자 하는 작업"];
+export const INCOME_LEVELS = [NONE, "기초생활수급자", "차상위계층", "중위소득 50% 이하", "중위소득 100% 이하", "일반"];
+export const HOUSEHOLD_TYPES = [NONE, "독거 가구", "부부 가구", "자녀와 동거", "기타 가구"];
+export const CURRENT_BENEFITS = [
+  "기초연금",
+  "노인맞춤돌봄서비스",
+  "장기요양등급",
+  "응급안전안심서비스",
+  "기초생활보장",
+  "의료급여",
+  "주거급여",
+  "노인일자리 사업",
+];
 export const SECTIONS = [
   { id: "personal", label: "인적사항" },
   { id: "body", label: "신체정보" },
@@ -55,6 +71,7 @@ export const SECTIONS = [
   { id: "chronic", label: "만성질환" },
   { id: "mobility", label: "거동/인지" },
   { id: "activity", label: "활동조건" },
+  { id: "welfare", label: "복지정보" },
   { id: "job", label: "일자리" },
 ];
 
@@ -147,6 +164,10 @@ export const defaultForm = {
   smoking: NONE,
   drinking: NONE,
   allergies: "",
+  incomeLevel: NONE,
+  householdType: NONE,
+  currentBenefits: [],
+  welfareMemo: "",
   medicineCount: NONE,
   medications: [],
   diabetes: NONE,
@@ -169,6 +190,8 @@ export const defaultForm = {
   maxHours: "",
   maxDistance: "",
   disabledWork: [],
+  restNeed: NONE,
+  avoidEnvironment: [],
   payType: "무관",
   hopeDays: [],
   hopeJobType: [],
@@ -247,6 +270,10 @@ export const profileToForm = (profile = {}) => {
     smoking: healthInfo.smoking ?? NONE,
     drinking: healthInfo.drinking ?? NONE,
     allergies: healthInfo.allergies ?? "",
+    incomeLevel: healthInfo.incomeLevel ?? senior.incomeLevel ?? NONE,
+    householdType: healthInfo.householdType ?? senior.householdType ?? NONE,
+    currentBenefits: splitCsv(healthInfo.currentBenefits),
+    welfareMemo: healthInfo.welfareMemo ?? "",
     medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
     medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
     diabetes: healthInfo.diabetes ?? NONE,
@@ -269,6 +296,8 @@ export const profileToForm = (profile = {}) => {
     maxHours: healthInfo.maxHours ?? "",
     maxDistance: healthInfo.maxDistance ?? "",
     disabledWork: splitCsv(healthInfo.disabledWork),
+    restNeed: healthInfo.restNeed ?? NONE,
+    avoidEnvironment: splitCsv(healthInfo.avoidEnvironment),
     payType: jobPreference.payType ?? "무관",
     hopeDays: splitCsv(jobPreference.hopeDays),
     hopeJobType: splitCsv(jobPreference.hopeJobType),
@@ -335,6 +364,10 @@ export const formToProfile = (profile, form) => {
       smoking: normalized.smoking,
       drinking: normalized.drinking,
       allergies: normalized.allergies,
+      incomeLevel: normalized.incomeLevel,
+      householdType: normalized.householdType,
+      currentBenefits: normalized.currentBenefits.join(","),
+      welfareMemo: normalized.welfareMemo,
       medicineCount: normalized.medicineCount,
       medications: normalized.medications,
       medicationsJson: JSON.stringify(normalized.medications),
@@ -358,6 +391,8 @@ export const formToProfile = (profile, form) => {
       maxHours: normalized.maxHours,
       maxDistance: normalized.maxDistance,
       disabledWork: normalized.disabledWork.join(","),
+      restNeed: normalized.restNeed,
+      avoidEnvironment: normalized.avoidEnvironment.join(","),
     },
     jobPreference: {
       ...profile.jobPreference,

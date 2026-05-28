@@ -58,6 +58,13 @@ export function sendMedicineAlert({ seniorId, guardianId, message }) {
   });
 }
 
+export function sendCheckInMessage({ seniorId, guardianId, message }) {
+  return request(API_BASE_URL, "/api/alerts/check-in-message", {
+    method: "POST",
+    body: JSON.stringify({ seniorId, guardianId, message }),
+  });
+}
+
 export function getMissingReports() {
   return requestArray(API_BASE_URL, "/api/missing-reports");
 }
@@ -125,5 +132,26 @@ export function createAndConnectSenior(guardianId, seniorForm) {
 export function deleteGuardianSenior(guardianId, seniorId) {
   return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors/${seniorId}`, {
     method: "DELETE",
+  });
+}
+
+export function updateSeniorRequestedInfo(seniorId, data) {
+  return request(API_BASE_URL, `/api/seniors/${seniorId}/requested-info`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getSeniorJobInterests(seniorId) {
+  return requestArray(API_BASE_URL, `/api/job-interests/senior/${seniorId}`);
+}
+
+export function respondWelfareConsultation(alertId, { responseType, scheduleAt }) {
+  return request(API_BASE_URL, `/api/alerts/${alertId}/welfare-consult-response`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      responseType,
+      scheduleAt,
+    }),
   });
 }

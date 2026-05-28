@@ -28,12 +28,17 @@ export default function GuardianSignUp() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
   const validate = () => {
     if (!form.name.trim()) return "보호자 이름을 입력해주세요.";
     if (!form.phone.trim()) return "보호자 연락처를 입력해주세요.";
     if (!form.email.trim()) return "이메일을 입력해주세요.";
     if (!form.password.trim()) return "비밀번호를 입력해주세요.";
     if (form.password !== form.passwordConfirm) return "비밀번호가 일치하지 않습니다.";
+    if (!passwordPattern.test(form.password.trim())) {
+      return "비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.";
+    }
     if (!form.selectedSeniorId) return "연결할 사용자를 검색해서 선택해주세요.";
     if (!form.seniorRelation.trim()) return "사용자와의 관계를 입력해주세요.";
     return "";
@@ -41,6 +46,9 @@ export default function GuardianSignUp() {
 
   const searchSenior = async () => {
     const keyword = form.seniorKeyword.trim();
+    const searchKeyword = /^\d/.test(keyword)
+      ? keyword.replace(/\D/g, "")
+      : keyword;
 
     if (keyword.length < 2) {
       alert("사용자 이름이나 전화번호를 2글자 이상 입력해주세요.");
@@ -52,7 +60,7 @@ export default function GuardianSignUp() {
       setIsSearching(true);
 
       const response = await fetch(
-        `http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(keyword)}`
+        `http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(searchKeyword)}`
       );
 
       const data = response.ok ? await response.json() : [];
@@ -189,7 +197,7 @@ export default function GuardianSignUp() {
                 type="password"
                 value={form.password}
                 onChange={(event) => set("password", event.target.value)}
-                placeholder="비밀번호를 입력해주세요"
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
 
@@ -202,7 +210,7 @@ export default function GuardianSignUp() {
                 type="password"
                 value={form.passwordConfirm}
                 onChange={(event) => set("passwordConfirm", event.target.value)}
-                placeholder="비밀번호를 다시 입력해주세요"
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
           </div>
@@ -224,7 +232,12 @@ export default function GuardianSignUp() {
                 className="su-input"
                 value={form.seniorKeyword}
                 onChange={(event) => {
-                  set("seniorKeyword", event.target.value);
+                  const value = event.target.value;
+                  const nextValue = /^\d/.test(value)
+                    ? formatPhoneNumber(value)
+                    : value;
+
+                  set("seniorKeyword", nextValue);
                   setSelectedSenior(null);
                   set("selectedSeniorId", "");
                 }}

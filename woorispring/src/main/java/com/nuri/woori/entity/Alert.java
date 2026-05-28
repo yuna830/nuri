@@ -29,6 +29,10 @@ public class Alert {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    private String guardianResponseType;
+    private String guardianScheduleAt;
+    private LocalDateTime guardianRespondedAt;
+
     public Long getId() {
         return id;
     }
@@ -107,5 +111,29 @@ public class Alert {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getGuardianResponseType() {
+        return guardianResponseType;
+    }
+
+    public void setGuardianResponseType(String guardianResponseType) {
+        this.guardianResponseType = guardianResponseType;
+    }
+
+    public String getGuardianScheduleAt() {
+        return guardianScheduleAt;
+    }
+
+    public void setGuardianScheduleAt(String guardianScheduleAt) {
+        this.guardianScheduleAt = guardianScheduleAt;
+    }
+
+    public LocalDateTime getGuardianRespondedAt() {
+        return guardianRespondedAt;
+    }
+
+    public void setGuardianRespondedAt(LocalDateTime guardianRespondedAt) {
+        this.guardianRespondedAt = guardianRespondedAt;
     }
 }

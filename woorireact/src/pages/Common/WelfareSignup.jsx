@@ -28,7 +28,7 @@ export default function WelfareSignup() {
     const keyword = form.center.trim();
 
     if (keyword.length < 2) {
-      setError("소속 기관명을 2글자 이상 입력해주세요.");
+      alert("소속 기관명을 2글자 이상 입력해주세요.");
       return;
     }
 
@@ -61,6 +61,8 @@ export default function WelfareSignup() {
     }
   };
 
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
   const handleSignup = async () => {
     const name = form.name.trim();
     const workerId = form.workerId.trim();
@@ -70,17 +72,17 @@ export default function WelfareSignup() {
     const center = form.center.trim();
 
     if (!name) {
-      setError("이름을 입력해주세요.");
+      alert("이름을 입력해주세요.");
       return;
     }
 
     if (!workerId) {
-      setError("복지사 아이디를 입력해주세요.");
+      alert("복지사 아이디를 입력해주세요.");
       return;
     }
 
     if (!email) {
-      setError("이메일을 입력해주세요.");
+      alert("이메일을 입력해주세요.");
       return;
     }
 
@@ -95,12 +97,12 @@ export default function WelfareSignup() {
     }
 
     if (!password) {
-      setError("비밀번호를 입력해주세요.");
+      alert("비밀번호를 입력해주세요.");
       return;
     }
 
-    if (password.length < 4) {
-      setError("비밀번호는 4자 이상 입력해주세요.");
+    if (!passwordPattern.test(password)) {
+      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
       return;
     }
 
@@ -110,7 +112,7 @@ export default function WelfareSignup() {
     }
 
     if (!center) {
-      setError("소속 기관을 입력해주세요.");
+      alert("소속 기관을 입력해주세요.");
       return;
     }
 
@@ -228,7 +230,7 @@ export default function WelfareSignup() {
                 type="password"
                 value={form.password}
                 onChange={(event) => set("password", event.target.value)}
-                placeholder="비밀번호를 입력하세요"
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
 
@@ -241,7 +243,7 @@ export default function WelfareSignup() {
                 type="password"
                 value={form.passwordConfirm}
                 onChange={(event) => set("passwordConfirm", event.target.value)}
-                placeholder="비밀번호를 다시 입력하세요"
+                placeholder="영문과 숫자를 포함해 6자 이상 입력해주세요"
               />
             </div>
           </div>

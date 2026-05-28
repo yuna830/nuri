@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   createSosAlert,
   createSosCancelAlert,
   deleteAlert,
   deleteAlerts,
+  deleteOldRequestAlerts,
   fetchLatestClimateAlerts,
   fetchSeniorAlerts,
   getCurrentSeniorId,
@@ -89,10 +89,9 @@ const getAlertTitle = (alert) => {
     case "SAFE_ZONE":
     case "SAFE_ZONE_EXIT":
       return "안전 구역 이탈";
-    case "SOS_CANCEL":
-      return "SOS 잘못 누름";
     case "SOS":
-      return "SOS 요청";
+    case "SOS_CANCEL":
+      return "SOS 알림";
     default:
       return "새 알림";
   }
@@ -103,6 +102,7 @@ const getAlertCategory = (type) => {
     case "CALL_REQUEST":
     case "SAFE_ZONE":
     case "SAFE_ZONE_EXIT":
+    case "SOS":
       return "긴급";
     case "FALL_DETECTED":
     case "FALL_RISK":
@@ -116,57 +116,13 @@ const getAlertCategory = (type) => {
     case "WELFARE_REQUEST":
       return "요청";
     default:
-      return "정보";
+      return "기타";
   }
 };
 
 const isSafeZoneAlert = (type) => type === "SAFE_ZONE" || type === "SAFE_ZONE_EXIT";
-const isSosAlert = (alert) => {
-  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
-  return alert?.type === "SOS" || alert?.type === "SOS_CANCEL" || /SOS/.test(text);
-};
-const PENDING_SOS_CLEAR_GRACE_MS = 5000;
-
-const markPendingSos = (alertResult) => {
-  localStorage.setItem("pending_sos", "true");
-  localStorage.setItem("pending_sos_at", String(Date.now()));
-  if (alertResult?.id) {
-    localStorage.setItem("pending_sos_id", String(alertResult.id));
-  }
-};
-
-const clearPendingSosStorage = () => {
-  localStorage.removeItem("pending_sos");
-  localStorage.removeItem("pending_sos_at");
-  localStorage.removeItem("pending_sos_id");
-};
-
-const shouldClearPendingSos = (sosAlerts) => {
-  const pendingId = localStorage.getItem("pending_sos_id");
-  const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
-
-  if (sosAlerts.length > 0 && sosAlerts.every((alert) => alert.isRead || alert.type === "SOS_CANCEL")) {
-    return true;
-  }
-
-  if (!pendingId && !pendingAt) {
-    return sosAlerts.length === 0;
-  }
-
-  if (pendingAt && Date.now() - pendingAt < PENDING_SOS_CLEAR_GRACE_MS) {
-    return false;
-  }
-
-  if (!pendingId) {
-    return sosAlerts.length === 0 || !sosAlerts.some((alert) => alert.type === "SOS" && !alert.isRead);
-  }
-
-  return !sosAlerts.some((alert) => String(alert.id) === pendingId && !alert.isRead);
-};
 
 const shouldShowAlert = (alert) => {
-  if (isSosAlert(alert)) return false;
-
   const category = getAlertCategory(alert.type);
   const createdAt = alert.createdAt || alert.time;
   if (REQUEST_CATEGORIES.has(category)) return isWithinDays(createdAt, 30);
@@ -184,7 +140,7 @@ const normalizeUserAlert = (alert) => ({
   canRead: Boolean(alert.id) && !isSafeZoneAlert(alert.type),
   canDelete: Boolean(alert.id),
   requiresGuardianConfirm: isSafeZoneAlert(alert.type),
-  danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT"].includes(alert.type),
+  danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT", "SOS"].includes(alert.type),
   sortTime: toDate(alert.createdAt || alert.time)?.getTime() || 0,
 });
 
@@ -204,7 +160,6 @@ const normalizeClimateAlert = (alert, index) => ({
 });
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
-  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -214,7 +169,36 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
+  const [infoRequestAlert, setInfoRequestAlert] = useState(null);
+  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
   const alertTabsRef = useRef(null);
+
+  const isFilled = (value) => {
+    return value !== null && value !== undefined && String(value).trim() !== "";
+  };
+
+  const isInfoRequestResolved = (alert, profile) => {
+    const senior = profile?.senior || {};
+    const message = alert?.message || "";
+
+    if (message.includes("성별") && !isFilled(senior.gender)) {
+      return false;
+    }
+
+    if (message.includes("생년월일") && !isFilled(senior.birthDate)) {
+      return false;
+    }
+
+    if (message.includes("연락처") && !isFilled(senior.phone)) {
+      return false;
+    }
+
+    if (message.includes("주소") && !isFilled(senior.region || senior.address)) {
+      return false;
+    }
+
+    return true;
+  };
 
   const loadAlerts = async ({ silent = false } = {}) => {
     const seniorId = getCurrentSeniorId();
@@ -226,22 +210,51 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     if (!silent) setLoadingAlerts(true);
 
     try {
-      const [seniorAlerts, climateAlerts] = await Promise.all([
+      deleteOldRequestAlerts(seniorId).catch(() => {});
+
+      const [seniorAlerts, climateAlerts, currentProfile] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
+        fetch(`http://localhost:8080/api/seniors/${seniorId}`)
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null),
       ]);
 
-      const sosAlerts = seniorAlerts.filter(isSosAlert);
-      const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
-      const sosResolvedAt = Number(localStorage.getItem(`sos_resolved_at:${seniorId}`) || 0);
-      if (pendingSos && ((pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
-        clearPendingSosStorage();
-        setPendingSos(false);
+      const resolvedInfoRequestAlerts = seniorAlerts.filter((alert) =>
+        alert.type === "INFO_UPDATE_REQUEST"
+        && alert.isRead !== true
+        && isInfoRequestResolved(alert, currentProfile)
+      );
+
+      resolvedInfoRequestAlerts.forEach((alert) => {
+        readAlert(alert.id).catch(() => {});
+      });
+
+      const nextInfoRequestAlert = seniorAlerts.find((alert) =>
+        alert.type === "INFO_UPDATE_REQUEST"
+        && alert.isRead !== true
+        && !dismissedInfoRequestIds.includes(String(alert.id))
+        && !isInfoRequestResolved(alert, currentProfile)
+      );
+
+      if (nextInfoRequestAlert) {
+        setInfoRequestAlert(nextInfoRequestAlert);
+      } else {
+        setInfoRequestAlert(null);
       }
 
+      const resolvedInfoRequestIds = new Set(
+        resolvedInfoRequestAlerts.map((alert) => alert.id)
+      );
+
       const combined = [
-        ...seniorAlerts.filter(shouldShowAlert).map(normalizeUserAlert),
-        ...climateAlerts.filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time)).map(normalizeClimateAlert),
+        ...seniorAlerts
+          .filter((alert) => !resolvedInfoRequestIds.has(alert.id))
+          .filter(shouldShowAlert)
+          .map(normalizeUserAlert),
+        ...climateAlerts
+          .filter((alert) => isToday(alert.createdAt || alert.baseTime || alert.time))
+          .map(normalizeClimateAlert),
       ]
         .sort((a, b) => {
           if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
@@ -258,34 +271,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
   useEffect(() => {
     loadAlerts();
-    const timerId = setInterval(() => loadAlerts({ silent: true }), 10000);
-
-    const handleLocalAlertChange = (event) => {
-      const currentSeniorId = String(getCurrentSeniorId() || "");
-      const changedSeniorId = String(event.detail?.seniorId || "");
-
-      if (!changedSeniorId || changedSeniorId === currentSeniorId) {
-        loadAlerts({ silent: true });
-      }
-    };
-
-    const handleStorageChange = (event) => {
-      const currentSeniorId = String(getCurrentSeniorId() || "");
-
-      if (event.key === `woori-local-alerts:${currentSeniorId}`) {
-        loadAlerts({ silent: true });
-      }
-    };
-
-    window.addEventListener("woori-local-alerts-changed", handleLocalAlertChange);
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      clearInterval(timerId);
-      window.removeEventListener("woori-local-alerts-changed", handleLocalAlertChange);
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, [pendingSos]);
+    const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
+    return () => clearInterval(timerId);
+  }, []);
 
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
   const filteredAlerts = useMemo(() => alerts.filter((alert) => {
@@ -362,15 +350,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     }
   };
 
-  const handleGoProfileSection = async (targetAlert) => {
-    if (targetAlert.canRead && !targetAlert.isRead) {
-      await handleReadAlert(targetAlert);
-    }
-
-    setIsAlertPanelOpen(false);
-    navigate(`/profile?section=${encodeURIComponent(targetAlert.raw?.profileSection || "personal")}`);
-  };
-
   const removeAlertsFromList = (ids) => {
     setAlerts((prev) => prev.filter((alert) => !ids.includes(alert.id)));
     setSelectedAlertKeys([]);
@@ -420,12 +399,12 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
     try {
       const position = await getCurrentPosition();
-      const alertResult = await createSosAlert({
+      await createSosAlert({
         seniorId: Number(seniorId),
         latitude: position?.latitude,
         longitude: position?.longitude,
       });
-      markPendingSos(alertResult);
+      localStorage.setItem("pending_sos", "true");
       setPendingSos(true);
     } catch (error) {
       console.error("SOS 전송 실패:", error);
@@ -447,7 +426,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       });
     }
 
-    clearPendingSosStorage();
+    localStorage.removeItem("pending_sos");
     setPendingSos(false);
     window.alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
@@ -471,6 +450,45 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
           </>
         }
       />
+
+      {infoRequestAlert && (
+        <div className="uch-info-request-backdrop">
+          <section className="uch-info-request-modal">
+            <h2>정보 입력 요청</h2>
+            <p>{infoRequestAlert.message || "미입력 정보를 확인하고 입력해주세요."}</p>
+
+            <div className="uch-info-request-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedInfoRequestIds((prev) => [
+                    ...prev,
+                    String(infoRequestAlert.id),
+                  ]);
+                  setInfoRequestAlert(null);
+                }}
+              >
+                나중에
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setInfoRequestAlert(null);
+
+                  if (infoRequestAlert.id) {
+                    await readAlert(infoRequestAlert.id).catch(() => {});
+                  }
+
+                  navigate("/profile");
+                }}
+              >
+                정보 입력하기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isAlertPanelOpen && (
         <div className="uch-alert-backdrop" onClick={() => setIsAlertPanelOpen(false)}>
@@ -562,10 +580,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     <div className="uch-alert-action">
                       {userAlert.requiresGuardianConfirm ? (
                         <em className="waiting">보호자 확인 대기</em>
-                      ) : userAlert.raw?.type === "PROFILE_UPDATE_REQUEST" ? (
-                        <button type="button" onClick={() => handleGoProfileSection(userAlert)}>
-                          수정하러 가기
-                        </button>
                       ) : userAlert.canRead ? (
                         userAlert.isRead ? (
                           <em>확인됨</em>
@@ -590,7 +604,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         <div className="uch-sos-pending">
           <div>
             <strong>SOS가 보호자에게 전송되었어요.</strong>
-            <p>실수로 눌렀다면 아래 버튼을 눌러 취소 표시를 보내주세요.</p>
+            <p>실수로 눌렀다면 아래 버튼을 눌러 표시를 취소해 주세요.</p>
           </div>
           <button type="button" onClick={cancelPendingSos}>
             잘못 눌렀어요
