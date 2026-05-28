@@ -1,0 +1,283 @@
+.tcm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 42, 31, 0.28);
+}
+
+.tcm-modal {
+  width: min(620px, 100%);
+  max-height: min(760px, calc(100vh - 2rem));
+  display: grid;
+  grid-template-rows: auto minmax(330px, 1fr) auto auto;
+  overflow: hidden;
+  border: 1px solid #d4e8d6;
+  border-radius: 16px;
+  background: #fffdf7;
+  box-shadow: 0 20px 60px rgba(30, 42, 31, 0.18);
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.tcm-shell {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.tcm-rooms {
+  overflow-x: auto;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid #edf2e8;
+  background: #fbfdf8;
+  scrollbar-width: none;
+}
+
+.tcm-rooms::-webkit-scrollbar {
+  display: none;
+}
+
+.tcm-rooms button {
+  min-width: 0;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid #dbe8d7;
+  border-radius: 999px;
+  padding: 0.65rem 0.9rem;
+  background: #ffffff;
+  color: #1e2a1f;
+  font-family: "Noto Sans KR", sans-serif;
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tcm-rooms button.active {
+  border-color: #86a788;
+  background: #eef6ef;
+  box-shadow: inset 0 0 0 1px rgba(134, 167, 136, 0.32);
+}
+
+.tcm-rooms strong {
+  overflow: hidden;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+}
+
+.tcm-rooms span {
+  color: #6f8b72;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.tcm-search {
+  padding: 0.75rem 1.2rem;
+  border-bottom: 1px solid #edf2e8;
+  background: #ffffff;
+}
+
+.tcm-search input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d4e8d6;
+  border-radius: 999px;
+  padding: 0 1rem;
+  color: #1e2a1f;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.tcm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-bottom: 1px solid #edf2e8;
+  background: #ffffff;
+}
+
+.tcm-header h2 {
+  margin: 0 0 0.25rem;
+  color: #1e2a1f;
+  font-size: 1.25rem;
+}
+
+.tcm-header p {
+  margin: 0;
+  color: #6f8b72;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tcm-close,
+.tcm-compose button {
+  border: none;
+  border-radius: 10px;
+  font-family: "Noto Sans KR", sans-serif;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tcm-close {
+  min-height: 38px;
+  padding: 0 0.9rem;
+  background: #eef6ef;
+  color: #48694b;
+}
+
+.tcm-list {
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  min-height: 330px;
+  padding: 1.1rem 1.2rem;
+  background: #fffdf7;
+}
+
+.tcm-empty {
+  align-self: center;
+  justify-self: center;
+  color: #7a9a7c;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.tcm-load-more {
+  justify-self: center;
+  min-height: 36px;
+  border: 1px solid #d4e8d6;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+  background: #ffffff;
+  color: #48694b;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tcm-message {
+  max-width: 82%;
+  justify-self: start;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #dbe8d7;
+  border-radius: 14px 14px 14px 6px;
+  background: #ffffff;
+}
+
+.tcm-message.mine {
+  justify-self: end;
+  border-color: #86a788;
+  border-radius: 14px 14px 6px 14px;
+  background: #eef6ef;
+}
+
+.tcm-message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.tcm-message-meta strong {
+  color: #1e2a1f;
+  font-size: 0.9rem;
+}
+
+.tcm-message-meta span,
+.tcm-message-meta time {
+  color: #6f8b72;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.tcm-message p {
+  margin: 0;
+  color: #1e2a1f;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.tcm-error {
+  margin: 0;
+  padding: 0.7rem 1.2rem;
+  color: #b42318;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.tcm-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 0.75rem;
+  padding: 1rem 1.2rem 1.2rem;
+  border-top: 1px solid #edf2e8;
+  background: #ffffff;
+}
+
+.tcm-compose textarea {
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  padding: 0.8rem;
+  color: #1e2a1f;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.tcm-compose button {
+  min-height: 72px;
+  background: #86a788;
+  color: #ffffff;
+  font-size: 0.98rem;
+}
+
+.tcm-compose button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .tcm-modal {
+    max-height: calc(100vh - 1rem);
+  }
+
+  .tcm-rooms {
+    padding: 0.75rem;
+  }
+
+  .tcm-rooms button {
+    flex-basis: 160px;
+  }
+
+  .tcm-compose {
+    grid-template-columns: 1fr;
+  }
+
+  .tcm-compose button {
+    min-height: 48px;
+  }
+
+  .tcm-message {
+    max-width: 94%;
+  }
+}

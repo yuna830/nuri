@@ -79,6 +79,10 @@ public class LocationController {
             return;
         }
 
+        if (request.accuracy() != null && request.accuracy() > 100) {
+            return;
+        }
+
         double nearestDistanceMeters = Double.MAX_VALUE;
         SafeZones nearestSafeZone = null;
 
@@ -96,7 +100,12 @@ public class LocationController {
                     request.longitude()
             );
 
-            if (distanceMeters <= radiusMeters) {
+            double gpsToleranceMeters = request.accuracy() == null
+                    ? 75
+                    : Math.min(Math.max(request.accuracy(), 50), 150);
+            double alertRadiusMeters = radiusMeters + gpsToleranceMeters + 30;
+
+            if (distanceMeters <= alertRadiusMeters) {
                 return;
             }
 

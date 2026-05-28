@@ -16,8 +16,11 @@ const formatDistance = (value) => {
   return `${meters}m`;
 };
 
-const openKakaoRoute = (place) => {
-  const url = `https://map.kakao.com/link/to/${encodeURIComponent(place.name)},${place.lat},${place.lon}`;
+const openKakaoRoute = (place, currentLat, currentLon) => {
+  const destination = `${encodeURIComponent(place.name)},${place.lat},${place.lon}`;
+  const url = currentLat && currentLon
+    ? `https://map.kakao.com/link/from/${encodeURIComponent("현재 위치")},${currentLat},${currentLon}/to/${destination}`
+    : `https://map.kakao.com/link/to/${destination}`;
   window.open(url, "_blank", "noopener,noreferrer");
 };
 
@@ -108,7 +111,7 @@ export default function NearbyHelpPlaces({ lat, lon, address = "", compact = fal
                     <Phone size={15} />
                   </a>
                 )}
-                <button type="button" onClick={() => openKakaoRoute(place)} aria-label={`${place.name} 길찾기`}>
+                <button type="button" onClick={() => openKakaoRoute(place, lat, lon)} aria-label={`${place.name} 길찾기`}>
                   <Route size={15} />
                 </button>
               </div>

@@ -20,6 +20,13 @@ const PAGE_SIZE = 10;
 const API_PAGE_SIZE = 200;
 
 function WelfareJobPostings() {
+    const currentWorker = useMemo(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null");
+        } catch {
+            return null;
+        }
+    }, []);
     const [jobs, setJobs] = useState([]);
     const [activeCategory, setActiveCategory] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -237,7 +244,11 @@ function WelfareJobPostings() {
         if (welfareSeniors.length > 0) return;
 
         try {
-            const data = await fetchWelfareSeniors({ page: 0, size: 50 });
+            const data = await fetchWelfareSeniors({
+                page: 0,
+                size: 50,
+                welfareWorkerId: currentWorker?.id,
+            });
             const list = Array.isArray(data) ? data : data.content || [];
             setWelfareSeniors(list);
         } catch {

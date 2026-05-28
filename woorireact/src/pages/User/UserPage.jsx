@@ -503,8 +503,10 @@ export default function UserPage() {
   const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
+  const [safeZones, setSafeZones] = useState([]);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+  const [infoUpdateRequestAlert, setInfoUpdateRequestAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
   const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
@@ -513,8 +515,8 @@ export default function UserPage() {
 
     const loadActivityCondition = async () => {
       try {
-        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
-          fetchActivityToday(),
+        const today = await fetchActivityToday();
+        const [trend, slots, baseline, fallPattern] = await Promise.all([
           fetchActivityTrend(1),
           fetchActivitySlots(),
           fetchActivityBaseline(14),
@@ -715,19 +717,21 @@ export default function UserPage() {
       setChanged(setCurrentAddress, "현재 위치");
     }
 
-    if (safeZone) {
-      const dist = Math.sqrt(
-        Math.pow((lat - safeZone.centerLatitude) * 111000, 2) +
-          Math.pow(
-            (lon - safeZone.centerLongitude) *
-              111000 *
-              Math.cos((lat * Math.PI) / 180),
-            2
-          )
-      );
+    const zones = safeZones.length > 0 ? safeZones : safeZone ? [safeZone] : [];
+    if (zones.length > 0) {
+      setChanged(setIsInRange, zones.some((zone) => {
+        const dist = Math.sqrt(
+          Math.pow((lat - zone.centerLatitude) * 111000, 2) +
+            Math.pow(
+              (lon - zone.centerLongitude) *
+                111000 *
+                Math.cos((lat * Math.PI) / 180),
+              2
+            )
+        );
 
-      setChanged(setIsInRange, dist <= safeZone.radiusMeters);
-
+        return dist <= zone.radiusMeters;
+      }));
     }
   };
 
@@ -776,12 +780,13 @@ export default function UserPage() {
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
 
-      fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+      fetch(`/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
         cache: "no-store",
       })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           const zones = Array.isArray(data) ? data : data ? [data] : [];
+          setSafeZones(zones);
           if (zones.length > 0) setSafeZone(zones[0]);
         })
         .catch(() => {});
@@ -950,13 +955,23 @@ export default function UserPage() {
   }, []);
 
   useEffect(() => {
-    if (!currentPos || !safeZone) return;
-    const dist = Math.sqrt(
-      Math.pow((currentPos.lat - safeZone.centerLatitude) * 111000, 2)
-      + Math.pow((currentPos.lon - safeZone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
-    );
-    setChanged(setIsInRange, dist <= safeZone.radiusMeters);
-  }, [currentPos, safeZone]);
+    const zones = safeZones.length > 0 ? safeZones : safeZone ? [safeZone] : [];
+    if (!currentPos || zones.length === 0) return;
+
+    const distances = zones.map((zone) => ({
+      zone,
+      distance: Math.sqrt(
+        Math.pow((currentPos.lat - zone.centerLatitude) * 111000, 2)
+        + Math.pow((currentPos.lon - zone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
+      ),
+    })).sort((first, second) => first.distance - second.distance);
+
+    if (distances[0]?.zone) {
+      setSafeZone(distances[0].zone);
+    }
+
+    setChanged(setIsInRange, distances.some(({ zone, distance }) => distance <= zone.radiusMeters));
+  }, [currentPos, safeZone, safeZones]);
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
@@ -982,6 +997,9 @@ export default function UserPage() {
 
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
+
+      const infoRequestAlert = alerts.find((alert) => alert.type === "INFO_UPDATE_REQUEST" && !alert.isRead);
+      setInfoUpdateRequestAlert(infoRequestAlert || null);
 
       const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
       setCheckInMessageAlert(checkInAlert || null);
@@ -1086,6 +1104,25 @@ export default function UserPage() {
     }
 
     setMedicineAlert(null);
+  };
+
+  const handleGoToInfoUpdateRequest = async () => {
+    if (infoUpdateRequestAlert?.id) {
+      await readAlert(infoUpdateRequestAlert.id).catch(() => {});
+    }
+
+    const text = String(infoUpdateRequestAlert?.message || "");
+    let section = "personal";
+
+    if (/복약|약|medicine/i.test(text)) section = "medication";
+    else if (/질환|건강|수술|chronic/i.test(text)) section = "chronic";
+    else if (/거동|인지|감각|보행|시력|청력|mobility/i.test(text)) section = "mobility";
+    else if (/활동|이동|쉬는|activity/i.test(text)) section = "activity";
+    else if (/복지|혜택|welfare/i.test(text)) section = "welfare";
+    else if (/일자리|근무|직종|job/i.test(text)) section = "job";
+
+    setInfoUpdateRequestAlert(null);
+    navigate(`/profile?section=${section}`);
   };
 
   const handleReadCheckInMessageAlert = async () => {
@@ -1295,6 +1332,7 @@ export default function UserPage() {
                   zoom={5}
                   className="up-mini-map"
                   safeZone={safeZone}
+                  safeZones={safeZones}
                   currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
                   currentLabel="현재 위치"
                   safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
@@ -1580,6 +1618,29 @@ export default function UserPage() {
                 onClick={handleReadMedicineAlert}
               >
                 확인했어요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoUpdateRequestAlert && (
+        <div className="up-overlay" onClick={() => setInfoUpdateRequestAlert(null)}>
+          <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-title">
+              {infoUpdateRequestAlert.title || "정보 수정 요청"}
+            </div>
+            <div className="up-modal-desc">
+              {infoUpdateRequestAlert.message || "복지사가 정보 수정을 요청했습니다."}
+            </div>
+
+            <div className="up-modal-row medicine-alert-modal-row">
+              <button
+                className="up-modal-ok medicine-alert-confirm-button"
+                type="button"
+                onClick={handleGoToInfoUpdateRequest}
+              >
+                수정하러 가기
               </button>
             </div>
           </div>

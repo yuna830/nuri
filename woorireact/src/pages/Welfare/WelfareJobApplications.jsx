@@ -45,9 +45,9 @@ function WelfareJobApplications() {
     useEffect(() => {
         let ignore = false;
 
-        const loadApplications = async () => {
+        const loadApplications = async (silent = false) => {
             try {
-                setIsLoading(true);
+                if (!silent) setIsLoading(true);
                 setLoadError("");
 
                 const data = await fetchWelfareJobApplications();
@@ -62,15 +62,17 @@ function WelfareJobApplications() {
                 }
             } finally {
                 if (!ignore) {
-                    setIsLoading(false);
+                    if (!silent) setIsLoading(false);
                 }
             }
         };
 
         loadApplications();
+        const timerId = window.setInterval(() => loadApplications(true), 30000);
 
         return () => {
             ignore = true;
+            window.clearInterval(timerId);
         };
     }, []);
 

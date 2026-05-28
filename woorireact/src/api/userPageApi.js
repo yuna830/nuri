@@ -8,7 +8,7 @@ import {
   markLocalAlertRead,
 } from "./localAlertStore";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = "";
 const FALL_API_PORT = "8010";
 const getDefaultFallApiBase = () => {
   const host = window.location.hostname;
@@ -424,7 +424,7 @@ export const createSosCancelAlert = async ({ seniorId, latitude, longitude }) =>
 };
 
 export const sendCheckInReply = async ({ seniorId, reply, originalMessage }) => {
-  const response = await fetch(`${API_BASE}/api/alerts/check-in-reply`, {
+  const response = await fetch("/api/alerts/check-in-reply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ seniorId, reply, originalMessage }),

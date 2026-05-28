@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 
@@ -71,19 +71,28 @@ export default function LocationPage() {
   const [historyByDate, setHistoryByDate] = useState({});
   const lastSavedLocationRef = useRef(null);
 
+  const safeZoneDistances = useMemo(() => {
+    if (!currentPos) return [];
+
+    const zones = safeZones.length > 0 ? safeZones : [safeZone];
+    return zones
+      .filter((zone) => zone?.centerLatitude != null && zone?.centerLongitude != null)
+      .map((zone) => ({
+        zone,
+        distance: getDistanceMeters(
+          { lat: zone.centerLatitude, lng: zone.centerLongitude },
+          { lat: currentPos[0], lng: currentPos[1] }
+        ),
+      }))
+      .sort((first, second) => first.distance - second.distance);
+  }, [currentPos, safeZone, safeZones]);
+
+  const nearestSafeZoneDistance = safeZoneDistances[0] || null;
   const isInRange = currentPos
-    ? getDistanceMeters(
-        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-        { lat: currentPos[0], lng: currentPos[1] }
-      ) <= safeZone.radiusMeters
+    ? safeZoneDistances.some(({ zone, distance: zoneDistance }) => zoneDistance <= zone.radiusMeters)
     : true;
 
-  const distance = currentPos
-    ? Math.round(getDistanceMeters(
-        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-        { lat: currentPos[0], lng: currentPos[1] }
-      ))
-    : 0;
+  const distance = nearestSafeZoneDistance ? Math.round(nearestSafeZoneDistance.distance) : 0;
 
   const saveCurrentLocation = async ({ lat, lon, nextAddress, accuracy }) => {
     const seniorId = getCurrentSeniorId();
@@ -96,7 +105,7 @@ export default function LocationPage() {
 
     if (movedMeters < 50) return;
 
-    await fetch("http://localhost:8080/api/locations", {
+    await fetch("/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,7 +124,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/locations/senior/${seniorId}/date?date=${date}`);
+      const response = await fetch(`/api/locations/senior/${seniorId}/date?date=${date}`);
       const data = response.ok ? await response.json() : [];
       const list = Array.isArray(data) ? data : [];
       setHistoryByDate(prev => ({
@@ -131,7 +140,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+      const response = await fetch(`/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
         cache: "no-store",
       });
       if (!response.ok || response.status === 204) return;
@@ -284,6 +293,7 @@ export default function LocationPage() {
                 className="lp-map"
                 style={{ zIndex: 0 }}
                 safeZone={safeZone}
+                safeZones={safeZones}
                 currentLocation={currentLocationMarker}
                 currentLabel={currentPos ? `현재 위치<br />${address}<br />안전 반경까지 ${distance}m` : "현재 위치"}
                 safeZoneLabel={`${safeZone.name} 안전 반경 중심`}

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle } from "lucide-react";
 import {
   createSosAlert,
   createSosCancelAlert,
@@ -11,6 +13,8 @@ import {
   readAlert,
 } from "../api/userPageApi.js";
 import CommonHeader from "./CommonHeader.jsx";
+import TripartiteChatModal from "./TripartiteChatModal.jsx";
+import { fetchUnreadChatCount } from "../api/chatApi.js";
 import "../css/user/UserCommonHeader.css";
 
 const ALERT_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
@@ -79,6 +83,8 @@ const formatAlertTime = (value) => {
 const getAlertTitle = (alert) => {
   if (alert.title) return alert.title;
   switch (alert.type) {
+    case "INFO_UPDATE_REQUEST":
+      return "정보수정 요청";
     case "CALL_REQUEST":
       return "전화 요청";
     case "MEDICINE":
@@ -110,6 +116,7 @@ const getAlertCategory = (type) => {
     case "MEDICINE":
       return "복약";
     case "PROFILE_UPDATE_REQUEST":
+    case "INFO_UPDATE_REQUEST":
     case "PROFILE_UPDATE":
     case "JOB_RECOMMEND":
     case "JOB_CONTACT_REQUEST":
@@ -159,7 +166,22 @@ const normalizeClimateAlert = (alert, index) => ({
   sortTime: toDate(alert.createdAt || alert.baseTime || alert.time)?.getTime() || 0,
 });
 
+const getProfileSectionFromInfoRequest = (message = "") => {
+  const text = String(message);
+
+  if (/복약|약|복용/.test(text)) return "medication";
+  if (/만성|질환|수술|건강/.test(text)) return "chronic";
+  if (/거동|인지|감각|보행|시력|청력|낙상/.test(text)) return "mobility";
+  if (/활동|이동|쉬는|작업|환경/.test(text)) return "activity";
+  if (/복지|소득|가구|혜택/.test(text)) return "welfare";
+  if (/일자리|희망|근무|급여|직종/.test(text)) return "job";
+  if (/키|몸무게|BMI|흡연|음주|알레르기|신체/.test(text)) return "body";
+
+  return "personal";
+};
+
 export function UserCommonHeader({ showSos = true, onSosClick }) {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -171,7 +193,18 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [deletingAlerts, setDeletingAlerts] = useState(false);
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const alertTabsRef = useRef(null);
+
+  const currentSeniorForChat = useMemo(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("currentSenior") || "null");
+      return saved?.senior || saved || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const isFilled = (value) => {
     return value !== null && value !== undefined && String(value).trim() !== "";
@@ -215,7 +248,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       const [seniorAlerts, climateAlerts, currentProfile] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
-        fetch(`http://localhost:8080/api/seniors/${seniorId}`)
+        fetch(`/api/seniors/${seniorId}`)
           .then((response) => (response.ok ? response.json() : null))
           .catch(() => null),
       ]);
@@ -272,6 +305,27 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     loadAlerts();
     const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
+    return () => clearInterval(timerId);
+  }, []);
+
+  const loadUnreadChatCount = async () => {
+    const seniorId = getCurrentSeniorId();
+    if (!seniorId) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const count = await fetchUnreadChatCount({
+      viewerRole: "SENIOR",
+      seniorId,
+    }).catch(() => 0);
+
+    setUnreadChatCount(count);
+  };
+
+  useEffect(() => {
+    loadUnreadChatCount();
+    const timerId = setInterval(loadUnreadChatCount, 5000);
     return () => clearInterval(timerId);
   }, []);
 
@@ -438,6 +492,10 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         rightText={formatKoreanDate()}
         actions={
           <>
+            <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
+              <MessageCircle size={19} />
+              {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+            </button>
             <button className="common-app-icon-button uch-alert-button" type="button" onClick={openAlertPanel} aria-label="알림">
               🔔
               {unreadCount > 0 && <span className="common-app-badge">{unreadCount}</span>}
@@ -449,6 +507,31 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
             ) : null}
           </>
         }
+      />
+
+      <TripartiteChatModal
+        isOpen={isChatOpen}
+        seniorId={currentSeniorForChat?.id || getCurrentSeniorId()}
+        seniorName={currentSeniorForChat?.name || "사용자"}
+        rooms={[
+          {
+            roomType: "SENIOR_GUARDIAN",
+            seniorId: currentSeniorForChat?.id || getCurrentSeniorId(),
+            title: "보호자",
+            subtitle: "보호자와 1:1 대화",
+          },
+          {
+            roomType: "SENIOR_WELFARE",
+            seniorId: currentSeniorForChat?.id || getCurrentSeniorId(),
+            title: "복지사",
+            subtitle: "담당 복지사와 1:1 대화",
+          },
+        ]}
+        senderRole="SENIOR"
+        senderId={currentSeniorForChat?.id || Number(getCurrentSeniorId())}
+        senderName={currentSeniorForChat?.name || "사용자"}
+        onReadChange={loadUnreadChatCount}
+        onClose={() => setIsChatOpen(false)}
       />
 
       {infoRequestAlert && (
@@ -473,14 +556,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   setInfoRequestAlert(null);
-
-                  if (infoRequestAlert.id) {
-                    await readAlert(infoRequestAlert.id).catch(() => {});
-                  }
-
-                  navigate("/profile");
+                  navigate(`/profile?section=${getProfileSectionFromInfoRequest(infoRequestAlert.message)}`);
                 }}
               >
                 정보 입력하기

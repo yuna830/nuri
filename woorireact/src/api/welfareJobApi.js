@@ -59,6 +59,27 @@ const writeJobCache = (cacheKey, data) => {
     }
 };
 
+const fetchCachedJobPostings = async () => {
+    const response = await fetch("/api/job-cache");
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+};
+
+const saveJobPostingsToCache = async (jobs) => {
+    const rows = Array.isArray(jobs)
+        ? jobs.filter((job) => job?.source && job?.jobId)
+        : [];
+
+    if (rows.length === 0) return;
+
+    await fetch("/api/job-cache/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rows),
+    }).catch(() => {});
+};
+
 export const categorizeJob = (job) => {
     const text = `${job.recrtTitle || ""} ${job.jobclsNm || ""} ${job.detCnts || ""}`;
 
@@ -86,6 +107,7 @@ export const parseJobList = (xmlText) => {
     return {
         list: Array.from(items).map((item) => ({
             jobId: item.querySelector("jobId")?.textContent || "",
+            source: "senuri",
             recrtTitle: item.querySelector("recrtTitle")?.textContent || "",
             oranNm: item.querySelector("oranNm")?.textContent || "",
             emplymShp: item.querySelector("emplymShp")?.textContent || "CM0105",
@@ -111,6 +133,21 @@ export const fetchWelfareJobList = async (pageNo = 1, emplymShp = "", numOfRows 
 
     if (cached) return cached;
 
+    if (pageNo === 1 && !emplymShp) {
+        const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
+
+        if (dbCachedJobs.length > 0) {
+            const data = {
+                list: dbCachedJobs.slice(0, numOfRows),
+                total: dbCachedJobs.length,
+                fromDbCache: true,
+            };
+
+            writeJobCache(cacheKey, data);
+            return data;
+        }
+    }
+
     let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
 
     if (emplymShp) {
@@ -125,6 +162,7 @@ export const fetchWelfareJobList = async (pageNo = 1, emplymShp = "", numOfRows 
 
     const text = await response.text();
     const data = parseJobList(text);
+    saveJobPostingsToCache(data.list);
     writeJobCache(cacheKey, data);
 
     return data;

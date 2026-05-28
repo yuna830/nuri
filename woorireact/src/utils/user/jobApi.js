@@ -93,6 +93,27 @@ const writeJobCache = (cacheKey, data) => {
   }
 };
 
+const fetchCachedJobPostings = async () => {
+  const response = await fetch("/api/job-cache");
+  if (!response.ok) return [];
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+};
+
+const saveJobPostingsToCache = async (jobs) => {
+  const rows = Array.isArray(jobs)
+    ? jobs.filter((job) => job?.source && job?.jobId)
+    : [];
+
+  if (rows.length === 0) return;
+
+  await fetch("/api/job-cache/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  }).catch(() => {});
+};
+
 export const categorizeJob = (job) => {
   const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, job.workPlcNm);
   for (const category of JOB_CATEGORY_FILTERS) {
@@ -247,6 +268,19 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
 
+  if (pageNo === 1 && !emplymShp) {
+    const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
+    if (dbCachedJobs.length > 0) {
+      const data = {
+        list: dbCachedJobs.slice(0, numOfRows),
+        total: dbCachedJobs.length,
+        fromDbCache: true,
+      };
+      writeJobCache(cacheKey, data);
+      return data;
+    }
+  }
+
   const [senuri, seoul] = await Promise.allSettled([
     fetchSenuriJobList(pageNo, emplymShp, numOfRows),
     fetchSeoulJobInfo(pageNo, numOfRows),
@@ -266,6 +300,7 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
     total: (senuriData.total || 0) + (seoulData.total || 0),
   };
 
+  saveJobPostingsToCache(data.list);
   writeJobCache(cacheKey, data);
   return data;
 };
