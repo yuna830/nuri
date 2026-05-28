@@ -1,0 +1,127 @@
+.ctc-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(30, 42, 31, 0.28);
+}
+
+.ctc-modal {
+  display: grid;
+  grid-template-rows: auto minmax(280px, 56vh) auto;
+  width: min(560px, 100%);
+  overflow: hidden;
+  border: 1px solid #d4e8d6;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(30, 42, 31, 0.18);
+}
+
+.ctc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #edf4e9;
+}
+
+.ctc-header h2 {
+  margin: 0;
+  color: #1e2a1f;
+  font-size: 1.3rem;
+}
+
+.ctc-header p {
+  margin: 5px 0 0;
+  color: #667266;
+  font-size: 0.9rem;
+}
+
+.ctc-header button,
+.ctc-input-row button {
+  border: 0;
+  border-radius: 10px;
+  background: #86a788;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ctc-header button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.ctc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 16px 18px;
+  background: #fbfdf8;
+}
+
+.ctc-empty {
+  margin: auto;
+  color: #789078;
+  font-weight: 800;
+}
+
+.ctc-message {
+  align-self: flex-start;
+  max-width: 82%;
+  padding: 10px 12px;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.ctc-message.mine {
+  align-self: flex-end;
+  border-color: #86a788;
+  background: #eef6ef;
+}
+
+.ctc-message span,
+.ctc-message time {
+  display: block;
+  color: #789078;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.ctc-message p {
+  margin: 5px 0;
+  color: #1e2a1f;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.ctc-input-row {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+  gap: 10px;
+  padding: 14px;
+  border-top: 1px solid #edf4e9;
+}
+
+.ctc-input-row textarea {
+  min-height: 54px;
+  max-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  color: #1e2a1f;
+  font: inherit;
+  resize: vertical;
+}
+
+.ctc-input-row button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

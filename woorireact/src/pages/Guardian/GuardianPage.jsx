@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell } from "lucide-react";
+import { Bell, MessageCircle } from "lucide-react";
 import {
   getGuardianAlerts,
   readAlert,
@@ -34,8 +34,10 @@ import {
 } from "../../utils/guardian/guardianSafeZone";
 import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
+import { fetchUnreadChatCount } from "../../api/chatApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
+import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
 import EmergencyPanel from "./EmergencyPanel";
@@ -248,6 +250,8 @@ function GuardianPage() {
       },
     ],
   });
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -255,6 +259,26 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  const loadUnreadChatCount = useCallback(async () => {
+    if (!activeElderId) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const count = await fetchUnreadChatCount({
+      viewerRole: "GUARDIAN",
+      seniorId: activeElderId,
+    }).catch(() => 0);
+
+    setUnreadChatCount(count);
+  }, [activeElderId]);
+
+  useEffect(() => {
+    loadUnreadChatCount();
+    const timerId = window.setInterval(loadUnreadChatCount, 5000);
+    return () => window.clearInterval(timerId);
+  }, [loadUnreadChatCount]);
 
   useEffect(() => {
     if (!activeElderId) {
@@ -1280,6 +1304,33 @@ function GuardianPage() {
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+        onOpenChat={() => setIsChatOpen(true)}
+        unreadChatCount={unreadChatCount}
+      />
+
+      <TripartiteChatModal
+        isOpen={isChatOpen}
+        seniorId={selectedElder?.id}
+        seniorName={selectedElder?.name || "사용자"}
+        rooms={[
+          {
+            roomType: "SENIOR_GUARDIAN",
+            seniorId: selectedElder?.id,
+            title: selectedElder?.name || "사용자",
+            subtitle: "사용자와 1:1 대화",
+          },
+          {
+            roomType: "GUARDIAN_WELFARE",
+            seniorId: selectedElder?.id,
+            title: "복지사",
+            subtitle: `${selectedElder?.name || "사용자"}님 담당 복지사와 1:1 대화`,
+          },
+        ]}
+        senderRole="GUARDIAN"
+        senderId={guardian?.id || getCurrentGuardianId()}
+        senderName={guardian?.name || "보호자"}
+        onReadChange={loadUnreadChatCount}
+        onClose={() => setIsChatOpen(false)}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1655,7 +1706,7 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport, onOpenChat, unreadChatCount = 0 }) {
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
@@ -1679,9 +1730,15 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
         }
       }}
       actions={
-        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
-          긴급 신고
-        </button>
+        <>
+          <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
+            <MessageCircle size={19} />
+            {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+          </button>
+          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+            긴급 신고
+          </button>
+        </>
       }
     />
   );

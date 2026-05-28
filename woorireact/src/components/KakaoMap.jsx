@@ -9,51 +9,74 @@ const getKakaoMapKey = () =>
     ""
   ).trim();
 
-const loadKakaoMapSdk = () => new Promise((resolve, reject) => {
-  if (window.kakao?.maps) {
-    window.kakao.maps.load(() => resolve(window.kakao.maps));
-    return;
-  }
+const loadKakaoMapSdk = () =>
+  new Promise((resolve, reject) => {
+    if (window.kakao?.maps) {
+      window.kakao.maps.load(() => resolve(window.kakao.maps));
+      return;
+    }
 
-  const appKey = getKakaoMapKey();
-  if (!appKey) {
-    reject(new Error("KAKAO_MAP_KEY_MISSING"));
-    return;
-  }
+    const appKey = getKakaoMapKey();
 
-  const existingScript = document.getElementById(KAKAO_MAP_SCRIPT_ID);
-  if (existingScript) {
-    existingScript.addEventListener("load", () => window.kakao.maps.load(() => resolve(window.kakao.maps)), { once: true });
-    existingScript.addEventListener("error", reject, { once: true });
-    return;
-  }
+    if (!appKey) {
+      reject(new Error("KAKAO_MAP_KEY_MISSING"));
+      return;
+    }
 
-  const script = document.createElement("script");
-  script.id = KAKAO_MAP_SCRIPT_ID;
-  script.async = true;
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=services`;
-  script.onload = () => window.kakao.maps.load(() => resolve(window.kakao.maps));
-  script.onerror = reject;
-  document.head.appendChild(script);
-});
+    const existingScript = document.getElementById(KAKAO_MAP_SCRIPT_ID);
 
-const toLatLng = (maps, point) => new maps.LatLng(point.lat, point.lng);
+    if (existingScript) {
+      existingScript.addEventListener(
+        "load",
+        () => window.kakao.maps.load(() => resolve(window.kakao.maps)),
+        { once: true }
+      );
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = KAKAO_MAP_SCRIPT_ID;
+    script.async = true;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
+      appKey
+    )}&autoload=false&libraries=services`;
+    script.onload = () => window.kakao.maps.load(() => resolve(window.kakao.maps));
+    script.onerror = reject;
+
+    document.head.appendChild(script);
+  });
+
+const toLatLng = (maps, point) =>
+  new maps.LatLng(Number(point.lat), Number(point.lng));
 
 const clearOverlay = (overlay) => {
-  if (typeof overlay.setMap === "function") overlay.setMap(null);
-  if (typeof overlay.close === "function") overlay.close();
+  if (!overlay) return;
+
+  if (typeof overlay.setMap === "function") {
+    overlay.setMap(null);
+  }
+
+  if (typeof overlay.close === "function") {
+    overlay.close();
+  }
 };
 
-const isValidSafeZone = (zone) => (
+const isValidPoint = (point) =>
+  point &&
+  Number.isFinite(Number(point.lat)) &&
+  Number.isFinite(Number(point.lng));
+
+const isValidSafeZone = (zone) =>
   zone &&
   Number.isFinite(Number(zone.centerLatitude)) &&
-  Number.isFinite(Number(zone.centerLongitude))
-);
+  Number.isFinite(Number(zone.centerLongitude));
 
 const getSafeZoneBoundsPoints = (maps, zone) => {
   const radius = Number(zone.radiusMeters || 500);
   const lat = Number(zone.centerLatitude);
   const lng = Number(zone.centerLongitude);
+
   const latOffset = radius / 111000;
   const lngOffset = radius / (111000 * Math.cos((lat * Math.PI) / 180));
 
@@ -85,7 +108,13 @@ export default function KakaoMap({
   const [failed, setFailed] = useState(false);
 
   const normalizedCenter = useMemo(() => {
-    if (Array.isArray(center)) return { lat: center[0], lng: center[1] };
+    if (Array.isArray(center)) {
+      return {
+        lat: center[0],
+        lng: center[1],
+      };
+    }
+
     return center;
   }, [center]);
 
@@ -94,18 +123,27 @@ export default function KakaoMap({
 
     loadKakaoMapSdk()
       .then((maps) => {
-        if (cancelled || !containerRef.current || !normalizedCenter) return;
+        if (cancelled || !containerRef.current || !isValidPoint(normalizedCenter)) {
+          return;
+        }
+
+        const mapCenter = toLatLng(maps, normalizedCenter);
 
         if (!mapRef.current) {
           mapRef.current = new maps.Map(containerRef.current, {
-            center: toLatLng(maps, normalizedCenter),
+            center: mapCenter,
             level: zoom,
           });
+        } else {
+          mapRef.current.setCenter(mapCenter);
+          mapRef.current.setLevel(zoom);
         }
 
         setFailed(false);
       })
-      .catch(() => setFailed(true));
+      .catch(() => {
+        setFailed(true);
+      });
 
     return () => {
       cancelled = true;
@@ -113,96 +151,100 @@ export default function KakaoMap({
   }, [normalizedCenter, zoom]);
 
   useEffect(() => {
-    if (failed || !mapRef.current || !window.kakao?.maps) return;
+    if (failed || !mapRef.current || !window.kakao?.maps) {
+      return;
+    }
 
     const maps = window.kakao.maps;
+
     overlaysRef.current.forEach(clearOverlay);
     overlaysRef.current = [];
 
-    const zonesToDraw = Array.isArray(safeZones) && safeZones.length > 0
-      ? safeZones.filter(isValidSafeZone)
-      : isValidSafeZone(safeZone)
-        ? [safeZone]
-        : [];
+    const zonesToRender =
+      Array.isArray(safeZones) && safeZones.length > 0
+        ? safeZones.filter(isValidSafeZone)
+        : isValidSafeZone(safeZone)
+          ? [safeZone]
+          : [];
 
-    if (zonesToDraw.length > 0) {
-      const bounds = new maps.LatLngBounds();
+    const bounds = new maps.LatLngBounds();
+    let hasBounds = false;
 
-      let hasBoundsTarget = false;
-
-      zonesToDraw.forEach((zone) => {
-        const isActive = safeZone && String(zone.id) === String(safeZone.id);
-        const radius = Number(zone.radiusMeters || 500);
-        const zoneCenter = toLatLng(maps, {
-          lat: Number(zone.centerLatitude),
-          lng: Number(zone.centerLongitude),
-        });
-
-        const circle = new maps.Circle({
-          center: zoneCenter,
-          radius,
-          strokeWeight: isActive ? 3 : 2,
-          strokeColor: isActive ? "#2F5D3A" : "#D86F45",
-          strokeOpacity: isActive ? 0.9 : 0.8,
-          strokeStyle: "solid",
-          fillColor: isActive ? "#5F8F65" : "#F4A261",
-          fillOpacity: isActive ? 0.14 : 0.11,
-        });
-
-        circle.setMap(mapRef.current);
-        overlaysRef.current.push(circle);
-
-        if (isActive || (!safeZone && zonesToDraw.length === 1)) {
-          getSafeZoneBoundsPoints(maps, zone).forEach((point) => bounds.extend(point));
-          hasBoundsTarget = true;
-        }
+    zonesToRender.forEach((zone, index) => {
+      const zoneCenter = toLatLng(maps, {
+        lat: Number(zone.centerLatitude),
+        lng: Number(zone.centerLongitude),
       });
 
-      if (currentLocation) {
-        bounds.extend(toLatLng(maps, currentLocation));
-        hasBoundsTarget = true;
-      }
+      const radius = Number(zone.radiusMeters || 500);
+      const isActive = safeZone && String(zone.id) === String(safeZone.id);
 
-      if (hasBoundsTarget) {
-        mapRef.current.setBounds(bounds);
-
-        if (mapRef.current.getLevel() > 5) {
-          mapRef.current.setLevel(5);
-        }
-      }
-    }
-
-    if (safeZone && isValidSafeZone(safeZone)) {
-      const safeZoneCenter = toLatLng(maps, {
-        lat: Number(safeZone.centerLatitude),
-        lng: Number(safeZone.centerLongitude),
+      const circle = new maps.Circle({
+        center: zoneCenter,
+        radius,
+        strokeWeight: isActive ? 3 : 2,
+        strokeColor: isActive ? "#2F5D3A" : "#D86F45",
+        strokeOpacity: isActive ? 0.9 : 0.8,
+        strokeStyle: "solid",
+        fillColor: isActive ? "#5F8F65" : "#F4A261",
+        fillOpacity: isActive ? 0.14 : 0.11,
       });
 
-      const marker = new maps.Marker({ position: safeZoneCenter });
+      circle.setMap(mapRef.current);
+      overlaysRef.current.push(circle);
+
+      const marker = new maps.Marker({
+        position: zoneCenter,
+      });
+
+      const zoneName = zone.name || zone.placeName || safeZoneLabel;
+      const suffix = index === 0 && zonesToRender.length === 1 ? "" : " 안전 반경";
+
       const info = new maps.InfoWindow({
-        content: `<div style="padding:6px 10px;font-size:12px;">${safeZoneLabel}</div>`,
+        content: `<div style="padding:6px 10px;font-size:12px;">${zoneName}${suffix}</div>`,
       });
 
       marker.setMap(mapRef.current);
-      maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
-      overlaysRef.current.push(marker, info);
-    }
+      maps.event.addListener(marker, "click", () => {
+        info.open(mapRef.current, marker);
+      });
 
-    if (currentLocation) {
+      overlaysRef.current.push(marker, info);
+
+      getSafeZoneBoundsPoints(maps, zone).forEach((point) => {
+        bounds.extend(point);
+      });
+
+      hasBounds = true;
+    });
+
+    if (isValidPoint(currentLocation)) {
       const position = toLatLng(maps, currentLocation);
-      const marker = new maps.Marker({ position });
+
+      bounds.extend(position);
+      hasBounds = true;
+
+      const marker = new maps.Marker({
+        position,
+      });
+
       const info = new maps.InfoWindow({
         content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>`,
       });
 
       marker.setMap(mapRef.current);
-      maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
+      maps.event.addListener(marker, "click", () => {
+        info.open(mapRef.current, marker);
+      });
+
       overlaysRef.current.push(marker, info);
     }
 
-    if (showRoute && route.length > 1) {
+    const validRoute = Array.isArray(route) ? route.filter(isValidPoint) : [];
+
+    if (showRoute && validRoute.length > 1) {
       const polyline = new maps.Polyline({
-        path: route.map((point) => toLatLng(maps, point)),
+        path: validRoute.map((point) => toLatLng(maps, point)),
         strokeWeight: 4,
         strokeColor: "#C93A32",
         strokeOpacity: 0.85,
@@ -210,10 +252,35 @@ export default function KakaoMap({
 
       polyline.setMap(mapRef.current);
       overlaysRef.current.push(polyline);
-    }
-  }, [currentLabel, currentLocation, failed, route, safeZone, safeZones, safeZoneLabel, showRoute]);
 
-  if (failed && fallback) return fallback;
+      validRoute.forEach((point) => {
+        bounds.extend(toLatLng(maps, point));
+      });
+
+      hasBounds = true;
+    }
+
+    if (hasBounds) {
+      mapRef.current.setBounds(bounds);
+
+      if (mapRef.current.getLevel() > 5) {
+        mapRef.current.setLevel(5);
+      }
+    }
+  }, [
+    currentLabel,
+    currentLocation,
+    failed,
+    route,
+    safeZone,
+    safeZones,
+    safeZoneLabel,
+    showRoute,
+  ]);
+
+  if (failed && fallback) {
+    return fallback;
+  }
 
   return <div ref={containerRef} className={className} style={style} />;
 }

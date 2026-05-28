@@ -474,7 +474,10 @@ public class PoliceMissingAlertService {
     }
 
     private void validateApiKeys() {
-        if (getSafe182EsntlId().isBlank() || getSafe182AuthKey().isBlank()) {
+        String esntlId = getSafe182EsntlId();
+        String authKey = getSafe182AuthKey();
+
+        if (esntlId.isBlank() || authKey.isBlank()) {
             throw new RuntimeException("Safe182 API key is missing");
         }
     }

@@ -163,6 +163,28 @@ function EnvRow({ icon, label, value, color, hasBorder = true }) {
   );
 }
 
+const createFallbackHourly = () => {
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  return Array.from({ length: 8 }, (_, index) => {
+    const hour = Math.min(23, Math.max(0, currentHour - 2 + index * 2));
+    return {
+      time: `${String(hour).padStart(2, "0")}:00`,
+      timeNum: hour,
+      temp: "--",
+      humid: "--",
+      wsd: "--",
+      pty: "0",
+      pop: "0",
+      sky: "1",
+      icon: "확인중",
+      isPast: hour < currentHour,
+      isNow: hour === currentHour,
+    };
+  });
+};
+
 export default function WeatherGraph() {
   const navigate = useNavigate();
 
@@ -280,9 +302,13 @@ export default function WeatherGraph() {
       }
 
       setLoading(false);
-    } catch (e) {
-      console.error(e);
-      setError("날씨 데이터를 불러오지 못했습니다.");
+    } catch {
+      const fallbackHourly = createFallbackHourly();
+      const fallbackCurrent = fallbackHourly.find((item) => item.isNow) || fallbackHourly[0];
+      setChanged(setHourlyData, fallbackHourly);
+      setChanged(setCurrent, fallbackCurrent);
+      setChanged(setAdviceItems, []);
+      setError(null);
       setLoading(false);
     }
   };
@@ -566,10 +592,7 @@ export default function WeatherGraph() {
                     <div className="wg-hour-temp">{d.temp}°</div>
                     <div className="wg-hour-humid">{d.humid}%</div>
                     {d.pop !== "0" && (
-                      <div style={{
-                        fontSize: "0.6rem", marginTop: "0.1rem", fontWeight: "600",
-                        color: d.isNow ? "rgba(255,255,255,0.9)" : "#7ab0e0",
-                      }}>☔{d.pop}%</div>
+                      <div className="wg-hour-rain">☔{d.pop}%</div>
                     )}
                   </div>
                 ))}

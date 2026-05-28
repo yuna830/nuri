@@ -135,6 +135,7 @@ export default function FallHistory() {
   const [activeFallAlert, setActiveFallAlert] = useState(null);
   const [isSendingAlert, setIsSendingAlert] = useState(false);
   const sentCaptureRef = useRef(new Set(JSON.parse(localStorage.getItem("fall_sent_captures") || "[]")));
+  const fallServerRetryAtRef = useRef(0);
 
   const captureMap = useMemo(() => {
     const map = new Map();
@@ -146,6 +147,7 @@ export default function FallHistory() {
   }, [captures]);
 
   const loadCaptures = useCallback(async () => {
+    if (Date.now() < fallServerRetryAtRef.current) return [];
     const nextCaptures = await fetchFallCaptures().catch(() => []);
     setCaptures(nextCaptures);
     return nextCaptures;
@@ -158,10 +160,11 @@ export default function FallHistory() {
       return [];
     }
 
+    const shouldSkipFallServer = Date.now() < fallServerRetryAtRef.current;
     const [events, alerts, nextCaptures] = await Promise.all([
-      fetchFallEvents(1).catch(() => []),
+      shouldSkipFallServer ? Promise.resolve([]) : fetchFallEvents(1).catch(() => []),
       fetchSeniorAlerts(seniorId).catch(() => []),
-      loadCaptures(),
+      shouldSkipFallServer ? Promise.resolve([]) : loadCaptures(),
     ]);
     const nextCaptureMap = new Map();
     nextCaptures.forEach((capture) => {
@@ -232,10 +235,13 @@ export default function FallHistory() {
     let isMounted = true;
 
     const checkStatus = async () => {
+      if (Date.now() < fallServerRetryAtRef.current) return;
+
       try {
         const status = await fetchFallDetectionStatus();
         if (!isMounted) return;
 
+        fallServerRetryAtRef.current = 0;
         setServerOnline(true);
         setDetector(status);
 
@@ -244,6 +250,7 @@ export default function FallHistory() {
         }
       } catch {
         if (!isMounted) return;
+        fallServerRetryAtRef.current = Date.now() + 30 * 1000;
         setServerOnline(false);
         setDetector({ fall_detected: false, score: 0 });
       }
@@ -299,7 +306,7 @@ export default function FallHistory() {
               <div className="fh-video-placeholder">
                 <div className="fh-video-icon">📷</div>
                 <div>FastAPI 서버를 실행하면 영상이 표시됩니다.</div>
-                <code>python -m uvicorn main:app --host 0.0.0.0 --port 8000</code>
+                <code>python -m uvicorn main:app --host 0.0.0.0 --port 8010</code>
               </div>
             )}
           </div>

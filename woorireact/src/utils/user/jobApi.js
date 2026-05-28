@@ -93,6 +93,27 @@ const writeJobCache = (cacheKey, data) => {
   }
 };
 
+const fetchCachedJobPostings = async () => {
+  const response = await fetch("/api/job-cache");
+  if (!response.ok) return [];
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+};
+
+const saveJobPostingsToCache = async (jobs) => {
+  const rows = Array.isArray(jobs)
+    ? jobs.filter((job) => job?.source && job?.jobId)
+    : [];
+
+  if (rows.length === 0) return;
+
+  await fetch("/api/job-cache/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  }).catch(() => {});
+};
+
 export const categorizeJob = (job) => {
   const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, job.workPlcNm);
   for (const category of JOB_CATEGORY_FILTERS) {
@@ -100,6 +121,27 @@ export const categorizeJob = (job) => {
     if (category.keywords.some((keyword) => text.includes(keyword))) return category.label;
   }
   return "기타";
+};
+
+const OUTSIDE_SEOUL_PATTERN = /경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/;
+
+export const isJobRegionCompatible = (job, profile = {}) => {
+  const profileText = textOf(profile?.address, profile?.region, profile?.city, profile?.district, profile?.dong);
+  const jobText = textOf(job.workPlcNm, job.plDetAddr);
+
+  if (!profileText || !jobText) return true;
+
+  if (/서울/.test(profileText)) {
+    return /서울/.test(jobText) || !OUTSIDE_SEOUL_PATTERN.test(jobText);
+  }
+
+  const regionTokens = getRegionTokens(profile);
+  const normalizedJob = normalize(jobText);
+  const explicitOtherRegion = /서울|경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/.test(jobText);
+
+  if (!explicitOtherRegion) return true;
+
+  return regionTokens.some((token) => normalizedJob.includes(normalize(token)));
 };
 
 export const formatDate = (dateText) => {
@@ -226,6 +268,19 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
 
+  if (pageNo === 1 && !emplymShp) {
+    const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
+    if (dbCachedJobs.length > 0) {
+      const data = {
+        list: dbCachedJobs.slice(0, numOfRows),
+        total: dbCachedJobs.length,
+        fromDbCache: true,
+      };
+      writeJobCache(cacheKey, data);
+      return data;
+    }
+  }
+
   const [senuri, seoul] = await Promise.allSettled([
     fetchSenuriJobList(pageNo, emplymShp, numOfRows),
     fetchSeoulJobInfo(pageNo, numOfRows),
@@ -245,6 +300,7 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
     total: (senuriData.total || 0) + (seoulData.total || 0),
   };
 
+  saveJobPostingsToCache(data.list);
   writeJobCache(cacheKey, data);
   return data;
 };
@@ -305,7 +361,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
     ? profile.preferredCategories
     : String(profile?.preferredCategories || "").split(",").filter(Boolean);
 
-  if (selectedLabel && category === selectedLabel) {
+  if (selectedLabel && category !== selectedLabel) {
+    score -= MATCH_SCORE_WEIGHTS.category;
+    reasons.push("선택 직종과 다름");
+  } else if (selectedLabel && category === selectedLabel) {
     score += MATCH_SCORE_WEIGHTS.category;
     reasons.push("선택한 직종과 일치");
   } else if (preferredCategories.includes(category)) {
@@ -319,7 +378,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
   const regionTokens = getRegionTokens(profile);
   const jobLocation = normalize(textOf(job.workPlcNm, job.plDetAddr));
   const matchedRegion = regionTokens.find((token) => jobLocation.includes(normalize(token)));
-  if (matchedRegion) {
+  if (!isJobRegionCompatible(job, profile)) {
+    score -= MATCH_SCORE_WEIGHTS.region;
+    reasons.push("거주지와 거리가 있음");
+  } else if (matchedRegion) {
     score += MATCH_SCORE_WEIGHTS.region;
     reasons.push(`${matchedRegion} 근무지`);
   } else if (/서울/.test(textOf(job.workPlcNm, job.plDetAddr))) {
