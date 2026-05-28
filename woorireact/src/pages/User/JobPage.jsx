@@ -265,6 +265,12 @@ export default function JobPage() {
               {profile && (
                 <div className="jp-profile-box">
                   <div className="jp-profile-title">내 희망 조건</div>
+                  {(profile.address || profile.city || profile.district || profile.dong) && (
+                    <div className="jp-profile-row">
+                      <span className="jp-profile-key">거주지</span>
+                      <span className="jp-profile-val">{profile.address || [profile.city, profile.district, profile.dong].filter(Boolean).join(" ")}</span>
+                    </div>
+                  )}
                   {profile.maxHours && (
                     <div className="jp-profile-row">
                       <span className="jp-profile-key">활동시간</span>
@@ -281,6 +287,18 @@ export default function JobPage() {
                     <div className="jp-profile-row">
                       <span className="jp-profile-key">급여형태</span>
                       <span className="jp-profile-val">{profile.payType}</span>
+                    </div>
+                  )}
+                  {profile.restNeed && profile.restNeed !== "없음" && (
+                    <div className="jp-profile-row">
+                      <span className="jp-profile-key">휴식</span>
+                      <span className="jp-profile-val">{profile.restNeed}</span>
+                    </div>
+                  )}
+                  {profile.avoidEnvironment?.length > 0 && (
+                    <div className="jp-profile-row">
+                      <span className="jp-profile-key">피할 환경</span>
+                      <span className="jp-profile-val">{profile.avoidEnvironment.join("·")}</span>
                     </div>
                   )}
                   {profile.hopeDays?.length > 0 && (
@@ -346,7 +364,7 @@ export default function JobPage() {
               </div>
 
               {recommendedJobs.length > 0 && (
-                <section className="jp-recommend-box">
+                <section className="jp-recommend-section">
                   <div className="jp-recommend-head">
                     <div>
                       <strong>맞춤 추천 TOP 5</strong>

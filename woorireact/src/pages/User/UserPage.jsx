@@ -27,6 +27,7 @@ import {
   reverseGeocode,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
@@ -88,6 +89,51 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
+const buildUserWelfarePerson = (profile, userName, userRegion) => {
+  const senior = profile?.senior ?? {};
+  const healthInfo = profile?.healthInfo ?? {};
+  const medicationInfo = Array.isArray(healthInfo.medications)
+    ? healthInfo.medications.map((item) => item?.name || item).filter(Boolean).join(", ")
+    : "";
+  const diseases = [
+    healthInfo.diabetes,
+    healthInfo.hypertension,
+    healthInfo.heartDisease,
+    healthInfo.jointDisease,
+    healthInfo.stroke,
+    healthInfo.kidneyDisease,
+    healthInfo.lungDisease,
+    healthInfo.liverDisease,
+    healthInfo.cancer,
+    healthInfo.dementia,
+    healthInfo.vision,
+    healthInfo.hearing,
+    healthInfo.recentFall,
+  ].filter((value) => value && value !== "없음");
+
+  return normalizePerson({
+    id: senior.id,
+    name: senior.name || userName,
+    age: senior.age,
+    gender: senior.gender,
+    region: senior.region || senior.address || userRegion,
+    address: senior.address || senior.region || userRegion,
+    healthStatus: healthInfo.healthStatus,
+    condition: diseases.join(", "),
+    diseases,
+    medicationInfo,
+    medicineCount: healthInfo.medicineCount,
+    incomeLevel: healthInfo.incomeLevel,
+    household: healthInfo.householdType,
+    householdType: healthInfo.householdType,
+    currentBenefits: healthInfo.currentBenefits,
+    welfareMemo: healthInfo.welfareMemo,
+    welfareDecision: senior.welfareDecision,
+    welfareDecisionReason: senior.welfareDecisionReason,
+    healthInfo,
+  });
+};
+
 function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
@@ -146,6 +192,32 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 }
 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
+
+const DEFAULT_ACTIVITY_TODAY = {
+  status: "reference",
+  scores: { activity: 55, balance: 55, routine: 55, safety: 60 },
+  labels: { activity: "활동량", balance: "균형", routine: "생활 리듬", safety: "안전" },
+  overall_note: "아직 실측 데이터가 부족해 기본 참고 지표로 표시합니다.",
+  data_quality: { level: "insufficient", message: "감지 서버가 충분한 기록을 모으면 실제 활동 지표로 바뀝니다." },
+};
+
+const DEFAULT_ACTIVITY_SLOTS = {
+  slots: {
+    morning: { label: "오전", status: "empty", data_points: 0, scores: {} },
+    afternoon: { label: "오후", status: "empty", data_points: 0, scores: {} },
+    evening: { label: "저녁", status: "empty", data_points: 0, scores: {} },
+  },
+};
+
+const DEFAULT_ACTIVITY_BASELINE = {
+  status: "pending",
+  message: "활동 기록이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+};
+
+const DEFAULT_FALL_PATTERN = {
+  status: "pending",
+  message: "낙상 기록이 생기면 전후 활동 변화를 보여줍니다.",
+};
 
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
   const slotList = slots?.slots ? Object.entries(slots.slots) : [];
@@ -397,6 +469,7 @@ export default function UserPage() {
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
@@ -405,11 +478,11 @@ export default function UserPage() {
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
-  const [activityToday, setActivityToday] = useState(null);
+  const [activityToday, setActivityToday] = useState(DEFAULT_ACTIVITY_TODAY);
   const [activityTrend, setActivityTrend] = useState(null);
-  const [activitySlots, setActivitySlots] = useState(null);
-  const [activityBaseline, setActivityBaseline] = useState(null);
-  const [activityFallPattern, setActivityFallPattern] = useState(null);
+  const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
+  const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
+  const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -445,18 +518,18 @@ export default function UserPage() {
           fetchFallPattern(),
         ]);
         if (!isMounted) return;
-        setActivityToday(today);
+        setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
         setActivityTrend(trend);
-        setActivitySlots(slots);
-        setActivityBaseline(baseline);
-        setActivityFallPattern(fallPattern);
+        setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(fallPattern || DEFAULT_FALL_PATTERN);
       } catch {
         if (!isMounted) return;
-        setActivityToday(null);
+        setActivityToday(DEFAULT_ACTIVITY_TODAY);
         setActivityTrend(null);
-        setActivitySlots(null);
-        setActivityBaseline(null);
-        setActivityFallPattern(null);
+        setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(DEFAULT_FALL_PATTERN);
       }
     };
 
@@ -705,7 +778,8 @@ export default function UserPage() {
       })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
-          if (data) setSafeZone(data);
+          const zones = Array.isArray(data) ? data : data ? [data] : [];
+          if (zones.length > 0) setSafeZone(zones[0]);
         })
         .catch(() => {});
     };
@@ -769,6 +843,7 @@ export default function UserPage() {
               const freshProfile = await response.json();
 
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
               setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
@@ -779,6 +854,7 @@ export default function UserPage() {
           }
 
           setChanged(setUserName, profile?.senior?.name || "사용자");
+          setChanged(setCurrentProfile, profile);
           setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
           setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
           loadMatchedCareTeam(cachedSeniorId, profile);
@@ -796,6 +872,7 @@ export default function UserPage() {
 
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
+        setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
         setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
         setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
@@ -1061,6 +1138,18 @@ export default function UserPage() {
     return list.slice(0, 2);
   })();
 
+  const welfarePerson = buildUserWelfarePerson(currentProfile, userName, userRegion);
+  const welfareMatches = findWelfarePrograms({
+    question: "내 상황에 맞는 복지 제도를 추천해줘",
+    person: welfarePerson,
+    limit: 3,
+  });
+
+  const currentBenefits = String(currentProfile?.healthInfo?.currentBenefits || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   return (
     <div className="up-root">
       <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
@@ -1307,7 +1396,7 @@ export default function UserPage() {
                     {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
                   </button>
                 </div>
-                {activityToday.status === "ok" && activityToday.scores ? (
+                {activityToday.scores ? (
                   <RadarChart
                     scores={activityToday.scores}
                     labels={activityToday.labels}
@@ -1343,15 +1432,28 @@ export default function UserPage() {
                 <div className="up-welfare-check-icon">🏛️</div>
                 <div className="up-welfare-check-copy">
                   <strong>내 상황에 맞는 복지제도를 확인해보세요.</strong>
-                  <p>소득 정보와 단독/부부 가구 정보를 입력하면 보호자와 복지사가 함께 확인할 수 있어요.</p>
+                  <p>
+                    {currentBenefits.length
+                      ? `현재 등록된 혜택: ${currentBenefits.join(" · ")}`
+                      : "현재 받고 있는 혜택을 입력하면 중복 신청 여부를 더 쉽게 확인할 수 있어요."}
+                  </p>
                 </div>
                 <button
                   className="up-welfare-check-button"
                   type="button"
                   onClick={() => navigate("/profile?section=welfare")}
                 >
-                  정보 입력하기
+                  복지정보 수정
                 </button>
+              </div>
+              <div className="up-welfare-programs">
+                {welfareMatches.map(({ program, reasons }) => (
+                  <article className="up-welfare-program" key={program.id}>
+                    <strong>{program.name}</strong>
+                    <p>{program.summary}</p>
+                    <span>{reasons[0]}</span>
+                  </article>
+                ))}
               </div>
             </div>
           </div>

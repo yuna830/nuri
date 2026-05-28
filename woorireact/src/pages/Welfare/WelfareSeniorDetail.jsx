@@ -642,9 +642,9 @@ function WelfareSeniorDetail() {
 
         const mobilityItems = [
             ["보행 보조기구", healthInfo.walkingAid],
-            ["치매/인지 어려움", healthInfo.dementia],
-            ["시력 어려움", healthInfo.vision],
-            ["청력 어려움", healthInfo.hearing],
+            ["기억하거나 판단하는 데 어려움", healthInfo.dementia],
+            ["눈으로 보는 데 어려움", healthInfo.vision],
+            ["귀로 듣는 데 어려움", healthInfo.hearing],
             ["최근 낙상 경험", healthInfo.recentFall],
             ["수술 이력", healthInfo.hasSurgery],
         ];
@@ -698,6 +698,20 @@ function WelfareSeniorDetail() {
                                     <strong>
                                         {splitCsv(disabledWork).length > 0
                                             ? splitCsv(disabledWork).join(" · ")
+                                            : "미입력"}
+                                    </strong>
+                                </div>
+
+                                <div className="wsd-activity-limits">
+                                    <span>쉬는 시간 필요 정도</span>
+                                    <strong>{valueOrMissing(healthInfo.restNeed)}</strong>
+                                </div>
+
+                                <div className="wsd-activity-limits">
+                                    <span>피하고 싶은 작업 환경</span>
+                                    <strong>
+                                        {splitCsv(healthInfo.avoidEnvironment).length > 0
+                                            ? splitCsv(healthInfo.avoidEnvironment).join(" · ")
                                             : "미입력"}
                                     </strong>
                                 </div>
