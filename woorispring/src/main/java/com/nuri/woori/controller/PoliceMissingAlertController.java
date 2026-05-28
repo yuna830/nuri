@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
@@ -46,17 +49,29 @@ public class PoliceMissingAlertController {
         PoliceMissingAlert alert = policeMissingAlertRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        String photoBase64 = alert.getPhotoUrl();
+        String photoValue = alert.getPhotoUrl();
 
-        if (photoBase64 == null || photoBase64.isBlank()) {
+        if (photoValue == null || photoValue.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        byte[] imageBytes = Base64.getMimeDecoder().decode(photoBase64);
+        try {
+            byte[] imageBytes;
 
-        return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
-                .body(imageBytes);
+            if (photoValue.startsWith("/uploads/")) {
+                String relativePath = photoValue.replaceFirst("^/uploads/", "");
+                Path imagePath = Paths.get("uploads").resolve(relativePath).normalize();
+                imageBytes = Files.readAllBytes(imagePath);
+            } else {
+                imageBytes = Base64.getMimeDecoder().decode(photoValue);
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(imageBytes);
+        } catch (Exception error) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
     }
 
     @DeleteMapping

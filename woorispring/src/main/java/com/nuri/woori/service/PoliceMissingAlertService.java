@@ -17,11 +17,15 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Base64;
 
 @Service
 public class PoliceMissingAlertService {
@@ -282,15 +286,39 @@ public class PoliceMissingAlertService {
         alert.setHairColor(text(item, "haircolrDscd"));
         alert.setClothing(text(item, "alldressingDscd"));
         alert.setFeature(text(item, "etcSpfeatr"));
-        alert.setPhotoUrl(text(item, "tknphotoFile"));
-        alert.setExternalKey(String.join("|",
+        String externalKey = String.join("|",
                 safe(name),
                 safe(occurredDate),
                 safe(occurredAddress),
                 safe(gender)
-        ));
+        );
+
+        alert.setExternalKey(externalKey);
+        alert.setPhotoUrl(savePolicePhoto(externalKey, text(item, "tknphotoFile")));
 
         return alert;
+    }
+
+    private String savePolicePhoto(String externalKey, String photoBase64) {
+        if (photoBase64 == null || photoBase64.isBlank()) {
+            return "";
+        }
+
+        try {
+            byte[] imageBytes = Base64.getMimeDecoder().decode(photoBase64);
+
+            Path directory = Paths.get("uploads", "police-missing");
+            Files.createDirectories(directory);
+
+            String fileName = Integer.toHexString(externalKey.hashCode()) + ".jpg";
+            Path filePath = directory.resolve(fileName);
+
+            Files.write(filePath, imageBytes);
+
+            return "/uploads/police-missing/" + fileName;
+        } catch (Exception error) {
+            return "";
+        }
     }
 
     private String text(Element element, String tagName) {
@@ -306,7 +334,60 @@ public class PoliceMissingAlertService {
             return "";
         }
 
-        return value.trim();
+        return fixMojibake(value);
+    }
+
+    private String fixMojibake(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        String trimmed = value.trim();
+
+        boolean looksBroken =
+                trimmed.indexOf('\u00EC') >= 0
+                        || trimmed.indexOf('\u00EB') >= 0
+                        || trimmed.indexOf('\u00EA') >= 0
+                        || trimmed.indexOf('\u00ED') >= 0
+                        || trimmed.indexOf('\u00EF') >= 0
+                        || trimmed.indexOf('\u00BF') >= 0
+                        || trimmed.indexOf('\u00BD') >= 0
+                        || trimmed.indexOf('\u0192') >= 0
+                        || trimmed.indexOf('\u20AC') >= 0;
+
+        if (!looksBroken) {
+            return trimmed;
+        }
+
+        List<String> candidates = new ArrayList<>();
+        candidates.add(trimmed);
+        candidates.add(redecodeMojibake(trimmed, Charset.forName("windows-1252")));
+        candidates.add(redecodeMojibake(trimmed, StandardCharsets.ISO_8859_1));
+
+        String best = candidates.get(0);
+        int bestScore = koreanScore(best);
+
+        for (String candidate : candidates) {
+            int score = koreanScore(candidate);
+
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private String redecodeMojibake(String value, Charset wrongCharset) {
+        try {
+            return new String(
+                    value.getBytes(wrongCharset),
+                    StandardCharsets.UTF_8
+            ).trim();
+        } catch (Exception error) {
+            return value;
+        }
     }
 
     private String firstText(Document document, String tagName) {
@@ -322,10 +403,17 @@ public class PoliceMissingAlertService {
     }
 
     private String decodeSafe182Xml(byte[] xmlBytes) {
+        String utf8 = new String(xmlBytes, StandardCharsets.UTF_8);
+        String ms949 = new String(xmlBytes, Charset.forName("MS949"));
+        String eucKr = new String(xmlBytes, Charset.forName("EUC-KR"));
+
         List<String> candidates = List.of(
-                new String(xmlBytes, StandardCharsets.UTF_8),
-                new String(xmlBytes, Charset.forName("MS949")),
-                new String(xmlBytes, Charset.forName("EUC-KR"))
+                utf8,
+                fixMojibake(utf8),
+                ms949,
+                fixMojibake(ms949),
+                eucKr,
+                fixMojibake(eucKr)
         );
 
         String best = candidates.get(0);
