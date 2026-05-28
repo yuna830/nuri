@@ -1,7 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { STT_API_URL } from "../services/voiceSttApi";
-import { parseDateFromText, parseTimeExpression } from "../services/scheduleParser";
+import {
+  TIME_EXPRESSION_PATTERN_SOURCE,
+  parseDateFromText,
+  parseTimeExpression,
+} from "../services/scheduleParser";
 
 const categories = [
   {
@@ -162,16 +167,22 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
     });
   }
 
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <section className="schedule-register-page">
+      <UserCommonHeader />
+      <UserSubHeader
+        title=""
+        onBack={onBack}
+        backLabel="← 채팅으로"
+      />
+
       <header className="schedule-register-header">
-        <button type="button" onClick={onBack}>
-          채팅으로
-        </button>
-        <div>
-          <p>AI 일정 도우미</p>
-          <h1>{isEditing ? "일정을 수정하세요" : "일정을 쉽게 등록하세요"}</h1>
-        </div>
+        <p>AI 일정 도우미</p>
+        <h1>{isEditing ? "일정을 수정하세요" : "일정을 쉽게 등록하세요"}</h1>
       </header>
 
       <main className="schedule-register-layout">
@@ -301,6 +312,10 @@ export default function ScheduleRegister({ initialSchedule, onBack, onSave }) {
           </div>
         </aside>
       </main>
+
+      <button type="button" className="scroll-top-button" onClick={scrollToTop}>
+        ↑ 맨 위
+      </button>
     </section>
   );
 }
@@ -355,7 +370,7 @@ function cleanDetail(text) {
   return text
     .replace(/오늘|내일|낼|모레|다음\s*주|이번\s*주|[일월화수목금토]요일/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?/g, "")
-    .replace(/(오전|오후|아침|저녁|밤|새벽)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, "")
+    .replace(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"), "")
     .replace(/일정|등록|해줘|해주세요|예약해줘|알려줘/g, "")
     .replace(/[,.]/g, " ")
     .replace(/\s+/g, " ")

@@ -1,4 +1,5 @@
 import {
+  TIME_EXPRESSION_PATTERN_SOURCE,
   normalizeScheduleText,
   parseDateFromText,
   parseTimeExpression,
@@ -7,7 +8,6 @@ import {
 import {
   formatCurrentTimeKorean,
   formatDateKorean,
-  formatScheduleBrief,
   formatScheduleList,
   formatTodayKorean,
   pad,
@@ -229,7 +229,7 @@ function findScheduleByText(schedules, text) {
 }
 
 function parseScheduleTimeUpdate(text, schedules) {
-  const timeMatches = [...text.matchAll(/(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분?)?/g)];
+  const timeMatches = [...text.matchAll(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"))];
   const oldTimeText = timeMatches[0]?.[0] || "";
   const newTimeText = timeMatches[1]?.[0] || oldTimeText;
   const rawOldTime = oldTimeText ? parseTimeFromText(oldTimeText) : "";
@@ -251,7 +251,7 @@ function parseScheduleTimeUpdate(text, schedules) {
 
 function extractScheduleKeywords(text) {
   return text
-    .replace(/(오전|오후|아침|저녁|밤|새벽)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분?)?/g, " ")
+    .replace(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"), " ")
     .replace(/오늘|내일|모레|다음\s*주|이번\s*주|[일월화수목금토]요일/g, " ")
     .replace(/일정|예약|취소|삭제|지워|빼줘|없애|수정|변경|바꿔|말고|으로|로|해줘|줘|요약/g, " ")
     .replace(/[,.!?]/g, " ")

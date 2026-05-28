@@ -3,14 +3,30 @@ package com.nuri.woori.controller;
 import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.JobPreference;
 import com.nuri.woori.entity.Senior;
+import com.nuri.woori.entity.SafeZones;
+import com.nuri.woori.controller.SeniorController.FindNameResponse;
+import com.nuri.woori.entity.Guardian;
+import com.nuri.woori.entity.GuardianSenior;
+import com.nuri.woori.entity.LocationStatus;
+import com.nuri.woori.repository.AlertRepository;
+import com.nuri.woori.repository.LocationStatusRepository;
+import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import com.nuri.woori.repository.SafeZonesRepository;
+import com.nuri.woori.service.HealthStatusMlService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,27 +36,42 @@ import java.util.Objects;
 public class SeniorController {
 
     private final SeniorRepository seniorRepository;
+    private final SafeZonesRepository safeZonesRepository;
     private final HealthInfoRepository healthInfoRepository;
     private final JobPreferenceRepository jobPreferenceRepository;
+    private final GuardianRepository guardianRepository;
     private final GuardianSeniorRepository guardianSeniorRepository;
+    private final LocationStatusRepository locationStatusRepository;
+    private final AlertRepository alertRepository;
+    private final HealthStatusMlService healthStatusMlService;
 
     public SeniorController(
             SeniorRepository seniorRepository,
+            SafeZonesRepository safeZonesRepository,
             HealthInfoRepository healthInfoRepository,
             JobPreferenceRepository jobPreferenceRepository,
-            GuardianSeniorRepository guardianSeniorRepository
-    ) {
+            GuardianRepository guardianRepository,
+            GuardianSeniorRepository guardianSeniorRepository,
+            LocationStatusRepository locationStatusRepository,
+            AlertRepository alertRepository,
+            HealthStatusMlService healthStatusMlService) {
         this.seniorRepository = seniorRepository;
+        this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
         this.jobPreferenceRepository = jobPreferenceRepository;
+        this.guardianRepository = guardianRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
+        this.locationStatusRepository = locationStatusRepository;
+        this.alertRepository = alertRepository;
+        this.healthStatusMlService = healthStatusMlService;
     }
 
     @PostMapping
     public SeniorProfileResponse createSenior(@RequestBody SeniorCreateRequest request) {
         Senior senior = new Senior();
         senior.setName(request.name());
-        senior.setAge(toInteger(request.age()));
+        senior.setBirthDate(toLocalDate(request.birthDate()));
+        senior.setAge(toAge(request.birthDate(), request.age()));
         senior.setGender(request.gender());
         senior.setPhone(request.phone());
         senior.setAddress(request.region());
@@ -57,7 +88,13 @@ public class SeniorController {
         healthInfo.setWeight(toBigDecimal(request.weight()));
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
+        healthInfo.setAllergies(request.allergies());
+        healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
+        healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
         healthInfo.setHypertension(request.hypertension());
         healthInfo.setHeartDisease(request.heart());
@@ -78,6 +115,9 @@ public class SeniorController {
         healthInfo.setMaxHours(request.maxHours());
         healthInfo.setMaxDistance(request.maxDistance());
         healthInfo.setDisabledWork(join(request.disabledWork()));
+        healthInfo.setRestNeed(request.restNeed());
+        healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -91,7 +131,16 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
+        return new SeniorProfileResponse(
+                savedSenior,
+                savedHealthInfo,
+                savedJobPreference,
+                "보호 대상자",
+                null,
+                "",
+                "",
+                null,
+                null);
     }
 
     @GetMapping
@@ -112,6 +161,22 @@ public class SeniorController {
                 .stream()
                 .map(this::toProfileResponse)
                 .toList();
+    }
+
+    @GetMapping("/search-exact")
+    public List<SeniorProfileResponse> searchSeniorExact(
+            @RequestParam String name,
+            @RequestParam String phone) {
+        String trimmedName = name == null ? "" : name.trim();
+        String normalizedPhone = normalizePhone(phone);
+
+        if (trimmedName.isBlank() || normalizedPhone.isBlank()) {
+            return List.of();
+        }
+
+        return seniorRepository.findByNameAndNormalizedPhone(trimmedName, normalizedPhone)
+                .map(senior -> List.of(toProfileResponse(senior)))
+                .orElseGet(List::of);
     }
 
     @GetMapping("/guardian/{guardianId}")
@@ -141,7 +206,10 @@ public class SeniorController {
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
-        return toProfileResponse(senior);
+        senior.setLastLoginAt(LocalDateTime.now());
+        Senior savedSenior = seniorRepository.save(senior);
+
+        return toProfileResponse(savedSenior);
     }
 
     @PostMapping("/find-name")
@@ -199,36 +267,32 @@ public class SeniorController {
     }
 
     public record FindNameRequest(
-            String phone
-    ) {
+            String phone) {
     }
 
     public record FindNameResponse(
-            String name
-    ) {
+            String name) {
     }
 
     public record FindPhoneRequest(
             String name,
-            String region
-    ) {
+            String region) {
     }
 
     public record FindPhoneResponse(
-            String phone
-    ) {
+            String phone) {
     }
 
     @PutMapping("/{id}")
     public SeniorProfileResponse updateSenior(
             @PathVariable Long id,
-            @RequestBody SeniorCreateRequest request
-    ) {
+            @RequestBody SeniorCreateRequest request) {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
         senior.setName(request.name());
-        senior.setAge(toInteger(request.age()));
+        senior.setBirthDate(toLocalDate(request.birthDate()));
+        senior.setAge(toAge(request.birthDate(), request.age()));
         senior.setGender(request.gender());
         senior.setPhone(request.phone());
         senior.setAddress(request.region());
@@ -248,7 +312,13 @@ public class SeniorController {
         healthInfo.setWeight(toBigDecimal(request.weight()));
         healthInfo.setSmoking(request.smoking());
         healthInfo.setDrinking(request.drinking());
+        healthInfo.setAllergies(request.allergies());
+        healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
+        healthInfo.setMedicationsJson(request.medicationsJson());
         healthInfo.setDiabetes(request.diabetes());
         healthInfo.setHypertension(request.hypertension());
         healthInfo.setHeartDisease(request.heart());
@@ -269,6 +339,9 @@ public class SeniorController {
         healthInfo.setMaxHours(request.maxHours());
         healthInfo.setMaxDistance(request.maxDistance());
         healthInfo.setDisabledWork(join(request.disabledWork()));
+        healthInfo.setRestNeed(request.restNeed());
+        healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -285,7 +358,304 @@ public class SeniorController {
 
         JobPreference savedJobPreference = jobPreferenceRepository.save(jobPreference);
 
-        return new SeniorProfileResponse(savedSenior, savedHealthInfo, savedJobPreference, "보호 대상자");
+        return new SeniorProfileResponse(
+                savedSenior,
+                savedHealthInfo,
+                savedJobPreference,
+                "보호 대상자",
+                null,
+                "",
+                "",
+                null,
+                null);
+    }
+
+    @PatchMapping("/{id}/decision")
+    public SeniorProfileResponse updateWelfareDecision(
+            @PathVariable Long id,
+            @RequestBody WelfareDecisionRequest request) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        senior.setWelfareDecision(request.decision());
+        senior.setWelfareDecisionReason(request.reason());
+        senior.setWorkRequestStatus("검토");
+
+        Senior savedSenior = seniorRepository.save(senior);
+
+        return toProfileResponse(savedSenior);
+    }
+
+    @PatchMapping("/{id}/requested-info")
+    public SeniorProfileResponse updateRequestedInfo(
+            @PathVariable Long id,
+            @RequestBody SeniorRequestedInfoUpdateRequest request) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (request.gender() != null) {
+            senior.setGender(request.gender());
+        }
+
+        if (request.phone() != null) {
+            senior.setPhone(request.phone());
+        }
+
+        if (request.birthDate() != null) {
+            senior.setBirthDate(toLocalDate(request.birthDate()));
+            senior.setAge(toAge(request.birthDate(), null));
+        }
+
+        if (request.region() != null) {
+            senior.setRegion(request.region());
+            senior.setAddress(request.region());
+        }
+
+        if (request.profileImageUrl() != null) {
+            senior.setProfileImageUrl(request.profileImageUrl());
+        }
+
+        Senior savedSenior = seniorRepository.save(senior);
+
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(id)
+                .orElseGet(HealthInfo::new);
+
+        healthInfo.setSeniorId(id);
+
+        if (request.incomeLevel() != null) {
+            healthInfo.setIncomeLevel(request.incomeLevel());
+        }
+
+        if (request.householdType() != null) {
+            healthInfo.setHouseholdType(request.householdType());
+        }
+
+        if (request.diabetes() != null) {
+            healthInfo.setDiabetes(request.diabetes());
+        }
+
+        if (request.hypertension() != null) {
+            healthInfo.setHypertension(request.hypertension());
+        }
+
+        if (request.heartDisease() != null) {
+            healthInfo.setHeartDisease(request.heartDisease());
+        }
+
+        if (request.jointDisease() != null) {
+            healthInfo.setJointDisease(request.jointDisease());
+        }
+
+        if (request.stroke() != null) {
+            healthInfo.setStroke(request.stroke());
+        }
+
+        if (request.kidneyDisease() != null) {
+            healthInfo.setKidneyDisease(request.kidneyDisease());
+        }
+
+        if (request.lungDisease() != null) {
+            healthInfo.setLungDisease(request.lungDisease());
+        }
+
+        if (request.liverDisease() != null) {
+            healthInfo.setLiverDisease(request.liverDisease());
+        }
+
+        if (request.cancer() != null) {
+            healthInfo.setCancer(request.cancer());
+        }
+
+        if (request.walkingAid() != null) {
+            healthInfo.setWalkingAid(request.walkingAid());
+        }
+
+        if (request.dementia() != null) {
+            healthInfo.setDementia(request.dementia());
+        }
+
+        if (request.vision() != null) {
+            healthInfo.setVision(request.vision());
+        }
+
+        if (request.hearing() != null) {
+            healthInfo.setHearing(request.hearing());
+        }
+
+        if (request.recentFall() != null) {
+            healthInfo.setRecentFall(request.recentFall());
+        }
+
+        if (request.hasSurgery() != null) {
+            healthInfo.setHasSurgery(request.hasSurgery());
+        }
+
+        if (request.surgeryDetail() != null) {
+            healthInfo.setSurgeryDetail(request.surgeryDetail());
+        }
+
+        if (request.otherDisease() != null) {
+            healthInfo.setOtherDisease(request.otherDisease());
+        }
+
+        if (request.medicationsJson() != null) {
+            healthInfo.setMedicationsJson(request.medicationsJson());
+            healthInfo.setMedicineCount(request.medicationsJson().isBlank() ? "없음" : "1개 이상");
+        }
+
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
+        healthInfoRepository.save(healthInfo);
+
+        return toProfileResponse(savedSenior);
+    }
+
+    public record SeniorRequestedInfoUpdateRequest(
+            String gender,
+            String phone,
+            String birthDate,
+            String region,
+            String profileImageUrl,
+            String incomeLevel,
+            String householdType,
+            String diabetes,
+            String hypertension,
+            String heartDisease,
+            String jointDisease,
+            String stroke,
+            String kidneyDisease,
+            String lungDisease,
+            String liverDisease,
+            String cancer,
+            String walkingAid,
+            String dementia,
+            String vision,
+            String hearing,
+            String recentFall,
+            String hasSurgery,
+            String surgeryDetail,
+            String otherDisease,
+            String medicationsJson) {
+    }
+
+    @GetMapping("/welfare")
+    public Object getWelfareSeniors(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page == null && size == null) {
+            return seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+                    .stream()
+                    .map(this::toWelfareSeniorListResponse)
+                    .toList();
+        }
+
+        int pageNumber = Math.max(0, page == null ? 0 : page);
+        int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
+        Page<Senior> seniorPage = seniorRepository.findAll(
+                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id")));
+
+        return new WelfareSeniorPageResponse(
+                seniorPage.getContent()
+                        .stream()
+                        .map(this::toWelfareSeniorListResponse)
+                        .toList(),
+                seniorPage.getTotalElements(),
+                seniorPage.getTotalPages(),
+                seniorPage.getNumber(),
+                seniorPage.getSize());
+    }
+
+    private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        JobPreference jobPreference = jobPreferenceRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
+                .orElse(null);
+
+        boolean hasGuardian = !guardianSeniorRepository.findBySeniorId(senior.getId()).isEmpty();
+
+        boolean hasSosAlert = alertRepository
+                .existsBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "SOS");
+
+        boolean hasSafeZoneExitAlert = alertRepository
+                .existsBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "SAFE_ZONE_EXIT");
+
+        long jobRequestCount = alertRepository
+                .countBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "JOB_REQUEST");
+
+        String alertStatus = hasSosAlert
+                ? "미응답 SOS"
+                : jobRequestCount > 0 ? "일자리 요청" : "없음";
+
+        String locationStatus = hasSafeZoneExitAlert ? "안전구역 이탈" : "정상";
+
+        return new WelfareSeniorListResponse(
+                senior.getId(),
+                senior.getName(),
+                senior.getAge(),
+                senior.getBirthDate(),
+                senior.getAddress(),
+                senior.getGender(),
+                senior.getPhone(),
+                senior.getRegion() == null ? senior.getAddress() : senior.getRegion(),
+                healthInfo == null ? null : healthInfo.getHealthStatus(),
+                locationStatus,
+                alertStatus,
+                senior.getWorkRequestStatus(),
+                jobRequestCount,
+                jobRequestCount > 0 ? "요청 " + jobRequestCount + "건" : "미요청",
+                senior.getWelfareDecision(),
+                senior.getWelfareDecisionReason(),
+                senior.getLastLoginAt(),
+                latestLocation == null ? null : latestLocation.getAddress(),
+                latestLocation == null ? null : latestLocation.getLatitude(),
+                latestLocation == null ? null : latestLocation.getLongitude(),
+                latestLocation == null ? null : latestLocation.getReceivedAt(),
+                hasGuardian);
+    }
+
+    public record WelfareSeniorListResponse(
+            Long id,
+            String name,
+            Integer age,
+            LocalDate birthDate,
+            String address,
+            String gender,
+            String phone,
+            String region,
+            String healthStatus,
+            String locationStatus,
+            String alertStatus,
+            String workRequestStatus,
+            Long jobRequestCount,
+            String jobRequestStatus,
+            String welfareDecision,
+            String welfareDecisionReason,
+            LocalDateTime lastLoginAt,
+            String lastGpsAddress,
+            Double lastGpsLatitude,
+            Double lastGpsLongitude,
+            LocalDateTime lastGpsRecordedAt,
+            Boolean hasGuardian) {
+    }
+
+    public record WelfareDecisionRequest(
+            String decision,
+            String reason) {
+    }
+
+    public record WelfareSeniorPageResponse(
+            List<WelfareSeniorListResponse> content,
+            Long totalElements,
+            Integer totalPages,
+            Integer page,
+            Integer size) {
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {
@@ -297,12 +667,25 @@ public class SeniorController {
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
+                .orElse(null);
+
         return new SeniorProfileResponse(
                 senior,
                 healthInfo,
                 jobPreference,
-                relation == null || relation.isBlank() ? "보호 대상자" : relation
-        );
+                relation == null || relation.isBlank() ? "보호 대상자" : relation,
+                null,
+                "",
+                "",
+                safeZone,
+                latestLocation);
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -314,7 +697,34 @@ public class SeniorController {
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
-        return new SeniorProfileResponse(senior, healthInfo, jobPreference, "보호 대상자");
+        GuardianSenior link = guardianSeniorRepository.findBySeniorId(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        Guardian guardian = link == null
+                ? null
+                : guardianRepository.findById(link.getGuardianId()).orElse(null);
+
+        SafeZones safeZone = safeZonesRepository.findBySeniorIdOrderByIdAsc(senior.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        LocationStatus latestLocation = locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
+                .orElse(null);
+
+        return new SeniorProfileResponse(
+                senior,
+                healthInfo,
+                jobPreference,
+                link == null ? "" : link.getRelation(),
+                guardian == null ? null : guardian.getId(),
+                guardian == null ? "" : guardian.getName(),
+                guardian == null ? "" : guardian.getPhone(),
+                safeZone,
+                latestLocation);
     }
 
     private Integer toInteger(String value) {
@@ -323,6 +733,23 @@ public class SeniorController {
         }
 
         return Integer.parseInt(value);
+    }
+
+    private LocalDate toLocalDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return LocalDate.parse(value);
+    }
+
+    private Integer toAge(String birthDate, String fallbackAge) {
+        LocalDate parsedBirthDate = toLocalDate(birthDate);
+        if (parsedBirthDate != null) {
+            return Period.between(parsedBirthDate, LocalDate.now()).getYears();
+        }
+
+        return toInteger(fallbackAge);
     }
 
     private BigDecimal toBigDecimal(String value) {
@@ -348,6 +775,7 @@ public class SeniorController {
     public record SeniorCreateRequest(
             String name,
             String age,
+            String birthDate,
             String gender,
             String region,
             String phone,
@@ -358,7 +786,13 @@ public class SeniorController {
             String weight,
             String smoking,
             String drinking,
+            String allergies,
+            String incomeLevel,
+            String householdType,
+            List<String> currentBenefits,
+            String welfareMemo,
             String medicineCount,
+            String medicationsJson,
             String diabetes,
             String hypertension,
             String heart,
@@ -379,25 +813,29 @@ public class SeniorController {
             String maxHours,
             String maxDistance,
             List<String> disabledWork,
+            String restNeed,
+            List<String> avoidEnvironment,
             String payType,
             List<String> hopeDays,
             List<String> hopeJobType,
             List<String> hopeCondition,
-            String memo
-    ) {
+            String memo) {
     }
 
     public record SeniorLoginRequest(
             String name,
-            String phone
-    ) {
+            String phone) {
     }
 
     public record SeniorProfileResponse(
             Senior senior,
             HealthInfo healthInfo,
             JobPreference jobPreference,
-            String relation
-    ) {
+            String relation,
+            Long guardianId,
+            String guardianName,
+            String guardianPhone,
+            SafeZones safeZone,
+            LocationStatus lastGps) {
     }
 }

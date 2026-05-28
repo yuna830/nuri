@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   COLORS,
   calcHealthScore,
@@ -11,6 +12,12 @@ import {
   createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
+  fetchActivityBaseline,
+  fetchActivitySlots,
+  fetchActivityToday,
+  fetchActivityTrend,
+  fetchFallEvents,
+  fetchFallPattern,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
@@ -20,6 +27,7 @@ import {
   reverseGeocode,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
@@ -81,7 +89,52 @@ const getHealthScoresFromProfile = (profile) => {
   });
 };
 
-function RadarChart({ scores }) {
+const buildUserWelfarePerson = (profile, userName, userRegion) => {
+  const senior = profile?.senior ?? {};
+  const healthInfo = profile?.healthInfo ?? {};
+  const medicationInfo = Array.isArray(healthInfo.medications)
+    ? healthInfo.medications.map((item) => item?.name || item).filter(Boolean).join(", ")
+    : "";
+  const diseases = [
+    healthInfo.diabetes,
+    healthInfo.hypertension,
+    healthInfo.heartDisease,
+    healthInfo.jointDisease,
+    healthInfo.stroke,
+    healthInfo.kidneyDisease,
+    healthInfo.lungDisease,
+    healthInfo.liverDisease,
+    healthInfo.cancer,
+    healthInfo.dementia,
+    healthInfo.vision,
+    healthInfo.hearing,
+    healthInfo.recentFall,
+  ].filter((value) => value && value !== "없음");
+
+  return normalizePerson({
+    id: senior.id,
+    name: senior.name || userName,
+    age: senior.age,
+    gender: senior.gender,
+    region: senior.region || senior.address || userRegion,
+    address: senior.address || senior.region || userRegion,
+    healthStatus: healthInfo.healthStatus,
+    condition: diseases.join(", "),
+    diseases,
+    medicationInfo,
+    medicineCount: healthInfo.medicineCount,
+    incomeLevel: healthInfo.incomeLevel,
+    household: healthInfo.householdType,
+    householdType: healthInfo.householdType,
+    currentBenefits: healthInfo.currentBenefits,
+    welfareMemo: healthInfo.welfareMemo,
+    welfareDecision: senior.welfareDecision,
+    welfareDecisionReason: senior.welfareDecisionReason,
+    healthInfo,
+  });
+};
+
+function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note = "", quality = null }) {
   const keys = Object.keys(scores);
   const vals = Object.values(scores);
   const count = keys.length;
@@ -108,16 +161,22 @@ function RadarChart({ scores }) {
         {keys.map((_, i) => { const p = point(i, 1); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={COLORS.border} strokeWidth="1" />; })}
         <path d={pathD} fill={COLORS.green} fillOpacity="0.2" stroke={COLORS.green} strokeWidth="2.5" />
         {dataPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4" fill={COLORS.green} stroke="#fff" strokeWidth="2" />)}
-        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{key}</text>; })}
+        {keys.map((key, i) => { const p = point(i, 1.28); return <text key={key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10.5" fontWeight="700" fill={COLORS.greenDark} fontFamily="Noto Sans KR, sans-serif">{labels[key] || key}</text>; })}
         {vals.map((v, i) => { const p = point(i, (v / 100) * 0.68); return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill={COLORS.text} fontWeight="700">{v}</text>; })}
       </svg>
       <div className="up-radar-info">
-        <div className="up-radar-label">종합 건강 점수</div>
+        <div className="up-radar-label">{summaryLabel}</div>
         <div className="up-radar-score" style={{ color: avgColor }}>{avg}</div>
         <div className="up-radar-unit">/ 100점</div>
+        {quality && (
+          <div className={`up-radar-quality ${quality.level || ""}`}>
+            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : "참고용"}
+          </div>
+        )}
+        {note && <div className="up-radar-note">{note}</div>}
         {keys.map((key, i) => (
           <div key={key} className="up-radar-row">
-            <div className="up-radar-key">{key}</div>
+            <div className="up-radar-key">{labels[key] || key}</div>
             <div className="up-radar-bar">
               <div className="up-radar-bar-fill" style={{
                 width: `${vals[i]}%`,
@@ -132,6 +191,105 @@ function RadarChart({ scores }) {
   );
 }
 
+const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
+
+const DEFAULT_ACTIVITY_TODAY = {
+  status: "reference",
+  scores: { activity: 55, balance: 55, routine: 55, safety: 60 },
+  labels: { activity: "활동량", balance: "균형", routine: "생활 리듬", safety: "안전" },
+  overall_note: "아직 실측 데이터가 부족해 기본 참고 지표로 표시합니다.",
+  data_quality: { level: "insufficient", message: "감지 서버가 충분한 기록을 모으면 실제 활동 지표로 바뀝니다." },
+};
+
+const DEFAULT_ACTIVITY_SLOTS = {
+  slots: {
+    morning: { label: "오전", status: "empty", data_points: 0, scores: {} },
+    afternoon: { label: "오후", status: "empty", data_points: 0, scores: {} },
+    evening: { label: "저녁", status: "empty", data_points: 0, scores: {} },
+  },
+};
+
+const DEFAULT_ACTIVITY_BASELINE = {
+  status: "pending",
+  message: "활동 기록이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+};
+
+const DEFAULT_FALL_PATTERN = {
+  status: "pending",
+  message: "낙상 기록이 생기면 전후 활동 변화를 보여줍니다.",
+};
+
+function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
+  const slotList = slots?.slots ? Object.entries(slots.slots) : [];
+  const baselineItems = baseline?.today_comparison
+    ? Object.entries(baseline.today_comparison).slice(0, 3)
+    : [];
+  const fallWarnings = Array.isArray(fallPattern?.warning_signs) ? fallPattern.warning_signs.slice(0, 3) : [];
+
+  return (
+    <div className="up-content-row">
+      <div className="up-card full up-activity-insights">
+        <div className="up-card-head">
+          <div className="up-card-title">활동 변화 분석</div>
+          <button className="up-card-more up-info-chip" type="button" onClick={() => onInfoClick?.("reference")}>
+            참고 지표
+          </button>
+        </div>
+
+        <div className="up-insight-grid">
+          <section className="up-insight-panel">
+            <div className="up-insight-title">시간대별 활동</div>
+            {slotList.length ? (
+              <div className="up-slot-list">
+                {slotList.map(([key, slot]) => (
+                  <div key={key} className={`up-slot-item ${slot.status}`}>
+                    <div>
+                      <strong>{slot.label}</strong>
+                      <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                    </div>
+                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "-"}</b>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">시간대별 활동 데이터를 불러오는 중입니다.</p>
+            )}
+          </section>
+
+          <section className="up-insight-panel">
+            <div className="up-insight-title">개인 기준선</div>
+            {baseline?.status === "ok" ? (
+              <div className="up-baseline-list">
+                {baselineItems.map(([key, item]) => (
+                  <div key={key} className={`up-baseline-item ${item.level}`}>
+                    <span>{baseline.labels?.[key] || key}</span>
+                    <strong>{formatScore(item.today)}</strong>
+                    <em>{item.level === "anomaly" ? "평소와 다름" : item.level === "deviation" ? "약간 다름" : "평소 범위"}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">{baseline?.message || "개인 기준선을 만드는 중입니다."}</p>
+            )}
+          </section>
+
+          <section className="up-insight-panel">
+            <div className="up-insight-title">낙상 전후 변화</div>
+            {fallPattern?.status === "ok" ? (
+              <div className="up-warning-list">
+                {fallWarnings.map((warning, index) => (
+                  <div key={index} className="up-warning-item">{warning}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="up-insight-empty">{fallPattern?.message || "낙상 기록이 생기면 전후 활동 변화를 보여줍니다."}</p>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
 function scheduleFromApi(schedule) {
   return {
     id: schedule.id,
@@ -162,6 +320,11 @@ const formatDongAddress = (address = "") => {
   return parts.slice(0, 3).join(" ");
 };
 
+const toTelHref = (phone = "") => {
+  const digits = String(phone).replace(/[^0-9+]/g, "");
+  return digits ? `tel:${digits}` : "";
+};
+
 const getLocalCareTeam = (seniorId) => {
   if (!seniorId) return null;
 
@@ -177,6 +340,95 @@ const isSameJson = (first, second) => JSON.stringify(first) === JSON.stringify(s
 
 const setChanged = (setter, nextValue) => {
   setter((prevValue) => (isSameJson(prevValue, nextValue) ? prevValue : nextValue));
+};
+
+const isTodayDateTime = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const today = new Date();
+  return (
+    date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate()
+  );
+};
+
+const isSosAlert = (alert) => {
+  const text = `${alert?.type || ""} ${alert?.title || ""} ${alert?.message || ""}`;
+  return alert?.type === "SOS" || alert?.type === "SOS_CANCEL" || /SOS/.test(text);
+};
+
+const PENDING_SOS_CLEAR_GRACE_MS = 5000;
+
+const markPendingSos = (alertResult) => {
+  localStorage.setItem("pending_sos", "true");
+  localStorage.setItem("pending_sos_at", String(Date.now()));
+  if (alertResult?.id) {
+    localStorage.setItem("pending_sos_id", String(alertResult.id));
+  }
+};
+
+const clearPendingSosStorage = () => {
+  localStorage.removeItem("pending_sos");
+  localStorage.removeItem("pending_sos_at");
+  localStorage.removeItem("pending_sos_id");
+};
+
+const shouldClearPendingSos = (sosAlerts) => {
+  const pendingId = localStorage.getItem("pending_sos_id");
+  const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+
+  if (sosAlerts.length > 0 && sosAlerts.every((alert) => alert.isRead || alert.type === "SOS_CANCEL")) {
+    return true;
+  }
+
+  if (!pendingId && !pendingAt) {
+    return sosAlerts.length === 0;
+  }
+
+  if (pendingAt && Date.now() - pendingAt < PENDING_SOS_CLEAR_GRACE_MS) {
+    return false;
+  }
+
+  if (!pendingId) {
+    return sosAlerts.length === 0 || !sosAlerts.some((alert) => alert.type === "SOS" && !alert.isRead);
+  }
+
+  return !sosAlerts.some((alert) => String(alert.id) === pendingId && !alert.isRead);
+};
+
+const HANDLED_CALL_ALERTS_KEY = "handled_call_alert_ids";
+const HANDLED_CALL_SUPPRESS_UNTIL_KEY = "handled_call_alert_suppress_until";
+const HANDLED_CALL_ALERT_CUTOFF_KEY = "handled_call_alert_cutoff_at";
+
+const getHandledCallAlertIds = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HANDLED_CALL_ALERTS_KEY) || "[]").map(String));
+  } catch {
+    return new Set();
+  }
+};
+
+const markCallAlertHandled = (alertId) => {
+  const handledIds = getHandledCallAlertIds();
+  if (alertId) handledIds.add(String(alertId));
+  localStorage.setItem(HANDLED_CALL_ALERTS_KEY, JSON.stringify([...handledIds].slice(-50)));
+  localStorage.setItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY, String(Date.now() + 30 * 1000));
+  localStorage.setItem(HANDLED_CALL_ALERT_CUTOFF_KEY, String(Date.now() + 5000));
+};
+
+const isCallAlertHandled = (alert) => {
+  const suppressUntil = Number(localStorage.getItem(HANDLED_CALL_SUPPRESS_UNTIL_KEY) || 0);
+  if (suppressUntil > Date.now()) return true;
+
+  const handledCutoff = Number(localStorage.getItem(HANDLED_CALL_ALERT_CUTOFF_KEY) || 0);
+  const createdAt = alert?.createdAt ? Date.parse(alert.createdAt) : 0;
+  if (handledCutoff && createdAt && createdAt <= handledCutoff) return true;
+
+  if (!alert?.id) return false;
+  return getHandledCallAlertIds().has(String(alert.id));
 };
 
 const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
@@ -211,18 +463,26 @@ export default function UserPage() {
   const [weather, setWeather] = useState(null);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
+  const [activityInfoModal, setActivityInfoModal] = useState(null);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
     guardianPhone: initialProfile?.guardian?.phone || initialSenior?.guardianPhone || initialLocalCareTeam?.guardianPhone || "",
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
+    socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
+  const [activityToday, setActivityToday] = useState(DEFAULT_ACTIVITY_TODAY);
+  const [activityTrend, setActivityTrend] = useState(null);
+  const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
+  const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
+  const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -231,6 +491,9 @@ export default function UserPage() {
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
   const [incomingCallAlert, setIncomingCallAlert] = useState(null);
+  const [userAlerts, setUserAlerts] = useState([]);
+  const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
+  const [todayFallCount, setTodayFallCount] = useState(0);
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -238,6 +501,46 @@ export default function UserPage() {
   const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
+
+  const [medicineAlert, setMedicineAlert] = useState(null);
+  const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadActivityCondition = async () => {
+      try {
+        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
+          fetchActivityToday(),
+          fetchActivityTrend(1),
+          fetchActivitySlots(),
+          fetchActivityBaseline(14),
+          fetchFallPattern(),
+        ]);
+        if (!isMounted) return;
+        setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
+        setActivityTrend(trend);
+        setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(fallPattern || DEFAULT_FALL_PATTERN);
+      } catch {
+        if (!isMounted) return;
+        setActivityToday(DEFAULT_ACTIVITY_TODAY);
+        setActivityTrend(null);
+        setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
+        setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
+        setActivityFallPattern(DEFAULT_FALL_PATTERN);
+      }
+    };
+
+    loadActivityCondition();
+    const intervalId = window.setInterval(loadActivityCondition, 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const fetchWeather = async (lat, lon) => {
     try {
@@ -251,7 +554,7 @@ export default function UserPage() {
         humid: forecast.humid && forecast.humid !== "--" ? forecast.humid + "%" : "-",
       });
     } catch {
-      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌤️", region: "현재 위치" });
+      setWeather({ temp: "--", status: "불러오기 실패", icon: "🌧️", region: "현재 위치" });
     }
   };
 
@@ -349,7 +652,7 @@ export default function UserPage() {
     }
   };
 
-  const updateLocation = async (lat, lon) => {
+  const updateLocation = async (lat, lon, accuracy) => {
     setChanged(setCurrentPos, { lat, lon });
 
     const capturedAt = new Date();
@@ -368,7 +671,7 @@ export default function UserPage() {
             Math.pow(
               (lon - lastSavedLocation.lon) *
                 111000 *
-                Math.cos(lat * Math.PI / 180),
+                Math.cos((lat * Math.PI) / 180),
               2
             )
         )
@@ -383,14 +686,13 @@ export default function UserPage() {
     const resolvedAddress = shouldResolveAddress
       ? await reverseGeocode(lat, lon).catch(() => "현재 위치")
       : currentAddress;
-    setChanged(setCurrentAddress, resolvedAddress);
+
+    const displayAddress = resolvedAddress || "현재 위치";
+    setChanged(setCurrentAddress, displayAddress);
 
     try {
-      const displayAddress = resolvedAddress || "현재 위치";
-      setChanged(setCurrentAddress, displayAddress);
-
       const seniorId = getCurrentSeniorId(initialSenior);
-      // 가만히 있어도 위치가 튀는 경우가 있어 50미터 이상 이동 시 저장
+
       if (seniorId && movedMeters >= 50) {
         await fetch("http://localhost:8080/api/locations", {
           method: "POST",
@@ -400,13 +702,14 @@ export default function UserPage() {
             latitude: lat,
             longitude: lon,
             address: displayAddress,
+            accuracy,
           }),
         }).catch(() => {});
 
         lastSavedLocationRef.current = { lat, lon };
       }
     } catch {
-      setCurrentAddress("현재 위치");
+      setChanged(setCurrentAddress, "현재 위치");
     }
 
     if (safeZone) {
@@ -415,24 +718,13 @@ export default function UserPage() {
           Math.pow(
             (lon - safeZone.centerLongitude) *
               111000 *
-              Math.cos(lat * Math.PI / 180),
+              Math.cos((lat * Math.PI) / 180),
             2
           )
       );
 
       setChanged(setIsInRange, dist <= safeZone.radiusMeters);
 
-      if (
-        dist > safeZone.radiusMeters &&
-        shouldSendSafeZoneAlert(getCurrentSeniorId(initialSenior), safeZone, lat, lon)
-      ) {
-        createSafeZoneAlert({
-          seniorId: getCurrentSeniorId(initialSenior),
-          latitude: lat,
-          longitude: lon,
-          address: resolvedAddress || "현재 위치",
-        }).catch(() => {});
-      }
     }
   };
 
@@ -442,15 +734,19 @@ export default function UserPage() {
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
-        updateLocation(pos.coords.latitude, pos.coords.longitude);
+        updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       () => fetchWeather(37.5665, 126.9780)
     );
 
-    // 30珥덈쭏???꾩튂 ?먮룞 媛깆떊
+    // 30초마다 위치 자동 갱신
     locationIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
+        pos => updateLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy
+        ),
         () => {}
       );
     }, 30000);
@@ -477,10 +773,13 @@ export default function UserPage() {
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
 
-      fetch(`http://localhost:8080/api/safe-zones/senior/` + seniorId)
+      fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+        cache: "no-store",
+      })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
-          if (data) setSafeZone(data);
+          const zones = Array.isArray(data) ? data : data ? [data] : [];
+          if (zones.length > 0) setSafeZone(zones[0]);
         })
         .catch(() => {});
     };
@@ -488,7 +787,7 @@ export default function UserPage() {
     loadSafeZoneForHome();
 
     if (seniorId) {
-      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 60 * 1000);
+      safeZoneIntervalId = setInterval(loadSafeZoneForHome, 10 * 1000);
     }
 
     const checkNewJobs = async () => {
@@ -521,6 +820,7 @@ export default function UserPage() {
         guardianRelation: profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
         guardianPhone: guardian?.phone || profile?.guardianPhone || senior.guardianPhone || localCareTeam?.guardianPhone || "",
         socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
+        socialWorkerPhone: socialWorker?.phone || profile?.socialWorkerPhone || senior.socialWorkerPhone || localCareTeam?.socialWorkerPhone || "",
       });
     };
 
@@ -543,6 +843,7 @@ export default function UserPage() {
               const freshProfile = await response.json();
 
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
               setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
@@ -553,6 +854,7 @@ export default function UserPage() {
           }
 
           setChanged(setUserName, profile?.senior?.name || "사용자");
+          setChanged(setCurrentProfile, profile);
           setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
           setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
           loadMatchedCareTeam(cachedSeniorId, profile);
@@ -570,6 +872,7 @@ export default function UserPage() {
 
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
+        setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
         setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
         setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
@@ -584,7 +887,7 @@ export default function UserPage() {
     seniorIntervalId = setInterval(loadCurrentSenior, 60 * 1000);
 
     const currentDate = new Date();
-    const days = ["일", "월", "화", "수", "목", "금", "토"];
+    const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
@@ -651,17 +954,54 @@ export default function UserPage() {
     const loadCallRequest = async () => {
       const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
       if (cancelled) return;
-      const callAlert = alerts.find((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
+      setUserAlerts(alerts);
+
+      const sosAlerts = alerts.filter(isSosAlert);
+      const rawCallAlerts = alerts.filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead);
+      const pendingAt = Number(localStorage.getItem("pending_sos_at") || 0);
+      const sosResolvedAt = Number(localStorage.getItem(`sos_resolved_at:${seniorId}`) || 0);
+      if (pendingSos && (rawCallAlerts.length > 0 || (pendingAt && sosResolvedAt >= pendingAt) || shouldClearPendingSos(sosAlerts))) {
+        clearPendingSosStorage();
+        setPendingSos(false);
+      }
+
+      const callAlert = rawCallAlerts.find((alert) => !isCallAlertHandled(alert));
       setIncomingCallAlert(callAlert || null);
+
+      const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
+      setMedicineAlert(medicineAlert || null);
+
+      const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
+      setCheckInMessageAlert(checkInAlert || null);
+
+      const safeExitAlert = alerts.find((alert) => (
+        (alert.type === "SAFE_ZONE_EXIT" || alert.type === "SAFE_ZONE") && !alert.isRead
+      ));
+      setSafeZoneExitAlert(safeExitAlert || null);
+
+      const today = new Date();
+      const alertFallCount = alerts.filter((alert) => {
+        if (alert.type !== "FALL_DETECTED" && alert.type !== "FALL_RISK") return false;
+        const createdAt = new Date(alert.createdAt);
+        return (
+          createdAt.getFullYear() === today.getFullYear()
+          && createdAt.getMonth() === today.getMonth()
+          && createdAt.getDate() === today.getDate()
+        );
+      }).length;
+
+      const fallEvents = await fetchFallEvents(1).catch(() => []);
+      const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
+      setTodayFallCount(Math.max(alertFallCount, modelFallCount));
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 15000);
+    const timerId = setInterval(loadCallRequest, 5000);
     return () => {
       cancelled = true;
       clearInterval(timerId);
     };
-  }, [initialSenior]);
+  }, [initialSenior, pendingSos]);
 
   const confirmSOS = async () => {
     setShowSOS(false);
@@ -673,12 +1013,12 @@ export default function UserPage() {
     }
 
     try {
-      await createSosAlert({
+      const alertResult = await createSosAlert({
         seniorId: Number(seniorId),
         latitude: currentPos?.lat,
         longitude: currentPos?.lon,
       });
-      localStorage.setItem("pending_sos", "true");
+      markPendingSos(alertResult);
       setPendingSos(true);
     } catch (error) {
       console.error("SOS 전송 실패:", error);
@@ -698,20 +1038,50 @@ export default function UserPage() {
       });
     }
 
-    localStorage.removeItem("pending_sos");
+    clearPendingSosStorage();
     setPendingSos(false);
     alert("보호자에게 잘못 누름 알림을 보냈어요.");
   };
 
   const handleReceiveCall = async () => {
-    if (incomingCallAlert?.id) {
-      await readAlert(incomingCallAlert.id).catch(() => {});
-    }
+    const callAlertIds = userAlerts
+      .filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead)
+      .map((alert) => alert.id)
+      .filter(Boolean);
+    markCallAlertHandled(incomingCallAlert?.id);
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+
     setIncomingCallAlert(null);
 
     if (careTeam.guardianPhone) {
       window.location.href = `tel:${careTeam.guardianPhone.replace(/[^0-9]/g, "")}`;
     }
+  };
+
+  const handleDismissCallRequest = async () => {
+    const callAlertIds = userAlerts
+      .filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead)
+      .map((alert) => alert.id)
+      .filter(Boolean);
+    setIncomingCallAlert(null);
+    markCallAlertHandled(incomingCallAlert?.id);
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+  };
+
+  const handleReadMedicineAlert = async () => {
+    if (medicineAlert?.id) {
+      await readAlert(medicineAlert.id).catch(() => {});
+    }
+
+    setMedicineAlert(null);
+  };
+
+  const handleReadCheckInMessageAlert = async () => {
+    if (checkInMessageAlert?.id) {
+      await readAlert(checkInMessageAlert.id).catch(() => {});
+    }
+
+    setCheckInMessageAlert(null);
   };
 
   const openAllSchedules = async () => {
@@ -733,17 +1103,56 @@ export default function UserPage() {
     }
   };
 
+  const hasUnreadByRoute = (route) => {
+    if (route === "/weather") return weatherAlerts.some((alert) => alert.type !== "오늘 날씨");
+    if (route === "/fall-history") return userAlerts.some((alert) => (alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK") && !alert.isRead);
+    if (route === "/location") return userAlerts.some((alert) => (alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT") && !alert.isRead);
+    if (route === "/profile") return userAlerts.some((alert) => alert.type === "PROFILE_UPDATE" && !alert.isRead);
+    return false;
+  };
+
+  const climatePreviewAlerts = (() => {
+    const list = [...weatherAlerts];
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    const time = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:00`;
+
+    if (!list.some((alert) => alert.type === "오늘 날씨")) {
+      list.push({
+        type: "오늘 날씨",
+        color: COLORS.green,
+        msg: "현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.",
+        time,
+      });
+    }
+
+    if (list.length < 2) {
+      list.push({
+        type: "환경 지수",
+        color: COLORS.green,
+        msg: "현재 확인된 환경 위험 알림이 없습니다. 평소처럼 활동하셔도 괜찮습니다.",
+        time,
+      });
+    }
+
+    return list.slice(0, 2);
+  })();
+
+  const welfarePerson = buildUserWelfarePerson(currentProfile, userName, userRegion);
+  const welfareMatches = findWelfarePrograms({
+    question: "내 상황에 맞는 복지 제도를 추천해줘",
+    person: welfarePerson,
+    limit: 3,
+  });
+
+  const currentBenefits = String(currentProfile?.healthInfo?.currentBenefits || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   return (
     <div className="up-root">
-      <nav className="up-nav">
-        <div className="up-nav-logo">우리 woori</div>
-        <div className="up-nav-right">
-          <span className="up-nav-date">{dateStr}</span>
-          <button className="up-nav-sos" type="button" onClick={() => setShowSOS(true)}>
-            SOS 알림 요청
-          </button>
-        </div>
-      </nav>
+      <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
 
       <div className="up-layout">
         <aside>
@@ -752,7 +1161,7 @@ export default function UserPage() {
               {profileImageUrl ? (
                 <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
               ) : (
-                "👤"
+                "🙂"
               )}
             </div>
             <div className="up-profile-name">{userName}</div>
@@ -764,15 +1173,27 @@ export default function UserPage() {
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                <strong>
-                  {careTeam.guardianName
-                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                    : "매칭 전"}
-                </strong>
+                {careTeam.guardianName && toTelHref(careTeam.guardianPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.guardianPhone)}>
+                    {`${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`}
+                  </a>
+                ) : (
+                  <strong>
+                    {careTeam.guardianName
+                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                      : "매칭 전"}
+                  </strong>
+                )}
               </div>
               <div>
                 <span>복지사</span>
-                <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
+                  <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
+                    {careTeam.socialWorkerName}
+                  </a>
+                ) : (
+                  <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                )}
               </div>
             </div>
           </div>
@@ -798,7 +1219,7 @@ export default function UserPage() {
               >
                 <span className="up-sidemenu-icon">{menu.icon}</span>
                 <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew)) && (
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
                   <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
                     {menu.badge || "NEW"}
                   </span>
@@ -831,7 +1252,7 @@ export default function UserPage() {
                 fontWeight: "700",
                 color: isInRange ? COLORS.green : COLORS.danger,
               }}>
-                {isInRange ? "안전 반경 내" : "안전 반경 이탈"}
+                {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
               </span>
             </div>
             <div style={{
@@ -851,7 +1272,7 @@ export default function UserPage() {
             )}
             {currentLocationTime && (
               <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
-                기준 시간 {currentLocationTime}
+                갱신 시간 {currentLocationTime}
               </div>
             )}
             {currentPos && (
@@ -874,19 +1295,21 @@ export default function UserPage() {
           <div className="up-top-row">
             <div className="up-weather-card" onClick={() => navigate("/weather-graph")}>
               <div className="up-card-label">오늘 날씨</div>
-              <div className="up-weather-temp">{weather?.temp ?? "-"}°C</div>
+              <div className="up-weather-temp">{weather?.temp ?? "--"}°C</div>
               <div className="up-weather-bot">
                 <div className="up-weather-desc">
                   {weather?.status ?? "불러오는 중"} · {weather?.region ?? ""}
                 </div>
-                <div className="up-weather-icon">{weather?.icon ?? "☁️"}</div>
+                <div className="up-weather-icon">{weather?.icon ?? "🌧️"}</div>
               </div>
             </div>
 
             <div className="up-stat-card" onClick={() => navigate("/fall-history")}>
-              <div className="up-card-label">이번 달 낙상</div>
-              <div className="up-stat-value red">2건</div>
-              <div className="up-stat-sub">최근: 5월 4일 거실</div>
+              <div className="up-card-label">오늘 낙상</div>
+              <div className="up-stat-value red">{todayFallCount}건</div>
+              <div className="up-stat-sub">
+                {todayFallCount > 0 ? "감지 이력을 확인해주세요" : "오늘 감지된 낙상이 없어요"}
+              </div>
             </div>
 
             <div className="up-stat-card" onClick={openAllSchedules}>
@@ -904,12 +1327,21 @@ export default function UserPage() {
             <div className="up-card up-schedule-card">
               <div className="up-card-head">
                 <div className="up-card-title">일정</div>
-                <input
-                  className="up-schedule-date"
-                  type="date"
-                  value={selectedScheduleDate}
-                  onChange={(event) => setSelectedScheduleDate(event.target.value)}
-                />
+                <div className="up-schedule-tools">
+                  <input
+                    className="up-schedule-date"
+                    type="date"
+                    value={selectedScheduleDate}
+                    onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="up-schedule-create"
+                    onClick={() => navigate("/chat?mode=schedule")}
+                  >
+                    일정 생성
+                  </button>
+                </div>
               </div>
 
               <div className="up-schedule-list">
@@ -937,7 +1369,7 @@ export default function UserPage() {
                 </button>
               </div>
 
-              {weatherAlerts.slice(0, 2).map((a, i) => (
+              {climatePreviewAlerts.map((a, i) => (
                 <div key={i} className="up-alert-item">
                   <span className="up-alert-badge" style={{
                     background: a.color,
@@ -955,37 +1387,72 @@ export default function UserPage() {
             </div>
           </div>
 
-          {healthScores && (
+          {activityToday && (
             <div className="up-content-row">
               <div className="up-card full">
                 <div className="up-card-head">
-                  <div className="up-card-title">건강 상태 레이더</div>
-                  <button className="up-card-more" type="button" onClick={() => navigate("/profile")}>
-                    정보 수정
+                  <div className="up-card-title">오늘의 활동 컨디션</div>
+                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
+                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
                   </button>
                 </div>
-                <RadarChart scores={healthScores} />
+                {activityToday.scores ? (
+                  <RadarChart
+                    scores={activityToday.scores}
+                    labels={activityToday.labels}
+                    summaryLabel="활동 컨디션 요약"
+                    note={activityTrend?.alerts?.[0] || activityToday.overall_note || ""}
+                    quality={activityToday.data_quality}
+                  />
+                ) : (
+                  <div className="up-activity-empty">
+                    <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
+                    <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
+                  </div>
+                )}
               </div>
             </div>
+          )}
+
+          {(activitySlots || activityBaseline || activityFallPattern) && (
+            <ActivityInsightCards
+              slots={activitySlots}
+              baseline={activityBaseline}
+              fallPattern={activityFallPattern}
+              onInfoClick={setActivityInfoModal}
+            />
           )}
 
           <div className="up-content-row">
             <div className="up-card full">
               <div className="up-card-head">
-                <div className="up-card-title">빠른 실행</div>
+                <div className="up-card-title">복지제도 확인</div>
               </div>
-              <div className="up-quick-grid">
-                {menus.filter(m => !m.hideQuick).map((m, i) => (
-                  <button
-                    key={i}
-                    className="up-quick-btn"
-                    type="button"
-                    onClick={() => navigate(m.route)}
-                  >
-                    <span className="up-quick-icon">{m.icon}</span>
-                    <div className="up-quick-label">{m.label}</div>
-                    <div className="up-quick-desc">{m.desc}</div>
-                  </button>
+              <div className="up-welfare-check">
+                <div className="up-welfare-check-icon">🏛️</div>
+                <div className="up-welfare-check-copy">
+                  <strong>내 상황에 맞는 복지제도를 확인해보세요.</strong>
+                  <p>
+                    {currentBenefits.length
+                      ? `현재 등록된 혜택: ${currentBenefits.join(" · ")}`
+                      : "현재 받고 있는 혜택을 입력하면 중복 신청 여부를 더 쉽게 확인할 수 있어요."}
+                  </p>
+                </div>
+                <button
+                  className="up-welfare-check-button"
+                  type="button"
+                  onClick={() => navigate("/profile?section=welfare")}
+                >
+                  복지정보 수정
+                </button>
+              </div>
+              <div className="up-welfare-programs">
+                {welfareMatches.map(({ program, reasons }) => (
+                  <article className="up-welfare-program" key={program.id}>
+                    <strong>{program.name}</strong>
+                    <p>{program.summary}</p>
+                    <span>{reasons[0]}</span>
+                  </article>
                 ))}
               </div>
             </div>
@@ -1005,9 +1472,10 @@ export default function UserPage() {
               <button
                 style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.2rem", color: COLORS.textMuted }}
                 type="button"
+                aria-label="닫기"
                 onClick={() => setShowAllSchedules(false)}
               >
-                ×
+                X
               </button>
             </div>
             {isLoadingAllSchedules ? (
@@ -1031,20 +1499,80 @@ export default function UserPage() {
       )}
 
       {incomingCallAlert && (
-        <div className="up-overlay" onClick={() => setIncomingCallAlert(null)}>
+        <div className="up-overlay" onClick={handleDismissCallRequest}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">전화</div>
+            <div className="up-modal-ico">📞</div>
             <div className="up-modal-title">보호자가 전화를 요청했습니다.</div>
             <div className="up-modal-desc">
               전화 앱에 수신 화면이 뜨면 통화 버튼을 눌러주세요.
             </div>
             <div className="up-modal-row">
-              <button className="up-modal-cancel" type="button" onClick={() => setIncomingCallAlert(null)}>
+              <button className="up-modal-cancel" type="button" onClick={handleDismissCallRequest}>
                 나중에
               </button>
               <button className="up-modal-ok" type="button" onClick={handleReceiveCall}>
                 전화 받기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {medicineAlert && (
+        <div className="up-overlay" onClick={handleReadMedicineAlert}>
+          <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💊</div>
+            <div className="up-modal-title">
+              {medicineAlert.title || "복약 알림"}
+            </div>
+            <div className="up-modal-desc">
+              {medicineAlert.message || "복용 중인 약을 확인하고 제때 복용해주세요."}
+            </div>
+
+            <div className="up-modal-row medicine-alert-modal-row">
+              <button
+                className="up-modal-ok medicine-alert-confirm-button"
+                type="button"
+                onClick={handleReadMedicineAlert}
+              >
+                확인했어요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkInMessageAlert && (
+        <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
+          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">💬</div>
+            <div className="up-modal-title">
+              {checkInMessageAlert.title || "보호자 안부 메시지"}
+            </div>
+            <div className="up-modal-desc">
+              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
+            </div>
+
+            <div className="up-modal-row single">
+              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
+                확인했어요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {safeZoneExitAlert && !isInRange && (
+        <div className="up-overlay up-safe-zone-overlay">
+          <div className="up-modal up-safe-zone-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">📍</div>
+            <div className="up-modal-title">안전 반경을 벗어났습니다</div>
+            <div className="up-modal-desc">
+              보호자에게 이탈 알림을 보냈어요.<br />
+              보호자 또는 담당자와 만날 때까지 이 안내가 유지됩니다.
+            </div>
+            <div className="up-safe-zone-message">
+              집 또는 지정된 안전 구역으로 돌아가 주세요.
             </div>
           </div>
         </div>
@@ -1062,10 +1590,31 @@ export default function UserPage() {
         </div>
       )}
 
+      {activityInfoModal && (
+        <div className="up-overlay" onClick={() => setActivityInfoModal(null)}>
+          <div className="up-modal up-info-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="up-modal-ico">{activityInfoModal === "measured" ? "📷" : "ℹ️"}</div>
+            <div className="up-modal-title">
+              {activityInfoModal === "measured" ? "실측 데이터" : "참고 지표"}
+            </div>
+            <div className="up-modal-desc">
+              {activityInfoModal === "measured"
+                ? "카메라와 낙상 감지 모델이 수집한 자세, 움직임, 정지 시간, 낙상 이벤트를 바탕으로 표시됩니다."
+                : "의료 진단이 아닌 활동 패턴 참고용 지표입니다. 평소와 다른 움직임을 확인하는 용도로만 활용해주세요."}
+            </div>
+            <div className="up-modal-row single">
+              <button className="up-modal-ok" type="button" onClick={() => setActivityInfoModal(null)}>
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSOS && (
         <div className="up-overlay" onClick={() => setShowSOS(false)}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">SOS</div>
+            <div className="up-modal-ico">🚨</div>
             <div className="up-modal-title">SOS를 보내시겠어요?</div>
             <div className="up-modal-desc">
               보호자와 담당 복지사에게<br />즉시 알림이 전송됩니다.
@@ -1080,3 +1629,4 @@ export default function UserPage() {
     </div>
   );
 }
+

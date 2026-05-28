@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import "../../css/common/Login.css";
 
+const API_BASE = "http://localhost:8080";
+
 const FEATURES = [
   { icon: "🚨", title: "긴급 상황 알림", desc: "SOS와 위치 정보를 보호자에게 빠르게 전달해요" },
   { icon: "🌡", title: "기후 위험 안내", desc: "폭염, 한파, 미세먼지 같은 위험 정보를 확인해요" },
