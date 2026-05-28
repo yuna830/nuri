@@ -1,4 +1,3 @@
-const WELFARE_API_BASE = "http://localhost:8181";
 const WELFARE_SENIORS_CACHE_KEY = "welfare:seniors";
 const welfareSeniorsCache = new Map();
 
@@ -110,7 +109,7 @@ export const fetchWelfareSeniorDetail = async (seniorId) => {
 
 // 복지 알림 불러오기 API 추가
 export const fetchWelfareAlerts = async () => {
-    const response = await fetch(`${WELFARE_API_BASE}/api/alerts/welfare`);
+    const response = await fetch("/api/alerts/welfare");
 
     if (!response.ok) {
         return [];

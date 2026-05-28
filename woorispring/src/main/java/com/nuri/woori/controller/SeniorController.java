@@ -16,6 +16,7 @@ import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
+import com.nuri.woori.service.HealthStatusMlService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -42,6 +43,7 @@ public class SeniorController {
     private final GuardianSeniorRepository guardianSeniorRepository;
     private final LocationStatusRepository locationStatusRepository;
     private final AlertRepository alertRepository;
+    private final HealthStatusMlService healthStatusMlService;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -51,7 +53,8 @@ public class SeniorController {
             GuardianRepository guardianRepository,
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
-            AlertRepository alertRepository) {
+            AlertRepository alertRepository,
+            HealthStatusMlService healthStatusMlService) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -60,6 +63,7 @@ public class SeniorController {
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.locationStatusRepository = locationStatusRepository;
         this.alertRepository = alertRepository;
+        this.healthStatusMlService = healthStatusMlService;
     }
 
     @PostMapping
@@ -113,6 +117,7 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -336,6 +341,7 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -498,6 +504,7 @@ public class SeniorController {
             healthInfo.setMedicineCount(request.medicationsJson().isBlank() ? "없음" : "1개 이상");
         }
 
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
         healthInfoRepository.save(healthInfo);
 
         return toProfileResponse(savedSenior);

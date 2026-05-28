@@ -96,6 +96,7 @@ public class HealthStatusMlService {
             if (response.predictions() == null || response.predictions().isEmpty()) {
                 throw new IllegalStateException("Health status ML prediction returned no result.");
             }
+
             return normalizeStatus(response.predictions().get(0).prediction());
         } catch (IOException error) {
             throw new IllegalStateException("Failed to run health status ML prediction.", error);
@@ -219,7 +220,7 @@ public class HealthStatusMlService {
         if (containsAny(text, "없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0")) {
             return false;
         }
-        return containsAny(text, "불편", "보조", "저하", "나쁨", "어려", "제한", "필요", "사용", "장애", "yes", "true", "1");
+        return containsAny(text, "불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "약함", "yes", "true", "1");
     }
 
     private boolean hasLimitedText(String value) {

@@ -162,17 +162,23 @@ function WelfareSeniorDetail() {
     const [draftCounselingMemo, setDraftCounselingMemo] = useState("");
     const [isMemoEditing, setIsMemoEditing] = useState(false);
     const [memoStatusMessage, setMemoStatusMessage] = useState("");
+    const [draftDecision, setDraftDecision] = useState("미검토");
+    const [draftRejectionReason, setDraftRejectionReason] = useState("");
+    const [decisionStatusMessage, setDecisionStatusMessage] = useState("");
     const [isSendingConsultRequest, setIsSendingConsultRequest] = useState(false);
     const [consultRequestStatusMessage, setConsultRequestStatusMessage] = useState("");
     const [isConsultRequestModalOpen, setIsConsultRequestModalOpen] = useState(false);
     const [consultRequestMemo, setConsultRequestMemo] = useState("");
     const [seniorAlerts, setSeniorAlerts] = useState([]);
     
-    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "전화 및 상담기록"];
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "전화 및 상담기록"];
     const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
     
-    const initialCategory = CATEGORY_LIST.includes(location.state?.category)
-        ? location.state.category
+    const requestedCategory = location.state?.category === "복지사 소견"
+        ? "일자리 요청 상태"
+        : location.state?.category;
+    const initialCategory = CATEGORY_LIST.includes(requestedCategory)
+        ? requestedCategory
         : "기본 정보";
     const [activeCategory, setActiveCategory] = useState(initialCategory);
     const [activeHealthCategory, setActiveHealthCategory] = useState("신체 정보");
@@ -192,6 +198,9 @@ function WelfareSeniorDetail() {
         const firstRecord = sortedRecords.find((record) => record.date === firstDate);
 
         setSenior(nextSenior);
+        setDraftDecision(nextSenior.welfareDecision || "미검토");
+        setDraftRejectionReason(nextSenior.welfareDecisionReason || "");
+        setDecisionStatusMessage("");
         setCounselingRecords(sortedRecords);
         setSelectedCounselingDate(firstDate);
         setDraftCounselingMemo(firstRecord?.content || "");
@@ -428,6 +437,62 @@ function WelfareSeniorDetail() {
         setIsMemoEditing(false);
         setMemoStatusMessage("");
     };
+
+    async function handleDecisionSave() {
+        const reason = draftDecision === "부적합" ? draftRejectionReason.trim() : "";
+
+        if (draftDecision === "부적합" && !reason) {
+            setDecisionStatusMessage("부적합일 경우 사유를 입력해주세요.");
+            return;
+        }
+
+        try {
+            setDecisionStatusMessage("");
+
+            const response = await fetch(`/api/seniors/${id}/decision`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    decision: draftDecision,
+                    reason,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to update decision");
+            }
+
+            const updatedData = await response.json();
+            const updatedSenior = mapSeniorProfileResponse(updatedData);
+            saveWelfareDecision(id, draftDecision, reason);
+            setSenior(applySavedWelfareDecision({
+                ...updatedSenior,
+                jobMatchingStatus: draftDecision,
+                welfareDecision: draftDecision,
+                welfareDecisionReason: reason,
+            }));
+        } catch {
+            saveWelfareDecision(id, draftDecision, reason);
+            setSenior((currentSenior) => (
+                currentSenior
+                    ? applySavedWelfareDecision({
+                        ...currentSenior,
+                        jobMatchingStatus: draftDecision,
+                        welfareDecision: draftDecision,
+                        welfareDecisionReason: reason,
+                    })
+                    : currentSenior
+            ));
+        }
+
+        setDecisionStatusMessage(
+            draftDecision === "부적합"
+                ? "부적합 사유가 일자리 요청 상태에 반영되었습니다."
+                : "판정 정보가 일자리 요청 상태에 저장되었습니다."
+        );
+    }
 
     function getDetail(target) {
         if (!target) {
@@ -799,11 +864,61 @@ function WelfareSeniorDetail() {
         </section>
     );
 
+    const renderJobRequestInfo = () => (
+        <section className="wsd-detail-section">
+            <h2 className="wsd-section-title">일자리 요청 상태</h2>
+
+            {renderFields([
+                { label: "요청 건수", value: senior.jobRequestStatus },
+                { label: "검토 여부", value: senior.workRequestStatus },
+                { label: "적합 여부", value: senior.welfareDecision },
+                { label: "부적합 사유", value: senior.welfareDecisionReason || "등록된 사유 없음", wide: true },
+            ])}
+
+            <div className="wsd-decision-option-row">
+                {["적합", "보류", "부적합"].map((decision) => (
+                    <button
+                        type="button"
+                        key={decision}
+                        className={getDecisionButtonClass(decision)}
+                        onClick={() => setDraftDecision(decision)}
+                    >
+                        {decision}
+                    </button>
+                ))}
+            </div>
+
+            {draftDecision === "부적합" && (
+                <textarea
+                    value={draftRejectionReason}
+                    onChange={(event) => setDraftRejectionReason(event.target.value)}
+                    className="wsd-reason-textarea"
+                    placeholder="부적합 사유를 입력해주세요."
+                />
+            )}
+
+            <div className="wsd-memo-action-row">
+                <button
+                    type="button"
+                    className="wsd-small-button"
+                    onClick={handleDecisionSave}
+                >
+                    판정 저장
+                </button>
+            </div>
+
+            {decisionStatusMessage && (
+                <p className="wsd-status-message">{decisionStatusMessage}</p>
+            )}
+        </section>
+    );
+
     const renderActiveSection = () => {
         if (activeCategory === "기본 정보") return renderBasicInfo();
         if (activeCategory === "보호자 정보") return renderGuardianInfo();
         if (activeCategory === "건강 정보") return renderHealthInfo();
         if (activeCategory === "안심구역 관리") return renderSafeZoneInfo();
+        if (activeCategory === "일자리 요청 상태") return renderJobRequestInfo();
 
         return null;
     };
