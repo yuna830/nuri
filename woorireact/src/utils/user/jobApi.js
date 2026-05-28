@@ -5,6 +5,7 @@ const SENURI_SERVICE_KEY =
 const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
 const jobListCache = new Map();
 
 export const EMPL_MAP = {
@@ -264,15 +265,20 @@ const fetchSeoulJobInfo = async (pageNo, numOfRows) => {
 };
 
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
-  const cacheKey = `combined-${pageNo}-${emplymShp}-${numOfRows}`;
+  const cacheKey = `combined-v2-${pageNo}-${emplymShp}-${numOfRows}`;
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
 
-  if (pageNo === 1 && !emplymShp) {
-    const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
+  const lastDbRefreshAt = Number(localStorage.getItem("job-db-cache-refreshed-at") || 0);
+  const shouldRefreshDbCache = Date.now() - lastDbRefreshAt > JOB_DB_REFRESH_TTL_MS;
+  const dbCachedJobs = pageNo === 1 && !emplymShp
+    ? await fetchCachedJobPostings().catch(() => [])
+    : [];
+
+  if (pageNo === 1 && !emplymShp && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
     if (dbCachedJobs.length > 0) {
       const data = {
-        list: dbCachedJobs.slice(0, numOfRows),
+        list: dbCachedJobs,
         total: dbCachedJobs.length,
         fromDbCache: true,
       };
@@ -290,17 +296,22 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const seoulData = seoul.status === "fulfilled" ? seoul.value : { list: [], total: 0 };
   const merged = new Map();
 
-  [...senuriData.list, ...seoulData.list].forEach((job) => {
+  [...dbCachedJobs, ...senuriData.list, ...seoulData.list].forEach((job) => {
     if (!job.jobId) return;
     merged.set(`${job.source}-${job.jobId}`, job);
   });
 
   const data = {
     list: Array.from(merged.values()),
-    total: (senuriData.total || 0) + (seoulData.total || 0),
+    total: Math.max(
+      merged.size,
+      dbCachedJobs.length,
+      (senuriData.total || 0) + (seoulData.total || 0),
+    ),
   };
 
-  saveJobPostingsToCache(data.list);
+  saveJobPostingsToCache([...senuriData.list, ...seoulData.list]);
+  localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
   writeJobCache(cacheKey, data);
   return data;
 };

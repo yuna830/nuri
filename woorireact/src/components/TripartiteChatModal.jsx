@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchSeniorChatMessages, sendSeniorChatMessage } from "../api/chatApi";
+import { fetchSeniorChatMessages, sendSeniorChatMessage, uploadChatAttachment } from "../api/chatApi";
 import "../css/common/TripartiteChatModal.css";
 
 const ROLE_LABELS = {
@@ -37,6 +37,8 @@ export default function TripartiteChatModal({
   const [draft, setDraft] = useState("");
   const [keyword, setKeyword] = useState("");
   const [historyPage, setHistoryPage] = useState(0);
+  const [attachment, setAttachment] = useState(null);
+  const [roomGroup, setRoomGroup] = useState("ALL");
   const [activeRoomKey, setActiveRoomKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -59,14 +61,19 @@ export default function TripartiteChatModal({
     [activeRoomKey, chatRooms]
   );
 
+  const visibleRooms = useMemo(() => {
+    if (senderRole !== "WELFARE" || roomGroup === "ALL") return chatRooms;
+    return chatRooms.filter((room) => room.roomType === roomGroup);
+  }, [chatRooms, roomGroup, senderRole]);
+
   useEffect(() => {
     if (!isOpen) return;
     setActiveRoomKey((previousKey) =>
-      chatRooms.some((room) => room.key === previousKey)
+      visibleRooms.some((room) => room.key === previousKey)
         ? previousKey
-        : chatRooms[0]?.key || ""
+        : visibleRooms[0]?.key || ""
     );
-  }, [isOpen, chatRooms]);
+  }, [isOpen, visibleRooms]);
 
   const loadMessages = async ({ silent = false, page = 0, appendOlder = false } = {}) => {
     const targetSeniorId = activeRoom?.seniorId || seniorId;
@@ -116,7 +123,7 @@ export default function TripartiteChatModal({
     const targetSeniorId = activeRoom?.seniorId || seniorId;
     const targetRoomType = activeRoom?.roomType || roomType;
 
-    if (!message) {
+    if (!message && !attachment) {
       window.alert("보낼 메시지를 입력해주세요.");
       return;
     }
@@ -128,6 +135,10 @@ export default function TripartiteChatModal({
 
     try {
       setIsSending(true);
+      const uploadedAttachment = attachment
+        ? await uploadChatAttachment(attachment)
+        : null;
+
       await sendSeniorChatMessage({
         seniorId: targetSeniorId,
         roomType: targetRoomType,
@@ -135,8 +146,12 @@ export default function TripartiteChatModal({
         senderId,
         senderName,
         message,
+        attachmentUrl: uploadedAttachment?.fileUrl || uploadedAttachment?.imageUrl || "",
+        attachmentType: attachment?.type || "",
+        attachmentName: uploadedAttachment?.fileName || attachment?.name || "",
       });
       setDraft("");
+      setAttachment(null);
       await loadMessages({ silent: true });
     } catch (sendError) {
       console.error("채팅 전송 실패:", sendError);
@@ -161,9 +176,15 @@ export default function TripartiteChatModal({
           </button>
         </header>
 
-        <div className="tcm-shell">
+        <div className={`tcm-shell ${senderRole === "WELFARE" ? "tcm-shell-welfare" : ""}`}>
+          {senderRole === "WELFARE" && (
+            <div className="tcm-room-groups">
+              <button type="button" className={roomGroup === "SENIOR_WELFARE" ? "active" : ""} onClick={() => setRoomGroup("SENIOR_WELFARE")}>대상자</button>
+              <button type="button" className={roomGroup === "GUARDIAN_WELFARE" ? "active" : ""} onClick={() => setRoomGroup("GUARDIAN_WELFARE")}>보호자</button>
+            </div>
+          )}
           <aside className="tcm-rooms" aria-label="대화방 목록">
-            {chatRooms.map((room) => (
+            {visibleRooms.map((room) => (
               <button
                 type="button"
                 key={room.key}
@@ -222,7 +243,16 @@ export default function TripartiteChatModal({
                       <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
                       <time>{formatChatTime(message.createdAt)}</time>
                     </div>
-                    <p>{message.message}</p>
+                    {message.message && <p>{message.message}</p>}
+                    {message.attachmentUrl && (
+                      message.attachmentType?.startsWith("image/") ? (
+                        <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
+                      ) : (
+                        <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
+                          {message.attachmentName || "첨부 파일 열기"}
+                        </a>
+                      )
+                    )}
                   </article>
                 );
               })
@@ -238,6 +268,13 @@ export default function TripartiteChatModal({
             onChange={(event) => setDraft(event.target.value)}
             placeholder="메시지를 입력하세요."
           />
+          <label className="tcm-file-button">
+            첨부
+            <input
+              type="file"
+              onChange={(event) => setAttachment(event.target.files?.[0] || null)}
+            />
+          </label>
           <button type="button" onClick={handleSend} disabled={isSending}>
             {isSending ? "전송 중" : "보내기"}
           </button>

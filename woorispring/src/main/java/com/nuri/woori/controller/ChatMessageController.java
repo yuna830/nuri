@@ -82,6 +82,9 @@ public class ChatMessageController {
         chatMessage.setSenderId(request.senderId());
         chatMessage.setSenderName(request.senderName());
         chatMessage.setMessage(request.message() == null ? "" : request.message().trim());
+        chatMessage.setAttachmentUrl(request.attachmentUrl());
+        chatMessage.setAttachmentType(request.attachmentType());
+        chatMessage.setAttachmentName(request.attachmentName());
         setUnreadTargets(chatMessage);
 
         return chatMessageRepository.save(chatMessage);
@@ -139,7 +142,10 @@ public class ChatMessageController {
             String senderRole,
             Long senderId,
             String senderName,
-            String message
+            String message,
+            String attachmentUrl,
+            String attachmentType,
+            String attachmentName
     ) {
     }
 }

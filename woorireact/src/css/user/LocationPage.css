@@ -156,11 +156,17 @@
 }
 
 .lp-safe-zone-place {
+  width: 100%;
   display: grid;
   gap: 4px;
   margin: 12px 0 16px;
+  border: 0;
   padding-bottom: 14px;
   border-bottom: 1px solid #dce8d8;
+  background: transparent;
+  font-family: "Noto Sans KR", sans-serif;
+  text-align: left;
+  cursor: pointer;
 }
 
 .lp-safe-zone-place strong {
@@ -384,10 +390,14 @@
 }
 
 .lp-safe-zone-item {
+  width: 100%;
   background: #ffffff;
   border: 1px solid #d4e8d6;
   border-radius: 10px;
   padding: 0.7rem 0.8rem;
+  font-family: "Noto Sans KR", sans-serif;
+  text-align: left;
+  cursor: pointer;
 }
 
 .lp-safe-zone-item.active {

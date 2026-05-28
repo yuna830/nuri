@@ -33,6 +33,7 @@ export default function JobPage() {
   const [profile, setProfile] = useState(null);
   const [jobApplications, setJobApplications] = useState([]);
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
+  const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
   const [selectedRecommendedApplication, setSelectedRecommendedApplication] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
   const deferredSearch = useDeferredValue(search);
@@ -97,7 +98,22 @@ export default function JobPage() {
 
   const recommendedJobs = scoredJobs.slice(0, RECOMMEND_SIZE);
   const welfareRecommendedApplications = useMemo(
-    () => jobApplications.filter((application) => application.applicationType === "RECOMMEND"),
+    () => jobApplications.filter((application) =>
+      application.applicationType === "RECOMMEND"
+      && !["관심 있음", "문의 요청", "거절", "처리 완료", "승인", "반려"].includes(application.status)
+    ),
+    [jobApplications],
+  );
+  const interestedApplications = useMemo(
+    () => jobApplications.filter((application) =>
+      application.applicationType === "INTEREST" || application.status === "관심 있음"
+    ),
+    [jobApplications],
+  );
+  const appliedApplications = useMemo(
+    () => jobApplications.filter((application) =>
+      !["INTEREST", "RECOMMEND"].includes(application.applicationType)
+    ),
     [jobApplications],
   );
   const recommendedIds = useMemo(
@@ -183,25 +199,16 @@ export default function JobPage() {
     }
   };
 
-  const handleApply = (job) => {
-    const phone = String(job.clerkContt || "").replace(/[^0-9]/g, "");
-    if (phone) {
-      window.location.href = `tel:${phone}`;
-      return;
-    }
-    alert("연락처 정보가 없습니다. 복지사에게 문의해주세요.");
-  };
-
-  const handleNotifyManager = async (job) => {
+  const saveJobApplication = async (job, applicationType, status) => {
     try {
       const saved = sessionStorage.getItem("currentSenior");
       const seniorId = saved ? JSON.parse(saved)?.senior?.id : null;
       if (!seniorId) {
         alert("로그인 정보가 없습니다.");
-        return;
+        return false;
       }
 
-      await fetch("/api/job-interests", {
+      const response = await fetch("/api/job-interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -210,13 +217,34 @@ export default function JobPage() {
           jobTitle: job.recrtTitle,
           company: job.oranNm,
           location: job.workPlcNm,
-          applicationType: "ONLINE",
-          status: "검토 대기",
+          applicationType,
+          status,
         }),
       });
+      if (!response.ok) throw new Error("job application failed");
       await loadJobApplications();
-      alert("복지사에게 관심 공고를 전달했어요.");
+      return true;
     } catch {
+      return false;
+    }
+  };
+
+  const handleApply = async (job) => {
+    const ok = await saveJobApplication(job, "ONLINE", "검토 대기");
+    if (ok) {
+      setSelected(null);
+      alert("복지사에게 일자리 신청을 보냈어요.");
+    } else {
+      alert("신청에 실패했습니다. 복지사에게 직접 문의해주세요.");
+    }
+  };
+
+  const handleNotifyManager = async (job) => {
+    const ok = await saveJobApplication(job, "INTEREST", "관심 있음");
+    if (ok) {
+      setSelected(null);
+      alert("복지사에게 관심 공고를 전달했어요.");
+    } else {
       alert("전달에 실패했습니다. 복지사에게 직접 문의해주세요.");
     }
   };
@@ -237,7 +265,11 @@ export default function JobPage() {
       setJobApplications((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item))
       );
-      setSelectedRecommendedApplication(updated);
+      if (["관심 있음", "문의 요청", "거절"].includes(updated.status)) {
+        setSelectedRecommendedApplication(null);
+      } else {
+        setSelectedRecommendedApplication(updated);
+      }
     } catch (error) {
       console.error("일자리 추천 상태 변경 실패:", error);
       alert("상태 변경에 실패했습니다.");
@@ -453,7 +485,14 @@ export default function JobPage() {
                       <p>내 조건과 공고 정보를 기준으로 계산한 참고 점수예요.</p>
                     </div>
                     <div className="jp-recommend-actions">
-                      {jobApplications.length > 0 && (
+                      <button
+                        className="jp-application-toggle"
+                        type="button"
+                        onClick={() => setIsInterestModalOpen(true)}
+                      >
+                        관심 공고 모아 보기
+                      </button>
+                      {appliedApplications.length > 0 && (
                         <button
                           className="jp-application-toggle"
                           type="button"
@@ -462,7 +501,6 @@ export default function JobPage() {
                           내가 신청한 공고 결과 보기
                         </button>
                       )}
-                      <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
                     </div>
                   </div>
                   <div className="jp-recommend-grid">
@@ -529,11 +567,11 @@ export default function JobPage() {
                 </div>
               ))}
               <div className="jp-modal-actions">
-                <button className="jp-modal-apply" type="button" onClick={() => handleApply(selected)}>
-                  전화 지원하기
+                <button className="jp-modal-apply" type="button" onClick={() => handleNotifyManager(selected)}>
+                  관심공고 등록하기
                 </button>
-                <button className="jp-modal-apply jp-modal-secondary" type="button" onClick={() => handleNotifyManager(selected)}>
-                  복지사에게 알리기
+                <button className="jp-modal-apply" type="button" onClick={() => handleApply(selected)}>
+                  신청하기
                 </button>
               </div>
             </div>
@@ -550,7 +588,7 @@ export default function JobPage() {
                 type="button"
                 onClick={() => setSelectedRecommendedApplication(null)}
               >
-                횞
+                ×
               </button>
               <div className="jp-modal-title">{selectedRecommendedApplication.jobTitle || "추천 공고"}</div>
               <div className="jp-modal-company">
@@ -595,6 +633,41 @@ export default function JobPage() {
         </div>
       )}
 
+      {isInterestModalOpen && (
+        <div className="jp-overlay" onClick={() => setIsInterestModalOpen(false)}>
+          <div className="jp-modal jp-application-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="jp-modal-header">
+              <button
+                className="jp-modal-close"
+                type="button"
+                onClick={() => setIsInterestModalOpen(false)}
+              >
+                ×
+              </button>
+              <div className="jp-modal-title">관심 공고 모아 보기</div>
+              <div className="jp-modal-company">관심공고로 등록한 일자리를 한 번에 확인할 수 있어요.</div>
+            </div>
+            <div className="jp-modal-body">
+              {interestedApplications.length === 0 ? (
+                <div className="jp-application-empty">아직 관심공고가 없습니다.</div>
+              ) : (
+                <div className="jp-application-list">
+                  {interestedApplications.map((application) => (
+                    <article className="jp-application-item" key={application.id}>
+                      <div>
+                        <strong>{application.jobTitle || "관심 공고"}</strong>
+                        <span>{application.organization || application.company || ""}</span>
+                      </div>
+                      <em>{application.status || "관심 있음"}</em>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isApplicationModalOpen && (
         <div className="jp-overlay" onClick={() => setIsApplicationModalOpen(false)}>
           <div className="jp-modal jp-application-modal" onClick={(event) => event.stopPropagation()}>
@@ -610,11 +683,11 @@ export default function JobPage() {
               <div className="jp-modal-company">신청한 공고와 처리 결과를 확인할 수 있어요.</div>
             </div>
             <div className="jp-modal-body">
-              {jobApplications.length === 0 ? (
+              {appliedApplications.length === 0 ? (
                 <div className="jp-application-empty">아직 신청한 일자리가 없습니다.</div>
               ) : (
                 <div className="jp-application-list">
-                  {jobApplications.map((application) => (
+                  {appliedApplications.map((application) => (
                     <article className="jp-application-item" key={application.id}>
                       <div>
                         <strong>{application.jobTitle || "신청 공고"}</strong>

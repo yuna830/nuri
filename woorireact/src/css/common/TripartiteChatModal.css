@@ -11,9 +11,10 @@
 
 .tcm-modal {
   width: min(620px, 100%);
-  max-height: min(760px, calc(100vh - 2rem));
-  display: grid;
-  grid-template-rows: auto minmax(330px, 1fr) auto auto;
+  height: min(760px, calc(100vh - 2rem));
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid #d4e8d6;
   border-radius: 16px;
@@ -23,10 +24,71 @@
 }
 
 .tcm-shell {
+  flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: hidden;
+}
+
+.tcm-shell-welfare {
+  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.tcm-shell-welfare .tcm-room-groups {
+  grid-column: 1 / -1;
+}
+
+.tcm-shell-welfare .tcm-rooms {
+  grid-row: 2 / 4;
+  grid-column: 1;
+  flex-direction: column;
+  align-items: stretch;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid #edf2e8;
+  border-bottom: 0;
+}
+
+.tcm-shell-welfare .tcm-rooms button {
+  min-height: 64px;
+  justify-content: flex-start;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.tcm-shell-welfare .tcm-search {
+  grid-column: 2;
+}
+
+.tcm-shell-welfare .tcm-list {
+  grid-column: 2;
+}
+
+.tcm-room-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.8rem 1.2rem 0;
+  background: #fbfdf8;
+}
+
+.tcm-room-groups button {
+  min-height: 40px;
+  border: 1px solid #dbe8d7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #48694b;
+  font-family: "Noto Sans KR", sans-serif;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tcm-room-groups button.active {
+  border-color: #86a788;
+  background: #86a788;
+  color: #ffffff;
 }
 
 .tcm-rooms {
@@ -223,8 +285,9 @@
 }
 
 .tcm-compose {
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px;
+  grid-template-columns: minmax(0, 1fr) 72px 96px;
   gap: 0.75rem;
   padding: 1rem 1.2rem 1.2rem;
   border-top: 1px solid #edf2e8;
@@ -251,6 +314,47 @@
   font-size: 0.98rem;
 }
 
+.tcm-file-button {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  background: #eef6ef;
+  color: #48694b;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tcm-file-button input {
+  display: none;
+}
+
+.tcm-attachment-image {
+  display: block;
+  max-width: 220px;
+  margin-top: 0.5rem;
+  border-radius: 10px;
+}
+
+.tcm-attachment-link {
+  display: inline-flex;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: #fbfdf8;
+  color: #48694b;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
 .tcm-compose button:disabled {
   cursor: wait;
   opacity: 0.65;
@@ -258,7 +362,29 @@
 
 @media (max-width: 640px) {
   .tcm-modal {
+    height: calc(100vh - 1rem);
     max-height: calc(100vh - 1rem);
+  }
+
+  .tcm-shell-welfare {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  .tcm-shell-welfare .tcm-room-groups,
+  .tcm-shell-welfare .tcm-rooms,
+  .tcm-shell-welfare .tcm-search,
+  .tcm-shell-welfare .tcm-list {
+    grid-column: 1;
+  }
+
+  .tcm-shell-welfare .tcm-rooms {
+    grid-row: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid #edf2e8;
   }
 
   .tcm-rooms {

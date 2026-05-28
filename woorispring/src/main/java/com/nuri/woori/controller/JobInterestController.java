@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/job-interests")
@@ -51,9 +52,19 @@ public class JobInterestController {
     }
 
     @GetMapping("/welfare")
-    public List<JobInterestResponse> getWelfareApplications() {
+    public List<JobInterestResponse> getWelfareApplications(
+            @RequestParam(required = false) Long welfareWorkerId
+    ) {
         return jobInterestRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
+                .filter(interest -> {
+                    if (welfareWorkerId == null || interest.getSeniorId() == null) {
+                        return true;
+                    }
+
+                    Senior senior = seniorRepository.findById(interest.getSeniorId()).orElse(null);
+                    return senior != null && Objects.equals(senior.getWelfareWorkerId(), welfareWorkerId);
+                })
                 .map(this::toResponse)
                 .toList();
     }

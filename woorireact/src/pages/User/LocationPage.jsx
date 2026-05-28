@@ -69,6 +69,7 @@ export default function LocationPage() {
   const [coords, setCoords] = useState(null);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [historyByDate, setHistoryByDate] = useState({});
+  const [focusedSafeZone, setFocusedSafeZone] = useState(null);
   const lastSavedLocationRef = useRef(null);
 
   const safeZoneDistances = useMemo(() => {
@@ -185,9 +186,20 @@ export default function LocationPage() {
   }, [currentPos, safeZones]);
 
   const updateLocation = useCallback(async (lat, lon, accuracy) => {
+  const previous = lastSavedLocationRef.current;
+  const movedMeters = previous
+    ? getDistanceMeters({ lat: previous.lat, lng: previous.lon }, { lat, lng: lon })
+    : Infinity;
+
+  setLastUpdate(getNow());
+
+  if (previous && movedMeters < 35) {
+    setLoading(false);
+    return;
+  }
+
   setCurrentPos([lat, lon]);
   setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-  setLastUpdate(getNow());
 
   const nextAddress = await getAddress(lat, lon);
   setAddress(nextAddress);
@@ -196,6 +208,8 @@ export default function LocationPage() {
     await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
     await loadLocationHistory(todayStr());
   } catch {}
+
+  lastSavedLocationRef.current = { lat, lon };
 
   setLoading(false);
 }, [loadLocationHistory]);
@@ -242,6 +256,9 @@ export default function LocationPage() {
         { lat: currentPos[0], lng: currentPos[1] },
       ]
     : [];
+  const mapFocusLocation = focusedSafeZone
+    ? { lat: focusedSafeZone.centerLatitude, lng: focusedSafeZone.centerLongitude }
+    : null;
 
   return (
     <div className="lp-root">
@@ -298,7 +315,11 @@ export default function LocationPage() {
                 currentLabel={currentPos ? `현재 위치<br />${address}<br />안전 반경까지 ${distance}m` : "현재 위치"}
                 safeZoneLabel={`${safeZone.name} 안전 반경 중심`}
                 route={routeToCurrentLocation}
-                showRoute={currentPos !== null}
+                showRoute={false}
+                autoFit={false}
+                focusLocation={mapFocusLocation}
+                focusKey={focusedSafeZone ? `${focusedSafeZone.id || focusedSafeZone.name}` : ""}
+                focusLevel={3}
                 fallback={
                   <div className="lp-map-placeholder">
                     <div className="lp-map-placeholder-icon">🗺️</div>
@@ -428,10 +449,14 @@ export default function LocationPage() {
           {/* 안전 반경 */}
           <div className="lp-range-card">
             <div className="lp-card-title"><span>안전 반경 설정</span></div>
-            <div className="lp-safe-zone-place">
+            <button
+              type="button"
+              className="lp-safe-zone-place"
+              onClick={() => setFocusedSafeZone(safeZone)}
+            >
               <strong>{safeZone.name}</strong>
               <span>{safeZone.address}</span>
-            </div>
+            </button>
             <div className="lp-range-main">
               <div>
                 <div className="lp-range-val">{safeZone.radiusMeters}</div>
@@ -447,10 +472,20 @@ export default function LocationPage() {
             {safeZones.length > 1 && (
               <div className="lp-safe-zone-list">
                 {safeZones.map((zone) => (
-                  <div className={`lp-safe-zone-item ${zone.id === safeZone.id ? "active" : ""}`} key={zone.id || zone.name}>
+                  <button
+                    type="button"
+                    className={`lp-safe-zone-item ${
+                      (zone.id && safeZone.id && String(zone.id) === String(safeZone.id)) || zone === safeZone ? "active" : ""
+                    }`}
+                    key={zone.id || zone.name}
+                    onClick={() => {
+                      setSafeZone(zone);
+                      setFocusedSafeZone(zone);
+                    }}
+                  >
                     <strong>{zone.name}</strong>
                     <span>{zone.address}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

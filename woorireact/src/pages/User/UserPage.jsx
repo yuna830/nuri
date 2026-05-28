@@ -658,8 +658,6 @@ export default function UserPage() {
   };
 
   const updateLocation = async (lat, lon, accuracy) => {
-    setChanged(setCurrentPos, { lat, lon });
-
     const capturedAt = new Date();
     setCurrentLocationTime(
       capturedAt.toLocaleTimeString("ko-KR", {
@@ -682,6 +680,12 @@ export default function UserPage() {
         )
       : Infinity;
 
+    if (lastSavedLocation && movedMeters < 35) {
+      return;
+    }
+
+    setChanged(setCurrentPos, { lat, lon });
+
     const shouldResolveAddress =
       movedMeters >= 50 ||
       !currentAddress ||
@@ -699,7 +703,7 @@ export default function UserPage() {
       const seniorId = getCurrentSeniorId(initialSenior);
 
       if (seniorId && movedMeters >= 50) {
-        await fetch("http://localhost:8080/api/locations", {
+        await fetch("/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -711,8 +715,9 @@ export default function UserPage() {
           }),
         }).catch(() => {});
 
-        lastSavedLocationRef.current = { lat, lon };
       }
+
+      lastSavedLocationRef.current = { lat, lon };
     } catch {
       setChanged(setCurrentAddress, "현재 위치");
     }
@@ -846,7 +851,7 @@ export default function UserPage() {
           let canUseCachedProfile = true;
 
           if (cachedSeniorId) {
-            const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
+            const response = await fetch(`/api/seniors/${cachedSeniorId}`);
 
             if (response.ok) {
               const freshProfile = await response.json();
@@ -1336,6 +1341,7 @@ export default function UserPage() {
                   currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
                   currentLabel="현재 위치"
                   safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                  autoFit={false}
                 />
               </div>
             )}

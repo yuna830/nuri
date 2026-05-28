@@ -30,7 +30,7 @@ public class JobPostingCacheController {
     public List<Map<String, Object>> getCachedJobs() {
         List<Map<String, Object>> jobs = new ArrayList<>();
 
-        for (JobPostingCache cache : jobPostingCacheRepository.findTop500ByOrderByUpdatedAtDesc()) {
+        for (JobPostingCache cache : jobPostingCacheRepository.findTop3000ByOrderByUpdatedAtDesc()) {
             try {
                 jobs.add(objectMapper.readValue(cache.getPayload(), new TypeReference<>() {}));
             } catch (Exception ignored) {

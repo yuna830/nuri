@@ -376,6 +376,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     setSelectedAlertKeys([]);
   }, [activeAlertTab]);
 
+  useEffect(() => {
+    if (!isAlertPanelOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAlertPanelOpen]);
+
   const toggleAlertSelection = (key) => {
     setSelectedAlertKeys((prev) => (
       prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]

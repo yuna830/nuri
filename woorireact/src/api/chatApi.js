@@ -43,6 +43,9 @@ export const sendSeniorChatMessage = async ({
   senderId,
   senderName,
   message,
+  attachmentUrl,
+  attachmentType,
+  attachmentName,
 }) => {
   const response = await fetch(`/api/chat/senior/${seniorId}`, {
     method: "POST",
@@ -53,11 +56,30 @@ export const sendSeniorChatMessage = async ({
       senderId,
       senderName,
       message,
+      attachmentUrl,
+      attachmentType,
+      attachmentName,
     }),
   });
 
   if (!response.ok) {
     throw new Error("chat message send failed");
+  }
+
+  return response.json();
+};
+
+export const uploadChatAttachment = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/uploads/chat", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("chat attachment upload failed");
   }
 
   return response.json();

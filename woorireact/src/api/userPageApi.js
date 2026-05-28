@@ -346,6 +346,7 @@ export const getCurrentSeniorId = () => {
 export const resolveUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
   if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
   return `${API_BASE}${imageUrl}`;
 };
 

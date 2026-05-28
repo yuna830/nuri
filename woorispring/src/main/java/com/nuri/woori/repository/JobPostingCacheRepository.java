@@ -8,5 +8,5 @@ import java.util.Optional;
 
 public interface JobPostingCacheRepository extends JpaRepository<JobPostingCache, Long> {
     Optional<JobPostingCache> findByCacheKey(String cacheKey);
-    List<JobPostingCache> findTop500ByOrderByUpdatedAtDesc();
+    List<JobPostingCache> findTop3000ByOrderByUpdatedAtDesc();
 }

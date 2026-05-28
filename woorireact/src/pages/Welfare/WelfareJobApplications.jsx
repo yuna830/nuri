@@ -35,6 +35,20 @@ const getFilteredApplicationsBySummary = (applications, filter) => {
     return applications;
 };
 
+const getCurrentWelfareWorkerId = () => {
+    try {
+        const saved =
+            sessionStorage.getItem("currentWelfareWorker") ||
+            localStorage.getItem("currentWelfareWorker") ||
+            sessionStorage.getItem("welfareWorker") ||
+            localStorage.getItem("welfareWorker");
+        const parsed = saved ? JSON.parse(saved) : null;
+        return parsed?.id || parsed?.worker?.id || parsed?.welfareWorker?.id || null;
+    } catch {
+        return null;
+    }
+};
+
 function WelfareJobApplications() {
     const [applications, setApplications] = useState([]);
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -50,7 +64,7 @@ function WelfareJobApplications() {
                 if (!silent) setIsLoading(true);
                 setLoadError("");
 
-                const data = await fetchWelfareJobApplications();
+                const data = await fetchWelfareJobApplications(getCurrentWelfareWorkerId());
 
                 if (!ignore) {
                     setApplications(data);
