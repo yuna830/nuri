@@ -835,6 +835,7 @@ export default function UserPage() {
         if (saved) {
           const profile = JSON.parse(saved);
           const cachedSeniorId = profile?.senior?.id;
+          let canUseCachedProfile = true;
 
           if (cachedSeniorId) {
             const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
@@ -851,15 +852,23 @@ export default function UserPage() {
               setChanged(setHealthScores, getHealthScoresFromProfile(freshProfile));
               return;
             }
+
+            if (response.status === 404) {
+              canUseCachedProfile = false;
+              sessionStorage.removeItem("currentSenior");
+              localStorage.removeItem("current_senior_id");
+            }
           }
 
-          setChanged(setUserName, profile?.senior?.name || "사용자");
-          setChanged(setCurrentProfile, profile);
-          setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
-          setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
-          loadMatchedCareTeam(cachedSeniorId, profile);
-          setChanged(setHealthScores, getHealthScoresFromProfile(profile));
-          return;
+          if (canUseCachedProfile) {
+            setChanged(setUserName, profile?.senior?.name || "사용자");
+            setChanged(setCurrentProfile, profile);
+            setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
+            setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
+            loadMatchedCareTeam(cachedSeniorId, profile);
+            setChanged(setHealthScores, getHealthScoresFromProfile(profile));
+            return;
+          }
         }
 
         const response = await fetch("http://localhost:8080/api/seniors");
