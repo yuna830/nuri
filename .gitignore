@@ -1,2 +1,5 @@
 stt_server/ 
 woorispring/uploads/
+.venv
+.idea/
+logs/

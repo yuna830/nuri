@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
-import "leaflet/dist/leaflet.css";
+
 import KakaoMap from "../../components/KakaoMap.jsx";
+import NearbyHelpPlaces from "../../components/user/NearbyHelpPlaces.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
   SAFE_RADIUS,
@@ -81,13 +83,20 @@ export default function LocationPage() {
       ))
     : 0;
 
-  const saveCurrentLocation = async ({ lat, lon, nextAddress }) => {
+  const saveCurrentLocation = async ({ lat, lon, nextAddress, accuracy }) => {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
+
     await fetch("http://localhost:8080/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seniorId, latitude: lat, longitude: lon, address: nextAddress }),
+      body: JSON.stringify({
+        seniorId,
+        latitude: lat,
+        longitude: lon,
+        address: nextAddress,
+        accuracy,
+      }),
     }).catch(() => {});
   };
 
@@ -111,7 +120,9 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}`);
+      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (!response.ok || response.status === 204) return;
       const nextSafeZone = await response.json();
       setSafeZone({
@@ -126,39 +137,27 @@ export default function LocationPage() {
     }
   }, []);
 
-  const updateLocation = useCallback(async (lat, lon) => {
-    setCurrentPos([lat, lon]);
-    setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-    setLastUpdate(getNow());
+  useEffect(() => {
+    loadSafeZone();
+    const timerId = setInterval(loadSafeZone, 10 * 1000);
+    return () => clearInterval(timerId);
+  }, [loadSafeZone]);
 
-    const nextAddress = await getAddress(lat, lon);
-    setAddress(nextAddress);
+  const updateLocation = useCallback(async (lat, lon, accuracy) => {
+  setCurrentPos([lat, lon]);
+  setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
+  setLastUpdate(getNow());
 
-    try {
-      await saveCurrentLocation({ lat, lon, nextAddress });
-      await loadLocationHistory(todayStr());
-    } catch {}
+  const nextAddress = await getAddress(lat, lon);
+  setAddress(nextAddress);
 
-    const seniorId = getCurrentSeniorId();
-    const currentDistance = Math.round(getDistanceMeters(
-      { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-      { lat, lng: lon }
-    ));
+  try {
+    await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
+    await loadLocationHistory(todayStr());
+  } catch {}
 
-    if (
-      currentDistance > safeZone.radiusMeters &&
-      shouldSendSafeZoneAlert(seniorId, safeZone, lat, lon)
-    ) {
-      createSafeZoneAlert({
-        seniorId,
-        latitude: lat,
-        longitude: lon,
-        address: nextAddress,
-      }).catch(() => {});
-    }
-
-    setLoading(false);
-  }, [loadLocationHistory, safeZone]);
+  setLoading(false);
+}, [loadLocationHistory]);
 
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -169,18 +168,25 @@ export default function LocationPage() {
     setLoading(true);
     setError(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => updateLocation(position.coords.latitude, position.coords.longitude),
+      (position) => updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        position.coords.accuracy
+      ),
       () => { setError("위치 권한을 허용해주세요."); setLoading(false); }
     );
   }, [updateLocation]);
 
-  useEffect(() => { loadSafeZone(); }, [loadSafeZone]);
   useEffect(() => { getLocation(); }, [getLocation]);
   useEffect(() => { loadLocationHistory(selectedDate); }, [loadLocationHistory, selectedDate]);
   useEffect(() => {
     const timerId = setInterval(getLocation, 30000);
     return () => clearInterval(timerId);
   }, [getLocation]);
+
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, []);
 
   const currentHistory = historyByDate[selectedDate] || [];
   const mapCenter = currentPos
@@ -198,17 +204,7 @@ export default function LocationPage() {
 
   return (
     <div className="lp-root">
-      <nav className="lp-nav">
-        <button className="lp-nav-back" type="button" onClick={() => navigate("/user")}>
-          ← 돌아가기
-        </button>
-        <div className="lp-nav-title">내 위치</div>
-        <div className="lp-nav-right">
-          <button className="lp-refresh-btn" type="button" onClick={getLocation}>
-            <RefreshCw size={13} /> 새로고침
-          </button>
-        </div>
-      </nav>
+      <UserCommonHeader />
 
       <div className="lp-layout">
         <div className="lp-map-section">
@@ -350,7 +346,13 @@ export default function LocationPage() {
         <aside className="lp-sidebar">
           {/* 위치 정보 */}
           <div className="lp-info-card">
-            <div className="lp-card-title"><span>위치 정보</span></div>
+            <div className="lp-info-card-header">
+              <h2>위치 정보</h2>
+
+              <button className="lp-refresh-btn lp-refresh-btn-compact" type="button" onClick={getLocation}>
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
             <div className="lp-info-row">
               <div className="lp-info-key"><Clock size={13} /> 마지막 갱신</div>
               <div className="lp-info-val">{lastUpdate}</div>
@@ -401,6 +403,13 @@ export default function LocationPage() {
               보호자가 설정한 안전 반경입니다. 이 범위를 벗어나면 보호자에게 즉시 알림이 전송됩니다.
             </div>
           </div>
+
+          <NearbyHelpPlaces
+            lat={currentPos?.[0]}
+            lon={currentPos?.[1]}
+            address={address}
+            compact
+          />
 
         </aside>
       </div>

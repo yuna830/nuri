@@ -8,6 +8,13 @@ const MessageList = forwardRef(function MessageList(
     <div className="chatbot-messages" aria-live="polite">
       {messages.map((message, index) => (
         <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
+          {message.imageUrl && (
+            <img
+              className="chat-message-image"
+              src={message.imageUrl}
+              alt="첨부한 사진"
+            />
+          )}
           {message.content}
         </div>
       ))}

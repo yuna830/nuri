@@ -1,6 +1,22 @@
 // 복지사 페이지 공통 대상자 데이터 처리 유틸
 
-import { getSavedWelfareDecisions, getSavedWelfareDecisionDetails } from "./welfareStorage";
+const WELFARE_DECISIONS_STORAGE_KEY = "welfareDecisions";
+const WELFARE_DECISION_DETAILS_STORAGE_KEY = "welfareDecisionDetails";
+
+const readJsonStorage = (key) => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(key) || "{}");
+        return saved && typeof saved === "object" ? saved : {};
+    } catch {
+        return {};
+    }
+};
+
+export const getSavedWelfareDecisions = () =>
+    readJsonStorage(WELFARE_DECISIONS_STORAGE_KEY);
+
+export const getSavedWelfareDecisionDetails = () =>
+    readJsonStorage(WELFARE_DECISION_DETAILS_STORAGE_KEY);
 
 export const getJobRequestGroup = (senior) =>
     Number(senior.jobRequestCount || 0) > 0 || senior.alertStatus === "일자리 요청"
@@ -11,6 +27,14 @@ export const getJobRequestStatus = (count) =>
     Number(count || 0) > 0 ? `요청 ${Number(count)}건` : "미요청";
 
 export const normalizeAlertStatus = (status) => {
+    if (status === "미응답 SOS") {
+        return "SOS 요청";
+    }
+
+    if (status === "일자리 신청") {
+        return "일자리 요청";
+    }
+
     return ["없음", "SOS 요청", "일자리 요청"].includes(status) ? status : "없음";
 };
 
@@ -19,11 +43,23 @@ export const normalizeSenior = (senior) => {
         return senior;
     }
 
+    const baseSenior = senior.senior || senior;
+    const healthInfo = senior.healthInfo || {};
+    const name = senior.name ?? baseSenior.name;
+    const region = senior.region ?? baseSenior.region ?? baseSenior.address;
+    const healthStatus = senior.healthStatus || healthInfo.healthStatus || baseSenior.healthStatus || "양호";
     const jobRequestCount = Number(senior.jobRequestCount ?? (senior.jobStatus === "미추천" ? 0 : 1));
     const welfareDecision = senior.welfareDecision || "미검토";
 
     return {
         ...senior,
+        id : senior.id ?? baseSenior.id,
+        name,
+        age : senior.age ?? baseSenior.age,
+        gender : senior.gender ?? baseSenior.gender,
+        phone : senior.phone ?? baseSenior.phone,
+        region,
+        healthStatus,
         alertStatus : normalizeAlertStatus(senior.alertStatus),
         workRequestStatus : senior.workRequestStatus || (welfareDecision === "미검토" ? "미검토" : "검토"),
         jobRequestCount,
@@ -33,11 +69,11 @@ export const normalizeSenior = (senior) => {
         welfareDecisionReason : senior.welfareDecisionReason || "",
         preferredWorkTime : senior.preferredWorkTime || "하루 3시간",
         safeZone : senior.safeZone || {
-            placeName : `${senior.name || "대상자"} 자택`,
+            placeName : `${name || "대상자"} 자택`,
             radiusMeter : 500,
         },
         lastGps : senior.lastGps || {
-            address : senior.region || "위치 미확인",
+            address : region || "위치 미확인",
             latitude : 37.5665,
             longitude : 126.978,
             recordedAt : "기록 없음",

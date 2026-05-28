@@ -14,6 +14,7 @@ import {
   MEDICINE_COUNTS,
   NONE,
   WORK_TYPES,
+  calculateAge,
   calcBMI,
   createMedicine,
   defaultForm,
@@ -42,6 +43,7 @@ export default function SignUp() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+  const derivedAge = useMemo(() => calculateAge(form.birthDate), [form.birthDate]);
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -94,7 +96,8 @@ export default function SignUp() {
   const validate = () => {
     if (step === 0) {
       if (!form.name.trim()) return "이름을 입력해주세요.";
-      if (!form.age) return "나이를 입력해주세요.";
+      if (!form.birthDate) return "생년월일을 입력해주세요.";
+      if (!derivedAge || derivedAge < 14) return "중학교 1학년 기준인 만 14세 이상만 가입할 수 있어요.";
       if (!form.gender) return "성별을 선택해주세요.";
       if (!form.city.trim() || !form.district.trim() || !form.dong.trim()) return "시/구/동 주소를 입력해주세요.";
       if (!form.phone.trim()) return "전화번호를 입력해주세요.";
@@ -190,8 +193,23 @@ export default function SignUp() {
 
             <div className="su-row">
               <div className="su-field">
-                <label className="su-label">나이 <span className="su-required">*</span></label>
-                <input className="su-input" type="number" value={form.age} onChange={(event) => set("age", event.target.value)} placeholder="예: 72" />
+                <label className="su-label">생년월일 <span className="su-required">*</span></label>
+                <input
+                  className="su-input"
+                  type="date"
+                  value={form.birthDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => {
+                    const birthDate = event.target.value;
+                    const age = calculateAge(birthDate);
+                    setForm((prev) => ({
+                      ...prev,
+                      birthDate,
+                      age: age ? String(age) : "",
+                    }));
+                  }}
+                />
+                {derivedAge ? <div className="su-field-help">현재 만 {derivedAge}세</div> : null}
               </div>
               <div className="su-field">
                 <label className="su-label">성별 <span className="su-required">*</span></label>
@@ -243,6 +261,12 @@ export default function SignUp() {
 
               <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
               <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+              <InputField
+                label="알레르기 정보"
+                value={form.allergies}
+                onChange={(value) => set("allergies", value)}
+                placeholder="예: 땅콩, 우유, 갑각류 / 없으면 없음"
+              />
             </section>
 
             <section className="su-section">

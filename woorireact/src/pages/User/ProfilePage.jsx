@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
+import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
 import { uploadProfileImage } from "../../api/userPageApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
@@ -15,6 +16,7 @@ import {
   NONE,
   SECTIONS,
   WORK_TYPES,
+  calculateAge,
   calcBMI,
   createMedicine,
   defaultForm,
@@ -26,10 +28,20 @@ import "../../css/user/ProfilePage.css";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState(defaultForm);
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    const requestedSection = searchParams.get("section");
+
+    if (SECTIONS.some((section) => section.id === requestedSection)) {
+      setActiveSection(requestedSection);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -62,6 +74,10 @@ export default function ProfilePage() {
     };
 
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -139,12 +155,20 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     try {
+      setSaving(true);
+      setSaveToast("saving");
       await saveProfile(form);
-      setSaved(true);
-      setTimeout(() => navigate("/user"), 700);
+      setSaveToast("saved");
+      setTimeout(() => {
+        setSaveToast(null);
+        navigate("/user");
+      }, 1000);
     } catch (error) {
+      setSaveToast(null);
       console.error("프로필 수정 실패:", error);
       alert(error.message || "정보 수정에 실패했습니다.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -153,7 +177,9 @@ export default function ProfilePage() {
       case "personal":
         return (
           <section className="pr-section">
-            <div className="pr-section-title">인적사항</div>
+            <div className="pr-section-header">
+              <h2>인적사항</h2>
+            </div>
             <ProfilePhotoPicker
               classPrefix="pr"
               imageUrl={form.profileImageUrl}
@@ -164,7 +190,19 @@ export default function ProfilePage() {
             />
             <InputField label="이름" value={form.name} onChange={(value) => set("name", value)} />
             <div className="pr-row">
-              <InputField label="나이" type="number" value={form.age} onChange={(value) => set("age", value)} />
+              <InputField
+                label="생년월일"
+                type="date"
+                value={form.birthDate}
+                onChange={(value) => {
+                  const age = calculateAge(value);
+                  setForm((prev) => ({
+                    ...prev,
+                    birthDate: value,
+                    age: age ? String(age) : "",
+                  }));
+                }}
+              />
               <SelectField label="성별" value={form.gender} options={["", "여성", "남성", "기타"]} labels={{ "": "선택" }} onChange={(value) => set("gender", value)} />
             </div>
             <div className="pr-row">
@@ -199,6 +237,7 @@ export default function ProfilePage() {
             )}
             <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
             <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+            <InputField label="알레르기 정보" value={form.allergies} onChange={(value) => set("allergies", value)} />
           </section>
         );
 
@@ -296,15 +335,7 @@ export default function ProfilePage() {
 
   return (
     <div className="pr-root">
-      <nav className="pr-nav">
-        <button className="pr-nav-back" type="button" onClick={() => navigate("/user")}>돌아가기</button>
-        <div className="pr-nav-title">내 정보 관리</div>
-        <div className="pr-nav-actions">
-          {saved && <div className="pr-saved-badge">저장되었습니다</div>}
-          <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)}>초기화</button>
-          <button className="pr-save-btn" type="button" onClick={handleSave}>저장하기</button>
-        </div>
-      </nav>
+      <UserCommonHeader />
 
       <div className="pr-layout">
         <aside>
@@ -315,10 +346,36 @@ export default function ProfilePage() {
               </button>
             ))}
           </div>
+          <div className="pr-side-actions">
+            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)} disabled={saving}>
+              초기화
+            </button>
+            <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving}>
+              {saving ? "저장 중..." : "저장하기"}
+            </button>
+          </div>
         </aside>
 
         <main className="pr-main">{renderSection()}</main>
       </div>
+
+      {saveToast && (
+        <div className="pr-save-popup-backdrop" role="status" aria-live="polite">
+          <div className="pr-save-popup">
+            {saveToast === "saving" ? (
+              <div className="pr-save-spinner" aria-hidden="true" />
+            ) : (
+              <div className="pr-save-check" aria-hidden="true">✓</div>
+            )}
+            <div className="pr-save-popup-title">
+              {saveToast === "saving" ? "저장 중입니다" : "저장되었습니다"}
+            </div>
+            <p className="pr-save-popup-desc">
+              {saveToast === "saving" ? "변경한 정보를 반영하고 있어요." : "내 정보가 정상적으로 반영되었어요."}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

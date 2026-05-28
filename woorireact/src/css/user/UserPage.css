@@ -16,7 +16,7 @@
 .up-nav {
   background: #ffffff;
   border-bottom: 1px solid #d4e8d6;
-  padding: 0 2rem;
+  padding: 0 max(2rem, calc((100vw - 1280px) / 2 + 2rem));
   height: 60px;
   display: flex;
   align-items: center;
@@ -165,12 +165,24 @@
   opacity: 0.72;
 }
 
-.up-care-team strong {
+.up-care-team strong,
+.up-care-call {
   font-size: 0.82rem;
   font-weight: 700;
   color: #ffffff;
   line-height: 1.35;
   word-break: keep-all;
+}
+
+.up-care-call {
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.up-care-call:hover {
+  color: #f3fff3;
 }
 
 @keyframes up-blink {
@@ -378,12 +390,83 @@
   font-family: "Noto Sans KR", sans-serif;
 }
 
+.up-info-chip {
+  border: 1px solid #d4e8d6;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+
+.up-info-chip:hover {
+  background: #eef6ef;
+}
+
+.up-schedule-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.up-schedule-create {
+  min-height: 36px;
+  border: 1px solid #c7dfca;
+  border-radius: 10px;
+  padding: 0 0.85rem;
+  background: #f5fbf5;
+  color: #5f8a62;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.up-schedule-create:hover {
+  background: #eaf5eb;
+}
+
+.up-health-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.up-health-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 1px solid #d9e6da;
+  background: #f7faf5;
+  color: #4f7451;
+  white-space: nowrap;
+}
+
+.up-health-status.good {
+  border-color: #cfe3d1;
+  background: #eef7ee;
+  color: #3f7748;
+}
+
+.up-health-status.caution {
+  border-color: #f2dc91;
+  background: #fff6ce;
+  color: #876a00;
+}
+
+.up-health-status.danger {
+  border-color: #f3c7c7;
+  background: #ffe8e8;
+  color: #b33939;
+}
+
 .up-schedule-date {
   min-height: 36px;
   border: 1px solid #d4e8d6;
   border-radius: 10px;
   padding: 0 0.75rem;
-  background: #fffdec;
+  background: #ffffff;
   color: #5f7d61;
   font-family: "Noto Sans KR", sans-serif;
   font-size: 0.82rem;
@@ -583,6 +666,167 @@
   margin-bottom: 1.1rem;
 }
 
+.up-radar-quality {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid #b8d4ba;
+  border-radius: 999px;
+  color: #5f7d61;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-bottom: 0.55rem;
+  padding: 0.2rem 0.65rem;
+}
+
+.up-radar-quality.low,
+.up-radar-quality.insufficient {
+  background: #fff8e8;
+  border-color: #f1cf8f;
+  color: #b06b00;
+}
+
+.up-radar-quality.good {
+  background: #eef6ef;
+}
+
+.up-radar-note {
+  color: #7a9a7c;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  margin-bottom: 0.85rem;
+}
+
+.up-activity-empty {
+  background: #f8fbf7;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  color: #5f7d61;
+  padding: 1.1rem 1.2rem;
+}
+
+.up-activity-empty-title {
+  color: #1e2a1f;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.up-activity-empty p {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.up-activity-insights {
+  padding-bottom: 1.45rem;
+}
+
+.up-insight-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.up-insight-panel {
+  background: #f8fbf7;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  min-height: 170px;
+  padding: 1rem;
+}
+
+.up-insight-title {
+  color: #1e2a1f;
+  font-size: 0.88rem;
+  font-weight: 800;
+  margin-bottom: 0.8rem;
+}
+
+.up-insight-empty {
+  color: #7a9a7c;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.up-slot-list,
+.up-baseline-list,
+.up-warning-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.up-slot-item,
+.up-baseline-item {
+  align-items: center;
+  border-bottom: 1px solid #d4e8d6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 78px;
+  gap: 0.7rem;
+  padding-bottom: 0.5rem;
+}
+
+.up-slot-item:last-child,
+.up-baseline-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.up-slot-item strong,
+.up-baseline-item span {
+  color: #5f7d61;
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.up-slot-item span,
+.up-baseline-item em {
+  color: #7a9a7c;
+  display: block;
+  font-size: 0.7rem;
+  font-style: normal;
+  margin-top: 0.12rem;
+}
+
+.up-slot-item b,
+.up-baseline-item strong {
+  color: #2f6f9f;
+  font-size: 0.86rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.up-baseline-item em {
+  text-align: right;
+}
+
+.up-slot-item.no_data b {
+  color: #a9b9aa;
+}
+
+.up-baseline-item.anomaly strong,
+.up-baseline-item.anomaly em {
+  color: #e05252;
+}
+
+.up-baseline-item.deviation strong,
+.up-baseline-item.deviation em {
+  color: #b06b00;
+}
+
+.up-warning-item {
+  background: #fff8e8;
+  border: 1px solid #f1cf8f;
+  border-radius: 10px;
+  color: #744900;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 0.65rem 0.75rem;
+}
+
 .up-radar-row {
   display: flex;
   align-items: center;
@@ -676,6 +920,14 @@
   gap: 0.8rem;
 }
 
+.up-modal-row.single {
+  grid-template-columns: 1fr;
+}
+
+.up-info-modal {
+  max-width: 430px;
+}
+
 .up-modal-cancel,
 .up-modal-ok {
   border: none;
@@ -741,6 +993,55 @@
   white-space: nowrap;
 }
 
+.medicine-alert-modal-row {
+  width: 100%;
+  margin-top: 1.6rem;
+  padding: 0 0.25rem;
+}
+
+.medicine-alert-confirm-button {
+  width: 100%;
+  min-height: 54px;
+  justify-content: center;
+}
+
+.medicine-alert-user-modal {
+  padding-bottom: 1.1rem;
+}
+
+.medicine-alert-user-modal .medicine-alert-modal-row {
+  width: 100%;
+  display: block;
+  margin-top: 2.2rem;
+}
+
+.medicine-alert-user-modal .medicine-alert-confirm-button {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.up-safe-zone-overlay {
+  cursor: default;
+}
+
+.up-safe-zone-modal {
+  border: 2px solid #f5c6c6;
+}
+
+.up-safe-zone-message {
+  margin-top: 1rem;
+  border-radius: 14px;
+  background: #fff2f2;
+  color: #e05252;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.5;
+  padding: 1rem;
+}
+
 @media (max-width: 900px) {
   .up-sos-pending {
     left: 1rem;
@@ -761,6 +1062,10 @@
 
   .up-card.full {
     grid-column: span 1;
+  }
+
+  .up-insight-grid {
+    grid-template-columns: 1fr;
   }
 
   .up-quick-grid {

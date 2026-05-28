@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "age": 72,
+      "gender": "여성",
+      "height": 158,
+      "weight": 55,
+      "medicine_count": "1개",
+      "hypertension": "없음",
+      "diabetes": "없음",
+      "heart_disease": "없음",
+      "joint_disease": "없음",
+      "stroke": "없음",
+      "kidney_disease": "없음",
+      "lung_disease": "없음",
+      "liver_disease": "없음",
+      "cancer": "없음",
+      "dementia": "없음",
+      "walking_aid": "없음",
+      "vision": "정상",
+      "hearing": "정상",
+      "recent_fall": "없음",
+      "has_surgery": "없음",
+      "physical_limitation_count": 0,
+      "max_hours": "5"
+    },
+    {
+      "age": 81,
+      "gender": "남성",
+      "height": 166,
+      "weight": 67,
+      "medicine_count": "5개",
+      "hypertension": "고혈압 관리중",
+      "diabetes": "당뇨 관리중",
+      "heart_disease": "심장질환 치료 필요",
+      "joint_disease": "관절질환",
+      "stroke": "없음",
+      "kidney_disease": "없음",
+      "lung_disease": "호흡기질환 작업 제한",
+      "liver_disease": "없음",
+      "cancer": "없음",
+      "dementia": "없음",
+      "walking_aid": "보행 불편",
+      "vision": "정상",
+      "hearing": "정상",
+      "recent_fall": "최근 낙상 있음",
+      "has_surgery": "있음",
+      "physical_limitation_count": 4,
+      "max_hours": "2"
+    }
+  ]
+}

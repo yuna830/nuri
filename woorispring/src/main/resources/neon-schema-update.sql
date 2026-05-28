@@ -41,4 +41,56 @@ alter table seniors
 alter table health_info
     add column if not exists allergies varchar(255);
 
+alter table alerts
+    add column if not exists image_url varchar(255);
 
+create table if not exists job_matching_feedback (
+    id bigserial primary key,
+    senior_id bigint,
+    label varchar(255),
+    source varchar(255),
+    job_id varchar(255),
+    title varchar(255),
+    organization varchar(255),
+    job_type varchar(255),
+    work_environment varchar(255),
+    physical_intensity varchar(255),
+    daily_hours varchar(255),
+    commute_level varchar(255),
+    closed boolean,
+    task_tags text,
+    work_days text,
+    work_condition text,
+    rule_score integer,
+    rule_grade varchar(255),
+    ml_prediction varchar(255),
+    ml_score integer,
+    ml_probabilities_json text,
+    health_status varchar(255),
+    medicine_count varchar(255),
+    walking_aid varchar(255),
+    recent_fall varchar(255),
+    max_hours varchar(255),
+    max_distance varchar(255),
+    disabled_work text,
+    disease_text text,
+    hope_job_type text,
+    hope_condition text,
+    created_at timestamp
+);
+
+create index if not exists idx_job_matching_feedback_senior_created
+    on job_matching_feedback (senior_id, created_at desc);
+
+
+alter table seniors
+    add column if not exists active boolean default true;
+
+alter table seniors
+    add column if not exists welfare_worker_id bigint;
+
+alter table guardians
+    add column if not exists active boolean default true;
+
+alter table welfare_workers
+    add column if not exists active boolean default true;

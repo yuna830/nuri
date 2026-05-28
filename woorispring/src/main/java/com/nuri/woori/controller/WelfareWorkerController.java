@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/welfare-workers")
@@ -18,6 +19,14 @@ public class WelfareWorkerController {
 
     public WelfareWorkerController(WelfareWorkerRepository welfareWorkerRepository) {
         this.welfareWorkerRepository = welfareWorkerRepository;
+    }
+
+    @GetMapping
+    public List<WelfareWorkerResponse> getWorkers() {
+        return welfareWorkerRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @PostMapping("/signup")
@@ -34,7 +43,11 @@ public class WelfareWorkerController {
         worker.setName(trim(request.name()));
         worker.setPassword(hashPassword(password));
         worker.setCenter(trim(request.center()));
-        worker.setRole(request.role() == null || request.role().isBlank() ? "복지사" : request.role().trim());
+        worker.setRole(request.role() == null || request.role().isBlank() ? "welfare" : request.role().trim());
+        worker.setRegion(trim(request.region()));
+        worker.setPhone(trim(request.phone()));
+        worker.setEmail(trim(request.email()));
+        worker.setActive(true);
 
         WelfareWorker savedWorker = welfareWorkerRepository.save(worker);
 
@@ -81,13 +94,67 @@ public class WelfareWorkerController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<WelfareWorkerResponse> updateProfile(
+            @PathVariable Long id,
+            @RequestBody WelfareWorkerUpdateRequest request
+    ) {
+        String name = trim(request.name());
+        String center = trim(request.center());
+
+        if (name.isBlank() || center.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return welfareWorkerRepository.findById(id)
+                .map(worker -> {
+                    worker.setName(name);
+                    worker.setCenter(center);
+                    worker.setRegion(trim(request.region()));
+                    worker.setPhone(trim(request.phone()));
+                    worker.setEmail(trim(request.email()));
+                    WelfareWorker savedWorker = welfareWorkerRepository.save(worker);
+                    return ResponseEntity.ok(toResponse(savedWorker));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<WelfareWorkerResponse> updateActive(
+            @PathVariable Long id,
+            @RequestBody ActiveRequest request
+    ) {
+        return welfareWorkerRepository.findById(id)
+                .map(worker -> {
+                    worker.setActive(Boolean.TRUE.equals(request.active()));
+                    WelfareWorker savedWorker = welfareWorkerRepository.save(worker);
+                    return ResponseEntity.ok(toResponse(savedWorker));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteWorker(@PathVariable Long id) {
+        if (!welfareWorkerRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        welfareWorkerRepository.deleteById(id);
+
+        return ResponseEntity.noContent().build();
+    }
+
     private WelfareWorkerResponse toResponse(WelfareWorker worker) {
         return new WelfareWorkerResponse(
                 worker.getId(),
                 worker.getWorkerId(),
                 worker.getName(),
                 worker.getRole(),
-                worker.getCenter()
+                worker.getCenter(),
+                worker.getRegion(),
+                worker.getPhone(),
+                worker.getEmail(),
+                !Boolean.FALSE.equals(worker.getActive())
         );
     }
 
@@ -107,49 +174,16 @@ public class WelfareWorkerController {
 
             return builder.toString();
         } catch (Exception error) {
-            throw new RuntimeException("비밀번호 암호화 실패");
+            throw new RuntimeException("Password hashing failed");
         }
     }
 
-    public record WelfareWorkerSignupRequest(
-            String name,
-            String workerId,
-            String password,
-            String center,
-            String role
-    ) {
-    }
-
-    public record WelfareWorkerLoginRequest(
-            String workerId,
-            String password
-    ) {
-    }
-
-    public record FindWorkerIdRequest(
-            String name,
-            String center
-    ) {
-    }
-
-    public record FindWorkerIdResponse(
-            String workerId
-    ) {
-    }
-
-    public record ResetWelfarePasswordRequest(
-            String workerId,
-            String name,
-            String newPassword
-    ) {
-    }
-
-    public record WelfareWorkerResponse(
-            Long id,
-            String workerId,
-            String name,
-            String role,
-            String center
-    ) {
-    }
+    public record WelfareWorkerSignupRequest(String name, String workerId, String password, String center, String role, String region, String phone, String email) {}
+    public record WelfareWorkerLoginRequest(String workerId, String password) {}
+    public record FindWorkerIdRequest(String name, String center) {}
+    public record FindWorkerIdResponse(String workerId) {}
+    public record ResetWelfarePasswordRequest(String workerId, String name, String newPassword) {}
+    public record WelfareWorkerUpdateRequest(String name, String center, String region, String phone, String email) {}
+    public record ActiveRequest(Boolean active) {}
+    public record WelfareWorkerResponse(Long id, String workerId, String name, String role, String center, String region, String phone, String email, Boolean active) {}
 }

@@ -125,6 +125,7 @@ export const splitRegion = (region = "") => {
 export const defaultForm = {
   name: "",
   age: "",
+  birthDate: "",
   gender: "",
   region: "",
   city: "",
@@ -145,6 +146,7 @@ export const defaultForm = {
   weight: "",
   smoking: NONE,
   drinking: NONE,
+  allergies: "",
   medicineCount: NONE,
   medications: [],
   diabetes: NONE,
@@ -223,6 +225,7 @@ export const profileToForm = (profile = {}) => {
     ...defaultForm,
     name: senior.name ?? "",
     age: senior.age ? String(senior.age) : "",
+    birthDate: senior.birthDate ?? "",
     gender: senior.gender ?? "",
     region,
     city,
@@ -243,6 +246,7 @@ export const profileToForm = (profile = {}) => {
     weight: healthInfo.weight ? String(healthInfo.weight) : "",
     smoking: healthInfo.smoking ?? NONE,
     drinking: healthInfo.drinking ?? NONE,
+    allergies: healthInfo.allergies ?? "",
     medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
     medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
     diabetes: healthInfo.diabetes ?? NONE,
@@ -279,16 +283,19 @@ export const normalizeForm = (form) => {
   const seniorRelationToGuardian =
     form.seniorRelationToGuardian ||
     inferSeniorRelationFromGuardian(guardianRelation, form.gender);
+  const medications = syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
+    Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
+  );
 
   return {
     ...form,
+    age: form.birthDate ? String(calculateAge(form.birthDate) || "") : form.age,
     region,
     address: region,
     guardianRelation,
     seniorRelationToGuardian,
-    medications: syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
-      Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
-    ),
+    medications,
+    medicationsJson: JSON.stringify(medications),
     lastLoginAt: form.lastLoginAt || new Date().toISOString(),
   };
 };
@@ -302,6 +309,7 @@ export const formToProfile = (profile, form) => {
       ...profile.senior,
       name: normalized.name,
       age: normalized.age ? Number(normalized.age) : null,
+      birthDate: normalized.birthDate,
       gender: normalized.gender,
       region: normalized.region,
       address: normalized.region,
@@ -326,6 +334,7 @@ export const formToProfile = (profile, form) => {
       weight: normalized.weight,
       smoking: normalized.smoking,
       drinking: normalized.drinking,
+      allergies: normalized.allergies,
       medicineCount: normalized.medicineCount,
       medications: normalized.medications,
       medicationsJson: JSON.stringify(normalized.medications),
@@ -359,6 +368,23 @@ export const formToProfile = (profile, form) => {
       memo: normalized.memo,
     },
   };
+};
+
+export const calculateAge = (birthDate) => {
+  if (!birthDate) return null;
+
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+
+  return age;
 };
 
 export const calcBMI = (height, weight) => {

@@ -2,23 +2,30 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import "../../css/common/Login.css";
-import { WELFARE_WORKERS_STORAGE_KEY } from "../../utils/welfare/welfareConstants";
 
-const DEMO_WORKER = {
-  id: "W-001",
-  workerId: "welfare01",
-  name: "김복지",
-  role: "복지사",
-  center: "우리복지센터",
-};
+const API_BASE = "";
 
-const DEMO_PASSWORD = "1234";
-
-const FEATURES = [
-  { icon: "📋", title: "대상자 상태 확인", desc: "SOS, 일자리 요청, 위치 상태를 한 화면에서 확인합니다" },
-  { icon: "📝", title: "복지사 소견 기록", desc: "적합, 보류, 부적합 소견과 사유를 상세 화면에서 처리합니다" },
-  { icon: "🔎", title: "필터와 검색", desc: "요청 상태별로 대상자를 빠르게 찾고 정리합니다" },
-  { icon: "📍", title: "상세정보 확인", desc: "상담 기록과 마지막 GPS 정보를 대상자별로 확인합니다" },
+const welfareFeatures = [
+  {
+    icon: "📋",
+    title: "대상자 상태 확인",
+    description: "SOS, 일자리 요청, 위치 상태를 확인",
+  },
+  {
+    icon: "📝",
+    title: "복지사 소견 기록",
+    description: "적합, 보류, 부적합 소견 처리",
+  },
+  {
+    icon: "🔎",
+    title: "필터와 검색",
+    description: "요청 상태별 대상자 빠른 정리",
+  },
+  {
+    icon: "📍",
+    title: "상세정보 확인",
+    description: "상담 기록과 GPS 정보 확인",
+  },
 ];
 
 export default function WelfareLogin() {
@@ -33,15 +40,7 @@ export default function WelfareLogin() {
     setForm((previousForm) => ({ ...previousForm, [key]: value }));
   };
 
-  const getSavedWorkers = () => {
-    try {
-      return JSON.parse(localStorage.getItem(WELFARE_WORKERS_STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
-  };
-
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const workerId = form.workerId.trim();
     const password = form.password.trim();
 
@@ -55,33 +54,107 @@ export default function WelfareLogin() {
       return;
     }
 
-    const savedWorkers = getSavedWorkers();
-    const savedWorker = savedWorkers.find(
-      (worker) => worker.workerId === workerId && worker.password === password
-    );
-    const savedDemoWorker = savedWorkers.find((worker) => worker.workerId === DEMO_WORKER.workerId);
-    const matchedWorker =
-      workerId === DEMO_WORKER.workerId && password === DEMO_PASSWORD
-        ? { ...DEMO_WORKER, ...savedDemoWorker, workerId: DEMO_WORKER.workerId }
-        : savedWorker;
+    try {
+      const response = await fetch(`${API_BASE}/api/welfare-workers/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workerId,
+          password,
+        }),
+      });
 
-    if (!matchedWorker) {
-      setError("복지사 아이디 또는 비밀번호를 확인해주세요.");
+      if (!response.ok) {
+        setError("복지사 아이디 또는 비밀번호를 확인해주세요.");
+        return;
+      }
+
+      const worker = await response.json();
+
+      sessionStorage.setItem(
+        "currentWelfareWorker",
+        JSON.stringify({
+          ...worker,
+          loginAt: new Date().toISOString(),
+        })
+      );
+
+      navigate("/welfare");
+    } catch {
+      setError("서버에 연결할 수 없습니다.");
+    }
+  };
+
+  const handleFindWorkerId = async () => {
+    const name = window.prompt("가입한 복지사 이름을 입력하세요.");
+    if (!name) return;
+
+    const center = window.prompt("가입한 소속 기관명을 입력하세요.");
+    if (!center) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/welfare-workers/find-id`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          center: center.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        alert("일치하는 복지사 계정을 찾을 수 없습니다.");
+        return;
+      }
+
+      const result = await response.json();
+      alert(`복지사 아이디는 ${result.workerId} 입니다.`);
+    } catch {
+      alert("서버에 연결할 수 없습니다.");
+    }
+  };
+
+  const handleResetWorkerPassword = async () => {
+    const workerId = window.prompt("복지사 아이디를 입력하세요.");
+    if (!workerId) return;
+
+    const name = window.prompt("가입한 복지사 이름을 입력하세요.");
+    if (!name) return;
+
+    const newPassword = window.prompt("새 비밀번호를 입력하세요.");
+    if (!newPassword) return;
+
+    if (newPassword.trim().length < 4) {
+      alert("비밀번호는 4자 이상 입력해주세요.");
       return;
     }
 
-    const workerWithoutPassword = { ...matchedWorker };
-    delete workerWithoutPassword.password;
+    try {
+      const response = await fetch(`${API_BASE}/api/welfare-workers/reset-password`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workerId: workerId.trim(),
+          name: name.trim(),
+          newPassword: newPassword.trim(),
+        }),
+      });
 
-    sessionStorage.setItem(
-      "currentWelfareWorker",
-      JSON.stringify({
-        ...workerWithoutPassword,
-        loginAt: new Date().toISOString(),
-      })
-    );
+      if (!response.ok) {
+        alert("일치하는 복지사 계정을 찾을 수 없습니다.");
+        return;
+      }
 
-    navigate("/welfare");
+      alert("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.");
+    } catch {
+      alert("서버에 연결할 수 없습니다.");
+    }
   };
 
   return (
@@ -95,7 +168,7 @@ export default function WelfareLogin() {
             <button
               className="login-nav-button"
               type="button"
-              onClick={() => navigate("/welfare-signup")}
+              onClick={() => navigate("/wsignup")}
             >
               회원가입
             </button>
@@ -105,16 +178,16 @@ export default function WelfareLogin() {
 
       <main className="login-root login-welfare">
         <section className="login-left">
-          <div className="login-logo">🌿 우리</div>
+          <div className="login-logo">🌿 우리 woori</div>
           <div className="login-tagline">복지사를 위한 대상자 통합 관리</div>
 
           <div className="login-features">
-            {FEATURES.map((feature) => (
+            {welfareFeatures.map((feature) => (
               <div key={feature.title} className="login-feature">
                 <div className="login-feature-icon">{feature.icon}</div>
                 <div>
                   <div className="login-feature-title">{feature.title}</div>
-                  <div className="login-feature-desc">{feature.desc}</div>
+                  <div className="login-feature-desc">{feature.description}</div>
                 </div>
               </div>
             ))}
@@ -160,13 +233,29 @@ export default function WelfareLogin() {
             <button
               className="login-btn-outline"
               type="button"
-              onClick={() => navigate("/welfare-signup")}
+              onClick={() => navigate("/wsignup")}
             >
               복지사 회원가입
             </button>
 
-            <div className="login-footer">
-              데모 계정: welfare01 / 1234
+            <div className="login-footer login-help-actions">
+              <button
+                className="login-help-link"
+                type="button"
+                onClick={handleFindWorkerId}
+              >
+                아이디 찾기
+              </button>
+
+              <span />
+
+              <button
+                className="login-help-link"
+                type="button"
+                onClick={handleResetWorkerPassword}
+              >
+                비밀번호 찾기
+              </button>
             </div>
           </div>
         </section>
