@@ -278,3 +278,26 @@ export const getGuardianSeniorNames = (guardian, seniors) => {
     .filter((senior) => (guardian.seniorIds || []).map(String).includes(String(senior.id)))
     .map((senior) => senior.name);
 };
+
+export const getGuardianSeniorRelations = (guardian, seniors) => {
+  if (guardian.seniors?.length) {
+    return [
+      ...new Set(
+        guardian.seniors
+          .map((senior) => senior.relation)
+          .filter(Boolean)
+      ),
+    ];
+  }
+
+  return [
+    ...new Set(
+      seniors
+        .filter((senior) => (guardian.seniorIds || []).map(String).includes(String(senior.id)))
+        .flatMap((senior) => senior.guardians || [])
+        .filter((linkedGuardian) => String(linkedGuardian.id) === String(guardian.id))
+        .map((linkedGuardian) => linkedGuardian.relation)
+        .filter(Boolean)
+    ),
+  ];
+};

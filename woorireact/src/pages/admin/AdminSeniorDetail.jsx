@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Repeat2 } from "lucide-react";
 
@@ -11,38 +11,51 @@ function AdminSeniorDetail() {
   const { seniors, welfareWorkers, welfareById, guardianById, isLoading, loadError } = useAdminData();
   const senior = useMemo(() => seniors.find((item) => String(item.id) === String(id)), [id, seniors]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [localWorkerId, setLocalWorkerId] = useState(null);
+  const [localWorkerId, setLocalWorkerId] = useState(undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
 
   const displayedSenior = senior
     ? {
         ...senior,
-        welfareId: localWorkerId ?? senior.welfareId,
-        welfareWorker: localWorkerId ? null : senior.welfareWorker,
+        welfareId: localWorkerId !== undefined ? localWorkerId : senior.welfareId,
+        welfareWorker: localWorkerId !== undefined ? null : senior.welfareWorker,
       }
     : null;
 
   const worker = getSeniorWelfareWorker(displayedSenior, welfareById);
   const guardians = getSeniorGuardians(displayedSenior, guardianById);
+  const currentWorkerId = displayedSenior?.welfareId ? String(displayedSenior.welfareId) : "";
+  const hasSelectionChanged = selectedWorkerId !== currentWorkerId;
+  const actionLabel = selectedWorkerId ? "\uc7ac\ubc30\uc815" : worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\uc7ac\ubc30\uc815";
+
+  useEffect(() => {
+    if (!displayedSenior) return;
+
+    setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
+  }, [displayedSenior?.id, displayedSenior?.welfareId]);
 
   const handleReassign = async () => {
-    if (!selectedWorkerId || !displayedSenior) return;
+    if (!displayedSenior || !hasSelectionChanged) return;
 
     setIsSaving(true);
     setSaveMessage(null);
 
     try {
       const updatedSenior = await updateSeniorWelfareWorker(displayedSenior.id, selectedWorkerId);
-      setLocalWorkerId(updatedSenior.welfareId);
+      setLocalWorkerId(updatedSenior.welfareId ?? null);
       setSaveMessage({
         type: "success",
-        text: "\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+        text: selectedWorkerId
+          ? "\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4."
+          : "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ud574\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
       });
     } catch (error) {
       setSaveMessage({
         type: "error",
-        text: "\uc7ac\ubc30\uc815 \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
+        text: selectedWorkerId
+          ? "\uc7ac\ubc30\uc815 \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4."
+          : "\ub2f4\ub2f9 \ud574\uc81c\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
       });
     } finally {
       setIsSaving(false);
@@ -110,7 +123,7 @@ function AdminSeniorDetail() {
                 }}
                 aria-label="\uc7ac\ubc30\uc815\ud560 \ubcf5\uc9c0\uc0ac"
               >
-                <option value="">{"\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
+                <option value="">{worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
                 {welfareWorkers.map((item) => (
                   <option key={item.id} value={item.id}>
                     {`${item.name} / ${item.center || "-"}${item.active ? "" : " / \ube44\ud65c\uc131"}`}
@@ -121,10 +134,10 @@ function AdminSeniorDetail() {
                 type="button"
                 className="admin-button primary"
                 onClick={handleReassign}
-                disabled={!selectedWorkerId || isSaving}
+                disabled={!hasSelectionChanged || isSaving}
               >
                 <Repeat2 size={16} />
-                {isSaving ? "\uc800\uc7a5 \uc911" : "\uc7ac\ubc30\uc815"}
+                {isSaving ? "\uc800\uc7a5 \uc911" : actionLabel}
               </button>
             </div>
             {saveMessage ? (

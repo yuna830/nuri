@@ -86,6 +86,9 @@ export async function createCareResponse({ text, schedules, history = [], profil
     if (error.status === 429) {
       return "Gemini 요청 한도에 걸렸어요. 잠시 후 다시 말씀해 주세요.";
     }
+    if (error.status === 403) {
+      return "Gemini API 키가 차단됐어요. 새 키로 교체한 뒤 개발 서버를 다시 시작해 주세요.";
+    }
     return "답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.";
   }
 }

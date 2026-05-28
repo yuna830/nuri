@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { getGuardianSeniorNames, updateGuardianActive } from "../../api/adminApi";
+import { getGuardianSeniorNames, getGuardianSeniorRelations, updateGuardianActive } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
 import { useAdminData } from "./useAdminData";
 
@@ -86,11 +86,12 @@ function AdminGuardians() {
             <tbody>
               {displayGuardians.map((guardian) => {
                 const seniorNames = getGuardianSeniorNames(guardian, seniors);
+                const seniorRelations = getGuardianSeniorRelations(guardian, seniors);
 
                 return (
                   <tr key={guardian.id} className={guardian.active ? "" : "admin-inactive-row"}>
                     <td className="admin-name-cell">{guardian.name}</td>
-                    <td>{guardian.relation || "-"}</td>
+                    <td>{seniorRelations.length > 0 ? seniorRelations.join(", ") : "-"}</td>
                     <td>{guardian.phone || "-"}</td>
                     <td>{seniorNames.length > 0 ? seniorNames.join(", ") : "-"}</td>
                     <td>
