@@ -102,6 +102,27 @@ export const categorizeJob = (job) => {
   return "기타";
 };
 
+const OUTSIDE_SEOUL_PATTERN = /경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/;
+
+export const isJobRegionCompatible = (job, profile = {}) => {
+  const profileText = textOf(profile?.address, profile?.region, profile?.city, profile?.district, profile?.dong);
+  const jobText = textOf(job.workPlcNm, job.plDetAddr);
+
+  if (!profileText || !jobText) return true;
+
+  if (/서울/.test(profileText)) {
+    return /서울/.test(jobText) || !OUTSIDE_SEOUL_PATTERN.test(jobText);
+  }
+
+  const regionTokens = getRegionTokens(profile);
+  const normalizedJob = normalize(jobText);
+  const explicitOtherRegion = /서울|경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/.test(jobText);
+
+  if (!explicitOtherRegion) return true;
+
+  return regionTokens.some((token) => normalizedJob.includes(normalize(token)));
+};
+
 export const formatDate = (dateText) => {
   if (!dateText) return "-";
   const clean = String(dateText).replace(/[^0-9]/g, "");
@@ -305,7 +326,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
     ? profile.preferredCategories
     : String(profile?.preferredCategories || "").split(",").filter(Boolean);
 
-  if (selectedLabel && category === selectedLabel) {
+  if (selectedLabel && category !== selectedLabel) {
+    score -= MATCH_SCORE_WEIGHTS.category;
+    reasons.push("선택 직종과 다름");
+  } else if (selectedLabel && category === selectedLabel) {
     score += MATCH_SCORE_WEIGHTS.category;
     reasons.push("선택한 직종과 일치");
   } else if (preferredCategories.includes(category)) {
@@ -319,7 +343,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
   const regionTokens = getRegionTokens(profile);
   const jobLocation = normalize(textOf(job.workPlcNm, job.plDetAddr));
   const matchedRegion = regionTokens.find((token) => jobLocation.includes(normalize(token)));
-  if (matchedRegion) {
+  if (!isJobRegionCompatible(job, profile)) {
+    score -= MATCH_SCORE_WEIGHTS.region;
+    reasons.push("거주지와 거리가 있음");
+  } else if (matchedRegion) {
     score += MATCH_SCORE_WEIGHTS.region;
     reasons.push(`${matchedRegion} 근무지`);
   } else if (/서울/.test(textOf(job.workPlcNm, job.plDetAddr))) {

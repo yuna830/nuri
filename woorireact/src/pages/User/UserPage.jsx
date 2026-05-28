@@ -25,6 +25,7 @@ import {
   readAlert,
   resolveUploadUrl,
   reverseGeocode,
+  sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
@@ -194,11 +195,12 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
 
 const DEFAULT_ACTIVITY_TODAY = {
-  status: "reference",
-  scores: { activity: 55, balance: 55, routine: 55, safety: 60 },
+  status: "pending",
+  scores: null,
   labels: { activity: "활동량", balance: "균형", routine: "생활 리듬", safety: "안전" },
-  overall_note: "아직 실측 데이터가 부족해 기본 참고 지표로 표시합니다.",
-  data_quality: { level: "insufficient", message: "감지 서버가 충분한 기록을 모으면 실제 활동 지표로 바뀝니다." },
+  message: "하루치 활동 데이터가 쌓이면 다음날부터 비교를 시작합니다.",
+  overall_note: "하루치 활동 데이터가 쌓이면 다음날부터 비교를 시작합니다.",
+  data_quality: { level: "insufficient", message: "오늘은 활동 데이터를 수집하고 있습니다." },
 };
 
 const DEFAULT_ACTIVITY_SLOTS = {
@@ -211,12 +213,12 @@ const DEFAULT_ACTIVITY_SLOTS = {
 
 const DEFAULT_ACTIVITY_BASELINE = {
   status: "pending",
-  message: "활동 기록이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+  message: "데이터를 수집하고 있습니다. 하루치 활동이 쌓이면 평소 기준선과 비교해 보여드립니다.",
 };
 
 const DEFAULT_FALL_PATTERN = {
   status: "pending",
-  message: "낙상 기록이 생기면 전후 활동 변화를 보여줍니다.",
+  message: "데이터를 수집하고 있습니다. 낙상 전후 변화는 기록이 쌓이면 보여드립니다.",
 };
 
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
@@ -247,7 +249,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
                       <strong>{slot.label}</strong>
                       <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
                     </div>
-                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "-"}</b>
+                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "수집 중"}</b>
                   </div>
                 ))}
               </div>
@@ -504,6 +506,7 @@ export default function UserPage() {
 
   const [medicineAlert, setMedicineAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+  const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -1091,6 +1094,37 @@ export default function UserPage() {
     }
 
     setCheckInMessageAlert(null);
+    setCheckInReplyMessage("");
+  };
+
+  const handleReplyCheckInMessageAlert = async () => {
+    const reply = checkInReplyMessage.trim();
+
+    if (!reply) {
+      alert("답장 내용을 입력해주세요.");
+      return;
+    }
+
+    const seniorId = getCurrentSeniorId(initialSenior);
+
+    if (!seniorId) {
+      alert("사용자 정보를 확인할 수 없습니다.");
+      return;
+    }
+
+    try {
+      await sendCheckInReply({
+        seniorId,
+        reply,
+        originalMessage: checkInMessageAlert?.message || "",
+      });
+
+      await handleReadCheckInMessageAlert();
+      alert("보호자에게 답장을 보냈습니다.");
+    } catch (error) {
+      console.error("안부 답장 전송 실패:", error);
+      alert("답장 전송에 실패했습니다.");
+    }
   };
 
   const openAllSchedules = async () => {
@@ -1164,7 +1198,7 @@ export default function UserPage() {
       <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
 
       <div className="up-layout">
-        <aside>
+        <aside className="up-aside">
           <div className="up-profile-card">
             <div className="up-profile-avatar">
               {profileImageUrl ? (
@@ -1207,37 +1241,7 @@ export default function UserPage() {
             </div>
           </div>
 
-          <div className="up-sidemenu">
-            {menus.map((menu, i) => (
-              <button
-                key={i}
-                className="up-sidemenu-item"
-                type="button"
-                onClick={() => {
-                  if (menu.disabled) {
-                    alert("AI 챗봇 기능은 준비 중입니다.");
-                    return;
-                  }
-                  if (menu.badgeKey === "jobs") {
-                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
-                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
-                    setJobHasNew(false);
-                  }
-                  navigate(menu.route);
-                }}
-              >
-                <span className="up-sidemenu-icon">{menu.icon}</span>
-                <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
-                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
-                    {menu.badge || "NEW"}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="up-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
+          <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
             <div className="up-card-head">
               <div className="up-card-title">현재 위치</div>
               <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
@@ -1297,6 +1301,36 @@ export default function UserPage() {
                 />
               </div>
             )}
+          </div>
+
+          <div className="up-sidemenu">
+            {menus.map((menu, i) => (
+              <button
+                key={i}
+                className="up-sidemenu-item"
+                type="button"
+                onClick={() => {
+                  if (menu.disabled) {
+                    alert("AI 챗봇 기능은 준비 중입니다.");
+                    return;
+                  }
+                  if (menu.badgeKey === "jobs") {
+                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
+                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+                    setJobHasNew(false);
+                  }
+                  navigate(menu.route);
+                }}
+              >
+                <span className="up-sidemenu-icon">{menu.icon}</span>
+                <span className="up-sidemenu-label">{menu.label}</span>
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
+                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
+                    {menu.badge || "NEW"}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </aside>
 
@@ -1415,6 +1449,7 @@ export default function UserPage() {
                   />
                 ) : (
                   <div className="up-activity-empty">
+                    <div className="up-activity-placeholder-score">--</div>
                     <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
                     <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
                   </div>
@@ -1553,16 +1588,22 @@ export default function UserPage() {
 
       {checkInMessageAlert && (
         <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
-          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">💬</div>
-            <div className="up-modal-title">
-              {checkInMessageAlert.title || "보호자 안부 메시지"}
+          <div className="up-modal checkin-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="checkin-user-message">
+              <strong>보호자:</strong>
+              <span>{checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}</span>
             </div>
-            <div className="up-modal-desc">
-              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
-            </div>
-
+            <textarea
+              className="checkin-user-reply-textarea"
+              value={checkInReplyMessage}
+              onChange={(event) => setCheckInReplyMessage(event.target.value)}
+              placeholder="보호자에게 보낼 답장을 입력해주세요."
+              rows={4}
+            />
             <div className="up-modal-row single">
+              <button className="checkin-user-send-button" type="button" onClick={handleReplyCheckInMessageAlert}>
+                답장 보내기
+              </button>
               <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
                 확인했어요
               </button>

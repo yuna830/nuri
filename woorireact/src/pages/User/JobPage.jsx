@@ -8,12 +8,15 @@ import {
   fetchJobList,
   formatDate,
   getSavedJobProfile,
+  isJobRegionCompatible,
   isPastDate,
   scoreJobMatch,
 } from "../../utils/user/jobApi";
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
+const RECOMMEND_SIZE = 5;
+const CATEGORY_TARGET_SIZE = PAGE_SIZE + RECOMMEND_SIZE;
 const API_PAGE_SIZE = 200;
 
 export default function JobPage() {
@@ -57,8 +60,8 @@ export default function JobPage() {
 
   const filterJobs = useCallback((list) => list.filter((job) => {
     if (hideExpired && isExpired(job)) return false;
-    return matchesCategory(job) && matchesSearch(job);
-  }), [hideExpired, isExpired, matchesCategory, matchesSearch]);
+    return matchesCategory(job) && matchesSearch(job) && isJobRegionCompatible(job, profile || {});
+  }), [hideExpired, isExpired, matchesCategory, matchesSearch, profile]);
 
   const scoredJobs = useMemo(() => {
     return filterJobs(jobs)
@@ -69,7 +72,7 @@ export default function JobPage() {
       .sort((a, b) => b.match.score - a.match.score);
   }, [category, filterJobs, jobs, profile]);
 
-  const recommendedJobs = scoredJobs.slice(0, 5);
+  const recommendedJobs = scoredJobs.slice(0, RECOMMEND_SIZE);
   const recommendedIds = useMemo(
     () => new Set(recommendedJobs.map((job) => `${job.source}-${job.jobId}`)),
     [recommendedJobs],
@@ -98,7 +101,7 @@ export default function JobPage() {
         const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
         const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
         const emptyPage = result.list.length === 0;
-        const reachedSafetyLimit = nextPage >= 20;
+        const reachedSafetyLimit = nextPage >= 60;
 
         shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
         nextPage += 1;
@@ -126,15 +129,15 @@ export default function JobPage() {
       setJobs([]);
       return;
     }
-    loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
+    loadUntilEnough({ startPage: 1, targetCount: CATEGORY_TARGET_SIZE, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isJobAllowed]);
 
   useEffect(() => {
-    if (loading || jobs.length === 0 || scoredJobs.length >= PAGE_SIZE || !hasMoreSource) return;
+    if (loading || jobs.length === 0 || scoredJobs.length >= CATEGORY_TARGET_SIZE || !hasMoreSource) return;
     loadUntilEnough({
       startPage: loadedPage + 1,
-      targetCount: PAGE_SIZE,
+      targetCount: CATEGORY_TARGET_SIZE,
       replace: false,
     });
   }, [hasMoreSource, jobs.length, loadedPage, loading, loadUntilEnough, scoredJobs.length]);
@@ -373,7 +376,7 @@ export default function JobPage() {
                     <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
                   </div>
                   <div className="jp-recommend-grid">
-              {recommendedJobs.slice(0, 5).map((job, idx) => renderJobCard(job, idx, true))}
+              {recommendedJobs.slice(0, RECOMMEND_SIZE).map((job, idx) => renderJobCard(job, idx, true))}
                   </div>
                 </section>
               )}
@@ -385,7 +388,9 @@ export default function JobPage() {
               {!loading && !error && scoredJobs.length === 0 && !hasMoreSource && (
                 <div className="jp-empty">
                   <div className="jp-empty-icon">🔍</div>
-                  <div className="jp-empty-text">해당하는 일자리가 없습니다.</div>
+                  <div className="jp-empty-text">
+                    {category ? `${category} 카테고리에 현재 모집 중인 공고가 없습니다.` : "해당하는 일자리가 없습니다."}
+                  </div>
                 </div>
               )}
 

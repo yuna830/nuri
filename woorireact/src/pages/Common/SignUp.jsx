@@ -7,9 +7,12 @@ import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
+  CURRENT_BENEFITS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
+  HOUSEHOLD_TYPES,
+  INCOME_LEVELS,
   JOB_CONDITIONS,
   JOB_TYPES,
   MEDICINE_COUNTS,
@@ -27,7 +30,7 @@ import {
 } from "../../utils/user/profileForm.js";
 import "../../css/common/SignUp.css";
 
-const STEPS = ["기본 정보", "건강/복약", "보호/일자리"];
+const STEPS = ["기본 정보", "건강 정보", "복약 정보", "건강 상태", "거동/인지/감각", "복지 정보", "활동/일자리"];
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -46,7 +49,7 @@ export default function SignUp() {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+  const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
   const derivedAge = useMemo(() => calculateAge(form.birthDate), [form.birthDate]);
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -103,7 +106,7 @@ export default function SignUp() {
       if (!form.birthDate) return "생년월일을 입력해주세요.";
       if (!derivedAge || derivedAge < 14) return "중학교 1학년 기준인 만 14세 이상만 가입할 수 있어요.";
       if (!form.gender) return "성별을 선택해주세요.";
-      if (!form.city.trim() || !form.district.trim() || !form.dong.trim()) return "시/구/동 주소를 입력해주세요.";
+      if (!form.city.trim() || !form.district.trim() || !form.dong.trim()) return "시/도, 구/군, 거주지 주소를 입력해주세요.";
       if (!form.phone.trim()) return "전화번호를 입력해주세요.";
     }
 
@@ -112,7 +115,7 @@ export default function SignUp() {
       if (!form.weight) return "몸무게를 입력해주세요.";
     }
 
-    if (step === 2) {
+    if (step === 6) {
       if (!form.maxHours) return "하루 최대 활동 가능 시간을 선택해주세요.";
       if (!form.maxDistance) return "이동 가능 거리를 선택해주세요.";
     }
@@ -231,8 +234,8 @@ export default function SignUp() {
               <AddressInput label="구/군" value={form.district} onChange={(value) => set("district", value)} placeholder="강남구" required />
             </div>
             <div className="su-row">
-              <AddressInput label="동" value={form.dong} onChange={(value) => set("dong", value)} placeholder="역삼동" required />
-              <AddressInput label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} placeholder="101동 1203호" />
+              <AddressInput label="도로명/지명/동네" value={form.dong} onChange={(value) => set("dong", value)} placeholder="예: 역삼로, 역삼역, 역삼동" required />
+              <AddressInput label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} placeholder="예: 101동 1203호" />
             </div>
 
             <div className="su-field">
@@ -248,7 +251,6 @@ export default function SignUp() {
         )}
 
         {step === 1 && (
-          <>
             <section className="su-section">
               <SectionTitle step={step}>건강 정보</SectionTitle>
               <div className="su-row">
@@ -258,13 +260,14 @@ export default function SignUp() {
 
               {bmi && (
                 <div className="su-bmi-box">
-                  <div><div className="su-bmi-label">BMI</div><div className="su-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
-                  <div><div className="su-bmi-label">판정</div><div className="su-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
+                  <div className="su-bmi-item"><div className="su-bmi-label">BMI</div><div className="su-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
+                  <div className="su-bmi-item"><div className="su-bmi-label">판정</div><div className="su-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
+                  <div className="su-bmi-guide">{bmi.guide}</div>
                 </div>
               )}
 
-              <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
-              <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+              <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "금연 중", "과거 흡연", "가끔 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
+              <ChipField label="음주 여부" value={form.drinking} options={[NONE, "금주 실천 중", "가끔", "주 1~2회", "자주"]} onSelect={(value) => set("drinking", value)} />
               <InputField
                 label="알레르기 정보"
                 value={form.allergies}
@@ -272,7 +275,9 @@ export default function SignUp() {
                 placeholder="예: 땅콩, 우유, 갑각류 / 없으면 없음"
               />
             </section>
+        )}
 
+        {step === 2 && (
             <section className="su-section">
               <div className="su-section-title">복약 정보</div>
               <ChipField label="현재 복용 중인 약 개수" value={form.medicineCount} options={MEDICINE_COUNTS} onSelect={handleMedicineCountChange} />
@@ -308,7 +313,9 @@ export default function SignUp() {
               </div>
               <button className="su-add-line-btn" type="button" onClick={addMedicine}>+ 복용 약 추가</button>
             </section>
+        )}
 
+        {step === 3 && (
             <section className="su-section">
               <div className="su-section-title">건강 상태</div>
               <div className="su-hint">어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.</div>
@@ -316,7 +323,9 @@ export default function SignUp() {
                 <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
               ))}
             </section>
+        )}
 
+        {step === 4 && (
             <section className="su-section">
               <div className="su-section-title">거동/인지/감각</div>
               <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} onSelect={(value) => set("walkingAid", value)} />
@@ -325,10 +334,23 @@ export default function SignUp() {
               <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
               <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
             </section>
-          </>
         )}
 
-        {step === 2 && (
+        {step === 5 && (
+          <section className="su-section">
+            <SectionTitle step={step}>복지 정보</SectionTitle>
+            <div className="su-hint">복지 제도 추천과 상담에 필요한 기본 정보입니다.</div>
+            <ChipField label="소득 구분" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
+            <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
+            <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
+            <div className="su-field">
+              <label className="su-label">그 밖에 받고 있는 혜택이나 참고사항</label>
+              <textarea className="su-input su-textarea" value={form.welfareMemo} onChange={(event) => set("welfareMemo", event.target.value)} rows={4} placeholder="예: 구청 지원, 병원비 지원, 식사 지원 등" />
+            </div>
+          </section>
+        )}
+
+        {step === 6 && (
           <section className="su-section">
             <SectionTitle step={step}>활동 및 일자리 조건</SectionTitle>
             <div className="su-row">
@@ -336,7 +358,7 @@ export default function SignUp() {
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => set("maxDistance", value)} required />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
-            <ChipField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onSelect={(value) => set("restNeed", value)} />
+            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
             <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />

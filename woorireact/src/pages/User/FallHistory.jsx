@@ -299,7 +299,7 @@ export default function FallHistory() {
               <div className="fh-video-placeholder">
                 <div className="fh-video-icon">📷</div>
                 <div>FastAPI 서버를 실행하면 영상이 표시됩니다.</div>
-                <code>python -m uvicorn main:app --host 0.0.0.0 --port 8000</code>
+                <code>python -m uvicorn main:app --host 0.0.0.0 --port 8010</code>
               </div>
             )}
           </div>

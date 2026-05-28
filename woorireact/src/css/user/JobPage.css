@@ -214,7 +214,7 @@
 .jp-layout {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 2rem 2rem 2rem;
+  padding: 1.6rem 2rem 2rem 2rem;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 2rem;
@@ -321,7 +321,7 @@
 
 /* 메인 */
 .jp-main {
-  padding-top: 1.5rem;
+  padding-top: 0;
 }
 
 .jp-main-head {
