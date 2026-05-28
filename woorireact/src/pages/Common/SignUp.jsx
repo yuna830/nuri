@@ -6,6 +6,7 @@ import { uploadProfileImage } from "../../api/userPageApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
+  AVOID_ENVIRONMENTS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
@@ -13,7 +14,11 @@ import {
   JOB_TYPES,
   MEDICINE_COUNTS,
   NONE,
+  REST_NEEDS,
+  VISION_LEVELS,
+  HEARING_LEVELS,
   WORK_TYPES,
+  calculateAge,
   calcBMI,
   createMedicine,
   defaultForm,
@@ -42,6 +47,7 @@ export default function SignUp() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+  const derivedAge = useMemo(() => calculateAge(form.birthDate), [form.birthDate]);
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -94,7 +100,8 @@ export default function SignUp() {
   const validate = () => {
     if (step === 0) {
       if (!form.name.trim()) return "이름을 입력해주세요.";
-      if (!form.age) return "나이를 입력해주세요.";
+      if (!form.birthDate) return "생년월일을 입력해주세요.";
+      if (!derivedAge || derivedAge < 14) return "중학교 1학년 기준인 만 14세 이상만 가입할 수 있어요.";
       if (!form.gender) return "성별을 선택해주세요.";
       if (!form.city.trim() || !form.district.trim() || !form.dong.trim()) return "시/구/동 주소를 입력해주세요.";
       if (!form.phone.trim()) return "전화번호를 입력해주세요.";
@@ -190,8 +197,23 @@ export default function SignUp() {
 
             <div className="su-row">
               <div className="su-field">
-                <label className="su-label">나이 <span className="su-required">*</span></label>
-                <input className="su-input" type="number" value={form.age} onChange={(event) => set("age", event.target.value)} placeholder="예: 72" />
+                <label className="su-label">생년월일 <span className="su-required">*</span></label>
+                <input
+                  className="su-input"
+                  type="date"
+                  value={form.birthDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => {
+                    const birthDate = event.target.value;
+                    const age = calculateAge(birthDate);
+                    setForm((prev) => ({
+                      ...prev,
+                      birthDate,
+                      age: age ? String(age) : "",
+                    }));
+                  }}
+                />
+                {derivedAge ? <div className="su-field-help">현재 만 {derivedAge}세</div> : null}
               </div>
               <div className="su-field">
                 <label className="su-label">성별 <span className="su-required">*</span></label>
@@ -243,6 +265,12 @@ export default function SignUp() {
 
               <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
               <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+              <InputField
+                label="알레르기 정보"
+                value={form.allergies}
+                onChange={(value) => set("allergies", value)}
+                placeholder="예: 땅콩, 우유, 갑각류 / 없으면 없음"
+              />
             </section>
 
             <section className="su-section">
@@ -288,6 +316,15 @@ export default function SignUp() {
                 <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
               ))}
             </section>
+
+            <section className="su-section">
+              <div className="su-section-title">거동/인지/감각</div>
+              <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} onSelect={(value) => set("walkingAid", value)} />
+              <ChipField label="기억하거나 판단하는 데 어려움" value={form.dementia} options={[NONE, "가끔 헷갈림", "도움이 자주 필요함"]} onSelect={(value) => set("dementia", value)} />
+              <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} onSelect={(value) => set("vision", value)} />
+              <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
+              <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
+            </section>
           </>
         )}
 
@@ -299,6 +336,8 @@ export default function SignUp() {
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => set("maxDistance", value)} required />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+            <ChipField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onSelect={(value) => set("restNeed", value)} />
+            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
             <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />

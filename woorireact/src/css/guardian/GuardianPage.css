@@ -56,51 +56,47 @@
   cursor: not-allowed;
 }
 
-.guardian-header {
-  height: 64px;
-  padding: 0 max(28px, calc((100% - 1280px) / 2));
-  border-bottom: 1px solid var(--border-color);
-  background: var(--card-color);
+.guardian-loading-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(255, 253, 236, 0.72);
+  backdrop-filter: blur(2px);
 }
 
-.guardian-loading {
-  min-height: calc(100vh - 72px);
-  display: grid;
-  place-items: start center;
-  padding-top: 180px;
-  background: #FFFDF0;
-}
-
-.guardian-loading-card {
+.guardian-loading-modal {
   width: min(360px, calc(100vw - 48px));
   display: grid;
   justify-items: center;
   gap: 10px;
-  padding: 28px 24px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: #FFFFFF;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+  padding: 30px 26px;
+  border: 1px solid #d9e6d8;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(34, 45, 34, 0.16);
   text-align: center;
 }
 
-.guardian-loading-card strong {
+.guardian-loading-modal strong {
   color: var(--text-main);
   font-size: 17px;
+  font-weight: 800;
 }
 
-.guardian-loading-card span {
+.guardian-loading-modal span {
   color: var(--text-sub);
   font-size: 14px;
+  font-weight: 700;
 }
 
 .guardian-loading-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid #E5E7EB;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e5e7eb;
   border-top-color: var(--main-color);
   border-radius: 50%;
   animation: guardian-spin 0.8s linear infinite;
@@ -112,11 +108,15 @@
   }
 }
 
-.brand-area,
-.header-actions {
+.guardian-header-brand,
+.guardian-header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.guardian-common-header {
+  border-bottom-color: var(--border-color);
 }
 
 .logo-box {
@@ -140,61 +140,69 @@
   color: #4B5563;
 }
 
-.icon-button {
+.guardian-notification-button {
   position: relative;
   width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-color);
-  border-radius: 7px;
-  background: #FFFFFF;
-  color: #374151;
-  font-size: 12px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
 }
 
-.icon-button:hover {
-  background: #F4F6F1;
-  border-color: #C8D5C4;
+.guardian-notification-button svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.guardian-notification-button:hover {
+  border-color: #86a788;
   color: var(--deep-green);
-}
-
-.icon-button:active {
-  background: #E9EFE6;
 }
 
 .alarm-count {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 22px;
-  height: 22px;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
   border-radius: 999px;
   background: var(--danger-color);
   color: #FFFFFF;
-  font-size: 12px;
-  line-height: 22px;
+  font-size: 10px;
+  line-height: 17px;
   font-weight: 800;
+  text-align: center;
 }
 
-.danger-button,
 .report-button {
-  height: 40px;
-  padding: 0 22px;
+  height: 34px;
+  padding: 0 16px;
   border-radius: 7px;
   background: var(--danger-color);
   color: #FFFFFF;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 13px;
   font-weight: 800;
-  box-shadow: 0 8px 18px rgba(201, 58, 50, 0.2);
+  box-shadow: 0 4px 10px rgba(201, 58, 50, 0.16);
 }
 
-.danger-button:hover,
 .report-button:hover {
   background: var(--danger-hover);
-  box-shadow: 0 10px 22px rgba(201, 58, 50, 0.28);
+  box-shadow: 0 6px 14px rgba(201, 58, 50, 0.22);
 }
 
-.danger-button:active,
 .report-button:active {
   background: var(--danger-active);
+}
+
+.guardian-emergency-button {
+  min-height: 40px;
+}
+
+.guardian-emergency-button:hover {
+  transform: scale(1.03);
 }
 
 .elder-tabs {
@@ -345,7 +353,14 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.left-panel {
   gap: 16px;
+}
+
+.right-panel {
+  gap: 12px;
 }
 
 .card {
@@ -441,6 +456,344 @@
   background: var(--danger-active);
   border-color: var(--danger-active);
   color: #FFFFFF;
+}
+
+.guardian-user-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #0f1f14;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.guardian-user-link:hover {
+  color: #48694b;
+  text-decoration: underline;
+}
+
+.condition-alert-button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.condition-alert-button:hover .condition-list {
+  color: #48694b;
+}
+
+.condition-alert-hint {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #86a788;
+}
+
+.medicine-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 25, 18, 0.45);
+}
+
+.medicine-alert-modal {
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 14px;
+  background: #fffef7;
+  border: 1px solid #d4e8d6;
+  box-shadow: 0 18px 50px rgba(30, 42, 31, 0.22);
+  padding: 1.4rem;
+}
+
+.medicine-alert-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.medicine-alert-header h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.medicine-alert-header p {
+  margin: 0;
+  color: #6f7f70;
+  font-size: 0.85rem;
+}
+
+.medicine-alert-field select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 44px 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, transparent 50%, #1f2937 50%) right 19px center / 7px 7px no-repeat,
+    linear-gradient(135deg, #1f2937 50%, transparent 50%) right 14px center / 7px 7px no-repeat,
+    #ffffff;
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 700;
+  appearance: none;
+}
+
+.medicine-alert-empty {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8f8f3;
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.medicine-alert-close {
+  border: none;
+  background: #eef6ef;
+  color: #48694b;
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.medicine-alert-field {
+  display: grid;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.medicine-alert-field + .medicine-alert-field {
+  margin-top: 1rem;
+}
+
+.medicine-alert-field textarea {
+  resize: vertical;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.8rem;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.medicine-alert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.medicine-alert-cancel,
+.medicine-alert-submit {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.medicine-alert-cancel {
+  background: #eef1ea;
+  color: #4f5d50;
+}
+
+.medicine-alert-submit {
+  background: #86a788;
+  color: white;
+}
+
+.medicine-alert-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.guardian-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 1200;
+  width: min(420px, calc(100vw - 2rem));
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #d8e8d8;
+  border-left: 5px solid #86a788;
+  border-radius: 14px;
+  background: #fffef9;
+  box-shadow: 0 18px 45px rgba(30, 42, 31, 0.18);
+}
+
+.guardian-toast.danger {
+  border-left-color: #b9493f;
+  background: #fff8f6;
+}
+
+.guardian-toast.danger button:not(.guardian-toast-close) {
+  background: #b9493f;
+}
+
+.guardian-toast.normal button:not(.guardian-toast-close) {
+  background: #86a788;
+}
+
+.guardian-toast > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.guardian-toast strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #1e2a1f;
+  font-size: 0.95rem;
+}
+
+.guardian-toast p {
+  margin: 0;
+  color: #6f7f70;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.guardian-toast button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  background: #86a788;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.guardian-toast-close {
+  background: #eef1ea !important;
+  color: #4f5d50 !important;
+}
+
+.guardian-info-request-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(35, 45, 34, 0.42);
+}
+
+.guardian-info-request-modal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 28px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(34, 45, 34, 0.2);
+}
+
+.guardian-info-request-modal h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+
+.guardian-info-request-modal p {
+  margin: 0;
+  line-height: 1.6;
+  color: #526852;
+  font-weight: 700;
+}
+
+.guardian-info-request-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.guardian-info-request-actions button {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid #d5e3d4;
+  background: #fff;
+  color: #6d806d;
+  font-weight: 800;
+}
+
+.guardian-info-request-actions button:last-child {
+  border-color: #8faa8d;
+  background: #8faa8d;
+  color: #fff;
+}
+
+.guardian-empty-state {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--bg-color);
+}
+
+.guardian-empty-modal {
+  width: min(420px, calc(100vw - 48px));
+  padding: 34px 30px;
+  border: 1px solid #d9e6d8;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(34, 45, 34, 0.16);
+  text-align: center;
+}
+
+.guardian-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #eef6ef;
+  color: var(--deep-green);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.guardian-empty-modal h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.guardian-empty-modal p {
+  margin: 12px 0 0;
+  color: var(--text-sub);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.guardian-empty-add-button {
+  margin-top: 22px;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--main-color);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
 }
 
 @media (max-width: 1180px) {

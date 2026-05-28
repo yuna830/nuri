@@ -20,12 +20,18 @@ public class Alert {
     @Column(length = 1000)
     private String message;
 
+    private String imageUrl;
+
     private Double latitude;
     private Double longitude;
 
     private Boolean isRead = false;
 
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    private String guardianResponseType;
+    private String guardianScheduleAt;
+    private LocalDateTime guardianRespondedAt;
 
     public Long getId() {
         return id;
@@ -71,6 +77,14 @@ public class Alert {
         this.message = message;
     }
 
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     public Double getLatitude() {
         return latitude;
     }
@@ -97,5 +111,29 @@ public class Alert {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getGuardianResponseType() {
+        return guardianResponseType;
+    }
+
+    public void setGuardianResponseType(String guardianResponseType) {
+        this.guardianResponseType = guardianResponseType;
+    }
+
+    public String getGuardianScheduleAt() {
+        return guardianScheduleAt;
+    }
+
+    public void setGuardianScheduleAt(String guardianScheduleAt) {
+        this.guardianScheduleAt = guardianScheduleAt;
+    }
+
+    public LocalDateTime getGuardianRespondedAt() {
+        return guardianRespondedAt;
+    }
+
+    public void setGuardianRespondedAt(LocalDateTime guardianRespondedAt) {
+        this.guardianRespondedAt = guardianRespondedAt;
     }
 }

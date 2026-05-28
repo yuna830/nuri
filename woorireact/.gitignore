@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 stt_server/ 
 ../stt_server/ 
+
+.png
+.jpg
+.jpeg

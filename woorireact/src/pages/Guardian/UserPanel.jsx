@@ -1,69 +1,66 @@
-﻿import { useEffect, useRef, useState } from "react";
-import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
-import { resolveUploadUrl } from "../../api/userPageApi";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi";
+import { updateSeniorRequestedInfo } from "../../api/guardianApi";
 
-const SAFE_ZONE_SEARCH_CACHE_KEY = "safeZoneSearchCache";
-const SAFE_ZONE_SEARCH_COOLDOWN_KEY = "safeZoneSearchCooldownUntil";
-const SAFE_ZONE_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
-const SAFE_ZONE_SEARCH_COOLDOWN_MS = 2 * 60 * 1000;
-
-const readSearchCache = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SAFE_ZONE_SEARCH_CACHE_KEY) || "{}");
-  } catch {
-    return {};
-  }
+const ACTIVITY_LABELS = {
+  activity: "활동성",
+  stability: "안정성",
+  rest_balance: "휴식 균형",
+  posture_quality: "자세 상태",
+  safety: "안전도",
 };
 
-const searchSafeZonePlaces = async (keyword) => {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  const now = Date.now();
-  const cooldownUntil = Number(localStorage.getItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY) || 0);
+const formatActivityScore = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(1) : "-";
+};
 
-  if (cooldownUntil > now) {
-    throw new Error("SEARCH_COOLDOWN");
+const getActivityReportSummary = (activityReport) => {
+  if (activityReport?.isLoading) {
+    return { tone: "normal", title: "활동 리포트 확인 중", message: "오늘 컨디션을 어제 기록과 비교하고 있습니다." };
   }
 
-  const cache = readSearchCache();
-  const cached = cache[normalizedKeyword];
-
-  if (cached && now - cached.savedAt < SAFE_ZONE_SEARCH_CACHE_TTL_MS) {
-    return cached.results;
+  if (activityReport?.error) {
+    return { tone: "warning", title: "리포트 확인 필요", message: activityReport.error };
   }
 
-  const results = await searchPlacesByKakao(keyword, { size: 5 }).catch(async (error) => {
-    if (error.message === "KAKAO_RATE_LIMIT" || error.message === "KAKAO_COOLDOWN") {
-      localStorage.setItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY, String(now + SAFE_ZONE_SEARCH_COOLDOWN_MS));
-      throw new Error("SEARCH_RATE_LIMIT");
-    }
+  const fallWarnings = activityReport?.fallPattern?.status === "ok"
+    ? activityReport.fallPattern.warning_signs || []
+    : [];
 
-    const response = await fetch(
-      `/nominatim/search?format=json&q=${encodeURIComponent(keyword)}&limit=5&countrycodes=kr`
-    );
+  if (fallWarnings.length > 0) {
+    return { tone: "danger", title: "낙상 전후 변화 확인", message: fallWarnings[0] };
+  }
 
-    if (response.status === 429) {
-      localStorage.setItem(SAFE_ZONE_SEARCH_COOLDOWN_KEY, String(now + SAFE_ZONE_SEARCH_COOLDOWN_MS));
-      throw new Error("SEARCH_RATE_LIMIT");
-    }
+  const trend = activityReport?.trend;
 
-    if (!response.ok) {
-      throw new Error("SEARCH_FAILED");
-    }
+  if (trend?.status !== "ok") {
+    return {
+      tone: "normal",
+      title: "기록 수집 중",
+      message: trend?.message || "어제와 비교하려면 오늘과 어제의 활동 기록이 더 필요합니다.",
+    };
+  }
 
-    return response.json();
-  });
-  localStorage.setItem(
-    SAFE_ZONE_SEARCH_CACHE_KEY,
-    JSON.stringify({
-      ...cache,
-      [normalizedKeyword]: {
-        savedAt: now,
-        results,
-      },
-    })
-  );
+  const strongestChange = Object.entries(trend.changes || {})
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => Math.abs(b.pct_change || 0) - Math.abs(a.pct_change || 0))[0];
 
-  return results;
+  if (!strongestChange || Math.abs(strongestChange.pct_change || 0) < 10) {
+    return { tone: "normal", title: "어제와 비슷함", message: "오늘 활동 컨디션은 어제와 큰 차이가 없습니다." };
+  }
+
+  const label = ACTIVITY_LABELS[strongestChange.key] || strongestChange.key;
+  const direction = strongestChange.pct_change > 0 ? "높아졌습니다" : "낮아졌습니다";
+  const tone = strongestChange.pct_change < -15 ? "warning" : "normal";
+
+  return {
+    tone,
+    title: `어제보다 ${label} 변화`,
+    message: `${label} 점수가 어제보다 ${Math.abs(strongestChange.pct_change).toFixed(0)}% ${direction}.`,
+  };
 };
 
 function UserPanel({
@@ -72,16 +69,14 @@ function UserPanel({
   hasCurrentLocation,
   isOutsideSafeZone,
   distance,
-  location,
   lastNormalLocation,
+  safeZones,
   safeZoneForm,
   formatShortAddress,
-  formatSafeZoneAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
-  onSafeZoneChange,
-  onSelectSafeZonePlace,
-  onSaveSafeZone,
+  onSelectSafeZoneForm,
+  onDeleteSafeZone,
   isAddElderOpen,
   seniorSearch,
   setSeniorSearch,
@@ -95,25 +90,54 @@ function UserPanel({
   onConnectSenior,
   onCreateAndConnectSenior,
   onDeleteElder,
+  activityReport,
 }) {
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
   });
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [safeZoneKeyword, setSafeZoneKeyword] = useState("");
-  const [safeZoneResults, setSafeZoneResults] = useState([]);
-  const [isSearchingSafeZone, setIsSearchingSafeZone] = useState(false);
 
   const profileMenuRef = useRef(null);
 
-  const guardianProfileImage = profileImages[selectedElderId] ?? null;
+  const navigate = useNavigate();
+
+  const handleOpenUserPage = () => {
+    if (!selectedElder?.id) return;
+
+    const seniorProfile = {
+      senior: {
+        id: selectedElder.id,
+        name: selectedElder.name,
+        age: selectedElder.age,
+        gender: selectedElder.gender,
+        address: selectedElder.address,
+        region: selectedElder.address,
+        profileImageUrl: selectedElder.profileImageUrl || "",
+      },
+    };
+
+    sessionStorage.setItem("currentSenior", JSON.stringify(seniorProfile));
+    localStorage.setItem("current_senior_id", String(selectedElder.id));
+
+    navigate("/user");
+  };
+
+  const savedGuardianProfileImage = profileImages[selectedElderId] ?? null;
+
+  const guardianProfileImage = savedGuardianProfileImage
+    ? resolveUploadUrl(savedGuardianProfileImage)
+    : null;
 
   const userProfileImage = selectedElder?.profileImageUrl
     ? resolveUploadUrl(selectedElder.profileImageUrl)
     : null;
 
   const profileImage = guardianProfileImage || userProfileImage;
+  const activitySummary = getActivityReportSummary(activityReport);
+  const activityChanges = activityReport?.trend?.status === "ok"
+    ? Object.entries(activityReport.trend.changes || {}).slice(0, 3)
+    : [];
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
@@ -142,15 +166,17 @@ function UserPanel({
     document.getElementById("profileImageInput").click();
   };
 
-  const handleProfileImageChange = (event) => {
+  const handleProfileImageChange = async (event) => {
     const file = event.target.files[0];
 
-    if (!file) return;
+    if (!file || !selectedElder?.id) return;
 
-    const reader = new FileReader();
+    try {
+      const { imageUrl } = await uploadProfileImage(file);
 
-    reader.onload = () => {
-      const imageUrl = reader.result;
+      await updateSeniorRequestedInfo(selectedElder.id, {
+        profileImageUrl: imageUrl,
+      });
 
       setProfileImages((prev) => {
         const next = {
@@ -162,57 +188,42 @@ function UserPanel({
         return next;
       });
 
+      selectedElder.profileImageUrl = imageUrl;
       setIsProfileMenuOpen(false);
-    };
-
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    } catch (error) {
+      console.error("프로필 사진 저장 실패:", error);
+      alert("프로필 사진 저장에 실패했습니다.");
+    } finally {
+      event.target.value = "";
+    }
   };
 
   const handleChangeProfileImage = () => {
     document.getElementById("profileImageInput").click();
   };
 
-  const handleDeleteProfileImage = () => {
-    setProfileImages((prev) => {
-      const next = { ...prev };
-      delete next[selectedElderId];
-
-      localStorage.setItem("guardianProfileImages", JSON.stringify(next));
-      return next;
-    });
-
-    setIsProfileMenuOpen(false);
-  };
-
-  const handleSearchSafeZone = async () => {
-    const keyword = safeZoneKeyword.trim();
-
-    if (keyword.length < 2) {
-      alert("장소나 주소를 2글자 이상 입력해 주세요.");
-      return;
-    }
+  const handleDeleteProfileImage = async () => {
+    if (!selectedElder?.id) return;
 
     try {
-      setIsSearchingSafeZone(true);
-      const results = await searchSafeZonePlaces(keyword);
-      setSafeZoneResults(results);
-    } catch (error) {
-      console.error("장소 검색 실패:", error);
-      if (error.message === "SEARCH_RATE_LIMIT" || error.message === "SEARCH_COOLDOWN") {
-        alert("장소 검색 요청이 너무 많아요. 잠시 후 다시 검색해 주세요.");
-      } else {
-        alert("장소 검색에 실패했습니다.");
-      }
-    } finally {
-      setIsSearchingSafeZone(false);
-    }
-  };
+      await updateSeniorRequestedInfo(selectedElder.id, {
+        profileImageUrl: "",
+      });
 
-  const handleSelectSafeZone = (place) => {
-    onSelectSafeZonePlace(place);
-    setSafeZoneKeyword("");
-    setSafeZoneResults([]);
+      setProfileImages((prev) => {
+        const next = { ...prev };
+        delete next[selectedElderId];
+
+        localStorage.setItem("guardianProfileImages", JSON.stringify(next));
+        return next;
+      });
+
+      selectedElder.profileImageUrl = "";
+      setIsProfileMenuOpen(false);
+    } catch (error) {
+      console.error("프로필 사진 삭제 실패:", error);
+      alert("프로필 사진 삭제에 실패했습니다.");
+    }
   };
 
   return (
@@ -228,7 +239,7 @@ function UserPanel({
               {profileImage ? (
                 <img src={profileImage} alt={`${selectedElder.name} 프로필`} />
               ) : (
-                <span>?대?吏</span>
+                <span>이미지</span>
               )}
             </button>
 
@@ -243,39 +254,35 @@ function UserPanel({
             {profileImage && isProfileMenuOpen && (
               <div className="profile-image-menu">
                 <button type="button" onClick={handleChangeProfileImage}>
-                  蹂寃?
+                  변경
                 </button>
                 <button type="button" onClick={handleDeleteProfileImage}>
-                  ??젣
+                  삭제
                 </button>
               </div>
             )}
           </div>
 
           <div className="status-profile-head">
-            <strong>
+            <button
+              className="guardian-user-link"
+              type="button"
+              onClick={handleOpenUserPage}
+            >
               {selectedElder.name} ({selectedElder.relation})
-            </strong>
+            </button>
+
             <p className={`status-line ${!hasCurrentLocation ? "muted" : isOutsideSafeZone ? "danger" : "normal"}`}>
               <span />
-              {!hasCurrentLocation ? "미수신" : isOutsideSafeZone ? "이탈" : "정상"}
+              {!hasCurrentLocation
+                ? "미수신"
+                : isOutsideSafeZone
+                  ? `이탈 (${distance}m)`
+                  : "정상"}
             </p>
           </div>
 
-          <p className="status-message">
-            {!hasCurrentLocation
-              ? "최근 위치를 아직 수신하지 못했습니다"
-              : isOutsideSafeZone
-                ? "안전 반경 밖에 있습니다"
-                : "현재 안전 반경 안에 있습니다"}
-          </p>
-          <small>{hasCurrentLocation ? `${distance}m 거리` : "위치 미수신"}</small>
-
           <dl className="status-profile-list">
-            <div>
-              <dt>마지막 접속</dt>
-              <dd>{selectedElder.lastLoginText || "기록 없음"}</dd>
-            </div>
             <div>
               <dt>연락처</dt>
               <dd>{selectedElder.phone || "연락처 없음"}</dd>
@@ -285,12 +292,12 @@ function UserPanel({
               <dd>{selectedElder.age}</dd>
             </div>
             <div>
-              <dt>성별</dt>
-              <dd>{selectedElder.gender}</dd>
+              <dt>소득 수준</dt>
+              <dd>{selectedElder.incomeLevel || "미등록"}</dd>
             </div>
             <div>
-              <dt>주소</dt>
-              <dd>{selectedElder.address}</dd>
+              <dt>가구 형태</dt>
+              <dd>{selectedElder.householdType || "미등록"}</dd>
             </div>
             <div>
               <dt>담당 복지사</dt>
@@ -302,28 +309,33 @@ function UserPanel({
             <div className="condition-row">
               <dt>주요 질환</dt>
               <dd>
-                <ul className="condition-list">
-                  {(selectedElder.condition || "?깅줉??嫄닿컯?뺣낫 ?놁쓬").split(", ").map((condition) => (
-                    <li key={condition}>{condition}</li>
-                  ))}
-                </ul>
+                {(() => {
+                  const conditions = (selectedElder.condition || "")
+                    .split(", ")
+                    .map((condition) => condition.split(":")[0].trim())
+                    .filter(Boolean);
+
+                  if (conditions.length === 0) {
+                    return "등록 없음";
+                  }
+
+                  return (
+                    <>
+                      {conditions.slice(0, 2).join(" · ")}
+                      {conditions.length > 2 ? ` 외 ${conditions.length - 2}` : ""}
+                    </>
+                  );
+                })()}
               </dd>
             </div>
             <div className="condition-row">
               <dt>복약 정보</dt>
               <dd>
                 {selectedElder.medications?.length ? (
-                  <ul className="condition-list">
+                  <ul className="profile-medicine-list">
                     {selectedElder.medications.map((medicine, index) => (
                       <li key={`${medicine.name}-${index}`}>
-                        {[
-                          medicine.name,
-                          medicine.ongoing
-                            ? `${medicine.startDate || "시작일 미입력"}부터 계속 복용`
-                            : [medicine.startDate, medicine.endDate].filter(Boolean).join(" ~ "),
-                          medicine.interval ? `${medicine.interval}시간마다` : "",
-                          medicine.dailyCount ? `하루 ${medicine.dailyCount}회` : "",
-                        ]
+                        {[medicine.name, medicine.startDate ? `${medicine.startDate}부터` : ""]
                           .filter(Boolean)
                           .join(" / ")}
                       </li>
@@ -332,6 +344,18 @@ function UserPanel({
                 ) : (
                   selectedElder.medicineCount || "없음"
                 )}
+              </dd>
+            </div>
+            <div>
+              <dt>안전 반경</dt>
+              <dd>
+                <button
+                  className="medicine-info-text-button"
+                  type="button"
+                  onClick={onToggleSafeZone}
+                >
+                  {safeZoneForm?.name || "기본구역"} · {safeZoneForm?.radiusMeters ?? 500}m
+                </button>
               </dd>
             </div>
           </dl>
@@ -349,106 +373,66 @@ function UserPanel({
           </div>
         </section>
 
-        <section className="card location-summary">
-          <div className="summary-row">
-            <span>현재 위치</span>
-            <strong>{hasCurrentLocation ? formatShortAddress(location.address) : "위치 미수신"}</strong>
+        <section className={`card guardian-activity-report ${activitySummary.tone}`}>
+          <div className="guardian-activity-report-head">
+            <div>
+              <span>오늘의 활동 컨디션</span>
+              <strong>{activitySummary.title}</strong>
+            </div>
+            {activityReport?.updatedAt && <em>{activityReport.updatedAt}</em>}
           </div>
 
-          <div className="summary-row">
-            <span>마지막 정상 위치</span>
-            <strong>
-              {selectedElder.lastNormalLocation ? formatShortAddress(lastNormalLocation.address) : "기록 없음"}
-            </strong>
-          </div>
+          <p>{activitySummary.message}</p>
 
-          <div className="summary-row safe-zone-summary">
-            <span>안전 반경 중심</span>
-            <button
-              className={`safe-zone-trigger ${isSafeZoneOpen ? "active" : ""}`}
-              type="button"
-              onClick={onToggleSafeZone}
-            >
-              <span className="safe-zone-top">
-                <span className="safe-zone-name-row">
-                  <span className="safe-zone-name">{safeZoneForm.name}</span>
-                  <span className="safe-zone-edit">수정</span>
-                </span>
-
-                {safeZoneForm.address && (
-                  <span className="safe-zone-address">
-                    {formatShortAddress(safeZoneForm.address)}
-                  </span>
-                )}
-              </span>
-              <span className="safe-zone-radius">
-                반경 {safeZoneForm.radiusMeters}m 설정
-              </span>
-            </button>
-          </div>
+          {activityChanges.length > 0 && (
+            <div className="guardian-activity-report-list">
+              {activityChanges.map(([key, change]) => (
+                <div key={key}>
+                  <span>{ACTIVITY_LABELS[key] || key}</span>
+                  <strong>{formatActivityScore(change.today)}</strong>
+                  <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {isSafeZoneOpen && (
           <section className="card safe-zone-card">
-            <h2>?덉쟾 諛섍꼍 ?ㅼ젙</h2>
+            <div className="safe-zone-card-header">
+              <h2>안전 반경 관리</h2>
+              <span>{safeZones.length}/3</span>
+            </div>
 
-            <label>
-              장소 이름
-              <input name="name" value={safeZoneForm.name} onChange={onSafeZoneChange} />
-            </label>
-
-            <label>
-              주소
-              <input
-                name="address"
-                value={safeZoneForm.address || ""}
-                onChange={onSafeZoneChange}
-                placeholder="예: 서울특별시 서초구 서초중앙로"
-              />
-            </label>
-
-            <label>
-              위치 검색
-              <div className="safe-zone-search">
-                <input
-                  value={safeZoneKeyword}
-                  onChange={(event) => setSafeZoneKeyword(event.target.value)}
-                  placeholder={safeZoneForm.address || "예: 서울 서초구 서초중앙로"}
-                  onKeyDown={(event) => event.key === "Enter" && handleSearchSafeZone()}
-                />
-                <button type="button" onClick={handleSearchSafeZone}>
-                  {isSearchingSafeZone ? "검색 중" : "검색"}
-                </button>
-              </div>
-            </label>
-
-            {safeZoneResults.length > 0 && (
-              <div className="safe-zone-results">
-                {safeZoneResults.map((place) => (
+            <div className="safe-zone-list">
+              {safeZones.map((zone) => (
+                <article
+                  key={zone.id}
+                  className={`safe-zone-list-item${zone.id === safeZoneForm.id ? " active" : ""}`}
+                >
                   <button
-                    key={`${place.place_id}-${place.lat}-${place.lon}`}
                     type="button"
-                    onClick={() => handleSelectSafeZone(place)}
+                    className="safe-zone-list-content"
+                    onClick={() => onSelectSafeZoneForm(zone.id)}
                   >
-                    {place.display_name}
+                    <strong>{zone.name || "안전 반경"}</strong>
+                    <span>{zone.radiusMeters ?? 500}m</span>
+                    <small>{zone.address || "주소 정보 없음"}</small>
                   </button>
-                ))}
-              </div>
-            )}
 
-            <label>
-              반경
-              <select name="radiusMeters" value={safeZoneForm.radiusMeters} onChange={onSafeZoneChange}>
-                <option value={300}>300m</option>
-                <option value={500}>500m</option>
-                <option value={1000}>1km</option>
-                <option value={1500}>1.5km</option>
-              </select>
-            </label>
-
-            <button className="primary-button" type="button" onClick={onSaveSafeZone}>
-              ???
-            </button>
+                  {safeZones.length > 1 && (
+                    <button
+                      type="button"
+                      className="safe-zone-remove-button"
+                      onClick={() => onDeleteSafeZone(zone.id)}
+                      aria-label={`${zone.name || "안전 반경"} 삭제`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
           </section>
         )}
       </aside>
@@ -486,7 +470,7 @@ function AddElderModal({
   onCreateAndConnectSenior,
 }) {
   const [isCreateElderOpen, setIsCreateElderOpen] = useState(false);
-  const [connectRelation, setConnectRelation] = useState("蹂댄샇 ??곸옄");
+  const [connectRelation, setConnectRelation] = useState("보호 대상자");
 
   const handleClose = () => {
     setIsCreateElderOpen(false);
@@ -510,9 +494,27 @@ function AddElderModal({
         <div className="add-elder-connect-fields">
           <div className="add-elder-search">
             <input
-              value={seniorSearch}
-              onChange={(event) => setSeniorSearch(event.target.value)}
-              placeholder="이름 또는 연락처로 검색"
+              value={seniorSearch.name}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="이름"
+              onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
+            />
+
+            <input
+              value={seniorSearch.phone}
+              onChange={(event) =>
+                setSeniorSearch((prev) => ({
+                  ...prev,
+                  phone: formatPhoneNumber(event.target.value),
+                }))
+              }
+              placeholder="전화번호"
+              inputMode="numeric"
               onKeyDown={(event) => event.key === "Enter" && onSearchSenior()}
             />
 
@@ -533,11 +535,11 @@ function AddElderModal({
 
         <div className="add-elder-list">
           {!hasSearchedSenior ? (
-            <p className="add-elder-empty">蹂댄샇 ??곸옄???대쫫?대굹 ?곕씫泥섎? ?낅젰????寃?됲빐二쇱꽭??</p>
+            <p className="add-elder-empty">보호 대상자의 이름과 전화번호를 모두 입력해 검색해주세요.</p>
           ) : isSearchingSenior ? (
-            <p className="add-elder-empty">?ъ슜?먮? 寃?됲븯??以묒엯?덈떎.</p>
+            <p className="add-elder-empty">사용자를 검색하는 중입니다.</p>
           ) : seniorSearchResults.length === 0 ? (
-            <p className="add-elder-empty">寃??寃곌낵媛 ?놁뒿?덈떎. 蹂댄샇 ????깅줉???뚮윭 ?덈줈 ?깅줉?????덉뒿?덈떎.</p>
+            <p className="add-elder-empty">검색 결과가 없습니다. 보호 대상자 등록을 눌러 새로 등록할 수 있습니다..</p>
           ) : (
             seniorSearchResults.map((profile) => {
               const senior = profile.senior;
@@ -546,12 +548,12 @@ function AddElderModal({
                 <article key={senior.id} className="add-elder-item">
                   <div>
                     <strong>{senior.name}</strong>
-                    <span>{senior.phone || "?곕씫泥??놁쓬"}</span>
-                    <em>{senior.region || senior.address || "二쇱냼 ?놁쓬"}</em>
+                    <span>{senior.phone || "연락처 없음"}</span>
+                    <em>{senior.region || senior.address || "주소 없음"}</em>
                   </div>
 
                   <button type="button" onClick={() => onConnectSenior(senior.id, connectRelation)}>
-                    ?좏깮
+                    선택
                   </button>
                 </article>
               );
@@ -565,31 +567,34 @@ function AddElderModal({
             type="button"
             onClick={() => setIsCreateElderOpen((prev) => !prev)}
           >
-            蹂댄샇 ????깅줉
+            보호 대상자 등록
           </button>
         </div>
 
         {isCreateElderOpen && (
           <div className="add-elder-create">
-            <h3>?좉퇋 蹂댄샇 ????깅줉</h3>
+            <h3>신규 보호 대상자 등록</h3>
 
             <label>
-              ?대쫫
+              이름
               <input
                 value={newSeniorForm.name}
                 onChange={(event) =>
                   setNewSeniorForm((prev) => ({ ...prev, name: event.target.value }))
                 }
-                placeholder="?? 源?곹씗"
+                placeholder="예: 김영희"
               />
             </label>
 
             <label>
-              ?곕씫泥?
+              연락처
               <input
                 value={newSeniorForm.phone}
                 onChange={(event) =>
-                  setNewSeniorForm((prev) => ({ ...prev, phone: event.target.value }))
+                  setNewSeniorForm((prev) => ({
+                    ...prev,
+                    phone: formatPhoneNumber(event.target.value),
+                  }))
                 }
                 placeholder="010-0000-0000"
               />

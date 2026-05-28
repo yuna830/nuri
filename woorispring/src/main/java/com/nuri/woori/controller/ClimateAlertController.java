@@ -20,12 +20,12 @@ public class ClimateAlertController {
 
     @GetMapping("/senior/{seniorId}/today")
     public List<ClimateAlert> getTodayAlerts(@PathVariable Long seniorId) {
-        return climateAlertRepository.findBySeniorIdAndAlertDateOrderByIssuedAtDesc(seniorId, LocalDate.now());
+        return climateAlertRepository.findTop6BySeniorIdAndAlertDateOrderByIssuedAtDesc(seniorId, LocalDate.now());
     }
 
     @GetMapping("/senior/{seniorId}/latest")
     public List<ClimateAlert> getLatestAlerts(@PathVariable Long seniorId) {
-        return climateAlertRepository.findTop3BySeniorIdOrderByIssuedAtDesc(seniorId);
+        return climateAlertRepository.findTop6BySeniorIdOrderByIssuedAtDesc(seniorId);
     }
 
     @PostMapping

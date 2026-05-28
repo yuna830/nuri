@@ -23,7 +23,21 @@ public class HealthInfo {
     private String bloodPressure;
     private String smoking;
     private String drinking;
+    private String allergies;
+    private String incomeLevel;
+    private String householdType;
+
+    @Column(columnDefinition = "TEXT")
+    private String currentBenefits;
+
+    @Column(columnDefinition = "TEXT")
+    private String welfareMemo;
+
     private String medicineCount;
+
+    @Column(columnDefinition = "TEXT")
+    private String medicationsJson;
+
     private String diabetes;
     private String hypertension;
     private String heartDisease;
@@ -51,6 +65,11 @@ public class HealthInfo {
 
     @Column(columnDefinition = "TEXT")
     private String disabledWork;
+
+    private String restNeed;
+
+    @Column(columnDefinition = "TEXT")
+    private String avoidEnvironment;
 
     private LocalDateTime createdAt = LocalDateTime.now();
 }

@@ -1,0 +1,128 @@
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Repeat2 } from "lucide-react";
+
+import { getSeniorGuardians, getSeniorWelfareWorker, updateSeniorWelfareWorker } from "../../api/adminApi";
+import AdminLayout from "./AdminLayout";
+import { useAdminData } from "./useAdminData";
+
+function AdminSeniorDetail() {
+  const { id } = useParams();
+  const { seniors, welfareWorkers, welfareById, guardianById, isLoading, loadError } = useAdminData();
+  const senior = useMemo(() => seniors.find((item) => String(item.id) === String(id)), [id, seniors]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState("");
+  const [localWorkerId, setLocalWorkerId] = useState(null);
+
+  const displayedSenior = senior
+    ? {
+        ...senior,
+        welfareId: localWorkerId ?? senior.welfareId,
+        welfareWorker: localWorkerId ? null : senior.welfareWorker,
+      }
+    : null;
+
+  const worker = getSeniorWelfareWorker(displayedSenior, welfareById);
+  const guardians = getSeniorGuardians(displayedSenior, guardianById);
+
+  const handleReassign = async () => {
+    if (!selectedWorkerId || !displayedSenior) return;
+
+    await updateSeniorWelfareWorker(displayedSenior.id, selectedWorkerId);
+    setLocalWorkerId(Number(selectedWorkerId));
+    window.alert("\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.");
+  };
+
+  return (
+    <AdminLayout>
+      <header className="admin-page-header">
+        <h1>{"\uc5b4\ub974\uc2e0 \uc0c1\uc138"}</h1>
+        <p>{"\uc5f0\uacb0\ub41c \ubcf4\ud638\uc790\uc640 \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\ub97c \ud655\uc778\ud558\uace0 \ubcf5\uc9c0\uc0ac\ub97c \uc7ac\ubc30\uc815\ud569\ub2c8\ub2e4."}</p>
+      </header>
+
+      {loadError ? (
+        <p className="admin-error-note">{loadError}</p>
+      ) : isLoading ? (
+        <p className="admin-empty">{"\uc5b4\ub974\uc2e0 \uc815\ubcf4\ub97c \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4."}</p>
+      ) : !displayedSenior ? (
+        <div className="admin-panel">
+          <p className="admin-empty">{"\ud574\ub2f9 \uc5b4\ub974\uc2e0\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4."}</p>
+          <Link className="admin-button" to="/admin/seniors">{"\ubaa9\ub85d\uc73c\ub85c"}</Link>
+        </div>
+      ) : (
+        <div className="admin-detail-grid">
+          <section className="admin-panel">
+            <h2>{"\uae30\ubcf8 \uc815\ubcf4"}</h2>
+            <dl className="admin-info-list">
+              <dt>{"\uc774\ub984"}</dt>
+              <dd>{displayedSenior.name}</dd>
+              <dt>{"\ub098\uc774"}</dt>
+              <dd>{displayedSenior.age ? `${displayedSenior.age}\uc138` : "-"}</dd>
+              <dt>{"\uc131\ubcc4"}</dt>
+              <dd>{displayedSenior.gender || "-"}</dd>
+              <dt>{"\uc5f0\ub77d\ucc98"}</dt>
+              <dd>{displayedSenior.phone || "-"}</dd>
+              <dt>{"\uc8fc\uc18c"}</dt>
+              <dd>{displayedSenior.address || "-"}</dd>
+              <dt>{"\uc0c1\ud0dc"}</dt>
+              <dd>
+                <span className={`admin-badge ${displayedSenior.active ? "active" : "inactive"}`}>
+                  {displayedSenior.active ? "\ud65c\uc131" : "\ube44\ud65c\uc131"}
+                </span>
+              </dd>
+            </dl>
+          </section>
+
+          <section className="admin-panel">
+            <h2>{"\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac"}</h2>
+            {worker ? (
+              <div className="admin-linked-item">
+                <strong>{worker.name}</strong>
+                <span>{`${worker.center} · ${worker.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
+              </div>
+            ) : (
+              <p className="admin-empty">{"\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ubc30\uc815\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4."}</p>
+            )}
+
+            <div className="admin-reassign-row">
+              <select
+                className="admin-select"
+                value={selectedWorkerId}
+                onChange={(event) => setSelectedWorkerId(event.target.value)}
+                aria-label="\uc7ac\ubc30\uc815\ud560 \ubcf5\uc9c0\uc0ac"
+              >
+                <option value="">{"\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
+                {welfareWorkers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {`${item.name} · ${item.center}`}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="admin-button primary" onClick={handleReassign}>
+                <Repeat2 size={16} />
+                {"\uc7ac\ubc30\uc815"}
+              </button>
+            </div>
+          </section>
+
+          <section className="admin-panel">
+            <h2>{"\uc5f0\uacb0 \ubcf4\ud638\uc790"}</h2>
+            <div className="admin-linked-list">
+              {guardians.length === 0 ? (
+                <p className="admin-empty">{"\uc5f0\uacb0\ub41c \ubcf4\ud638\uc790\uac00 \uc5c6\uc2b5\ub2c8\ub2e4."}</p>
+              ) : (
+                guardians.map((guardian) => (
+                  <div key={guardian.id} className="admin-linked-item">
+                    <strong>{guardian.name}</strong>
+                    <span>{`${guardian.relation || "\uad00\uacc4 \ubbf8\ub4f1\ub85d"} · ${guardian.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+    </AdminLayout>
+  );
+}
+
+export default AdminSeniorDetail;
