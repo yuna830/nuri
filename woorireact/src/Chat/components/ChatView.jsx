@@ -75,9 +75,112 @@ export default function ChatView({
     navigate("/user");
   };
 
+  const splitAllergyText = (value) => {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => splitAllergyText(item));
+    }
+
+    return String(value || "")
+      .split(/[,/·\n]|그리고|및/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
+  const getCurrentUserAllergies = () => {
+    try {
+      const saved = sessionStorage.getItem("currentSenior");
+      const profile = saved ? JSON.parse(saved) : null;
+      const healthInfo = profile?.healthInfo || profile?.health_info || {};
+      return splitAllergyText(healthInfo.allergies);
+    } catch {
+      return [];
+    }
+  };
+
+  const getRelatedAllergyKeywords = (allergy) => {
+    const normalized = allergy.replace(/\s/g, "");
+    const groups = {
+      견과류: ["견과", "호두", "아몬드", "아몬드", "브라질너트", "캐슈", "캐슈너트", "피칸", "피스타치오", "마카다미아", "땅콩", "잣", "밤"],
+      땅콩: ["땅콩", "견과", "호두", "아몬드", "캐슈", "피칸", "피스타치오", "마카다미아"],
+      우유: ["우유", "유제품", "버터", "치즈", "크림", "분유", "유청", "카제인"],
+      유제품: ["우유", "유제품", "버터", "치즈", "크림", "분유", "유청", "카제인"],
+      밀: ["밀", "소맥", "글루텐", "빵", "과자"],
+      대두: ["대두", "콩", "두유", "간장"],
+      계란: ["계란", "달걀", "난류", "알류"],
+      알류: ["계란", "달걀", "난류", "알류"],
+      새우: ["새우", "갑각류"],
+      게: ["게", "갑각류"],
+      갑각류: ["새우", "게", "갑각류"],
+      복숭아: ["복숭아"],
+      토마토: ["토마토"],
+      메밀: ["메밀"],
+      고등어: ["고등어"],
+      돼지고기: ["돼지고기", "돈육"],
+      쇠고기: ["쇠고기", "소고기", "우육"],
+      닭고기: ["닭고기", "계육"],
+      오징어: ["오징어"],
+      조개류: ["조개", "조개류", "홍합", "전복", "굴"],
+    };
+
+    const matchedGroup = Object.entries(groups).find(([key]) => normalized.includes(key));
+    return [...new Set([normalized, ...(matchedGroup ? matchedGroup[1] : [])])];
+  };
+
+  const normalizeAllergyTargetText = (text) => {
+    const replacements = {
+      아모드: "아몬드",
+      구운아모드: "구운아몬드",
+      마가다미아: "마카다미아",
+      키슈너트: "캐슈너트",
+      피간: "피칸",
+      피스치오: "피스타치오",
+    };
+
+    return Object.entries(replacements).reduce(
+      (nextText, [source, target]) => nextText.replaceAll(source, target),
+      String(text || "")
+    );
+  };
+
+  const findAllergyConflicts = (result) => {
+    const userAllergies = getCurrentUserAllergies();
+    if (!userAllergies.length) return [];
+
+    const detectedText = normalizeAllergyTargetText([
+      result?.product_name,
+      result?.ocr_text,
+    ].join(" "));
+
+    return userAllergies
+      .map((allergy) => {
+        const keywords = getRelatedAllergyKeywords(allergy);
+        const matched = keywords.filter((keyword) => keyword && detectedText.includes(keyword));
+
+        return matched.length
+          ? {
+              allergy,
+              matched: [...new Set(matched)],
+            }
+          : null;
+      })
+      .filter(Boolean);
+  };
+
+  const hasIngredientEvidence = (result) => {
+    const text = normalizeAllergyTargetText([
+      result?.ocr_text,
+      result?.product_name,
+    ].join(" "));
+
+    return /원재료|원재료명|함유|알레르기|유발|대두|밀|우유|땅콩|호두|메밀|난류|알류|새우|게|고등어|복숭아|토마토|아황산|닭고기|쇠고기|돼지고기|오징어|조개류|잣|아몬드|캐슈|피칸|피스타치오|마카다미아/.test(text);
+  };
+
   const formatFoodAnalysisMessage = (result) => {
     const nutrients = result?.nutrients || {};
     const warnings = result?.warnings || [];
+    const allergyConflicts = findAllergyConflicts(result);
+    const userAllergies = getCurrentUserAllergies();
+    const shouldShowIngredientNotice = userAllergies.length > 0 && !allergyConflicts.length && !hasIngredientEvidence(result);
     const rows = [
       ["열량", nutrients.calories_kcal, "kcal"],
       ["나트륨", nutrients.sodium_mg, "mg"],
@@ -95,13 +198,37 @@ export default function ChatView({
       .map(([label, value, unit]) => `- ${label}: ${value}${unit}`)
       .join("\n");
 
-    const warningText = warnings.length
-      ? warnings.map((warning) => `- [${warning.level}] ${warning.reason}`).join("\n")
-      : "- 특별한 주의 항목은 발견되지 않았어요.";
+    const visibleWarnings = warnings.filter(
+      (warning) => !String(warning.reason || "").includes("알레르기 유발 가능 성분")
+    );
+    const warningText = visibleWarnings.length
+      ? visibleWarnings.map((warning) => `- [${warning.level}] ${warning.reason}`).join("\n")
+      : allergyConflicts.length
+        ? "- 개인 알레르기와 관련된 성분이 확인되어 섭취하지 않는 것이 안전해요."
+        : "- 특별한 주의 항목은 발견되지 않았어요.";
+    const personalAllergyText = allergyConflicts.length
+      ? [
+          "개인 알레르기 경고",
+          ...allergyConflicts.map(
+            (item) => `- 등록된 알레르기(${item.allergy})와 관련된 성분이 보여요: ${item.matched.join(", ")}. 섭취하지 않는 것이 안전해요.`
+          ),
+          "",
+        ].join("\n")
+      : "";
+    const ingredientNoticeText = shouldShowIngredientNotice
+      ? [
+          "알레르기 확인 안내",
+          "- 원재료명이 보이지 않아 알레르기 판단은 제한적입니다.",
+          "- 알레르기 확인이 필요하면 원재료명 부분을 추가로 찍어주세요.",
+          "",
+        ].join("\n")
+      : "";
 
     return [
       "성분표 분석이 끝났어요.",
       "",
+      personalAllergyText,
+      ingredientNoticeText,
       `제품명: ${result?.product_name || "확인 필요"}`,
       "",
       "영양성분",
