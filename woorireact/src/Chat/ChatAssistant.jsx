@@ -237,7 +237,10 @@ export default function ChatAssistant() {
       selectedScheduleDate={selectedScheduleDate}
       onScheduleDateChange={setSelectedScheduleDate}
       onScheduleOpen={openScheduleCreate}
-      onScheduleSave={handleScheduleSave}
+      onScheduleSave={(schedule) =>{
+        setEditingSchedule(null);
+        return handleScheduleSave(schedule);
+      }}
       onScheduleUpdate={handleScheduleUpdate}
       onScheduleEdit={openScheduleEdit}
       onScheduleDelete={handleScheduleDelete}

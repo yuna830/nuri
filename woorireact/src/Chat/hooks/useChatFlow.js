@@ -267,7 +267,7 @@ function getCurrentUserHealthContext() {
 function parseMeridiemChoice(text) {
   const normalized = normalizeScheduleText(text);
   if (/오전|아침|새벽/.test(normalized)) return "오전";
-  if (/오후|저녁|밤/.test(normalized)) return "오후";
+  if (/오후|저녁|밤|낮|점심/.test(normalized)) return "오후";
   return "";
 }
 

@@ -35,7 +35,9 @@ function getCuteKoreanVoice() {
   if (!("speechSynthesis" in window)) return null;
 
   const voices = window.speechSynthesis.getVoices();
-  const koreanVoices = voices.filter((voice) => voice.lang?.toLowerCase().startsWith("ko"));
+  const koreanVoices = voices.filter((voice) =>
+    voice.lang?.toLowerCase().startsWith("ko")
+  );
   const cuteVoiceNames = ["female", "woman", "girl", "heami", "sunhi", "yuna", "google"];
 
   return (
