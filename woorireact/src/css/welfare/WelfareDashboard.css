@@ -1053,6 +1053,39 @@
     background: #739675;
 }
 
+.wd-add-senior-modal {
+    width: min(460px, calc(100vw - 32px));
+}
+
+.wd-add-senior-form {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.wd-add-senior-form label {
+    display: grid;
+    gap: 8px;
+    color: #48694b;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.wd-add-senior-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 13px;
+    border: 1px solid #cfe4d0;
+    border-radius: 10px;
+    color: #1e2a1f;
+    font: inherit;
+    font-weight: 700;
+}
+
+.wd-add-senior-status {
+    margin-top: 14px;
+}
+
 .wd-info-request-actions {
     display: flex;
     justify-content: flex-end;

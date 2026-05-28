@@ -50,6 +50,7 @@ export default function KakaoMap({
   className = "",
   style,
   safeZone,
+  safeZones = [],
   currentLocation,
   route = [],
   showRoute = true,
@@ -97,26 +98,30 @@ export default function KakaoMap({
     overlaysRef.current.forEach(clearOverlay);
     overlaysRef.current = [];
 
-    if (safeZone) {
+    const zonesToRender = Array.isArray(safeZones) && safeZones.length > 0
+      ? safeZones
+      : safeZone
+        ? [safeZone]
+        : [];
+    const bounds = new maps.LatLngBounds();
+    let hasBounds = false;
+
+    zonesToRender.forEach((zone, index) => {
+      if (zone?.centerLatitude == null || zone?.centerLongitude == null) return;
+
       const safeZoneCenter = toLatLng(maps, {
-        lat: safeZone.centerLatitude,
-        lng: safeZone.centerLongitude,
+        lat: zone.centerLatitude,
+        lng: zone.centerLongitude,
       });
-      const radius = Number(safeZone.radiusMeters || 500);
+      const radius = Number(zone.radiusMeters || 500);
       const latOffset = radius / 111000;
-      const lngOffset = radius / (111000 * Math.cos((safeZone.centerLatitude * Math.PI) / 180));
+      const lngOffset = radius / (111000 * Math.cos((zone.centerLatitude * Math.PI) / 180));
 
-      const bounds = new maps.LatLngBounds();
-      bounds.extend(new maps.LatLng(safeZone.centerLatitude + latOffset, safeZone.centerLongitude));
-      bounds.extend(new maps.LatLng(safeZone.centerLatitude - latOffset, safeZone.centerLongitude));
-      bounds.extend(new maps.LatLng(safeZone.centerLatitude, safeZone.centerLongitude + lngOffset));
-      bounds.extend(new maps.LatLng(safeZone.centerLatitude, safeZone.centerLongitude - lngOffset));
-
-      if (currentLocation) {
-        bounds.extend(toLatLng(maps, currentLocation));
-      }
-
-      mapRef.current.setBounds(bounds);
+      bounds.extend(new maps.LatLng(zone.centerLatitude + latOffset, zone.centerLongitude));
+      bounds.extend(new maps.LatLng(zone.centerLatitude - latOffset, zone.centerLongitude));
+      bounds.extend(new maps.LatLng(zone.centerLatitude, zone.centerLongitude + lngOffset));
+      bounds.extend(new maps.LatLng(zone.centerLatitude, zone.centerLongitude - lngOffset));
+      hasBounds = true;
 
       const circle = new maps.Circle({
         center: safeZoneCenter,
@@ -130,17 +135,19 @@ export default function KakaoMap({
 
       const marker = new maps.Marker({ position: safeZoneCenter });
       const info = new maps.InfoWindow({
-        content: `<div style="padding:6px 10px;font-size:12px;">${safeZoneLabel}</div>`,
+        content: `<div style="padding:6px 10px;font-size:12px;">${zone.name || zone.placeName || safeZoneLabel}${index === 0 && zonesToRender.length === 1 ? "" : " 안전 반경"}</div>`,
       });
 
       circle.setMap(mapRef.current);
       marker.setMap(mapRef.current);
       maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
       overlaysRef.current.push(circle, marker, info);
-    }
+    });
 
     if (currentLocation) {
       const position = toLatLng(maps, currentLocation);
+      bounds.extend(position);
+      hasBounds = true;
       const marker = new maps.Marker({ position });
       const info = new maps.InfoWindow({
         content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>`,
@@ -162,7 +169,11 @@ export default function KakaoMap({
       polyline.setMap(mapRef.current);
       overlaysRef.current.push(polyline);
     }
-  }, [currentLabel, currentLocation, failed, route, safeZone, safeZoneLabel, showRoute]);
+
+    if (hasBounds) {
+      mapRef.current.setBounds(bounds);
+    }
+  }, [currentLabel, currentLocation, failed, route, safeZone, safeZones, safeZoneLabel, showRoute]);
 
   if (failed && fallback) return fallback;
 

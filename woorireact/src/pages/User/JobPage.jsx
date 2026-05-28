@@ -8,12 +8,15 @@ import {
   fetchJobList,
   formatDate,
   getSavedJobProfile,
+  isJobRegionCompatible,
   isPastDate,
   scoreJobMatch,
 } from "../../utils/user/jobApi";
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
+const RECOMMEND_SIZE = 5;
+const CATEGORY_TARGET_SIZE = PAGE_SIZE + RECOMMEND_SIZE;
 const API_PAGE_SIZE = 200;
 
 export default function JobPage() {
@@ -28,6 +31,9 @@ export default function JobPage() {
   const [hasMoreSource, setHasMoreSource] = useState(true);
   const [selected, setSelected] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [jobApplications, setJobApplications] = useState([]);
+  const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
+  const [selectedRecommendedApplication, setSelectedRecommendedApplication] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
   const deferredSearch = useDeferredValue(search);
   const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
@@ -35,6 +41,26 @@ export default function JobPage() {
   useEffect(() => {
     setProfile(getSavedJobProfile());
   }, []);
+
+  const loadJobApplications = useCallback(async () => {
+    try {
+      const saved = sessionStorage.getItem("currentSenior");
+      const seniorId = saved ? JSON.parse(saved)?.senior?.id : null;
+      if (!seniorId) return;
+
+      const response = await fetch(`/api/job-interests/senior/${seniorId}`);
+      const data = response.ok ? await response.json() : [];
+      setJobApplications(Array.isArray(data) ? data : []);
+    } catch {
+      setJobApplications([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadJobApplications();
+    const timerId = window.setInterval(loadJobApplications, 30000);
+    return () => window.clearInterval(timerId);
+  }, [loadJobApplications]);
 
   const isExpired = useCallback((job) => {
     if (job.toDd) return isPastDate(job.toDd);
@@ -57,8 +83,8 @@ export default function JobPage() {
 
   const filterJobs = useCallback((list) => list.filter((job) => {
     if (hideExpired && isExpired(job)) return false;
-    return matchesCategory(job) && matchesSearch(job);
-  }), [hideExpired, isExpired, matchesCategory, matchesSearch]);
+    return matchesCategory(job) && matchesSearch(job) && isJobRegionCompatible(job, profile || {});
+  }), [hideExpired, isExpired, matchesCategory, matchesSearch, profile]);
 
   const scoredJobs = useMemo(() => {
     return filterJobs(jobs)
@@ -69,7 +95,11 @@ export default function JobPage() {
       .sort((a, b) => b.match.score - a.match.score);
   }, [category, filterJobs, jobs, profile]);
 
-  const recommendedJobs = scoredJobs.slice(0, 5);
+  const recommendedJobs = scoredJobs.slice(0, RECOMMEND_SIZE);
+  const welfareRecommendedApplications = useMemo(
+    () => jobApplications.filter((application) => application.applicationType === "RECOMMEND"),
+    [jobApplications],
+  );
   const recommendedIds = useMemo(
     () => new Set(recommendedJobs.map((job) => `${job.source}-${job.jobId}`)),
     [recommendedJobs],
@@ -98,7 +128,7 @@ export default function JobPage() {
         const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
         const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
         const emptyPage = result.list.length === 0;
-        const reachedSafetyLimit = nextPage >= 20;
+        const reachedSafetyLimit = nextPage >= 60;
 
         shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
         nextPage += 1;
@@ -126,15 +156,15 @@ export default function JobPage() {
       setJobs([]);
       return;
     }
-    loadUntilEnough({ startPage: 1, targetCount: PAGE_SIZE, replace: true });
+    loadUntilEnough({ startPage: 1, targetCount: CATEGORY_TARGET_SIZE, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isJobAllowed]);
 
   useEffect(() => {
-    if (loading || jobs.length === 0 || scoredJobs.length >= PAGE_SIZE || !hasMoreSource) return;
+    if (loading || jobs.length === 0 || scoredJobs.length >= CATEGORY_TARGET_SIZE || !hasMoreSource) return;
     loadUntilEnough({
       startPage: loadedPage + 1,
-      targetCount: PAGE_SIZE,
+      targetCount: CATEGORY_TARGET_SIZE,
       replace: false,
     });
   }, [hasMoreSource, jobs.length, loadedPage, loading, loadUntilEnough, scoredJobs.length]);
@@ -184,9 +214,33 @@ export default function JobPage() {
           status: "검토 대기",
         }),
       });
+      await loadJobApplications();
       alert("복지사에게 관심 공고를 전달했어요.");
     } catch {
       alert("전달에 실패했습니다. 복지사에게 직접 문의해주세요.");
+    }
+  };
+
+  const handleUpdateApplicationStatus = async (application, status) => {
+    if (!application?.id) return;
+
+    try {
+      const response = await fetch(`/api/job-interests/${application.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) throw new Error("status update failed");
+
+      const updated = await response.json();
+      setJobApplications((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setSelectedRecommendedApplication(updated);
+    } catch (error) {
+      console.error("일자리 추천 상태 변경 실패:", error);
+      alert("상태 변경에 실패했습니다.");
     }
   };
 
@@ -363,6 +417,34 @@ export default function JobPage() {
                 </div>
               </div>
 
+              {welfareRecommendedApplications.length > 0 && (
+                <section className="jp-welfare-recommend-section">
+                  <div className="jp-welfare-recommend-head">
+                    <div>
+                      <strong>복지사가 추천한 공고</strong>
+                      <p>관심 여부를 누르면 복지사 쪽 관리 화면에 바로 반영됩니다.</p>
+                    </div>
+                    <span>{welfareRecommendedApplications.length}건</span>
+                  </div>
+
+                  <div className="jp-welfare-recommend-list">
+                    {welfareRecommendedApplications.slice(0, 3).map((application) => (
+                      <article className="jp-welfare-recommend-card" key={application.id}>
+                        <div>
+                          <strong>{application.jobTitle || "추천 공고"}</strong>
+                          <span>{application.organization || application.company || ""}</span>
+                          <small>{application.location || ""}</small>
+                        </div>
+                        <em>{application.status || "확인 대기"}</em>
+                        <button type="button" onClick={() => setSelectedRecommendedApplication(application)}>
+                          공고 보기
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {recommendedJobs.length > 0 && (
                 <section className="jp-recommend-section">
                   <div className="jp-recommend-head">
@@ -370,10 +452,21 @@ export default function JobPage() {
                       <strong>맞춤 추천 TOP 5</strong>
                       <p>내 조건과 공고 정보를 기준으로 계산한 참고 점수예요.</p>
                     </div>
-                    <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
+                    <div className="jp-recommend-actions">
+                      {jobApplications.length > 0 && (
+                        <button
+                          className="jp-application-toggle"
+                          type="button"
+                          onClick={() => setIsApplicationModalOpen(true)}
+                        >
+                          내가 신청한 공고 결과 보기
+                        </button>
+                      )}
+                      <span>최고 {recommendedJobs[0]?.match.score || 0}점</span>
+                    </div>
                   </div>
                   <div className="jp-recommend-grid">
-              {recommendedJobs.slice(0, 5).map((job, idx) => renderJobCard(job, idx, true))}
+              {recommendedJobs.slice(0, RECOMMEND_SIZE).map((job, idx) => renderJobCard(job, idx, true))}
                   </div>
                 </section>
               )}
@@ -385,7 +478,9 @@ export default function JobPage() {
               {!loading && !error && scoredJobs.length === 0 && !hasMoreSource && (
                 <div className="jp-empty">
                   <div className="jp-empty-icon">🔍</div>
-                  <div className="jp-empty-text">해당하는 일자리가 없습니다.</div>
+                  <div className="jp-empty-text">
+                    {category ? `${category} 카테고리에 현재 모집 중인 공고가 없습니다.` : "해당하는 일자리가 없습니다."}
+                  </div>
                 </div>
               )}
 
@@ -441,6 +536,95 @@ export default function JobPage() {
                   복지사에게 알리기
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedRecommendedApplication && (
+        <div className="jp-overlay" onClick={() => setSelectedRecommendedApplication(null)}>
+          <div className="jp-modal jp-application-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="jp-modal-header">
+              <button
+                className="jp-modal-close"
+                type="button"
+                onClick={() => setSelectedRecommendedApplication(null)}
+              >
+                횞
+              </button>
+              <div className="jp-modal-title">{selectedRecommendedApplication.jobTitle || "추천 공고"}</div>
+              <div className="jp-modal-company">
+                {selectedRecommendedApplication.organization || selectedRecommendedApplication.company || "기관 정보 없음"}
+              </div>
+            </div>
+            <div className="jp-modal-body">
+              {[
+                { key: "추천 상태", val: selectedRecommendedApplication.status || "확인 대기" },
+                { key: "근무지", val: selectedRecommendedApplication.location },
+                { key: "추천일", val: selectedRecommendedApplication.requestedAt },
+                { key: "공고번호", val: selectedRecommendedApplication.jobId },
+              ].filter((row) => row.val).map((row) => (
+                <div key={row.key} className="jp-modal-row">
+                  <div className="jp-modal-key">{row.key}</div>
+                  <div className="jp-modal-val">{row.val}</div>
+                </div>
+              ))}
+
+              <div className="jp-recommend-response-actions">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateApplicationStatus(selectedRecommendedApplication, "관심 있음")}
+                >
+                  관심 있어요
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateApplicationStatus(selectedRecommendedApplication, "거절")}
+                >
+                  거절할게요
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateApplicationStatus(selectedRecommendedApplication, "문의 요청")}
+                >
+                  복지사에게 문의
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isApplicationModalOpen && (
+        <div className="jp-overlay" onClick={() => setIsApplicationModalOpen(false)}>
+          <div className="jp-modal jp-application-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="jp-modal-header">
+              <button
+                className="jp-modal-close"
+                type="button"
+                onClick={() => setIsApplicationModalOpen(false)}
+              >
+                ×
+              </button>
+              <div className="jp-modal-title">내가 신청한 일자리</div>
+              <div className="jp-modal-company">신청한 공고와 처리 결과를 확인할 수 있어요.</div>
+            </div>
+            <div className="jp-modal-body">
+              {jobApplications.length === 0 ? (
+                <div className="jp-application-empty">아직 신청한 일자리가 없습니다.</div>
+              ) : (
+                <div className="jp-application-list">
+                  {jobApplications.map((application) => (
+                    <article className="jp-application-item" key={application.id}>
+                      <div>
+                        <strong>{application.jobTitle || "신청 공고"}</strong>
+                        <span>{application.organization || application.company || ""}</span>
+                      </div>
+                      <em>{application.status || "검토 대기"}</em>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

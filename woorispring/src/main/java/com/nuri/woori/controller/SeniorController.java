@@ -564,9 +564,14 @@ public class SeniorController {
     @GetMapping("/welfare")
     public Object getWelfareSeniors(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Long welfareWorkerId) {
         if (page == null && size == null) {
-            return seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+            List<Senior> seniors = welfareWorkerId == null
+                    ? seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+                    : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+
+            return seniors
                     .stream()
                     .map(this::toWelfareSeniorListResponse)
                     .toList();
@@ -574,8 +579,10 @@ public class SeniorController {
 
         int pageNumber = Math.max(0, page == null ? 0 : page);
         int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
-        Page<Senior> seniorPage = seniorRepository.findAll(
-                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id")));
+        PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id"));
+        Page<Senior> seniorPage = welfareWorkerId == null
+                ? seniorRepository.findAll(pageRequest)
+                : seniorRepository.findByWelfareWorkerId(welfareWorkerId, pageRequest);
 
         return new WelfareSeniorPageResponse(
                 seniorPage.getContent()
@@ -586,6 +593,19 @@ public class SeniorController {
                 seniorPage.getTotalPages(),
                 seniorPage.getNumber(),
                 seniorPage.getSize());
+    }
+
+    @PatchMapping("/{id}/welfare-worker")
+    public ResponseEntity<SeniorProfileResponse> updateSeniorWelfareWorker(
+            @PathVariable Long id,
+            @RequestBody SeniorWelfareWorkerRequest request) {
+        return seniorRepository.findById(id)
+                .map(senior -> {
+                    senior.setWelfareWorkerId(request.welfareWorkerId());
+                    Senior savedSenior = seniorRepository.save(senior);
+                    return ResponseEntity.ok(toProfileResponse(savedSenior));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
@@ -666,6 +686,10 @@ public class SeniorController {
             Double lastGpsLongitude,
             LocalDateTime lastGpsRecordedAt,
             Boolean hasGuardian) {
+    }
+
+    public record SeniorWelfareWorkerRequest(
+            Long welfareWorkerId) {
     }
 
     public record WelfareDecisionRequest(
