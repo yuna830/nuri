@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     qdrant_api_key: str
     qdrant_collection: str = "welfare_documents"
 
-    neon_database_url: str
+    database_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

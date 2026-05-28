@@ -11,7 +11,7 @@ import {
     recommendWelfareJobToSenior,
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
 import "../../css/welfare/WelfareJobPostings.css";
@@ -623,7 +623,7 @@ function WelfareJobPostings() {
                 </div>
             )}
             
-            <WelfarePolicyQaButton />
+            <WelfarePolicyChatButton />
         </div>
     );
 }

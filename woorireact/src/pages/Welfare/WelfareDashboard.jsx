@@ -16,7 +16,7 @@ import {
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     getMissingSeniorInfoFields,
     getSeniorSummaryCounts,
@@ -749,7 +749,7 @@ function WelfareDashboard() {
                 </div>
             )}
 
-            <WelfarePolicyQaButton seniorOptions={currentSeniors} />
+            <WelfarePolicyChatButton seniorOptions={currentSeniors} />
         </div>
     );
 }

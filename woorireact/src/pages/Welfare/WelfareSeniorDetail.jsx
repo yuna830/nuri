@@ -7,7 +7,7 @@ import {
     formatAgeGender,
     formatGps,
 } from "../../utils/welfare/welfareSenior";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     fetchWelfareSeniorDetail,
     requestGuardianConsultation,
@@ -1044,7 +1044,7 @@ function WelfareSeniorDetail() {
                 </div>
             )}
 
-            <WelfarePolicyQaButton senior={senior} />
+            <WelfarePolicyChatButton senior={senior} />
         </div>
     );
 }

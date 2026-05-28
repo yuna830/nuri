@@ -13,7 +13,7 @@ import {
     isPendingJobApplication,
     isPhoneConsultationJobApplication,
 } from "../../utils/welfare/welfareSummaryStats";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
 import "../../css/welfare/WelfareDashboard.css";
@@ -233,7 +233,7 @@ function WelfareJobApplications() {
                 </section>
             </main>
             
-            <WelfarePolicyQaButton />
+            <WelfarePolicyChatButton />
         </div>
     );
 }
