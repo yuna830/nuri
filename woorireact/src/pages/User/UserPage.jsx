@@ -27,7 +27,7 @@ import {
   reverseGeocode,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
-import { findWelfarePrograms } from "../../welfareChat";
+import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
 
@@ -86,6 +86,51 @@ const getHealthScoresFromProfile = (profile) => {
     smoking: healthInfo.smoking,
     drinking: healthInfo.drinking,
     medicineCount: healthInfo.medicineCount,
+  });
+};
+
+const buildUserWelfarePerson = (profile, userName, userRegion) => {
+  const senior = profile?.senior ?? {};
+  const healthInfo = profile?.healthInfo ?? {};
+  const medicationInfo = Array.isArray(healthInfo.medications)
+    ? healthInfo.medications.map((item) => item?.name || item).filter(Boolean).join(", ")
+    : "";
+  const diseases = [
+    healthInfo.diabetes,
+    healthInfo.hypertension,
+    healthInfo.heartDisease,
+    healthInfo.jointDisease,
+    healthInfo.stroke,
+    healthInfo.kidneyDisease,
+    healthInfo.lungDisease,
+    healthInfo.liverDisease,
+    healthInfo.cancer,
+    healthInfo.dementia,
+    healthInfo.vision,
+    healthInfo.hearing,
+    healthInfo.recentFall,
+  ].filter((value) => value && value !== "없음");
+
+  return normalizePerson({
+    id: senior.id,
+    name: senior.name || userName,
+    age: senior.age,
+    gender: senior.gender,
+    region: senior.region || senior.address || userRegion,
+    address: senior.address || senior.region || userRegion,
+    healthStatus: healthInfo.healthStatus,
+    condition: diseases.join(", "),
+    diseases,
+    medicationInfo,
+    medicineCount: healthInfo.medicineCount,
+    incomeLevel: healthInfo.incomeLevel,
+    household: healthInfo.householdType,
+    householdType: healthInfo.householdType,
+    currentBenefits: healthInfo.currentBenefits,
+    welfareMemo: healthInfo.welfareMemo,
+    welfareDecision: senior.welfareDecision,
+    welfareDecisionReason: senior.welfareDecisionReason,
+    healthInfo,
   });
 };
 
@@ -424,6 +469,7 @@ export default function UserPage() {
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
   const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
     guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
@@ -797,6 +843,7 @@ export default function UserPage() {
               const freshProfile = await response.json();
 
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
               setChanged(setProfileImageUrl, freshProfile?.senior?.profileImageUrl || "");
@@ -807,6 +854,7 @@ export default function UserPage() {
           }
 
           setChanged(setUserName, profile?.senior?.name || "사용자");
+          setChanged(setCurrentProfile, profile);
           setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
           setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
           loadMatchedCareTeam(cachedSeniorId, profile);
@@ -824,6 +872,7 @@ export default function UserPage() {
 
         sessionStorage.setItem("currentSenior", JSON.stringify(latest));
         localStorage.setItem("current_senior_id", String(latest.senior.id));
+        setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
         setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
         setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
@@ -1089,21 +1138,14 @@ export default function UserPage() {
     return list.slice(0, 2);
   })();
 
+  const welfarePerson = buildUserWelfarePerson(currentProfile, userName, userRegion);
   const welfareMatches = findWelfarePrograms({
     question: "내 상황에 맞는 복지 제도를 추천해줘",
-    person: {
-      name: userName,
-      age: initialSenior?.age,
-      gender: initialSenior?.gender,
-      region: userRegion,
-      household: initialProfile?.healthInfo?.householdType,
-      incomeLevel: initialProfile?.healthInfo?.incomeLevel,
-      healthInfo: initialProfile?.healthInfo,
-    },
+    person: welfarePerson,
     limit: 3,
   });
 
-  const currentBenefits = String(initialProfile?.healthInfo?.currentBenefits || "")
+  const currentBenefits = String(currentProfile?.healthInfo?.currentBenefits || "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
