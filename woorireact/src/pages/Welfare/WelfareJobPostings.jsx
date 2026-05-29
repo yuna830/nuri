@@ -472,7 +472,6 @@ function WelfareJobPostings() {
                                 {Math.min(PAGE_SIZE, Math.max(filteredJobs.length - visibleJobs.length, 0)) || PAGE_SIZE}건 더보기
                             </button>
                         )}
-                    </div>
                 </main>
             </div>
 
