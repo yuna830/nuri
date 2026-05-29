@@ -2,22 +2,10 @@ const SENURI_SERVICE_KEY =
   import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-const hexDecode = (hex) => {
-  if (!hex) return "";
-  const bytes = hex.match(/.{2}/g);
-  if (!bytes) return hex;
-  try {
-    return bytes.map((b) => String.fromCharCode(parseInt(b, 16))).join("");
-  } catch {
-    return hex;
-  }
-};
-
 const SEOUL_JOB_KEYS = [
-  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_1 || "554658494777616e333864554c7452"),
-  hexDecode(import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6c4977427a77616e37304c58714a4d"),
-  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_3 || "6f484f795777616e373678665a556e"),
-  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_4 || "554d6c414677616e37314b43545549"),
+  import.meta.env.VITE_SEOUL_JOB_KEY_1 || "6c4977427a77616e37304c58714a4d",
+  import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6f484f795777616e373678665a556e",
+  import.meta.env.VITE_SEOUL_JOB_KEY_3 || "554d6c414677616e37314b43545549",
 ].filter(Boolean);
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -327,7 +315,7 @@ const fetchSeoulJobInfo = (pageNo, numOfRows) =>
   fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[0] || "", pageNo, numOfRows);
 
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
-  const cacheKey = `combined-v2-${pageNo}-${emplymShp}-${numOfRows}`;
+  const cacheKey = `combined-v3-${pageNo}-${emplymShp}-${numOfRows}`;
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
 
@@ -336,8 +324,10 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const dbCachedJobs = pageNo === 1 && !emplymShp
     ? await fetchCachedJobPostings().catch(() => [])
     : [];
+  const cachedSources = new Set(dbCachedJobs.map((job) => job?.source).filter(Boolean));
+  const hasMixedDbCache = cachedSources.has("노인일자리") && cachedSources.has("서울일자리");
 
-  if (pageNo === 1 && !emplymShp && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
+  if (pageNo === 1 && !emplymShp && hasMixedDbCache && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
     if (dbCachedJobs.length > 0) {
       const data = {
         list: dbCachedJobs,

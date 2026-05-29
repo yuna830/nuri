@@ -1509,6 +1509,10 @@ function GuardianPage() {
             setChatInitialRoomType("GUARDIAN_WELFARE");
             setIsChatOpen(true);
           }}
+          onOpenUserChat={() => {
+            setChatInitialRoomType("SENIOR_GUARDIAN");
+            setIsChatOpen(true);
+          }}
         />
       </section>
 

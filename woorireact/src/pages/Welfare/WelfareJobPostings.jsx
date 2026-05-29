@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, UserRound } from "lucide-react";
+import { Search } from "lucide-react";
 
 import {
     EMPL_MAP,
@@ -11,6 +11,7 @@ import {
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 import "../../css/welfare/WelfareDashboard.css";
@@ -207,6 +208,12 @@ function WelfareJobPostings() {
     }, [activeCategory, searchKeyword, hideClosedJobs]);
 
     useEffect(() => {
+        if (jobs.length > 0) {
+            localStorage.setItem("woori-jobs-seen-count", String(jobs.length));
+        }
+    }, [jobs.length]);
+
+    useEffect(() => {
         if (
             isLoading ||
             jobs.length === 0 ||
@@ -321,22 +328,10 @@ function WelfareJobPostings() {
             <WelfareCommonHeader rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`} />
 
             <div className="wj-content">
-            <div className="wj-layout">
-
-                <aside className="wj-sidebar">
-                    <div className="wd-sidebar-profile">
-                        <div className="wd-sidebar-avatar">
-                            <UserRound size={24} />
-                        </div>
-                        <div>
-                            <strong>{currentWorker?.name || "복지사"} 복지사</strong>
-                            <span>{currentWorker?.center || "소속 기관 미등록"}</span>
-                        </div>
-                    </div>
-
-                    <div className="wj-sidebar-divider" />
-
-                    <div className="wj-sidebar-category-box">
+            <div className="wj-layout wj-layout-with-main-sidebar">
+                <WelfareSidebar active="jobs">
+                    <div className="wj-sidebar-category-box wj-sidebar-category-under-nav">
+                        <strong className="wj-sidebar-title">직종 분류</strong>
                         {JOB_CATEGORY_FILTERS.map((category) => (
                             <button
                                 type="button"
@@ -345,13 +340,10 @@ function WelfareJobPostings() {
                                 onClick={() => setActiveCategory(category.value)}
                             >
                                 {category.label}
-                                {categoryCounts[category.value] > 0 && (
-                                    <span className="wj-sidebar-count">{categoryCounts[category.value]}</span>
-                                )}
                             </button>
                         ))}
                     </div>
-                </aside>
+                </WelfareSidebar>
 
                 <div className="wj-main-area">
                         <div className="wj-search-row">

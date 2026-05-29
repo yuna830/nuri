@@ -20,6 +20,15 @@
 .wd-sidebar {
     position: sticky;
     top: 84px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 18px;
+    scrollbar-width: none;
+}
+
+.wd-sidebar::-webkit-scrollbar {
+    display: none;
 }
 
 .wd-sidebar-profile {

@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-    BriefcaseBusiness,
-    ClipboardList,
-    MessageCircle,
-    Search,
-    UserPlus,
-    UserRound,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle, Search } from "lucide-react";
 
 import {
     assignWelfareSenior,
@@ -17,6 +10,7 @@ import {
     searchSeniorExact,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
@@ -444,19 +438,6 @@ function WelfareDashboard() {
             source.findIndex((item) => item.id === notification.id) === index
         )
         .filter((notification) => !dismissedNotifications.includes(notification.id));
-    const hasJobNews = activeNotifications.some((notification) =>
-        String(notification.category || notification.detailCategory || "").includes("일자리")
-    );
-    const hasSeniorInfoNews = activeNotifications.some((notification) =>
-        ["정보", "미입력", "수정"].some((keyword) =>
-            String(notification.category || notification.detailCategory || notification.title || "").includes(keyword)
-        )
-    );
-    const hasNewJobPostings = useMemo(() => {
-        const lastVisited = Number(localStorage.getItem("woori-jobs-last-visited") || 0);
-        return Date.now() - lastVisited > 24 * 60 * 60 * 1000;
-    }, []);
-
     const dismissNotification = (notificationId) => {
         setDismissedNotifications((previousIds) =>
             previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
@@ -629,52 +610,7 @@ function WelfareDashboard() {
             />
 
             <div className="wd-layout">
-                <aside className="wd-sidebar">
-                    <div className="wd-sidebar-profile">
-                        <div className="wd-sidebar-avatar">
-                            <UserRound size={26} />
-                        </div>
-
-                        <div>
-                            <strong>{currentWorker?.name || "복지사"} 복지사</strong>
-                            <span>{currentWorker?.center || "소속 기관 미등록"}</span>
-                        </div>
-                    </div>
-
-                    <nav className="wd-sidebar-nav">
-                        <Link to="/welfare" className="wd-sidebar-item wd-sidebar-item-active">
-                            <ClipboardList size={17} />
-                            대상자 목록
-                            {hasSeniorInfoNews && <span className="wd-sidebar-new-badge">new</span>}
-                        </Link>
-
-                        <Link to="/welfare/job-applications" className="wd-sidebar-item">
-                            <UserPlus size={17} />
-                            일자리 신청
-                            {hasJobNews && <span className="wd-sidebar-new-badge">new</span>}
-                        </Link>
-
-                        <Link to="/welfare/jobs" className="wd-sidebar-item">
-                            <BriefcaseBusiness size={17} />
-                            일자리 공고
-                            {hasNewJobPostings && <span className="wd-sidebar-new-badge">new</span>}
-                        </Link>
-
-                        <Link to="/welfare/mypage" className="wd-sidebar-item">
-                            <UserRound size={17} />
-                            마이페이지
-                        </Link>
-                    </nav>
-
-                    <button
-                        type="button"
-                        className="wd-sidebar-add-button"
-                        onClick={openAddSeniorModal}
-                    >
-                        <UserPlus size={17} />
-                        대상자 추가
-                    </button>
-                </aside>
+                <WelfareSidebar active="seniors" onAddSenior={openAddSeniorModal} />
 
                 <main className="wd-content">
                     <WelfareSummaryCards

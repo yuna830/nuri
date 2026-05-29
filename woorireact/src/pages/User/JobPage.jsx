@@ -106,7 +106,8 @@ export default function JobPage() {
   );
   const interestedApplications = useMemo(
     () => jobApplications.filter((application) =>
-      application.applicationType === "INTEREST" || application.status === "관심 있음"
+      (application.applicationType === "INTEREST" || application.status === "관심 있음")
+      && !["관심 삭제", "삭제", "취소", "취소 처리"].includes(application.status)
     ),
     [jobApplications],
   );
@@ -121,8 +122,40 @@ export default function JobPage() {
     if (!application?.jobId) return null;
     return jobs.find((job) => String(job.jobId) === String(application.jobId)) || null;
   }, [jobs]);
+  const fetchCachedJobForApplication = useCallback(async (application) => {
+    const localJob = findCachedJobForApplication(application);
+    if (localJob) return localJob;
+    if (!application?.jobId) return null;
+
+    try {
+      const response = await fetch("/api/job-cache");
+      if (!response.ok) return null;
+
+      const cachedJobs = await response.json();
+      if (!Array.isArray(cachedJobs)) return null;
+
+      return cachedJobs.find((job) =>
+        String(job.jobId) === String(application.jobId)
+        && (!application.source || !job.source || String(job.source) === String(application.source))
+      ) || cachedJobs.find((job) => String(job.jobId) === String(application.jobId)) || null;
+    } catch {
+      return null;
+    }
+  }, [findCachedJobForApplication]);
+  const openInterestApplicationDetail = useCallback(async (application) => {
+    const sourceJob = await fetchCachedJobForApplication(application);
+
+    setSelectedInterestApplication(sourceJob ? {
+      ...application,
+      __sourceJob: sourceJob,
+      organization: application.organization || application.company || sourceJob.oranNm,
+      company: application.company || application.organization || sourceJob.oranNm,
+      location: application.location || sourceJob.workPlcNm,
+      source: application.source || sourceJob.source,
+    } : application);
+  }, [fetchCachedJobForApplication]);
   const buildApplicationDetailRows = useCallback((application, statusLabel = "상태") => {
-    const sourceJob = findCachedJobForApplication(application) || {};
+    const sourceJob = application.__sourceJob || findCachedJobForApplication(application) || {};
 
     return [
       { key: statusLabel, val: application.status || "확인 대기" },
@@ -306,6 +339,37 @@ export default function JobPage() {
       alert("복지사에게 일자리 신청을 보냈어요.");
     } catch {
       alert("신청에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteInterest = async (application) => {
+    if (!application?.id) return;
+
+    const confirmed = window.confirm("이 관심공고를 삭제할까요?");
+    if (!confirmed) return;
+
+    try {
+      const deleteResponse = await fetch(`/api/job-interests/${application.id}`, {
+        method: "DELETE",
+      });
+
+      if (!deleteResponse.ok) {
+        const fallbackResponse = await fetch(`/api/job-interests/${application.id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "관심 삭제" }),
+        });
+
+        if (!fallbackResponse.ok) throw new Error("interest delete failed");
+      }
+
+      setJobApplications((previous) =>
+        previous.filter((item) => String(item.id) !== String(application.id))
+      );
+      setSelectedInterestApplication(null);
+      alert("관심공고를 삭제했습니다.");
+    } catch {
+      alert("관심공고 삭제에 실패했습니다.");
     }
   };
 
@@ -499,17 +563,25 @@ export default function JobPage() {
                 </div>
               </div>
 
-              <div className="jp-main-head">
-                <div className="jp-main-label">
-                  {search
-                    ? `"${search}" 검색결과 · ${scoredJobs.length}건`
-                    : category
-                      ? `${category} · ${scoredJobs.length}건`
-                      : `구인 목록 · ${scoredJobs.length}건 표시 중`}
-                </div>
+              <div className="jp-main-actions">
+                <button
+                  className="jp-application-toggle"
+                  type="button"
+                  onClick={() => setIsInterestModalOpen(true)}
+                >
+                  관심 공고 모아 보기
+                </button>
+                {appliedApplications.length > 0 && (
+                  <button
+                    className="jp-application-toggle"
+                    type="button"
+                    onClick={() => setIsApplicationModalOpen(true)}
+                  >
+                    내가 신청한 공고 결과 보기
+                  </button>
+                )}
               </div>
 
-              <div className="jp-cards-scroll">
               {welfareRecommendedApplications.length > 0 && (
                 <section className="jp-welfare-recommend-section">
                   <div className="jp-welfare-recommend-head">
@@ -538,30 +610,13 @@ export default function JobPage() {
                 </section>
               )}
 
+              <div className="jp-cards-scroll">
               {recommendedJobs.length > 0 && (
                 <section className="jp-recommend-section">
                   <div className="jp-recommend-head">
                     <div>
                       <strong>맞춤 추천 TOP 5</strong>
                       <p>내 조건과 공고 정보를 기준으로 계산한 참고 점수예요.</p>
-                    </div>
-                    <div className="jp-recommend-actions">
-                      <button
-                        className="jp-application-toggle"
-                        type="button"
-                        onClick={() => setIsInterestModalOpen(true)}
-                      >
-                        관심 공고 모아 보기
-                      </button>
-                      {appliedApplications.length > 0 && (
-                        <button
-                          className="jp-application-toggle"
-                          type="button"
-                          onClick={() => setIsApplicationModalOpen(true)}
-                        >
-                          내가 신청한 공고 결과 보기
-                        </button>
-                      )}
                     </div>
                   </div>
                   <div className="jp-recommend-grid">
@@ -713,7 +768,7 @@ export default function JobPage() {
                     <article
                       className="jp-application-item jp-application-item-clickable"
                       key={application.id}
-                      onClick={() => setSelectedInterestApplication(application)}
+                      onClick={() => openInterestApplicationDetail(application)}
                     >
                       <div>
                         <strong>{application.jobTitle || "관심 공고"}</strong>
@@ -752,13 +807,20 @@ export default function JobPage() {
                   <div className="jp-modal-val">{row.val}</div>
                 </div>
               ))}
-              <div className="jp-modal-actions" style={{ gridTemplateColumns: "1fr" }}>
+              <div className="jp-modal-actions">
                 <button
                   className="jp-modal-apply"
                   type="button"
                   onClick={() => handleApplyFromInterest(selectedInterestApplication)}
                 >
                   신청하기
+                </button>
+                <button
+                  className="jp-modal-secondary"
+                  type="button"
+                  onClick={() => handleDeleteInterest(selectedInterestApplication)}
+                >
+                  관심공고 삭제
                 </button>
               </div>
             </div>

@@ -115,6 +115,7 @@ function EmergencyPanel({
   onCallNeedsReport,
   onCloseCallResult,
   onOpenChat,
+  onOpenUserChat,
 }) {
 
   const [policeIndex, setPoliceIndex] = useState(0);
@@ -377,6 +378,7 @@ function EmergencyPanel({
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
+      onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
       alert("안부 메시지 전송에 실패했습니다.");
@@ -414,6 +416,7 @@ function EmergencyPanel({
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
+      onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
       alert("안부 메시지 전송에 실패했습니다.");
@@ -741,7 +744,7 @@ function EmergencyPanel({
                     전화하기
                   </button>
 
-                  <button type="button" onClick={openCheckInMessage}>
+                  <button type="button" onClick={onOpenUserChat || openCheckInMessage}>
                     메시지 보내기
                   </button>
                 </div>
@@ -812,6 +815,14 @@ function EmergencyPanel({
                     onClick={handleSaveCheckInMessage}
                   >
                     완료
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendCheckInMessage}
+                    disabled={isSendingCheckInMessage}
+                  >
+                    {isSendingCheckInMessage ? "보내는 중" : "메시지 보내기"}
                   </button>
                 </div>
               </div>
