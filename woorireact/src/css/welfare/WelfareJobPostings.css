@@ -167,6 +167,55 @@
     background: #ffffff;
 }
 
+.wj-category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.wj-category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #d4e8d6;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #5f7d61;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.wj-category-chip:hover {
+    border-color: #86a788;
+    background: #f2f6f0;
+}
+
+.wj-category-chip-active {
+    border-color: #86a788;
+    background: #86a788;
+    color: #ffffff;
+}
+
+.wj-category-chip-count {
+    min-width: 22px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .wj-search-row {
     position: sticky;
     top: 84px;

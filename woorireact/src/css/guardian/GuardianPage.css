@@ -206,6 +206,9 @@
 }
 
 .elder-tabs {
+  position: sticky;
+  top: 60px;
+  z-index: 110;
   height: 48px;
   padding: 0 max(28px, calc((100% - 1280px) / 2));
   border-bottom: 1px solid var(--border-color);
@@ -213,11 +216,17 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.elder-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .elder-tab {
   position: relative;
-  width: 280px;
+  width: min(280px, 60vw);
   padding: 0 22px;
   background: transparent;
   color: #4B5563;
@@ -225,7 +234,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 280px;
+  flex: 0 0 min(280px, 60vw);
 }
 
 .elder-tab:hover {

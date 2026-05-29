@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { BriefcaseBusiness, ClipboardList, MessageCircle, Search, UserPlus, UserRound } from "lucide-react";
+import { MessageCircle, Search } from "lucide-react";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
 import {
     fetchWelfareJobApplications,
@@ -165,42 +165,10 @@ function WelfareJobApplications() {
                 onClose={() => setIsChatOpen(false)}
             />
 
-            <main className="wja-content">
-                <aside className="wja-sidebar">
-                    <div className="wja-sidebar-profile">
-                        <div className="wja-sidebar-avatar">
-                            <UserRound size={24} />
-                        </div>
-                        <div>
-                            <strong>복지사</strong>
-                            <span>일자리 신청 관리</span>
-                        </div>
-                    </div>
+            <div className="wd-layout">
+                <WelfareSidebar active="job-applications" />
 
-                    <nav className="wja-sidebar-nav">
-                        <Link to="/welfare" className="wja-sidebar-item">
-                            <ClipboardList size={17} />
-                            대상자 목록
-                        </Link>
-
-                        <Link to="/welfare/job-applications" className="wja-sidebar-item wja-sidebar-item-active">
-                            <UserPlus size={17} />
-                            일자리 신청
-                        </Link>
-
-                        <Link to="/welfare/jobs" className="wja-sidebar-item">
-                            <BriefcaseBusiness size={17} />
-                            일자리 공고
-                        </Link>
-
-                        <Link to="/welfare/mypage" className="wja-sidebar-item">
-                            <UserRound size={17} />
-                            마이페이지
-                        </Link>
-                    </nav>
-                </aside>
-
-                <section className="wja-main">
+                <main className="wja-main">
                     <WelfareSummaryCards
                     mode="jobs"
                     counts={getJobApplicationSummaryCounts(applications)}
@@ -279,7 +247,8 @@ function WelfareJobApplications() {
                     )}
                 </section>
             </main>
-            
+            </div>
+
             <WelfarePolicyChatButton />
         </div>
     );

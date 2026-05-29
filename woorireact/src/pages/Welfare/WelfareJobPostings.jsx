@@ -14,8 +14,9 @@ import CommonHeader from "../../components/CommonHeader.jsx";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
-
+import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareJobPostings.css";
 
 const PAGE_SIZE = 10;
@@ -345,32 +346,26 @@ function WelfareJobPostings() {
                 onClose={() => setIsChatOpen(false)}
             />
 
-            <main className="wj-content">
-                <div className="wj-layout">
-                    <nav className="wj-sidebar" aria-label="직종 분류">
-                        <strong className="wj-sidebar-title">직종 분류</strong>
+            <div className="wd-layout">
+                <WelfareSidebar active="jobs" />
 
+                <main className="wj-main-area">
+                    <nav className="wj-category-chips" aria-label="직종 분류">
                         {JOB_CATEGORY_FILTERS.map((category) => (
                             <button
                                 type="button"
                                 key={category.label}
-                                className={`wj-sidebar-item${
-                                    activeCategory === category.value ? " wj-sidebar-item-active" : ""
-                                }`}
+                                className={`wj-category-chip${activeCategory === category.value ? " wj-category-chip-active" : ""}`}
                                 onClick={() => setActiveCategory(category.value)}
                             >
-                                <span>{category.label}</span>
-
-                                {activeCategory === category.value && (
-                                    <span className="wj-sidebar-count">
-                                        {categoryCounts[category.value] || 0}
-                                    </span>
+                                {category.label}
+                                {activeCategory === category.value && categoryCounts[category.value] > 0 && (
+                                    <span className="wj-category-chip-count">{categoryCounts[category.value]}</span>
                                 )}
                             </button>
                         ))}
                     </nav>
 
-                    <div className="wj-main-area">
                         <div className="wj-search-row">
                             <Search size={16} className="wj-search-icon" />
 
@@ -478,8 +473,8 @@ function WelfareJobPostings() {
                             </button>
                         )}
                     </div>
-                </div>
-            </main>
+                </main>
+            </div>
 
             {selectedJob && (
                 <div

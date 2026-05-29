@@ -16,8 +16,10 @@ import { formatPhoneNumber } from "../../utils/common/phone.js";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
 import "../../css/common/Login.css";
+import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareMyPage.css";
 
 const AUTH_API_BASE = "http://localhost:8080";
@@ -348,14 +350,17 @@ function WelfareMyPage() {
                 />
                 <TripartiteChatModal isOpen={isChatOpen} rooms={[]} onClose={() => setIsChatOpen(false)} />
 
-                <main className="wm-content">
-                    <section className="wm-empty-card">
-                        <h1 className="wm-empty-title">로그인이 필요합니다</h1>
-                        <Link to="/welfare-login" className="wm-primary-link">
-                            로그인으로 이동
-                        </Link>
-                    </section>
-                </main>
+                <div className="wd-layout">
+                    <WelfareSidebar active="mypage" />
+                    <main>
+                        <section className="wm-empty-card">
+                            <h1 className="wm-empty-title">로그인이 필요합니다</h1>
+                            <Link to="/welfare-login" className="wm-primary-link">
+                                로그인으로 이동
+                            </Link>
+                        </section>
+                    </main>
+                </div>
             </div>
         );
     }
@@ -375,7 +380,9 @@ function WelfareMyPage() {
             />
             <TripartiteChatModal isOpen={isChatOpen} rooms={[]} onClose={() => setIsChatOpen(false)} />
 
-            <main className="wm-content">
+            <div className="wd-layout">
+                <WelfareSidebar active="mypage" />
+                <main className="wm-content">
                 <div className="wm-layout">
                     <aside className="wm-profile-panel">
                         <div className="wm-avatar">
@@ -556,7 +563,8 @@ function WelfareMyPage() {
                         </div>
                     </div>
                 </div>
-            </main>
+                </main>
+            </div>
             {isPasswordModalOpen && (
                 <div className="login-modal-backdrop" onClick={closePasswordModal}>
                     <section className="login-modal" onClick={(event) => event.stopPropagation()}>
