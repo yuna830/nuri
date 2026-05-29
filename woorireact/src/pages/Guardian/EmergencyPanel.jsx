@@ -657,13 +657,14 @@ function EmergencyPanel({
                         <textarea
                           value={medicationReminderMessage}
                           onChange={(event) => setMedicationReminderMessage(event.target.value)}
+                          placeholder="여기에 작성하세요"
                           rows={5}
                         />
                       </label>
 
                       <div className="medication-reminder-actions">
-                        <button type="button" onClick={closeMedicationReminder}>
-                          취소
+                        <button type="button" onClick={() => setMedicationReminderMessage("")}>
+                          다시 쓰기
                         </button>
 
                         <button type="button" onClick={handleSendMedicationReminder}>
@@ -681,7 +682,7 @@ function EmergencyPanel({
 
                       <div className="medication-reminder-actions">
                         <button type="button" onClick={() => setMedicationReminderStatus("ready")}>
-                          다시 보내기
+                          다시 쓰기
                         </button>
 
                         <button type="button" onClick={closeMedicationReminder}>

@@ -6,7 +6,7 @@ const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
 const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
-const JOB_DB_WARM_PAGE_LIMIT = 10;
+const JOB_DB_WARM_PAGE_LIMIT = 30;
 const jobListCache = new Map();
 let jobCacheWarmupPromise = null;
 

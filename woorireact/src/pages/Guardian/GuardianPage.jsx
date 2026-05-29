@@ -1102,11 +1102,15 @@ function GuardianPage() {
     setCallingAlert(targetAlert);
 
     if (targetElder?.id) {
-      await createCallRequestAlert({
+      const created = await createCallRequestAlert({
         seniorId: targetElder.id,
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
-      }).catch(() => {});
+      }).catch(() => null);
+
+      if (Array.isArray(created) && created[0]?.id) {
+        knownAlertIdsRef.current.add(String(created[0].id));
+      }
 
       saveLocalSeniorAlert({
         seniorId: targetElder.id,
@@ -1116,6 +1120,7 @@ function GuardianPage() {
       });
     }
 
+    setIsCallResultOpen(true);
     window.location.href = `tel:${phone}`;
   };
 

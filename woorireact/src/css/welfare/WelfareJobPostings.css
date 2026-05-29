@@ -209,13 +209,18 @@
     height: 18px;
     padding: 0 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.25);
-    color: #ffffff;
+    background: rgba(134, 167, 136, 0.15);
+    color: #5f7d61;
     font-size: 11px;
     font-weight: 900;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.wj-category-chip-active .wj-category-chip-count {
+    background: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
 }
 
 .wj-search-row {

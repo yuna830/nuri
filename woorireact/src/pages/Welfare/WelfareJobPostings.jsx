@@ -160,9 +160,15 @@ function WelfareJobPostings() {
             let nextJobs = replace ? [] : jobs;
             let nextTotal = totalCount;
             let shouldContinue = true;
+            let startPageWasDbCache = false;
 
             while (shouldContinue) {
-                const result = await fetchWelfareJobList(nextPage, "", API_PAGE_SIZE);
+                const currentPage = nextPage;
+                const result = await fetchWelfareJobList(currentPage, "", API_PAGE_SIZE);
+
+                if (currentPage === startPage && result.fromDbCache) {
+                    startPageWasDbCache = true;
+                }
                 if (!result.fromDbCache) {
                     nextTotal = result.total || nextTotal;
                 }
@@ -179,10 +185,12 @@ function WelfareJobPostings() {
                 const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
                 const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
                 const emptyPage = !result.list?.length;
-                const reachedSafetyLimit = nextPage >= 60;
+                const reachedSafetyLimit = currentPage >= 60;
+                // If startPage came from DB cache, continue at least one more page for fresh data
+                const needsFreshPage = startPageWasDbCache && currentPage <= startPage;
 
                 shouldContinue =
-                    !enoughForCategory &&
+                    (needsFreshPage || !enoughForCategory) &&
                     !loadedAll &&
                     !emptyPage &&
                     !reachedSafetyLimit;
@@ -361,7 +369,7 @@ function WelfareJobPostings() {
                                 onClick={() => setActiveCategory(category.value)}
                             >
                                 {category.label}
-                                {activeCategory === category.value && categoryCounts[category.value] > 0 && (
+                                {categoryCounts[category.value] > 0 && (
                                     <span className="wj-category-chip-count">{categoryCounts[category.value]}</span>
                                 )}
                             </button>
