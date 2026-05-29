@@ -2,8 +2,9 @@
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
-import { sendCheckInMessage } from "../../api/guardianApi.js";
-import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
+import { sendCheckInMessage, sendMedicineAlert } from "../../api/guardianApi.js";
+import { sendSeniorChatMessage } from "../../api/chatApi.js";
+import { getCurrentGuardian } from "../../utils/guardian/guardianSession.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -113,6 +114,8 @@ function EmergencyPanel({
   onCallResolved,
   onCallNeedsReport,
   onCloseCallResult,
+  onOpenChat,
+  onOpenUserChat,
 }) {
 
   const [policeIndex, setPoliceIndex] = useState(0);
@@ -148,13 +151,26 @@ function EmergencyPanel({
     setIsMedicationReminderOpen(false);
   };
 
-  const handleSendMedicationReminder = () => {
+  const handleSendMedicationReminder = async () => {
     if (!medicationReminderMessage.trim()) {
       alert("알림 내용을 입력해주세요.");
       return;
     }
 
-    setMedicationReminderStatus("sent");
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
+
+    try {
+      await sendMedicineAlert({
+        seniorId: selectedElder.id,
+        guardianId,
+        message: medicationReminderMessage.trim(),
+      });
+
+      setMedicationReminderStatus("sent");
+    } catch {
+      alert("복약 알림 전송에 실패했습니다.");
+    }
   };
 
   const handleMedicationConfirmed = () => {
@@ -338,19 +354,31 @@ function EmergencyPanel({
       return;
     }
 
-    const guardianId = getCurrentGuardianId();
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
 
     try {
       setIsSendingCheckInMessage(true);
 
-      await sendCheckInMessage({
-        seniorId: selectedElder.id,
-        guardianId,
-        message: checkInMessage.trim(),
-      });
+      await Promise.all([
+        sendCheckInMessage({
+          seniorId: selectedElder.id,
+          guardianId,
+          message: checkInMessage.trim(),
+        }),
+        sendSeniorChatMessage({
+          seniorId: selectedElder.id,
+          roomType: "SENIOR_GUARDIAN",
+          senderRole: "GUARDIAN",
+          senderId: guardianId,
+          senderName: guardian?.name || "보호자",
+          message: checkInMessage.trim(),
+        }),
+      ]);
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
+      onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
       alert("안부 메시지 전송에 실패했습니다.");
@@ -364,19 +392,31 @@ function EmergencyPanel({
 
     if (!confirmed) return;
 
-    const guardianId = getCurrentGuardianId();
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
 
     try {
       setIsSendingCheckInMessage(true);
 
-      await sendCheckInMessage({
-        seniorId: selectedElder.id,
-        guardianId,
-        message,
-      });
+      await Promise.all([
+        sendCheckInMessage({
+          seniorId: selectedElder.id,
+          guardianId,
+          message,
+        }),
+        sendSeniorChatMessage({
+          seniorId: selectedElder.id,
+          roomType: "SENIOR_GUARDIAN",
+          senderRole: "GUARDIAN",
+          senderId: guardianId,
+          senderName: guardian?.name || "보호자",
+          message,
+        }),
+      ]);
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
+      onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
       alert("안부 메시지 전송에 실패했습니다.");
@@ -656,13 +696,14 @@ function EmergencyPanel({
                         <textarea
                           value={medicationReminderMessage}
                           onChange={(event) => setMedicationReminderMessage(event.target.value)}
+                          placeholder="여기에 작성하세요"
                           rows={5}
                         />
                       </label>
 
                       <div className="medication-reminder-actions">
-                        <button type="button" onClick={closeMedicationReminder}>
-                          취소
+                        <button type="button" onClick={() => setMedicationReminderMessage("")}>
+                          다시 쓰기
                         </button>
 
                         <button type="button" onClick={handleSendMedicationReminder}>
@@ -680,7 +721,7 @@ function EmergencyPanel({
 
                       <div className="medication-reminder-actions">
                         <button type="button" onClick={() => setMedicationReminderStatus("ready")}>
-                          다시 보내기
+                          다시 쓰기
                         </button>
 
                         <button type="button" onClick={closeMedicationReminder}>
@@ -699,11 +740,11 @@ function EmergencyPanel({
                 <strong>오늘 컨디션이나 식사 여부를 확인해 보세요.</strong>
 
                 <div className="guardian-checkin-actions">
-                  <button type="button" onClick={() => window.location.href = `tel:${selectedElder.phone}`}>
+                  <button type="button" onClick={() => onCallAlert?.({ seniorId: selectedElder.id })}>
                     전화하기
                   </button>
 
-                  <button type="button" onClick={openCheckInMessage}>
+                  <button type="button" onClick={onOpenUserChat || openCheckInMessage}>
                     메시지 보내기
                   </button>
                 </div>
@@ -775,6 +816,14 @@ function EmergencyPanel({
                   >
                     완료
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendCheckInMessage}
+                    disabled={isSendingCheckInMessage}
+                  >
+                    {isSendingCheckInMessage ? "보내는 중" : "메시지 보내기"}
+                  </button>
                 </div>
               </div>
             </section>
@@ -782,7 +831,7 @@ function EmergencyPanel({
         )}
 
         {activePanelTab === "welfare" && (
-          <GuardianWelfarePanel selectedElder={selectedElder} />
+          <GuardianWelfarePanel selectedElder={selectedElder} onOpenChat={onOpenChat} />
         )}
 
         {activePanelTab === "safety" && (

@@ -251,6 +251,7 @@ function GuardianPage() {
     ],
   });
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialRoomType, setChatInitialRoomType] = useState("");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const selectedElder = useMemo(
@@ -913,6 +914,7 @@ function GuardianPage() {
       });
 
       await reloadGuardianSeniors();
+      setSelectedElderId(seniorId);
 
       setIsAddElderOpen(false);
       setSeniorSearch({ name: "", phone: "" });
@@ -940,9 +942,12 @@ function GuardianPage() {
         return;
       }
 
-      await createAndConnectSenior(guardianId, newSeniorForm);
+      const connectedSenior = await createAndConnectSenior(guardianId, newSeniorForm);
 
       await reloadGuardianSeniors();
+      if (connectedSenior?.seniorId) {
+        setSelectedElderId(connectedSenior.seniorId);
+      }
 
       setIsAddElderOpen(false);
       setNewSeniorForm({
@@ -1094,16 +1099,20 @@ function GuardianPage() {
     }
 
     setCallingAlert(targetAlert);
-    setIsCallResultOpen(true);
 
     if (targetElder?.id) {
-      await createCallRequestAlert({
+      const created = await createCallRequestAlert({
         seniorId: targetElder.id,
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
-      }).catch(() => {});
+      }).catch(() => null);
+
+      if (Array.isArray(created) && created[0]?.id) {
+        knownAlertIdsRef.current.add(String(created[0].id));
+      }
     }
 
+    setIsCallResultOpen(true);
     window.location.href = `tel:${phone}`;
   };
 
@@ -1304,7 +1313,10 @@ function GuardianPage() {
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
-        onOpenChat={() => setIsChatOpen(true)}
+        onOpenChat={() => {
+          setChatInitialRoomType("");
+          setIsChatOpen(true);
+        }}
         unreadChatCount={unreadChatCount}
       />
 
@@ -1329,8 +1341,12 @@ function GuardianPage() {
         senderRole="GUARDIAN"
         senderId={guardian?.id || getCurrentGuardianId()}
         senderName={guardian?.name || "보호자"}
+        initialRoomType={chatInitialRoomType}
         onReadChange={loadUnreadChatCount}
-        onClose={() => setIsChatOpen(false)}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatInitialRoomType("");
+        }}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1394,6 +1410,12 @@ function GuardianPage() {
             setSeniorSearch({ name: "", phone: "" });
             setSeniorSearchResults([]);
             setHasSearchedSenior(false);
+            setNewSeniorForm({
+              name: "",
+              phone: "",
+              region: "",
+              relation: "보호 대상자",
+            });
           }}
         >
           + 보호 대상자 추가
@@ -1483,6 +1505,14 @@ function GuardianPage() {
             setCallingAlert(null);
             setIsCallResultOpen(false);
           }}
+          onOpenChat={() => {
+            setChatInitialRoomType("GUARDIAN_WELFARE");
+            setIsChatOpen(true);
+          }}
+          onOpenUserChat={() => {
+            setChatInitialRoomType("SENIOR_GUARDIAN");
+            setIsChatOpen(true);
+          }}
         />
       </section>
 
@@ -1537,6 +1567,7 @@ function GuardianPage() {
               <textarea
                 value={medicineMessage}
                 onChange={(event) => setMedicineMessage(event.target.value)}
+                placeholder="여기에 작성하세요"
                 rows={4}
               />
             </label>
@@ -1545,9 +1576,9 @@ function GuardianPage() {
               <button
                 type="button"
                 className="medicine-alert-cancel"
-                onClick={() => setIsMedicineAlertOpen(false)}
+                onClick={() => setMedicineMessage("")}
               >
-                취소
+                다시 쓰기
               </button>
 
               <button
@@ -1710,7 +1741,7 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
-    message: alert.time || "",
+    message: "",
     category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
     time: alert.time,
     isRead: alert.status !== "미확인",
@@ -1730,15 +1761,15 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
         }
       }}
       actions={
-        <>
-          <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
-            <MessageCircle size={19} />
-            {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
-          </button>
-          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
-            긴급 신고
-          </button>
-        </>
+        <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
+          <MessageCircle size={19} />
+          {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+        </button>
+      }
+      afterActions={
+        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+          긴급 신고
+        </button>
       }
     />
   );

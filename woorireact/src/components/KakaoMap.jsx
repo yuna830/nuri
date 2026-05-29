@@ -100,6 +100,10 @@ export default function KakaoMap({
   showRoute = true,
   currentLabel = "현재 위치",
   safeZoneLabel = "안전 반경 중심",
+  autoFit = true,
+  focusLocation = null,
+  focusLevel = 4,
+  focusKey = "",
   fallback = null,
 }) {
   const containerRef = useRef(null);
@@ -260,7 +264,7 @@ export default function KakaoMap({
       hasBounds = true;
     }
 
-    if (hasBounds) {
+    if (autoFit && hasBounds) {
       mapRef.current.setBounds(bounds);
 
       if (mapRef.current.getLevel() > 5) {
@@ -276,7 +280,18 @@ export default function KakaoMap({
     safeZones,
     safeZoneLabel,
     showRoute,
+    autoFit,
   ]);
+
+  useEffect(() => {
+    if (failed || !mapRef.current || !window.kakao?.maps || !isValidPoint(focusLocation)) {
+      return;
+    }
+
+    const maps = window.kakao.maps;
+    mapRef.current.setCenter(toLatLng(maps, focusLocation));
+    mapRef.current.setLevel(focusLevel);
+  }, [failed, focusLocation, focusLevel, focusKey]);
 
   if (failed && fallback) {
     return fallback;

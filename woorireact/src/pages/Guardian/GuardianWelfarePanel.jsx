@@ -59,7 +59,7 @@ function formatConsultationTime(value) {
   });
 }
 
-function GuardianWelfarePanel({ selectedElder }) {
+function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
   const [histories, setHistories] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
   const [consultationItems, setConsultationItems] = useState([]);
@@ -74,6 +74,7 @@ function GuardianWelfarePanel({ selectedElder }) {
   const [isConfirmingConsultation, setIsConfirmingConsultation] = useState(false);
   const [consultationResponseType, setConsultationResponseType] = useState("now");
   const [consultationScheduleAt, setConsultationScheduleAt] = useState("");
+  const [jobPage, setJobPage] = useState(0);
 
   const senior = useMemo(
     () => normalizeElderForWelfare(selectedElder),
@@ -105,6 +106,7 @@ function GuardianWelfarePanel({ selectedElder }) {
       if (!ignore) {
         setHistories(Array.isArray(historyData) ? historyData : []);
         setJobApplications(Array.isArray(jobData) ? jobData : []);
+        setJobPage(0);
         setConsultationItems(
           Array.isArray(alertData)
             ? alertData.filter((item) => (
@@ -142,6 +144,12 @@ function GuardianWelfarePanel({ selectedElder }) {
   const latestConsultationItem = consultationItems
     .slice()
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  const jobPageSize = 3;
+  const totalJobPages = Math.max(1, Math.ceil(jobApplications.length / jobPageSize));
+  const pagedJobApplications = jobApplications.slice(
+    jobPage * jobPageSize,
+    jobPage * jobPageSize + jobPageSize
+  );
 
   const handleAsk = async () => {
     const trimmedQuestion = question.trim();
@@ -212,7 +220,7 @@ function GuardianWelfarePanel({ selectedElder }) {
       <div className="card-header guardian-welfare-header">
         <h2>복지 확인</h2>
 
-        <button type="button" className="guardian-welfare-contact-button">
+        <button type="button" className="guardian-welfare-contact-button" onClick={onOpenChat}>
           복지사에게 문의
         </button>
       </div>
@@ -227,7 +235,7 @@ function GuardianWelfarePanel({ selectedElder }) {
             <p>신청 또는 추천된 일자리 내역이 없습니다.</p>
           ) : (
             <div className="guardian-job-list">
-              {jobApplications.map((job) => (
+              {pagedJobApplications.map((job) => (
                 <article key={job.id} className="guardian-job-item">
                   <div>
                     <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
@@ -241,6 +249,17 @@ function GuardianWelfarePanel({ selectedElder }) {
                   </small>
                 </article>
               ))}
+              {jobApplications.length > jobPageSize && (
+                <div className="guardian-job-pager">
+                  <button type="button" onClick={() => setJobPage((page) => Math.max(0, page - 1))} disabled={jobPage === 0}>
+                    &lt;
+                  </button>
+                  <span>{jobPage + 1} / {totalJobPages}</span>
+                  <button type="button" onClick={() => setJobPage((page) => Math.min(totalJobPages - 1, page + 1))} disabled={jobPage >= totalJobPages - 1}>
+                    &gt;
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>

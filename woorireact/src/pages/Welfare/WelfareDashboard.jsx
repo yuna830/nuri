@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-    BriefcaseBusiness,
-    ClipboardList,
-    MessageCircle,
-    Search,
-    UserPlus,
-    UserRound,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle, Search } from "lucide-react";
 
 import {
     assignWelfareSenior,
@@ -17,6 +10,7 @@ import {
     searchSeniorExact,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
@@ -77,6 +71,7 @@ function WelfareDashboard() {
     }, []);
 
     const [seniors, setSeniors] = useState([]);
+    const [notificationSeniors, setNotificationSeniors] = useState([]);
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
@@ -182,6 +177,21 @@ function WelfareDashboard() {
             ignore = true;
             clearInterval(timerId);
         };
+    }, [currentWorker]);
+
+    useEffect(() => {
+        if (!currentWorker?.id) return;
+        let ignore = false;
+        const load = async () => {
+            try {
+                const data = await fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: currentWorker.id });
+                const raw = Array.isArray(data) ? data : data.content || [];
+                if (!ignore) setNotificationSeniors(raw.map(mapWelfareSenior));
+            } catch { /* silent */ }
+        };
+        load();
+        const timerId = setInterval(load, 15000);
+        return () => { ignore = true; clearInterval(timerId); };
     }, [currentWorker]);
 
     const loadUnreadChatCount = async () => {
@@ -383,7 +393,7 @@ function WelfareDashboard() {
         danger: alert.type !== "LAST_ACCESS",
     }));
 
-    const welfareNotifications = seniors.flatMap((senior) => {
+    const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
 
         if (senior.alertStatus === "미응답 SOS") {
@@ -423,10 +433,11 @@ function WelfareDashboard() {
         return notifications;
     });
 
-    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].filter(
-        (notification) => !dismissedNotifications.includes(notification.id)
-    );
-
+    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications]
+        .filter((notification, index, source) =>
+            source.findIndex((item) => item.id === notification.id) === index
+        )
+        .filter((notification) => !dismissedNotifications.includes(notification.id));
     const dismissNotification = (notificationId) => {
         setDismissedNotifications((previousIds) =>
             previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
@@ -554,24 +565,24 @@ function WelfareDashboard() {
                     }
                 }}
                 actions={
-                    <>
-                        <button
-                            className="common-app-icon-button"
-                            type="button"
-                            onClick={() => setIsChatOpen(true)}
-                            aria-label="메시지"
-                        >
-                            <MessageCircle size={19} />
-                            {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
-                        </button>
-                        <button
-                            className="common-app-danger-button"
-                            type="button"
-                            onClick={openAddSeniorModal}
-                        >
-                            대상자 추가
-                        </button>
-                    </>
+                    <button
+                        className="common-app-icon-button"
+                        type="button"
+                        onClick={() => setIsChatOpen(true)}
+                        aria-label="메시지"
+                    >
+                        <MessageCircle size={19} />
+                        {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+                    </button>
+                }
+                afterActions={
+                    <button
+                        className="common-app-danger-button"
+                        type="button"
+                        onClick={openAddSeniorModal}
+                    >
+                        대상자 추가
+                    </button>
                 }
             />
 
@@ -599,49 +610,7 @@ function WelfareDashboard() {
             />
 
             <div className="wd-layout">
-                <aside className="wd-sidebar">
-                    <div className="wd-sidebar-profile">
-                        <div className="wd-sidebar-avatar">
-                            <UserRound size={26} />
-                        </div>
-
-                        <div>
-                            <strong>{currentWorker?.name || "복지사"} 복지사</strong>
-                            <span>{currentWorker?.center || "소속 기관 미등록"}</span>
-                        </div>
-                    </div>
-
-                    <nav className="wd-sidebar-nav">
-                        <Link to="/welfare" className="wd-sidebar-item wd-sidebar-item-active">
-                            <ClipboardList size={17} />
-                            대상자 목록
-                        </Link>
-
-                        <Link to="/welfare/job-applications" className="wd-sidebar-item">
-                            <UserPlus size={17} />
-                            일자리 신청
-                        </Link>
-
-                        <Link to="/welfare/jobs" className="wd-sidebar-item">
-                            <BriefcaseBusiness size={17} />
-                            일자리 공고
-                        </Link>
-
-                        <Link to="/welfare/mypage" className="wd-sidebar-item">
-                            <UserRound size={17} />
-                            마이페이지
-                        </Link>
-                    </nav>
-
-                    <button
-                        type="button"
-                        className="wd-sidebar-add-button"
-                        onClick={openAddSeniorModal}
-                    >
-                        <UserPlus size={17} />
-                        대상자 추가
-                    </button>
-                </aside>
+                <WelfareSidebar active="seniors" onAddSenior={openAddSeniorModal} />
 
                 <main className="wd-content">
                     <WelfareSummaryCards

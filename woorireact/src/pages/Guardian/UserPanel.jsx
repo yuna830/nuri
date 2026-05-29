@@ -92,10 +92,31 @@ function UserPanel({
   onDeleteElder,
   activityReport,
 }) {
+  const [localBattery, setLocalBattery] = useState(null);
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
   });
+
+  useEffect(() => {
+    if (!navigator.getBattery) return undefined;
+
+    let batteryRef = null;
+    const updateBattery = () => {
+      if (!batteryRef) return;
+      setLocalBattery(Math.round((batteryRef.level || 0) * 100));
+    };
+
+    navigator.getBattery().then((battery) => {
+      batteryRef = battery;
+      updateBattery();
+      battery.addEventListener("levelchange", updateBattery);
+    }).catch(() => {});
+
+    return () => {
+      batteryRef?.removeEventListener?.("levelchange", updateBattery);
+    };
+  }, []);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const profileMenuRef = useRef(null);
@@ -362,12 +383,12 @@ function UserPanel({
 
           <div className="battery-box">
             <div className="battery-title-row">
-              <span>GPS 배터리</span>
-              <strong>{selectedElder.battery}%</strong>
+              <span>{localBattery == null ? "GPS 배터리" : "현재 기기 배터리"}</span>
+              <strong>{localBattery ?? selectedElder.battery}%</strong>
             </div>
             <div className="battery-row">
               <div className="battery-bar">
-                <div style={{ width: `${selectedElder.battery}%` }} />
+                <div style={{ width: `${localBattery ?? selectedElder.battery}%` }} />
               </div>
             </div>
           </div>

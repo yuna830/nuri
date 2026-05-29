@@ -96,6 +96,10 @@ function LocationPanel({
           safeZoneLabel={`${safeZoneForm.name} 안전 반경 중심`}
           route={route}
           showRoute={isRouteVisible && hasCurrentLocation}
+          autoFit={false}
+          focusLocation={hasCurrentLocation ? location : center}
+          focusKey={`${selectedElder.id}-${location?.receivedAt || location?.lat || center.lat}-${location?.lng || center.lng}`}
+          focusLevel={4}
           fallback={(
             <div className="leaflet-map" style={{
               display: "grid",

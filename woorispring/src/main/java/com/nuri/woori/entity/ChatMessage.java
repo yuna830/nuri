@@ -19,6 +19,10 @@ public class ChatMessage {
     @Column(length = 1000)
     private String message;
 
+    private String attachmentUrl;
+    private String attachmentType;
+    private String attachmentName;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 
     private Boolean unreadForSenior = false;
@@ -79,6 +83,30 @@ public class ChatMessage {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getAttachmentUrl() {
+        return attachmentUrl;
+    }
+
+    public void setAttachmentUrl(String attachmentUrl) {
+        this.attachmentUrl = attachmentUrl;
+    }
+
+    public String getAttachmentType() {
+        return attachmentType;
+    }
+
+    public void setAttachmentType(String attachmentType) {
+        this.attachmentType = attachmentType;
+    }
+
+    public String getAttachmentName() {
+        return attachmentName;
+    }
+
+    public void setAttachmentName(String attachmentName) {
+        this.attachmentName = attachmentName;
     }
 
     public Boolean getUnreadForSenior() {

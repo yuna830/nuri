@@ -346,6 +346,7 @@ export const getCurrentSeniorId = () => {
 export const resolveUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
   if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
   return `${API_BASE}${imageUrl}`;
 };
 
@@ -554,7 +555,13 @@ export const deleteAlert = async (alertId) => {
 
 export const deleteAlerts = async (alertIds) => {
   const localIds = alertIds.filter(isLocalAlertId);
-  const serverIds = alertIds.filter((alertId) => !isLocalAlertId(alertId));
+  const serverIds = alertIds
+    .filter((alertId) => !isLocalAlertId(alertId))
+    .map((alertId) => {
+      const match = String(alertId).match(/(\d+)$/);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((alertId) => Number.isFinite(alertId));
 
   if (localIds.length > 0) {
     deleteLocalAlerts(localIds);

@@ -1,4 +1,5 @@
 import { sendWelfareSeniorAlert } from "./welfareAlertApi";
+import { fetchJobList as fetchCombinedJobList } from "../utils/user/jobApi";
 
 const SERVICE_KEY =
     "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
@@ -128,48 +129,14 @@ export const parseJobList = (xmlText) => {
 };
 
 export const fetchWelfareJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
-    const cacheKey = `${pageNo}-${emplymShp}-${numOfRows}`;
-    const cached = readJobCache(cacheKey);
-
-    if (cached) return cached;
-
-    if (pageNo === 1 && !emplymShp) {
-        const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
-
-        if (dbCachedJobs.length > 0) {
-            const data = {
-                list: dbCachedJobs.slice(0, numOfRows),
-                total: dbCachedJobs.length,
-                fromDbCache: true,
-            };
-
-            writeJobCache(cacheKey, data);
-            return data;
-        }
-    }
-
-    let url = `/senuri/B552474/SenuriService/getJobList?ServiceKey=${SERVICE_KEY}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
-
-    if (emplymShp) {
-        url += `&emplymShp=${emplymShp}`;
-    }
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-        throw new Error(`Job API failed: ${response.status}`);
-    }
-
-    const text = await response.text();
-    const data = parseJobList(text);
-    saveJobPostingsToCache(data.list);
-    writeJobCache(cacheKey, data);
-
-    return data;
+    return fetchCombinedJobList(pageNo, emplymShp, numOfRows);
 };
 
-export const fetchWelfareJobApplications = async () => {
-    const response = await fetch("/api/job-interests/welfare");
+export const fetchWelfareJobApplications = async (welfareWorkerId) => {
+    const params = new URLSearchParams();
+    if (welfareWorkerId) params.set("welfareWorkerId", welfareWorkerId);
+
+    const response = await fetch(`/api/job-interests/welfare${params.toString() ? `?${params}` : ""}`);
 
     if (!response.ok) {
         throw new Error("Failed to load welfare job applications");

@@ -1,11 +1,17 @@
 .wj-page {
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-color);
     color: var(--text-color);
     box-sizing: border-box;
 }
 
 .wj-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
     height: 64px;
     padding: 0 max(28px, calc((100% - 1280px) / 2 + 28px));
     border-bottom: 1px solid var(--border-color);
@@ -42,11 +48,24 @@
 }
 
 .wj-content {
+    flex: 1;
+    min-height: 0;
     width: 100%;
     max-width: 1280px;
     margin: 0 auto;
-    padding: 28px;
+    padding: 28px 28px 0 28px;
     box-sizing: border-box;
+    overflow: hidden;
+}
+
+.wj-cards-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 14px;
+    padding-bottom: 28px;
+    scrollbar-gutter: stable;
 }
 
 .wj-header-row {
@@ -65,27 +84,60 @@
 }
 
 .wj-layout {
+    height: 100%;
     display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 20px;
-    align-items: flex-start;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+    overflow: hidden;
+}
+
+.wj-layout-with-main-sidebar {
+    grid-template-columns: 240px minmax(0, 1fr);
 }
 
 .wj-main-area {
-    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 4px;
 }
 
 .wj-sidebar {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background-color: white;
+    gap: 4px;
+    padding: 4px 8px 20px;
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.wj-sidebar::-webkit-scrollbar {
+    display: none;
+}
+
+.wj-sidebar-divider {
+    margin: 12px 8px;
+    border: none;
+    border-top: 1px solid #e8f0e8;
+}
+
+.wj-sidebar-category-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #ffffff;
     border: 1px solid #d4e8d6;
     border-radius: 14px;
-    padding: 16px 6px;
-    position: sticky;
-    top: 92px;
+    padding: 10px 6px;
     box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+}
+
+.wj-sidebar-category-under-nav {
+    margin-top: 14px;
+    padding-bottom: 18px;
 }
 
 .wj-sidebar-title {
@@ -164,6 +216,61 @@
     background: #ffffff;
 }
 
+.wj-category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    margin-top: 4px;
+}
+
+.wj-category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #d4e8d6;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #5f7d61;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.wj-category-chip:hover {
+    border-color: #86a788;
+    background: #f2f6f0;
+}
+
+.wj-category-chip-active {
+    border-color: #86a788;
+    background: #86a788;
+    color: #ffffff;
+}
+
+.wj-category-chip-count {
+    min-width: 22px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(134, 167, 136, 0.15);
+    color: #5f7d61;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wj-category-chip-active .wj-category-chip-count {
+    background: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
 .wj-search-row {
     display: flex;
     align-items: center;
@@ -173,8 +280,9 @@
     background-color: white;
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 20px;
     box-sizing: border-box;
+    box-shadow: 0 8px 18px rgba(134, 167, 136, 0.08);
 }
 
 .wj-search-icon {
@@ -238,6 +346,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-top: 4px;
 }
 
 .wj-job-card {
@@ -295,12 +404,29 @@
 }
 
 .wj-job-type-badge,
+.wj-source-badge,
 .wj-employment-badge {
     padding: 6px 12px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
+}
+
+.wj-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    row-gap: 8px;
+    min-width: 220px;
+}
+
+.wj-source-badge {
+    border-color: #bdd9ef;
+    background-color: #edf6ff;
+    color: #326c9e;
 }
 
 .wj-job-type-badge {
@@ -575,27 +701,48 @@
     }
 
     .wj-content {
-        padding: 20px;
+        padding: 16px 16px 0;
+        overflow: auto;
     }
 
     .wj-layout {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+
+    .wj-main-area {
+        overflow: visible;
+    }
+
+    .wj-cards-scroll {
+        overflow: visible;
     }
 
     .wj-sidebar {
-        position: static;
+        height: auto;
+        overflow: visible;
         flex-direction: row;
         flex-wrap: wrap;
+        gap: 6px;
+        padding: 14px 10px;
+    }
+
+    .wj-sidebar-divider {
+        width: 100%;
+        margin: 6px 0;
     }
 
     .wj-sidebar-title {
         width: 100%;
+        margin: 0 4px 4px;
     }
 
     .wj-sidebar-item {
         width: auto;
         min-height: 36px;
         font-size: 13px;
+        padding: 0 14px;
     }
 }
 

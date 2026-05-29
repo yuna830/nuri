@@ -59,7 +59,26 @@ public class AlertController {
 
     @PostMapping("/call")
     public List<Alert> createCallAlert(@RequestBody SosAlertRequest request) {
-        return createGuardianAlerts(request, "CALL_REQUEST", "전화 요청", "님에게 보호자가 전화를 요청했습니다.");
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        Long guardianId = guardianSeniorRepository.findBySeniorId(request.seniorId())
+                .stream()
+                .findFirst()
+                .map(GuardianSenior::getGuardianId)
+                .orElse(null);
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(guardianId);
+        alert.setType("CALL_REQUEST");
+        alert.setTitle("전화 요청");
+        alert.setMessage("보호자가 " + senior.getName() + "님에게 전화를 요청했습니다.");
+        alert.setLatitude(request.latitude());
+        alert.setLongitude(request.longitude());
+        alert.setIsRead(false);
+
+        return List.of(alertRepository.save(alert));
     }
     @PostMapping("/safe-zone")
     public List<Alert> createSafeZoneAlert(@RequestBody SosAlertRequest request) {
@@ -293,44 +312,6 @@ public class AlertController {
         alert.setIsRead(false);
 
         return alertRepository.save(alert);
-    }
-
-    @PostMapping("/check-in-reply")
-    public List<Alert> createCheckInReplyAlert(@RequestBody CheckInReplyRequest request) {
-        Senior senior = seniorRepository.findById(request.seniorId())
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
-
-        List<GuardianSenior> guardianSeniors =
-                guardianSeniorRepository.findBySeniorId(request.seniorId());
-
-        if (guardianSeniors.isEmpty()) {
-            throw new RuntimeException("Connected guardian not found");
-        }
-
-        String reply = request.reply() == null || request.reply().isBlank()
-                ? "답변 없음"
-                : request.reply().trim();
-
-        return guardianSeniors.stream()
-                .map(link -> {
-                    Alert alert = new Alert();
-                    alert.setSeniorId(request.seniorId());
-                    alert.setGuardianId(link.getGuardianId());
-                    alert.setType("CHECK_IN_REPLY");
-                    alert.setTitle("안부 답변");
-                    alert.setMessage(senior.getName() + "님이 안부 메시지에 '" + reply + "'라고 답했습니다.");
-                    alert.setIsRead(false);
-
-                    return alertRepository.save(alert);
-                })
-                .toList();
-    }
-
-    public record CheckInReplyRequest(
-            Long seniorId,
-            String reply,
-            String originalMessage
-    ) {
     }
 
     public record CheckInMessageAlertRequest(
