@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, UserRound } from "lucide-react";
 
 import {
     EMPL_MAP,
@@ -321,22 +321,38 @@ function WelfareJobPostings() {
             <WelfareCommonHeader rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`} />
 
             <div className="wj-content">
-                    <nav className="wj-category-chips" aria-label="직종 분류">
-                        {JOB_CATEGORY_FILTERS.map((category) => (
-                            <button
-                                type="button"
-                                key={category.label}
-                                className={`wj-category-chip${activeCategory === category.value ? " wj-category-chip-active" : ""}`}
-                                onClick={() => setActiveCategory(category.value)}
-                            >
-                                {category.label}
-                                {categoryCounts[category.value] > 0 && (
-                                    <span className="wj-category-chip-count">{categoryCounts[category.value]}</span>
-                                )}
-                            </button>
-                        ))}
-                    </nav>
+            <div className="wj-layout">
 
+                <aside className="wj-sidebar">
+                    <div className="wd-sidebar-profile">
+                        <div className="wd-sidebar-avatar">
+                            <UserRound size={24} />
+                        </div>
+                        <div>
+                            <strong>{currentWorker?.name || "복지사"} 복지사</strong>
+                            <span>{currentWorker?.center || "소속 기관 미등록"}</span>
+                        </div>
+                    </div>
+
+                    <div className="wj-sidebar-divider" />
+
+                    <p className="wj-sidebar-title">직종 분류</p>
+                    {JOB_CATEGORY_FILTERS.map((category) => (
+                        <button
+                            type="button"
+                            key={category.label}
+                            className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
+                            onClick={() => setActiveCategory(category.value)}
+                        >
+                            {category.label}
+                            {categoryCounts[category.value] > 0 && (
+                                <span className="wj-sidebar-count">{categoryCounts[category.value]}</span>
+                            )}
+                        </button>
+                    ))}
+                </aside>
+
+                <div className="wj-main-area">
                         <div className="wj-search-row">
                             <Search size={16} className="wj-search-icon" />
 
@@ -445,7 +461,9 @@ function WelfareJobPostings() {
                             </button>
                         )}
                         </div>
+                </div>
             </div>
+        </div>
 
             {selectedJob && (
                 <div
