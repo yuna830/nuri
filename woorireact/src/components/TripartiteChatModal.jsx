@@ -67,10 +67,12 @@ export default function TripartiteChatModal({
     }));
   }, [rooms, roomType, seniorId, seniorName]);
 
-  const activeRoom = useMemo(
-    () => chatRooms.find((room) => room.key === activeRoomKey) || chatRooms[0],
-    [activeRoomKey, chatRooms]
-  );
+  const noTabSelected = senderRole === "WELFARE" && roomGroup === "ALL";
+
+  const activeRoom = useMemo(() => {
+    if (noTabSelected) return null;
+    return chatRooms.find((room) => room.key === activeRoomKey) || chatRooms[0];
+  }, [activeRoomKey, chatRooms, noTabSelected]);
 
   const visibleRooms = useMemo(() => {
     if (senderRole !== "WELFARE" || roomGroup === "ALL") return chatRooms;
@@ -78,7 +80,7 @@ export default function TripartiteChatModal({
   }, [chatRooms, roomGroup, senderRole]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || noTabSelected) return;
     const preferredRoom = initialRoomType
       ? visibleRooms.find((room) => room.roomType === initialRoomType)
       : null;
@@ -88,7 +90,7 @@ export default function TripartiteChatModal({
         ? previousKey
         : visibleRooms[0]?.key || "";
     });
-  }, [initialRoomType, isOpen, visibleRooms]);
+  }, [initialRoomType, isOpen, visibleRooms, noTabSelected]);
 
   const loadMessages = async ({ silent = false, page = 0, appendOlder = false } = {}) => {
     const targetSeniorId = activeRoom?.seniorId || seniorId;
@@ -191,93 +193,126 @@ export default function TripartiteChatModal({
           </button>
         </header>
 
-        <div className={`tcm-shell ${senderRole === "WELFARE" ? "tcm-shell-welfare" : ""}`}>
+        <div className={`tcm-shell${senderRole === "WELFARE" ? " tcm-shell-welfare" : ""}${noTabSelected ? " tcm-no-selection" : ""}`}>
           {senderRole === "WELFARE" && (
             <div className="tcm-room-groups">
-              <button type="button" className={roomGroup === "SENIOR_WELFARE" ? "active" : ""} onClick={() => setRoomGroup("SENIOR_WELFARE")}>대상자</button>
-              <button type="button" className={roomGroup === "GUARDIAN_WELFARE" ? "active" : ""} onClick={() => setRoomGroup("GUARDIAN_WELFARE")}>보호자</button>
-            </div>
-          )}
-          <aside className="tcm-rooms" aria-label="대화방 목록">
-            {visibleRooms.map((room) => (
               <button
                 type="button"
-                key={room.key}
-                className={room.key === activeRoom?.key ? "active" : ""}
+                className={roomGroup === "SENIOR_WELFARE" ? "active" : ""}
                 onClick={() => {
-                  setActiveRoomKey(room.key);
+                  setRoomGroup("SENIOR_WELFARE");
+                  setActiveRoomKey("");
                   setMessages([]);
                   setKeyword("");
                   setHistoryPage(0);
                 }}
               >
-                <strong>{room.title}</strong>
-                {room.subtitle && <span>{room.subtitle}</span>}
+                대상자
               </button>
-            ))}
-          </aside>
-
-          <div className="tcm-search">
-            <input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="대화 내용 검색"
-            />
-          </div>
-
-          <div className="tcm-list" ref={listRef}>
-            {!keyword.trim() && messages.length > 0 && (
               <button
-                className="tcm-load-more"
                 type="button"
-                onClick={() => loadMessages({
-                  silent: true,
-                  page: historyPage + 1,
-                  appendOlder: true,
-                })}
+                className={roomGroup === "GUARDIAN_WELFARE" ? "active" : ""}
+                onClick={() => {
+                  setRoomGroup("GUARDIAN_WELFARE");
+                  setActiveRoomKey("");
+                  setMessages([]);
+                  setKeyword("");
+                  setHistoryPage(0);
+                }}
               >
-                이전 대화 더 보기
+                보호자
               </button>
-            )}
-            {isLoading ? (
-              <div className="tcm-empty">대화 내역을 불러오는 중입니다.</div>
-            ) : messages.length === 0 ? (
-              <div className="tcm-empty">아직 주고받은 메시지가 없습니다.</div>
-            ) : (
-              messages.map((message) => {
-                const isMine = String(message.senderRole) === String(senderRole)
-                  && String(message.senderId) === String(senderId);
+            </div>
+          )}
 
-                return (
-                  <article
-                    key={message.id}
-                    className={`tcm-message ${isMine ? "mine" : ""}`}
+          {noTabSelected ? (
+            <div className="tcm-select-tab-placeholder">
+              대상자 또는 보호자를 선택해 주세요
+            </div>
+          ) : (
+            <>
+              <aside className="tcm-rooms" aria-label="대화방 목록">
+                {visibleRooms.map((room) => (
+                  <button
+                    type="button"
+                    key={room.key}
+                    className={room.key === activeRoom?.key ? "active" : ""}
+                    onClick={() => {
+                      setActiveRoomKey(room.key);
+                      setMessages([]);
+                      setKeyword("");
+                      setHistoryPage(0);
+                    }}
                   >
-                    <div className="tcm-message-meta">
-                      <strong>{message.senderName || ROLE_LABELS[message.senderRole] || "참여자"}</strong>
-                      <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
-                      <time>{formatChatTime(message.createdAt)}</time>
-                    </div>
-                    {message.message && <p>{message.message}</p>}
-                    {message.attachmentUrl && (
-                      message.attachmentType?.startsWith("image/") ? (
-                        <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
-                      ) : (
-                        <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
-                          {message.attachmentName || "첨부 파일 열기"}
-                        </a>
-                      )
-                    )}
-                  </article>
-                );
-              })
-            )}
-          </div>
+                    <strong>{room.title}</strong>
+                    {room.subtitle && <span>{room.subtitle}</span>}
+                  </button>
+                ))}
+              </aside>
+
+              <div className="tcm-search">
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="대화 내용 검색"
+                />
+              </div>
+
+              <div className="tcm-list" ref={listRef}>
+                {!keyword.trim() && messages.length > 0 && (
+                  <button
+                    className="tcm-load-more"
+                    type="button"
+                    onClick={() => loadMessages({
+                      silent: true,
+                      page: historyPage + 1,
+                      appendOlder: true,
+                    })}
+                  >
+                    이전 대화 더 보기
+                  </button>
+                )}
+                {isLoading ? (
+                  <div className="tcm-empty">대화 내역을 불러오는 중입니다.</div>
+                ) : messages.length === 0 ? (
+                  <div className="tcm-empty">아직 주고받은 메시지가 없습니다.</div>
+                ) : (
+                  messages.map((message) => {
+                    const isMine = String(message.senderRole) === String(senderRole)
+                      && String(message.senderId) === String(senderId);
+
+                    return (
+                      <article
+                        key={message.id}
+                        className={`tcm-message ${isMine ? "mine" : ""}`}
+                      >
+                        <div className="tcm-message-meta">
+                          <strong>{message.senderName || ROLE_LABELS[message.senderRole] || "참여자"}</strong>
+                          <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
+                          <time>{formatChatTime(message.createdAt)}</time>
+                        </div>
+                        {message.message && <p>{message.message}</p>}
+                        {message.attachmentUrl && (
+                          message.attachmentType?.startsWith("image/") ? (
+                            <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
+                          ) : (
+                            <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
+                              {message.attachmentName || "첨부 파일 열기"}
+                            </a>
+                          )
+                        )}
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {error && <p className="tcm-error">{error}</p>}
 
-        <footer className="tcm-compose">
+        {!noTabSelected && <footer className="tcm-compose">
           <div className="tcm-compose-input-wrap">
             {attachment && (
               <div className="tcm-compose-attachment">
@@ -306,7 +341,7 @@ export default function TripartiteChatModal({
           <button type="button" onClick={handleSend} disabled={isSending}>
             {isSending ? "전송 중" : "보내기"}
           </button>
-        </footer>
+        </footer>}
       </section>
     </div>
   );

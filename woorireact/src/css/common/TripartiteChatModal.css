@@ -40,6 +40,25 @@
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
+.tcm-shell-welfare.tcm-no-selection {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.tcm-shell-welfare.tcm-no-selection .tcm-room-groups {
+  grid-column: 1;
+}
+
+.tcm-select-tab-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7a9a7c;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
 .tcm-shell-welfare .tcm-room-groups {
   grid-column: 1 / -1;
 }
