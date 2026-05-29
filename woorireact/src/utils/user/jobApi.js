@@ -120,12 +120,22 @@ const saveJobPostingsToCache = async (jobs) => {
 const warmJobPostingDbCache = (numOfRows) => {
   if (jobCacheWarmupPromise) return jobCacheWarmupPromise;
 
-  const lastWarmAt = Number(localStorage.getItem("job-db-cache-warmed-at") || 0);
-  if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) {
-    return null;
-  }
-
   jobCacheWarmupPromise = (async () => {
+    try {
+      const res = await fetch("/api/job-cache/last-updated");
+      if (res.ok) {
+        const data = await res.json();
+        const serverLastUpdated = Number(data.epochMilli || 0);
+        if (serverLastUpdated && Date.now() - serverLastUpdated < JOB_DB_REFRESH_TTL_MS) {
+          return;
+        }
+      }
+    } catch {
+      // 서버 확인 실패 시 로컬 캐시로 fallback
+      const lastWarmAt = Number(localStorage.getItem("job-db-cache-warmed-at") || 0);
+      if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) return;
+    }
+
     for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += 1) {
       const [senuri, seoul] = await Promise.allSettled([
         fetchSenuriJobList(pageNo, "", numOfRows),

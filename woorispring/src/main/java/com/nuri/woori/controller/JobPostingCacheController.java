@@ -41,6 +41,16 @@ public class JobPostingCacheController {
         return jobs;
     }
 
+    @GetMapping("/last-updated")
+    public Map<String, Object> getLastUpdated() {
+        return jobPostingCacheRepository.findLatestUpdatedAt()
+                .map(updatedAt -> Map.<String, Object>of(
+                        "lastUpdatedAt", updatedAt.toString(),
+                        "epochMilli", updatedAt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                ))
+                .orElseGet(() -> Map.of("lastUpdatedAt", "", "epochMilli", 0L));
+    }
+
     @PostMapping("/bulk")
     public Map<String, Integer> upsertCachedJobs(@RequestBody List<Map<String, Object>> jobs) {
         if (jobs == null || jobs.isEmpty()) {

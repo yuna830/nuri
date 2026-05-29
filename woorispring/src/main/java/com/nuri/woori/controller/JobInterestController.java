@@ -45,6 +45,18 @@ public class JobInterestController {
                         ? "검토 대기"
                         : request.status().trim()
         );
+        interest.setSource(trim(request.source()));
+        interest.setDetailAddress(trim(request.detailAddress()));
+        interest.setJobType(trim(request.jobType()));
+        interest.setWorkTime(trim(request.workTime()));
+        interest.setWeekHours(trim(request.weekHours()));
+        interest.setWage(trim(request.wage()));
+        interest.setRecruitCount(trim(request.recruitCount()));
+        interest.setFromDate(trim(request.fromDate()));
+        interest.setToDate(trim(request.toDate()));
+        interest.setApplyMethod(trim(request.applyMethod()));
+        interest.setContactInfo(trim(request.contactInfo()));
+        interest.setDetail(trim(request.detail()));
 
         JobInterest saved = jobInterestRepository.save(interest);
 
@@ -109,7 +121,19 @@ public class JobInterestController {
                 interest.getStatus(),
                 interest.getCreatedAt() == null
                         ? ""
-                        : interest.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy. MM. dd"))
+                        : interest.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy. MM. dd")),
+                interest.getSource(),
+                interest.getDetailAddress(),
+                interest.getJobType(),
+                interest.getWorkTime(),
+                interest.getWeekHours(),
+                interest.getWage(),
+                interest.getRecruitCount(),
+                interest.getFromDate(),
+                interest.getToDate(),
+                interest.getApplyMethod(),
+                interest.getContactInfo(),
+                interest.getDetail()
         );
     }
 
@@ -124,14 +148,24 @@ public class JobInterestController {
             String company,
             String location,
             String applicationType,
-            String status
-    ) {
-    }
+            String status,
+            String source,
+            String detailAddress,
+            String jobType,
+            String workTime,
+            String weekHours,
+            String wage,
+            String recruitCount,
+            String fromDate,
+            String toDate,
+            String applyMethod,
+            String contactInfo,
+            String detail
+    ) {}
 
     public record JobInterestStatusRequest(
             String status
-    ) {
-    }
+    ) {}
 
     public record JobInterestResponse(
             Long id,
@@ -144,7 +178,18 @@ public class JobInterestController {
             String location,
             String applicationType,
             String status,
-            String requestedAt
-    ) {
-    }
+            String requestedAt,
+            String source,
+            String detailAddress,
+            String jobType,
+            String workTime,
+            String weekHours,
+            String wage,
+            String recruitCount,
+            String fromDate,
+            String toDate,
+            String applyMethod,
+            String contactInfo,
+            String detail
+    ) {}
 }

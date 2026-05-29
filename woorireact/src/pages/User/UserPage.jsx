@@ -309,7 +309,13 @@ function todayValue() {
 }
 
 function getCurrentSeniorId(initialSenior) {
-  return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    const sessionId = saved ? JSON.parse(saved)?.senior?.id : null;
+    return localStorage.getItem("current_senior_id") || sessionId || initialSenior?.id || "";
+  } catch {
+    return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  }
 }
 
 const formatDongAddress = (address = "") => {
@@ -1035,9 +1041,16 @@ export default function UserPage() {
 
     loadCallRequest();
     const timerId = setInterval(loadCallRequest, 5000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") loadCallRequest();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       cancelled = true;
       clearInterval(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [initialSenior, pendingSos]);
 
