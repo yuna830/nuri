@@ -6,7 +6,7 @@ from app.core.config import settings
 class MetadataService:
     def __init__(self):
         self.engine = create_engine(
-            settings.neon_database_url,
+            settings.database_url,
             pool_pre_ping=True,
         )
 

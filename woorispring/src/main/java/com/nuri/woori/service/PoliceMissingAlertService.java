@@ -24,8 +24,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class PoliceMissingAlertService {
@@ -33,7 +33,7 @@ public class PoliceMissingAlertService {
     private static final String AMBER_API_URL = "https://www.safe182.go.kr/api/lcm/amberList.do";
     private static final String FIND_CHILD_API_URL = "https://www.safe182.go.kr/api/lcm/findChildList.do";
     private static final int ROW_SIZE = 100;
-    private static final int MAX_PAGES = 10;
+    private static final int MAX_PAGES = 4;
 
     private final PoliceMissingAlertRepository policeMissingAlertRepository;
     private final Environment environment;
@@ -129,11 +129,9 @@ public class PoliceMissingAlertService {
     }
 
     private Safe182Page requestPage(LocalDate date, int page) {
-        String esntlId = getSafe182EsntlId();
-        String authKey = getSafe182AuthKey();
         LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("esntlId", esntlId);
-        form.add("authKey", authKey);
+        form.add("esntlId", getSafe182EsntlId());
+        form.add("authKey", getSafe182AuthKey());
         form.add("rowSize", String.valueOf(ROW_SIZE));
         form.add("page", String.valueOf(page));
         form.add("xmlUseYN", "Y");
@@ -150,11 +148,9 @@ public class PoliceMissingAlertService {
     }
 
     private Safe182Page requestPageWithoutDate(int page) {
-        String esntlId = getSafe182EsntlId();
-        String authKey = getSafe182AuthKey();
         LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("esntlId", esntlId);
-        form.add("authKey", authKey);
+        form.add("esntlId", getSafe182EsntlId());
+        form.add("authKey", getSafe182AuthKey());
         form.add("rowSize", String.valueOf(ROW_SIZE));
         form.add("page", String.valueOf(page));
         form.add("xmlUseYN", "Y");
@@ -289,6 +285,7 @@ public class PoliceMissingAlertService {
         alert.setHairColor(text(item, "haircolrDscd"));
         alert.setClothing(text(item, "alldressingDscd"));
         alert.setFeature(text(item, "etcSpfeatr"));
+
         String externalKey = String.join("|",
                 safe(name),
                 safe(occurredDate),
@@ -480,7 +477,7 @@ public class PoliceMissingAlertService {
         String esntlId = getSafe182EsntlId();
         String authKey = getSafe182AuthKey();
 
-        if (esntlId == null || esntlId.isBlank() || authKey == null || authKey.isBlank()) {
+        if (esntlId.isBlank() || authKey.isBlank()) {
             throw new RuntimeException("Safe182 API key is missing");
         }
     }
@@ -507,12 +504,14 @@ public class PoliceMissingAlertService {
         }
     }
 
-    private String firstNonBlank(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return first;
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
         }
 
-        return second == null ? "" : second;
+        return "";
     }
 
     private void logSyncResult(LocalDate date, int page, Safe182Page parsedPage) {

@@ -1,13 +1,15 @@
 import { Link, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
+import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
+
 import {
     normalizeSenior,
     applySavedWelfareDecision,
     formatAgeGender,
     formatGps,
 } from "../../utils/welfare/welfareSenior";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     fetchWelfareSeniorDetail,
     requestGuardianConsultation,
@@ -901,13 +903,7 @@ function WelfareSeniorDetail() {
 
     return (
         <div className="wsd-page">
-            <header className="wsd-header">
-                <div className="wsd-brand-area">
-                    <Link to="/welfare" className="wsd-service-name">우리 woori</Link>
-                </div>
-
-                <div className="wsd-header-title">대상자 상세정보</div>
-            </header>
+            <WelfareCommonHeader rightText="대상자 상세정보" />
 
             <main className="wsd-content">
                 <div className="wsd-detail-header">
@@ -1208,7 +1204,7 @@ function WelfareSeniorDetail() {
                 </div>
             )}
 
-            <WelfarePolicyQaButton senior={senior} />
+            <WelfarePolicyChatButton senior={senior} />
         </div>
     );
 }

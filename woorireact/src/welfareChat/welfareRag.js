@@ -47,6 +47,10 @@ export function normalizePerson(person = {}) {
   ]
     .filter(Boolean)
     .join(" ");
+  const benefitsText = stringifyValue(person.currentBenefits || person.welfareBenefits || person.benefits || person.welfareMemo || "");
+  const incomeText = stringifyValue(person.incomeLevel || person.income || person.welfareDecision || "");
+  const householdText = stringifyValue(person.household || person.householdType || person.relation || "");
+  const profileText = [healthText, benefitsText, incomeText, householdText, address].join(" ");
 
   return {
     ...person,
@@ -55,6 +59,10 @@ export function normalizePerson(person = {}) {
     gender: person.gender || "",
     address,
     healthText,
+    benefitsText,
+    incomeText,
+    householdText,
+    profileText,
     isLivingAlone: /독거|혼자|1인|단독/.test(`${person.household || ""} ${person.relation || ""} ${healthText}`),
   };
 }
@@ -72,6 +80,10 @@ function scoreProgram(program, normalizedQuestion, person) {
 
   if (isAgeMatched(program, person)) score += 2;
   if (program.healthKeywords?.some((keyword) => person.healthText.includes(keyword))) score += 3;
+  if (program.keywords?.some((keyword) => person.profileText?.includes(keyword))) score += 3;
+  if (person.benefitsText && person.benefitsText.includes(program.name)) score -= 5;
+  if (/기초|차상위|저소득|의료급여|생계급여/.test(person.incomeText || "") && /basic-pension|basic-livelihood/.test(program.id)) score += 3;
+  if (/장애|거동|치매|보행|인지|돌봄|요양/.test(person.profileText || "") && /long-term-care|custom-care/.test(program.id)) score += 3;
   if (person.isLivingAlone && /custom-care|emergency-safety/.test(program.id)) score += 2;
 
   return score;

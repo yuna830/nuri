@@ -309,7 +309,13 @@ function todayValue() {
 }
 
 function getCurrentSeniorId(initialSenior) {
-  return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    const sessionId = saved ? JSON.parse(saved)?.senior?.id : null;
+    return localStorage.getItem("current_senior_id") || sessionId || initialSenior?.id || "";
+  } catch {
+    return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  }
 }
 
 const formatDongAddress = (address = "") => {
@@ -485,6 +491,7 @@ export default function UserPage() {
   const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
+  const [deviceStatus, setDeviceStatus] = useState("checking");
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -524,6 +531,7 @@ export default function UserPage() {
         ]);
         if (!isMounted) return;
         setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus(today?.status === "ok" ? "connected" : "checking");
         setActivityTrend(trend);
         setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
@@ -531,6 +539,7 @@ export default function UserPage() {
       } catch {
         if (!isMounted) return;
         setActivityToday(DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus("failed");
         setActivityTrend(null);
         setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
@@ -658,8 +667,6 @@ export default function UserPage() {
   };
 
   const updateLocation = async (lat, lon, accuracy) => {
-    setChanged(setCurrentPos, { lat, lon });
-
     const capturedAt = new Date();
     setCurrentLocationTime(
       capturedAt.toLocaleTimeString("ko-KR", {
@@ -682,6 +689,12 @@ export default function UserPage() {
         )
       : Infinity;
 
+    if (lastSavedLocation && movedMeters < 35) {
+      return;
+    }
+
+    setChanged(setCurrentPos, { lat, lon });
+
     const shouldResolveAddress =
       movedMeters >= 50 ||
       !currentAddress ||
@@ -699,7 +712,7 @@ export default function UserPage() {
       const seniorId = getCurrentSeniorId(initialSenior);
 
       if (seniorId && movedMeters >= 50) {
-        await fetch("http://localhost:8080/api/locations", {
+        await fetch("/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -711,8 +724,9 @@ export default function UserPage() {
           }),
         }).catch(() => {});
 
-        lastSavedLocationRef.current = { lat, lon };
       }
+
+      lastSavedLocationRef.current = { lat, lon };
     } catch {
       setChanged(setCurrentAddress, "현재 위치");
     }
@@ -846,7 +860,7 @@ export default function UserPage() {
           let canUseCachedProfile = true;
 
           if (cachedSeniorId) {
-            const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
+            const response = await fetch(`/api/seniors/${cachedSeniorId}`);
 
             if (response.ok) {
               const freshProfile = await response.json();
@@ -1026,10 +1040,23 @@ export default function UserPage() {
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 5000);
+    const timerId = setInterval(loadCallRequest, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") loadCallRequest();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const handleStorageChange = (event) => {
+      if (event.key === `woori-local-alerts:${seniorId}`) loadCallRequest();
+    };
+    window.addEventListener("storage", handleStorageChange);
+
     return () => {
       cancelled = true;
       clearInterval(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [initialSenior, pendingSos]);
 
@@ -1248,7 +1275,12 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className="up-dot" /> 디바이스 연결됨
+              <div className={`up-dot ${deviceStatus === "failed" ? "danger" : deviceStatus === "checking" ? "pending" : ""}`} />
+              {deviceStatus === "connected"
+                ? "디바이스 연결됨"
+                : deviceStatus === "failed"
+                  ? "디바이스 연결 실패"
+                  : "디바이스 연결 시도중입니다"}
             </div>
             <div className="up-care-team">
               <div>
@@ -1336,6 +1368,7 @@ export default function UserPage() {
                   currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
                   currentLabel="현재 위치"
                   safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                  autoFit={false}
                 />
               </div>
             )}
@@ -1651,9 +1684,10 @@ export default function UserPage() {
         <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
           <div className="up-modal checkin-user-modal" onClick={(event) => event.stopPropagation()}>
             <div className="checkin-user-message">
-              <strong>보호자:</strong>
+              <strong>{careTeam.guardianName || "보호자"}:</strong>
               <span>{checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}</span>
             </div>
+
             <textarea
               className="checkin-user-reply-textarea"
               value={checkInReplyMessage}
@@ -1661,11 +1695,21 @@ export default function UserPage() {
               placeholder="보호자에게 보낼 답장을 입력해주세요."
               rows={4}
             />
+
             <div className="up-modal-row single">
-              <button className="checkin-user-send-button" type="button" onClick={handleReplyCheckInMessageAlert}>
+              <button
+                className="checkin-user-send-button"
+                type="button"
+                onClick={handleReplyCheckInMessageAlert}
+              >
                 답장 보내기
               </button>
-              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
+
+              <button
+                className="up-modal-ok"
+                type="button"
+                onClick={handleReadCheckInMessageAlert}
+              >
                 확인했어요
               </button>
             </div>

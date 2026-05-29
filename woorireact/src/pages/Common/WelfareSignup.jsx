@@ -16,7 +16,6 @@ export default function WelfareSignup() {
     passwordConfirm: "",
     center: "",
   });
-  const [error, setError] = useState("");
   const [centerResults, setCenterResults] = useState([]);
   const [centerSearchMessage, setCenterSearchMessage] = useState("");
 
@@ -41,7 +40,7 @@ export default function WelfareSignup() {
       );
 
       if (!response.ok) {
-        setError("소속 기관 검색에 실패했습니다.");
+        alert("소속 기관 검색에 실패했습니다.");
         return;
       }
 
@@ -49,15 +48,13 @@ export default function WelfareSignup() {
       setCenterResults(centers);
 
       if (centers.length === 0) {
-        setError("");
         setCenterSearchMessage("검색 결과가 없습니다. 직접 입력할 수 있습니다.");
         return;
       }
 
-      setError("");
       setCenterSearchMessage("");
     } catch {
-      setError("서버에 연결할 수 없습니다.");
+      alert("서버에 연결할 수 없습니다.");
     }
   };
 
@@ -87,12 +84,12 @@ export default function WelfareSignup() {
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("올바른 이메일 형식으로 입력해주세요.");
+      alert("올바른 이메일 형식으로 입력해주세요.");
       return;
     }
 
     if (!/^[A-Za-z0-9_-]{4,20}$/.test(workerId)) {
-      setError("복지사 아이디는 영문, 숫자, -, _ 조합 4~20자로 입력해주세요.");
+      alert("복지사 아이디는 영문, 숫자, -, _ 조합 4~20자로 입력해주세요.");
       return;
     }
 
@@ -107,7 +104,7 @@ export default function WelfareSignup() {
     }
 
     if (password !== passwordConfirm) {
-      setError("비밀번호 확인이 일치하지 않습니다.");
+      alert("비밀번호 확인이 일치하지 않습니다.");
       return;
     }
 
@@ -133,12 +130,12 @@ export default function WelfareSignup() {
       });
 
       if (response.status === 409) {
-        setError("이미 등록된 복지사 아이디입니다.");
+        alert("이미 등록된 복지사 아이디입니다.");
         return;
       }
 
       if (!response.ok) {
-        setError("회원가입에 실패했습니다.");
+        alert("회원가입에 실패했습니다.");
         return;
       }
 
@@ -154,7 +151,7 @@ export default function WelfareSignup() {
 
       navigate("/welfare");
     } catch {
-      setError("서버에 연결할 수 없습니다.");
+      alert("서버에 연결할 수 없습니다.");
     }
   };
 
@@ -178,7 +175,6 @@ export default function WelfareSignup() {
       </nav>
 
       <div className="su-layout">
-        {error && <div className="su-error">⚠️ {error}</div>}
 
         <section className="su-section">
           <div className="su-section-title">복지사 회원가입</div>

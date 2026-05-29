@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 
 import {
@@ -11,9 +10,11 @@ import {
     recommendWelfareJobToSenior,
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
-
+import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareJobPostings.css";
 
 const PAGE_SIZE = 10;
@@ -42,7 +43,6 @@ function WelfareJobPostings() {
     const [recommendKeyword, setRecommendKeyword] = useState("");
     const [selectedSeniorId, setSelectedSeniorId] = useState("");
     const [welfareSeniors, setWelfareSeniors] = useState([]);
-
     const isExpired = useCallback((job) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -145,10 +145,18 @@ function WelfareJobPostings() {
             let nextJobs = replace ? [] : jobs;
             let nextTotal = totalCount;
             let shouldContinue = true;
+            let startPageWasDbCache = false;
 
             while (shouldContinue) {
-                const result = await fetchWelfareJobList(nextPage, "", API_PAGE_SIZE);
-                nextTotal = result.total || nextTotal;
+                const currentPage = nextPage;
+                const result = await fetchWelfareJobList(currentPage, "", API_PAGE_SIZE);
+
+                if (currentPage === startPage && result.fromDbCache) {
+                    startPageWasDbCache = true;
+                }
+                if (!result.fromDbCache) {
+                    nextTotal = result.total || nextTotal;
+                }
 
                 const merged = new Map(nextJobs.map((job) => [job.jobId, job]));
                 (result.list || []).forEach((job) => {
@@ -162,10 +170,12 @@ function WelfareJobPostings() {
                 const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
                 const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
                 const emptyPage = !result.list?.length;
-                const reachedSafetyLimit = nextPage >= 60;
+                const reachedSafetyLimit = currentPage >= 60;
+                // If startPage came from DB cache, continue at least one more page for fresh data
+                const needsFreshPage = startPageWasDbCache && currentPage <= startPage;
 
                 shouldContinue =
-                    !enoughForCategory &&
+                    (needsFreshPage || !enoughForCategory) &&
                     !loadedAll &&
                     !emptyPage &&
                     !reachedSafetyLimit;
@@ -185,6 +195,7 @@ function WelfareJobPostings() {
     }, [filterJobs, jobs, totalCount]);
 
     useEffect(() => {
+        localStorage.setItem("woori-jobs-last-visited", Date.now().toString());
         loadUntilEnough({
             startPage: 1,
             targetCount: PAGE_SIZE,
@@ -195,6 +206,12 @@ function WelfareJobPostings() {
     useEffect(() => {
         setVisibleCount(PAGE_SIZE);
     }, [activeCategory, searchKeyword, hideClosedJobs]);
+
+    useEffect(() => {
+        if (jobs.length > 0) {
+            localStorage.setItem("woori-jobs-seen-count", String(jobs.length));
+        }
+    }, [jobs.length]);
 
     useEffect(() => {
         if (
@@ -308,44 +325,27 @@ function WelfareJobPostings() {
 
     return (
         <div className="wj-page">
-            <header className="wj-header">
-                <div className="wj-brand-area">
-                    <Link to="/welfare" className="wj-service-name">
-                        우리 woori
-                    </Link>
-                </div>
+            <WelfareCommonHeader rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`} />
 
-                <div className="wj-header-title">
-                    노인일자리 공고 | 전체 {totalCount.toLocaleString()}건
-                </div>
-            </header>
-
-            <main className="wj-content">
-                <div className="wj-layout">
-                    <nav className="wj-sidebar" aria-label="직종 분류">
+            <div className="wj-content">
+            <div className="wj-layout wj-layout-with-main-sidebar">
+                <WelfareSidebar active="jobs">
+                    <div className="wj-sidebar-category-box wj-sidebar-category-under-nav">
                         <strong className="wj-sidebar-title">직종 분류</strong>
-
                         {JOB_CATEGORY_FILTERS.map((category) => (
                             <button
                                 type="button"
                                 key={category.label}
-                                className={`wj-sidebar-item${
-                                    activeCategory === category.value ? " wj-sidebar-item-active" : ""
-                                }`}
+                                className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
                                 onClick={() => setActiveCategory(category.value)}
                             >
-                                <span>{category.label}</span>
-
-                                {activeCategory === category.value && (
-                                    <span className="wj-sidebar-count">
-                                        {categoryCounts[category.value] || 0}
-                                    </span>
-                                )}
+                                {category.label}
                             </button>
                         ))}
-                    </nav>
+                    </div>
+                </WelfareSidebar>
 
-                    <div className="wj-main-area">
+                <div className="wj-main-area">
                         <div className="wj-search-row">
                             <Search size={16} className="wj-search-icon" />
 
@@ -370,6 +370,7 @@ function WelfareJobPostings() {
                             </label>
                         </div>
 
+                        <div className="wj-cards-scroll">
                         {isLoading && jobs.length === 0 && (
                             <p className="wj-empty-text">일자리 공고를 불러오는 중입니다.</p>
                         )}
@@ -407,6 +408,9 @@ function WelfareJobPostings() {
                                             </div>
 
                                             <div className="wj-badge-row">
+                                                <span className="wj-source-badge">
+                                                    {job.source === "seoul" ? "서울일자리" : "노인일자리"}
+                                                </span>
                                                 <span className="wj-job-type-badge">
                                                     {jobCategory}
                                                 </span>
@@ -449,9 +453,10 @@ function WelfareJobPostings() {
                                 {Math.min(PAGE_SIZE, Math.max(filteredJobs.length - visibleJobs.length, 0)) || PAGE_SIZE}건 더보기
                             </button>
                         )}
-                    </div>
+                        </div>
                 </div>
-            </main>
+            </div>
+        </div>
 
             {selectedJob && (
                 <div
@@ -560,6 +565,16 @@ function WelfareJobPostings() {
 
                                 <div className="wj-modal-body">
                                     <div className="wj-modal-row">
+                                        <strong>출처</strong>
+                                        <span>{selectedJob.source === "seoul" ? "서울일자리" : "노인일자리"}</span>
+                                    </div>
+
+                                    <div className="wj-modal-row">
+                                        <strong>공고번호</strong>
+                                        <span>{selectedJob.jobId || "-"}</span>
+                                    </div>
+
+                                    <div className="wj-modal-row">
                                         <strong>고용형태</strong>
                                         <span>
                                             {EMPL_MAP[selectedJob.emplymShp] ||
@@ -604,6 +619,20 @@ function WelfareJobPostings() {
                                         <span>{selectedJob.acptMthd || "-"}</span>
                                     </div>
 
+                                    {selectedJob.workTime && (
+                                        <div className="wj-modal-row">
+                                            <strong>근무시간</strong>
+                                            <span>{selectedJob.workTime}</span>
+                                        </div>
+                                    )}
+
+                                    {selectedJob.wage && (
+                                        <div className="wj-modal-row">
+                                            <strong>급여</strong>
+                                            <span>{selectedJob.wage}</span>
+                                        </div>
+                                    )}
+
                                     {selectedJob.clerkContt && (
                                         <div className="wj-modal-row">
                                             <strong>담당자 연락처</strong>
@@ -634,7 +663,7 @@ function WelfareJobPostings() {
                 </div>
             )}
             
-            <WelfarePolicyQaButton />
+            <WelfarePolicyChatButton />
         </div>
     );
 }

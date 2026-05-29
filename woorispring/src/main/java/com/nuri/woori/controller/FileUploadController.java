@@ -20,13 +20,16 @@ public class FileUploadController {
     @PostMapping("/{category}")
     public ResponseEntity<Map<String, String>> uploadImage(
             @PathVariable String category,
-            @RequestParam("image") MultipartFile image
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "file", required = false) MultipartFile file
     ) throws Exception {
-        if (image.isEmpty()) {
-            throw new IllegalArgumentException("업로드할 이미지가 없습니다.");
+        MultipartFile uploadFile = image != null ? image : file;
+
+        if (uploadFile == null || uploadFile.isEmpty()) {
+            throw new IllegalArgumentException("업로드할 파일이 없습니다.");
         }
 
-        String originalFilename = image.getOriginalFilename();
+        String originalFilename = uploadFile.getOriginalFilename();
         String extension = getExtension(originalFilename);
         String savedFilename = UUID.randomUUID() + extension;
 
@@ -34,16 +37,20 @@ public class FileUploadController {
         Files.createDirectories(categoryPath);
 
         Path savedPath = categoryPath.resolve(savedFilename).normalize();
-        image.transferTo(savedPath.toFile());
+        uploadFile.transferTo(savedPath.toFile());
 
-        String imageUrl = "/uploads/" + category + "/" + savedFilename;
+        String fileUrl = "/uploads/" + category + "/" + savedFilename;
 
-        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+        return ResponseEntity.ok(Map.of(
+                "imageUrl", fileUrl,
+                "fileUrl", fileUrl,
+                "fileName", originalFilename == null ? savedFilename : originalFilename
+        ));
     }
 
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) {
-            return ".jpg";
+            return ".bin";
         }
 
         return filename.substring(filename.lastIndexOf("."));

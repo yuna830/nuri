@@ -2,10 +2,17 @@ const SENURI_SERVICE_KEY =
   import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
+const SEOUL_JOB_KEYS = [
+  import.meta.env.VITE_SEOUL_JOB_KEY_1 || "6c4977427a77616e37304c58714a4d",
+  import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6f484f795777616e373678665a556e",
+  import.meta.env.VITE_SEOUL_JOB_KEY_3 || "554d6c414677616e37314b43545549",
+].filter(Boolean);
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
+const JOB_DB_WARM_PAGE_LIMIT = 30;
 const jobListCache = new Map();
+let jobCacheWarmupPromise = null;
 
 export const EMPL_MAP = {
   CM0101: "정규직",
@@ -112,6 +119,49 @@ const saveJobPostingsToCache = async (jobs) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(rows),
   }).catch(() => {});
+};
+
+const warmJobPostingDbCache = (numOfRows) => {
+  if (jobCacheWarmupPromise) return jobCacheWarmupPromise;
+
+  jobCacheWarmupPromise = (async () => {
+    try {
+      const res = await fetch("/api/job-cache/last-updated");
+      if (res.ok) {
+        const data = await res.json();
+        const serverLastUpdated = Number(data.epochMilli || 0);
+        if (serverLastUpdated && Date.now() - serverLastUpdated < JOB_DB_REFRESH_TTL_MS) {
+          return;
+        }
+      }
+    } catch {
+      // 서버 확인 실패 시 로컬 캐시로 fallback
+      const lastWarmAt = Number(localStorage.getItem("job-db-cache-warmed-at") || 0);
+      if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) return;
+    }
+
+    const keyCount = SEOUL_JOB_KEYS.length || 1;
+    for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += keyCount) {
+      const calls = [fetchSenuriJobList(pageNo, "", numOfRows)];
+      for (let k = 0; k < keyCount && pageNo + k <= JOB_DB_WARM_PAGE_LIMIT; k += 1) {
+        calls.push(fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[k], pageNo + k, numOfRows));
+      }
+
+      const results = await Promise.allSettled(calls);
+      const allJobs = results
+        .filter((r) => r.status === "fulfilled")
+        .flatMap((r) => r.value.list || []);
+
+      if (allJobs.length === 0) break;
+      await saveJobPostingsToCache(allJobs);
+    }
+
+    localStorage.setItem("job-db-cache-warmed-at", String(Date.now()));
+  })().finally(() => {
+    jobCacheWarmupPromise = null;
+  });
+
+  return jobCacheWarmupPromise;
 };
 
 export const categorizeJob = (job) => {
@@ -245,34 +295,42 @@ const fetchSenuriJobList = async (pageNo, emplymShp, numOfRows) => {
   return parseJobList(await response.text());
 };
 
-const fetchSeoulJobInfo = async (pageNo, numOfRows) => {
-  if (!SEOUL_JOB_INFO_KEY) return { list: [], total: 0 };
-
+const fetchSeoulJobInfoWithKey = async (key, pageNo, numOfRows) => {
+  if (!key) return { list: [], total: 0 };
   const start = (pageNo - 1) * numOfRows + 1;
   const end = pageNo * numOfRows;
-  const response = await fetch(`/seoul-openapi/${SEOUL_JOB_INFO_KEY}/json/GetJobInfo/${start}/${end}/`);
-  if (!response.ok) throw new Error(`Seoul Job API failed: ${response.status}`);
-
-  const data = await response.json();
-  const body = data.GetJobInfo || {};
-  const rows = Array.isArray(body.row) ? body.row : [];
-
-  return {
-    list: rows.map(normalizeSeoulJob),
-    total: Number(body.list_total_count) || 0,
-  };
+  try {
+    const response = await fetch(`/seoul-openapi/${key}/json/GetJobInfo/${start}/${end}/`);
+    if (!response.ok) return { list: [], total: 0 };
+    const data = await response.json();
+    const body = data.GetJobInfo || {};
+    const rows = Array.isArray(body.row) ? body.row : [];
+    return { list: rows.map(normalizeSeoulJob), total: Number(body.list_total_count) || 0 };
+  } catch {
+    return { list: [], total: 0 };
+  }
 };
 
+const fetchSeoulJobInfo = (pageNo, numOfRows) =>
+  fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[0] || "", pageNo, numOfRows);
+
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
-  const cacheKey = `combined-${pageNo}-${emplymShp}-${numOfRows}`;
+  const cacheKey = `combined-v3-${pageNo}-${emplymShp}-${numOfRows}`;
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
 
-  if (pageNo === 1 && !emplymShp) {
-    const dbCachedJobs = await fetchCachedJobPostings().catch(() => []);
+  const lastDbRefreshAt = Number(localStorage.getItem("job-db-cache-refreshed-at") || 0);
+  const shouldRefreshDbCache = Date.now() - lastDbRefreshAt > JOB_DB_REFRESH_TTL_MS;
+  const dbCachedJobs = pageNo === 1 && !emplymShp
+    ? await fetchCachedJobPostings().catch(() => [])
+    : [];
+  const cachedSources = new Set(dbCachedJobs.map((job) => job?.source).filter(Boolean));
+  const hasMixedDbCache = cachedSources.has("노인일자리") && cachedSources.has("서울일자리");
+
+  if (pageNo === 1 && !emplymShp && hasMixedDbCache && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
     if (dbCachedJobs.length > 0) {
       const data = {
-        list: dbCachedJobs.slice(0, numOfRows),
+        list: dbCachedJobs,
         total: dbCachedJobs.length,
         fromDbCache: true,
       };
@@ -290,17 +348,25 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const seoulData = seoul.status === "fulfilled" ? seoul.value : { list: [], total: 0 };
   const merged = new Map();
 
-  [...senuriData.list, ...seoulData.list].forEach((job) => {
+  [...dbCachedJobs, ...senuriData.list, ...seoulData.list].forEach((job) => {
     if (!job.jobId) return;
     merged.set(`${job.source}-${job.jobId}`, job);
   });
 
   const data = {
     list: Array.from(merged.values()),
-    total: (senuriData.total || 0) + (seoulData.total || 0),
+    total: Math.max(
+      merged.size,
+      dbCachedJobs.length,
+      (senuriData.total || 0) + (seoulData.total || 0),
+    ),
   };
 
-  saveJobPostingsToCache(data.list);
+  saveJobPostingsToCache([...senuriData.list, ...seoulData.list]);
+  if (pageNo === 1 && !emplymShp) {
+    warmJobPostingDbCache(numOfRows);
+  }
+  localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
   writeJobCache(cacheKey, data);
   return data;
 };

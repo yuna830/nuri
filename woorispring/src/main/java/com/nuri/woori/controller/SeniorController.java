@@ -8,6 +8,7 @@ import com.nuri.woori.controller.SeniorController.FindNameResponse;
 import com.nuri.woori.entity.Guardian;
 import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.LocationStatus;
+import com.nuri.woori.entity.WelfareWorker;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.GuardianRepository;
@@ -17,6 +18,7 @@ import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
+import com.nuri.woori.repository.WelfareWorkerRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -56,9 +58,7 @@ public class SeniorController {
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
             AlertRepository alertRepository,
-            WelfareWorkerRepository welfareWorkerRepository
-    ) {
-           
+            WelfareWorkerRepository welfareWorkerRepository) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -143,7 +143,11 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null);
+                null,
+                null,
+                "",
+                "",
+                "");
     }
 
     @GetMapping
@@ -391,7 +395,11 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null);
+                null,
+                null,
+                "",
+                "",
+                "");
     }
 
     @PatchMapping("/{id}/decision")
@@ -722,6 +730,7 @@ public class SeniorController {
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
                 .orElse(null);
+        WelfareWorker welfareWorker = findWelfareWorker(senior);
 
         return new SeniorProfileResponse(
                 senior,
@@ -732,7 +741,11 @@ public class SeniorController {
                 "",
                 "",
                 safeZone,
-                latestLocation);
+                latestLocation,
+                welfareWorker == null ? null : welfareWorker.getId(),
+                welfareWorker == null ? "" : welfareWorker.getName(),
+                welfareWorker == null ? "" : welfareWorker.getPhone(),
+                welfareWorker == null ? "" : welfareWorker.getCenter());
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -761,6 +774,7 @@ public class SeniorController {
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
                 .orElse(null);
+        WelfareWorker welfareWorker = findWelfareWorker(senior);
 
         return new SeniorProfileResponse(
                 senior,
@@ -771,7 +785,19 @@ public class SeniorController {
                 guardian == null ? "" : guardian.getName(),
                 guardian == null ? "" : guardian.getPhone(),
                 safeZone,
-                latestLocation);
+                latestLocation,
+                welfareWorker == null ? null : welfareWorker.getId(),
+                welfareWorker == null ? "" : welfareWorker.getName(),
+                welfareWorker == null ? "" : welfareWorker.getPhone(),
+                welfareWorker == null ? "" : welfareWorker.getCenter());
+    }
+
+    private WelfareWorker findWelfareWorker(Senior senior) {
+        if (senior == null || senior.getWelfareWorkerId() == null) {
+            return null;
+        }
+
+        return welfareWorkerRepository.findById(senior.getWelfareWorkerId()).orElse(null);
     }
 
     private Integer toInteger(String value) {
@@ -883,6 +909,10 @@ public class SeniorController {
             String guardianName,
             String guardianPhone,
             SafeZones safeZone,
-            LocationStatus lastGps) {
+            LocationStatus lastGps,
+            Long welfareWorkerId,
+            String socialWorkerName,
+            String socialWorkerPhone,
+            String socialWorkerCenter) {
     }
 }

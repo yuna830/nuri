@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { BriefcaseBusiness, ClipboardList, Search, UserPlus, UserRound } from "lucide-react";
+import { Search } from "lucide-react";
+import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
 import {
     fetchWelfareJobApplications,
@@ -13,7 +14,7 @@ import {
     isPendingJobApplication,
     isPhoneConsultationJobApplication,
 } from "../../utils/welfare/welfareSummaryStats";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
 import "../../css/welfare/WelfareDashboard.css";
@@ -35,6 +36,20 @@ const getFilteredApplicationsBySummary = (applications, filter) => {
     return applications;
 };
 
+const getCurrentWelfareWorkerId = () => {
+    try {
+        const saved =
+            sessionStorage.getItem("currentWelfareWorker") ||
+            localStorage.getItem("currentWelfareWorker") ||
+            sessionStorage.getItem("welfareWorker") ||
+            localStorage.getItem("welfareWorker");
+        const parsed = saved ? JSON.parse(saved) : null;
+        return parsed?.id || parsed?.worker?.id || parsed?.welfareWorker?.id || null;
+    } catch {
+        return null;
+    }
+};
+
 function WelfareJobApplications() {
     const [applications, setApplications] = useState([]);
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -50,7 +65,7 @@ function WelfareJobApplications() {
                 if (!silent) setIsLoading(true);
                 setLoadError("");
 
-                const data = await fetchWelfareJobApplications();
+                const data = await fetchWelfareJobApplications(getCurrentWelfareWorkerId());
 
                 if (!ignore) {
                     setApplications(data);
@@ -114,48 +129,12 @@ function WelfareJobApplications() {
 
     return (
         <div className="wd-page">
-            <header className="wja-header">
-                <Link to="/welfare" className="wja-service-name">
-                    우리 woori
-                </Link>
-            </header>
+            <WelfareCommonHeader rightText="일자리 신청 관리" />
 
-            <main className="wja-content">
-                <aside className="wja-sidebar">
-                    <div className="wja-sidebar-profile">
-                        <div className="wja-sidebar-avatar">
-                            <UserRound size={24} />
-                        </div>
-                        <div>
-                            <strong>복지사</strong>
-                            <span>일자리 신청 관리</span>
-                        </div>
-                    </div>
+            <div className="wd-layout">
+                <WelfareSidebar active="job-applications" />
 
-                    <nav className="wja-sidebar-nav">
-                        <Link to="/welfare" className="wja-sidebar-item">
-                            <ClipboardList size={17} />
-                            대상자 목록
-                        </Link>
-
-                        <Link to="/welfare/job-applications" className="wja-sidebar-item wja-sidebar-item-active">
-                            <UserPlus size={17} />
-                            일자리 신청
-                        </Link>
-
-                        <Link to="/welfare/jobs" className="wja-sidebar-item">
-                            <BriefcaseBusiness size={17} />
-                            일자리 공고
-                        </Link>
-
-                        <Link to="/welfare/mypage" className="wja-sidebar-item">
-                            <UserRound size={17} />
-                            마이페이지
-                        </Link>
-                    </nav>
-                </aside>
-
-                <section className="wja-main">
+                <main className="wja-main">
                     <WelfareSummaryCards
                     mode="jobs"
                     counts={getJobApplicationSummaryCounts(applications)}
@@ -232,10 +211,10 @@ function WelfareJobApplications() {
                             </table>
                         </div>
                     )}
-                </section>
-            </main>
-            
-            <WelfarePolicyQaButton />
+                </main>
+            </div>
+
+            <WelfarePolicyChatButton />
         </div>
     );
 }

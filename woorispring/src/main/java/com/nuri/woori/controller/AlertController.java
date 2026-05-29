@@ -59,7 +59,26 @@ public class AlertController {
 
     @PostMapping("/call")
     public List<Alert> createCallAlert(@RequestBody SosAlertRequest request) {
-        return createGuardianAlerts(request, "CALL_REQUEST", "전화 요청", "님에게 보호자가 전화를 요청했습니다.");
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        Long guardianId = guardianSeniorRepository.findBySeniorId(request.seniorId())
+                .stream()
+                .findFirst()
+                .map(GuardianSenior::getGuardianId)
+                .orElse(null);
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(guardianId);
+        alert.setType("CALL_REQUEST");
+        alert.setTitle("전화 요청");
+        alert.setMessage("보호자가 " + senior.getName() + "님에게 전화를 요청했습니다.");
+        alert.setLatitude(request.latitude());
+        alert.setLongitude(request.longitude());
+        alert.setIsRead(false);
+
+        return List.of(alertRepository.save(alert));
     }
     @PostMapping("/safe-zone")
     public List<Alert> createSafeZoneAlert(@RequestBody SosAlertRequest request) {

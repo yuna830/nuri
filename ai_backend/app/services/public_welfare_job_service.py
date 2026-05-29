@@ -9,7 +9,7 @@ from app.core.config import settings
 class PublicWelfareJobService:
     def __init__(self):
         self.engine = create_engine(
-            settings.neon_database_url,
+            settings.database_url,
             pool_pre_ping=True,
         )
 

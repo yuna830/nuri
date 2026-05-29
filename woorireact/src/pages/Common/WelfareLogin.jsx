@@ -34,7 +34,6 @@ export default function WelfareLogin() {
     workerId: "",
     password: "",
   });
-  const [error, setError] = useState("");
 
   const set = (key, value) => {
     setForm((previousForm) => ({ ...previousForm, [key]: value }));
@@ -45,12 +44,12 @@ export default function WelfareLogin() {
     const password = form.password.trim();
 
     if (!workerId) {
-      setError("복지사 아이디를 입력해주세요.");
+      alert("복지사 아이디를 입력해주세요.");
       return;
     }
 
     if (!password) {
-      setError("비밀번호를 입력해주세요.");
+      alert("비밀번호를 입력해주세요.");
       return;
     }
 
@@ -67,7 +66,7 @@ export default function WelfareLogin() {
       });
 
       if (!response.ok) {
-        setError("복지사 아이디 또는 비밀번호를 확인해주세요.");
+        alert("복지사 아이디 또는 비밀번호를 확인해주세요.");
         return;
       }
 
@@ -83,7 +82,7 @@ export default function WelfareLogin() {
 
       navigate("/welfare");
     } catch {
-      setError("서버에 연결할 수 없습니다.");
+      alert("서버에 연결할 수 없습니다.");
     }
   };
 
@@ -204,8 +203,6 @@ export default function WelfareLogin() {
               <br />
               더 빠른 돌봄 관리를 돕습니다.
             </div>
-
-            {error && <div className="login-error">⚠️ {error}</div>}
 
             <label className="login-label">복지사 아이디</label>
             <input

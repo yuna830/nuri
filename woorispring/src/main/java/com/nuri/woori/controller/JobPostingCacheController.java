@@ -30,7 +30,7 @@ public class JobPostingCacheController {
     public List<Map<String, Object>> getCachedJobs() {
         List<Map<String, Object>> jobs = new ArrayList<>();
 
-        for (JobPostingCache cache : jobPostingCacheRepository.findTop500ByOrderByUpdatedAtDesc()) {
+        for (JobPostingCache cache : jobPostingCacheRepository.findTop3000ByOrderByUpdatedAtDesc()) {
             try {
                 jobs.add(objectMapper.readValue(cache.getPayload(), new TypeReference<>() {}));
             } catch (Exception ignored) {
@@ -39,6 +39,16 @@ public class JobPostingCacheController {
         }
 
         return jobs;
+    }
+
+    @GetMapping("/last-updated")
+    public Map<String, Object> getLastUpdated() {
+        return jobPostingCacheRepository.findLatestUpdatedAt()
+                .map(updatedAt -> Map.<String, Object>of(
+                        "lastUpdatedAt", updatedAt.toString(),
+                        "epochMilli", updatedAt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                ))
+                .orElseGet(() -> Map.of("lastUpdatedAt", "", "epochMilli", 0L));
     }
 
     @PostMapping("/bulk")
