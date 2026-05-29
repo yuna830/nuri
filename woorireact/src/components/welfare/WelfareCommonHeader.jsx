@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 
 import CommonHeader from "../CommonHeader.jsx";
 import TripartiteChatModal from "../TripartiteChatModal.jsx";
-import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
+import { assignWelfareSenior, fetchWelfareAlerts, fetchWelfareSeniors, searchSeniorExact } from "../../api/welfareDashboardApi";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import { mapWelfareSenior, getSeniorReviewStatus } from "../../utils/welfare/welfareDashboardData";
 import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
-function WelfareCommonHeader({ rightText, afterActions }) {
+function WelfareCommonHeader({ rightText }) {
     const navigate = useNavigate();
     const currentWorker = useMemo(() => {
         try {
@@ -24,6 +24,10 @@ function WelfareCommonHeader({ rightText, afterActions }) {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [seniors, setSeniors] = useState([]);
+    const [isAddSeniorModalOpen, setIsAddSeniorModalOpen] = useState(false);
+    const [addSeniorForm, setAddSeniorForm] = useState({ name: "", phone: "" });
+    const [addSeniorStatus, setAddSeniorStatus] = useState("");
+    const [isAddingSenior, setIsAddingSenior] = useState(false);
 
     useEffect(() => {
         if (!currentWorker) return;
@@ -118,6 +122,39 @@ function WelfareCommonHeader({ rightText, afterActions }) {
     const dismissNotification = (id) =>
         setDismissedNotifications((prev) => (prev.includes(id) ? prev : [...prev, id]));
 
+    const openAddSeniorModal = () => {
+        setAddSeniorForm({ name: "", phone: "" });
+        setAddSeniorStatus("");
+        setIsAddSeniorModalOpen(true);
+    };
+
+    const handleAddSenior = async () => {
+        if (!currentWorker?.id) return;
+        const name = addSeniorForm.name.trim();
+        const phone = addSeniorForm.phone.trim();
+        if (!name || !phone) {
+            setAddSeniorStatus("대상자 이름과 전화번호를 모두 입력해주세요.");
+            return;
+        }
+        try {
+            setIsAddingSenior(true);
+            setAddSeniorStatus("");
+            const matches = await searchSeniorExact({ name, phone });
+            const target = matches[0]?.senior || matches[0];
+            if (!target?.id) {
+                setAddSeniorStatus("일치하는 대상자를 찾지 못했습니다. 이름과 전화번호를 확인해주세요.");
+                return;
+            }
+            await assignWelfareSenior({ seniorId: target.id, welfareWorkerId: currentWorker.id });
+            setIsAddSeniorModalOpen(false);
+            navigate("/welfare");
+        } catch {
+            setAddSeniorStatus("대상자 추가에 실패했습니다.");
+        } finally {
+            setIsAddingSenior(false);
+        }
+    };
+
     const chatRooms = seniors.flatMap((senior) => [
         {
             roomType: "SENIOR_WELFARE",
@@ -169,7 +206,15 @@ function WelfareCommonHeader({ rightText, afterActions }) {
                         {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
                     </button>
                 }
-                afterActions={afterActions}
+                afterActions={
+                    <button
+                        className="common-app-danger-button"
+                        type="button"
+                        onClick={openAddSeniorModal}
+                    >
+                        대상자 추가
+                    </button>
+                }
             />
             <TripartiteChatModal
                 isOpen={isChatOpen}
@@ -184,6 +229,65 @@ function WelfareCommonHeader({ rightText, afterActions }) {
                         .catch(() => {})
                 }
             />
+            {isAddSeniorModalOpen && (
+                <div className="wd-modal-backdrop" onClick={() => setIsAddSeniorModalOpen(false)}>
+                    <section className="wd-info-request-modal wd-add-senior-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="wd-info-request-header">
+                            <h2>대상자 추가</h2>
+                            <button
+                                type="button"
+                                className="wd-info-request-close"
+                                onClick={() => setIsAddSeniorModalOpen(false)}
+                                disabled={isAddingSenior}
+                            >
+                                닫기
+                            </button>
+                        </div>
+                        <div className="wd-add-senior-form">
+                            <label>
+                                대상자 이름
+                                <input
+                                    type="text"
+                                    value={addSeniorForm.name}
+                                    onChange={(e) => setAddSeniorForm((f) => ({ ...f, name: e.target.value }))}
+                                    placeholder="예: 김우리"
+                                />
+                            </label>
+                            <label>
+                                전화번호
+                                <input
+                                    type="tel"
+                                    value={addSeniorForm.phone}
+                                    onChange={(e) => setAddSeniorForm((f) => ({ ...f, phone: e.target.value }))}
+                                    placeholder="예: 010-1234-5678"
+                                    onKeyDown={(e) => { if (e.key === "Enter") handleAddSenior(); }}
+                                />
+                            </label>
+                        </div>
+                        {addSeniorStatus && (
+                            <p className="wd-info-request-fields wd-add-senior-status">{addSeniorStatus}</p>
+                        )}
+                        <div className="wd-info-request-actions">
+                            <button
+                                type="button"
+                                className="wd-info-request-cancel"
+                                onClick={() => setIsAddSeniorModalOpen(false)}
+                                disabled={isAddingSenior}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                className="wd-info-request-submit"
+                                onClick={handleAddSenior}
+                                disabled={isAddingSenior}
+                            >
+                                추가하기
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
         </>
     );
 }
