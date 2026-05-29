@@ -239,6 +239,30 @@ export default function ChatView({
     ].join("\n");
   };
 
+  const buildFoodAnalysisMemory = (result, answer) => {
+    const nutrients = result?.nutrients || {};
+    const allergyConflicts = findAllergyConflicts(result);
+    const userAllergies = getCurrentUserAllergies();
+
+    return [
+      "[FOOD_ANALYSIS_MEMORY]",
+      "The user uploaded a food label image. Use this as recent conversation context for follow-up questions such as whether the user can eat it, what is high, or what the ingredients mean.",
+      `Product name: ${result?.product_name || "unknown"}`,
+      `User registered allergies: ${userAllergies.length ? userAllergies.join(", ") : "none"}`,
+      `Personal allergy conflicts found: ${
+        allergyConflicts.length
+          ? allergyConflicts.map((item) => `${item.allergy} -> ${item.matched.join(", ")}`).join("; ")
+          : "none"
+      }`,
+      `Nutrients JSON: ${JSON.stringify(nutrients)}`,
+      `Detected allergens JSON: ${JSON.stringify(result?.allergens || [])}`,
+      `Warnings JSON: ${JSON.stringify(result?.warnings || [])}`,
+      `Assistant visible summary:\n${answer}`,
+      `OCR text:\n${result?.ocr_text || ""}`,
+      "[/FOOD_ANALYSIS_MEMORY]",
+    ].join("\n");
+  };
+
   const handleImageUpload = async (file) => {
     const imageUrl = URL.createObjectURL(file);
 
@@ -277,8 +301,12 @@ export default function ChatView({
           role: "assistant",
           content: answer,
         },
+        {
+          role: "assistant",
+          content: buildFoodAnalysisMemory(result, answer),
+          hidden: true,
+        },
       ]);
-      speak(answer);
     } catch (error) {
       console.error("Food OCR analysis failed:", error);
       const answer = "성분표 분석 중 문제가 생겼어요. chat_server가 켜져 있는지 확인해 주세요.";
@@ -290,7 +318,6 @@ export default function ChatView({
           content: answer,
         },
       ]);
-      speak(answer);
     }
   };
 

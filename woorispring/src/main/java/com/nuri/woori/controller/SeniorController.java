@@ -201,24 +201,24 @@ public class SeniorController {
         return toProfileResponse(senior);
     }
 
-    @PatchMapping("/{id}/welfare-worker")
-    public SeniorProfileResponse updateSeniorWelfareWorker(
-            @PathVariable Long id,
-            @RequestBody SeniorWelfareWorkerRequest request
-    ) {
-        Senior senior = seniorRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
-
-        if (request.welfareWorkerId() != null) {
-            welfareWorkerRepository.findById(request.welfareWorkerId())
-                    .orElseThrow(() -> new RuntimeException("Welfare worker not found"));
-        }
-
-        senior.setWelfareWorkerId(request.welfareWorkerId());
-        Senior savedSenior = seniorRepository.save(senior);
-
-        return toProfileResponse(savedSenior);
-    }
+//    @PatchMapping("/{id}/welfare-worker")
+//    public SeniorProfileResponse updateSeniorWelfareWorker(
+//            @PathVariable Long id,
+//            @RequestBody SeniorWelfareWorkerRequest request
+//    ) {
+//        Senior senior = seniorRepository.findById(id)
+//                .orElseThrow(() -> new RuntimeException("Senior not found"));
+//
+//        if (request.welfareWorkerId() != null) {
+//            welfareWorkerRepository.findById(request.welfareWorkerId())
+//                    .orElseThrow(() -> new RuntimeException("Welfare worker not found"));
+//        }
+//
+//        senior.setWelfareWorkerId(request.welfareWorkerId());
+//        Senior savedSenior = seniorRepository.save(senior);
+//
+//        return toProfileResponse(savedSenior);
+//    }
     @PostMapping("/login")
     public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
         String name = request.name() == null ? "" : request.name().trim();
@@ -867,11 +867,6 @@ public class SeniorController {
             List<String> hopeJobType,
             List<String> hopeCondition,
             String memo) {
-    }
-
-    public record SeniorWelfareWorkerRequest(
-            Long welfareWorkerId
-    ) {
     }
 
     public record SeniorLoginRequest(
