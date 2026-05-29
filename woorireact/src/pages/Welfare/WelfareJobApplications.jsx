@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, Search } from "lucide-react";
-import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
-import { fetchUnreadChatCount } from "../../api/chatApi";
+import { Search } from "lucide-react";
+import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
 import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
 import {
@@ -9,7 +8,6 @@ import {
     updateWelfareJobApplicationStatus,
 } from "../../api/welfareJobApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
-import CommonHeader from "../../components/CommonHeader.jsx";
 import {
     getJobApplicationSummaryCounts,
     isCompletedJobApplication,
@@ -57,18 +55,6 @@ function WelfareJobApplications() {
     const [searchKeyword, setSearchKeyword] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [unreadChatCount, setUnreadChatCount] = useState(0);
-
-    useEffect(() => {
-        const workerId = getCurrentWelfareWorkerId();
-        if (!workerId) return;
-        fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
-        const timerId = setInterval(() => {
-            fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
-        }, 30000);
-        return () => clearInterval(timerId);
-    }, []);
     const [summaryFilter, setSummaryFilter] = useState("all");
 
     useEffect(() => {
@@ -143,27 +129,7 @@ function WelfareJobApplications() {
 
     return (
         <div className="wd-page">
-            <CommonHeader
-                homePath="/welfare"
-                rightText="일자리 신청 관리"
-                showNotificationButton={false}
-                actions={
-                    <button
-                        className="common-app-icon-button"
-                        type="button"
-                        onClick={() => setIsChatOpen(true)}
-                        aria-label="메시지"
-                    >
-                        <MessageCircle size={19} />
-                        {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
-                    </button>
-                }
-            />
-            <TripartiteChatModal
-                isOpen={isChatOpen}
-                rooms={[]}
-                onClose={() => setIsChatOpen(false)}
-            />
+            <WelfareCommonHeader rightText="일자리 신청 관리" />
 
             <div className="wd-layout">
                 <WelfareSidebar active="job-applications" />
