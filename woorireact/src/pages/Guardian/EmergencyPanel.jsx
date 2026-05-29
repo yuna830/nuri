@@ -113,6 +113,7 @@ function EmergencyPanel({
   onCallResolved,
   onCallNeedsReport,
   onCloseCallResult,
+  onOpenChat,
 }) {
 
   const [policeIndex, setPoliceIndex] = useState(0);
@@ -699,7 +700,7 @@ function EmergencyPanel({
                 <strong>오늘 컨디션이나 식사 여부를 확인해 보세요.</strong>
 
                 <div className="guardian-checkin-actions">
-                  <button type="button" onClick={() => window.location.href = `tel:${selectedElder.phone}`}>
+                  <button type="button" onClick={() => onCallAlert?.({ seniorId: selectedElder.id })}>
                     전화하기
                   </button>
 
@@ -782,7 +783,7 @@ function EmergencyPanel({
         )}
 
         {activePanelTab === "welfare" && (
-          <GuardianWelfarePanel selectedElder={selectedElder} />
+          <GuardianWelfarePanel selectedElder={selectedElder} onOpenChat={onOpenChat} />
         )}
 
         {activePanelTab === "safety" && (

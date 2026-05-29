@@ -30,6 +30,7 @@ export default function TripartiteChatModal({
   senderRole,
   senderId,
   senderName,
+  initialRoomType,
   onClose,
   onReadChange,
 }) {
@@ -44,6 +45,16 @@ export default function TripartiteChatModal({
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
   const listRef = useRef(null);
+  const attachmentPreviewUrl = useMemo(() => {
+    if (!attachment?.type?.startsWith("image/")) return "";
+    return URL.createObjectURL(attachment);
+  }, [attachment]);
+
+  useEffect(() => {
+    return () => {
+      if (attachmentPreviewUrl) URL.revokeObjectURL(attachmentPreviewUrl);
+    };
+  }, [attachmentPreviewUrl]);
 
   const chatRooms = useMemo(() => {
     const sourceRooms = rooms.length > 0
@@ -68,12 +79,16 @@ export default function TripartiteChatModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setActiveRoomKey((previousKey) =>
-      visibleRooms.some((room) => room.key === previousKey)
+    const preferredRoom = initialRoomType
+      ? visibleRooms.find((room) => room.roomType === initialRoomType)
+      : null;
+    setActiveRoomKey((previousKey) => {
+      if (preferredRoom?.key) return preferredRoom.key;
+      return visibleRooms.some((room) => room.key === previousKey)
         ? previousKey
-        : visibleRooms[0]?.key || ""
-    );
-  }, [isOpen, visibleRooms]);
+        : visibleRooms[0]?.key || "";
+    });
+  }, [initialRoomType, isOpen, visibleRooms]);
 
   const loadMessages = async ({ silent = false, page = 0, appendOlder = false } = {}) => {
     const targetSeniorId = activeRoom?.seniorId || seniorId;
@@ -165,7 +180,7 @@ export default function TripartiteChatModal({
 
   return (
     <div className="tcm-backdrop" onClick={onClose}>
-      <section className="tcm-modal" onClick={(event) => event.stopPropagation()}>
+      <section className={`tcm-modal ${senderRole === "WELFARE" ? "tcm-modal-welfare" : ""}`} onClick={(event) => event.stopPropagation()}>
         <header className="tcm-header">
           <div>
             <h2>메시지</h2>
@@ -263,11 +278,24 @@ export default function TripartiteChatModal({
         {error && <p className="tcm-error">{error}</p>}
 
         <footer className="tcm-compose">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="메시지를 입력하세요."
-          />
+          <div className="tcm-compose-input-wrap">
+            {attachment && (
+              <div className="tcm-compose-attachment">
+                {attachmentPreviewUrl && (
+                  <img src={attachmentPreviewUrl} alt="첨부 미리보기" />
+                )}
+                <span>{attachment.name}</span>
+                <button type="button" onClick={() => setAttachment(null)} aria-label="첨부 제거">
+                  ×
+                </button>
+              </div>
+            )}
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="메시지를 입력하세요."
+            />
+          </div>
           <label className="tcm-file-button">
             첨부
             <input

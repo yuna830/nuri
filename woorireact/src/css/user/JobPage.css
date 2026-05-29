@@ -787,6 +787,15 @@
   background: #eef6ef;
 }
 
+.jp-application-item-clickable {
+  cursor: pointer;
+}
+
+.jp-application-item-clickable:hover {
+  border-color: #86a788;
+  background: #fbfdf8;
+}
+
 .jp-application-modal {
   max-width: 640px;
 }

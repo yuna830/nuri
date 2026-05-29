@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 
 import {
@@ -11,6 +10,7 @@ import {
     recommendWelfareJobToSenior,
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
+import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
@@ -308,17 +308,11 @@ function WelfareJobPostings() {
 
     return (
         <div className="wj-page">
-            <header className="wj-header">
-                <div className="wj-brand-area">
-                    <Link to="/welfare" className="wj-service-name">
-                        우리 woori
-                    </Link>
-                </div>
-
-                <div className="wj-header-title">
-                    노인일자리 공고 | 전체 {totalCount.toLocaleString()}건
-                </div>
-            </header>
+            <CommonHeader
+                homePath="/welfare"
+                rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`}
+                className="wj-common-header"
+            />
 
             <main className="wj-content">
                 <div className="wj-layout">
@@ -407,6 +401,9 @@ function WelfareJobPostings() {
                                             </div>
 
                                             <div className="wj-badge-row">
+                                                <span className="wj-source-badge">
+                                                    {job.source === "seoul" ? "서울일자리" : "노인일자리"}
+                                                </span>
                                                 <span className="wj-job-type-badge">
                                                     {jobCategory}
                                                 </span>
@@ -560,6 +557,16 @@ function WelfareJobPostings() {
 
                                 <div className="wj-modal-body">
                                     <div className="wj-modal-row">
+                                        <strong>출처</strong>
+                                        <span>{selectedJob.source === "seoul" ? "서울일자리" : "노인일자리"}</span>
+                                    </div>
+
+                                    <div className="wj-modal-row">
+                                        <strong>공고번호</strong>
+                                        <span>{selectedJob.jobId || "-"}</span>
+                                    </div>
+
+                                    <div className="wj-modal-row">
                                         <strong>고용형태</strong>
                                         <span>
                                             {EMPL_MAP[selectedJob.emplymShp] ||
@@ -603,6 +610,20 @@ function WelfareJobPostings() {
                                         <strong>접수방법</strong>
                                         <span>{selectedJob.acptMthd || "-"}</span>
                                     </div>
+
+                                    {selectedJob.workTime && (
+                                        <div className="wj-modal-row">
+                                            <strong>근무시간</strong>
+                                            <span>{selectedJob.workTime}</span>
+                                        </div>
+                                    )}
+
+                                    {selectedJob.wage && (
+                                        <div className="wj-modal-row">
+                                            <strong>급여</strong>
+                                            <span>{selectedJob.wage}</span>
+                                        </div>
+                                    )}
 
                                     {selectedJob.clerkContt && (
                                         <div className="wj-modal-row">

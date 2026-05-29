@@ -149,6 +149,14 @@
   animation: up-blink 2s ease-in-out infinite;
 }
 
+.up-dot.pending {
+  background: #f0c95a;
+}
+
+.up-dot.danger {
+  background: #e05252;
+}
+
 .up-care-team {
   display: grid;
   gap: 0.45rem;

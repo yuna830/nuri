@@ -163,7 +163,7 @@ const normalizeClimateAlert = (alert, index) => ({
   time: formatAlertTime(alert.createdAt || alert.baseTime || alert.time),
   isRead: true,
   canRead: false,
-  canDelete: false,
+  canDelete: true,
   requiresGuardianConfirm: false,
   danger: alert.level === "warning" || alert.level === "danger",
   sortTime: toDate(alert.createdAt || alert.baseTime || alert.time)?.getTime() || 0,
@@ -193,12 +193,14 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [activeAlertTab, setActiveAlertTab] = useState(ALERT_TABS[0]);
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
+  const [deletedAlertKeys, setDeletedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const alertTabsRef = useRef(null);
+  const deletedAlertKeysRef = useRef([]);
 
   const currentSeniorForChat = useMemo(() => {
     try {
@@ -285,6 +287,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
       const combined = [
         ...seniorAlerts
+          .filter((alert) => !["SOS", "SOS_CANCEL"].includes(alert.type))
           .filter((alert) => !resolvedInfoRequestIds.has(alert.id))
           .filter(shouldShowAlert)
           .map(normalizeUserAlert),
@@ -298,8 +301,10 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         })
         .slice(0, 40);
 
-      setAlerts(combined);
-      setSelectedAlertKeys((prev) => prev.filter((key) => combined.some((alert) => alert.key === key)));
+      const visibleCombined = combined.filter((alert) => !deletedAlertKeysRef.current.includes(alert.key));
+
+      setAlerts(visibleCombined);
+      setSelectedAlertKeys((prev) => prev.filter((key) => visibleCombined.some((alert) => alert.key === key)));
     } finally {
       if (!silent) setLoadingAlerts(false);
     }
@@ -340,9 +345,11 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   }), [activeAlertTab, alerts, recentlyReadKeys]);
 
   const deletableFilteredAlerts = filteredAlerts.filter((alert) => alert.canDelete);
-  const selectedDeletableIds = selectedAlertKeys
+  const selectedDeletableAlerts = selectedAlertKeys
     .map((key) => alerts.find((alert) => alert.key === key))
-    .filter((alert) => alert?.canDelete)
+    .filter((alert) => alert?.canDelete);
+  const selectedDeletableIds = selectedDeletableAlerts
+    .filter((alert) => alert.id)
     .map((alert) => alert.id);
 
   const getTabCount = (tab) => {
@@ -416,21 +423,23 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     }
   };
 
-  const removeAlertsFromList = (ids) => {
-    setAlerts((prev) => prev.filter((alert) => !ids.includes(alert.id)));
+  const removeAlertsFromList = (keys) => {
+    deletedAlertKeysRef.current = [...new Set([...deletedAlertKeysRef.current, ...keys])];
+    setDeletedAlertKeys(deletedAlertKeysRef.current);
+    setAlerts((prev) => prev.filter((alert) => !keys.includes(alert.key)));
     setSelectedAlertKeys([]);
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedDeletableIds.length === 0 || deletingAlerts) return;
+    if (selectedDeletableAlerts.length === 0 || deletingAlerts) return;
     setDeletingAlerts(true);
     try {
       if (selectedDeletableIds.length === 1) {
         await deleteAlert(selectedDeletableIds[0]);
-      } else {
+      } else if (selectedDeletableIds.length > 1) {
         await deleteAlerts(selectedDeletableIds);
       }
-      removeAlertsFromList(selectedDeletableIds);
+      removeAlertsFromList(selectedDeletableAlerts.map((alert) => alert.key));
     } catch (error) {
       console.error("알림 삭제 실패:", error);
       window.alert("알림 삭제에 실패했습니다.");
@@ -440,12 +449,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   const handleDeleteAllFiltered = async () => {
-    const ids = deletableFilteredAlerts.map((alert) => alert.id);
-    if (ids.length === 0 || deletingAlerts) return;
+    const ids = deletableFilteredAlerts.filter((alert) => alert.id).map((alert) => alert.id);
+    const keys = deletableFilteredAlerts.map((alert) => alert.key);
+    if (keys.length === 0 || deletingAlerts) return;
     setDeletingAlerts(true);
     try {
-      await deleteAlerts(ids);
-      removeAlertsFromList(ids);
+      if (ids.length > 0) {
+        await deleteAlerts(ids);
+      }
+      removeAlertsFromList(keys);
     } catch (error) {
       console.error("알림 전체 삭제 실패:", error);
       window.alert("알림 삭제에 실패했습니다.");
@@ -630,7 +642,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                 전체 선택
               </label>
               <div>
-                <button type="button" disabled={selectedDeletableIds.length === 0 || deletingAlerts} onClick={handleDeleteSelected}>
+                <button type="button" disabled={selectedDeletableAlerts.length === 0 || deletingAlerts} onClick={handleDeleteSelected}>
                   선택 삭제
                 </button>
                 <button type="button" disabled={deletableFilteredAlerts.length === 0 || deletingAlerts} onClick={handleDeleteAllFiltered}>

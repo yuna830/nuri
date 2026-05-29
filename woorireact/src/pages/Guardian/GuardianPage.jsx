@@ -17,6 +17,7 @@ import {
   sendMedicineAlert,
   updateSeniorRequestedInfo,
 } from "../../api/guardianApi";
+import { saveLocalSeniorAlert } from "../../api/localAlertStore";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
@@ -251,6 +252,7 @@ function GuardianPage() {
     ],
   });
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialRoomType, setChatInitialRoomType] = useState("");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const selectedElder = useMemo(
@@ -913,6 +915,7 @@ function GuardianPage() {
       });
 
       await reloadGuardianSeniors();
+      setSelectedElderId(seniorId);
 
       setIsAddElderOpen(false);
       setSeniorSearch({ name: "", phone: "" });
@@ -940,9 +943,12 @@ function GuardianPage() {
         return;
       }
 
-      await createAndConnectSenior(guardianId, newSeniorForm);
+      const connectedSenior = await createAndConnectSenior(guardianId, newSeniorForm);
 
       await reloadGuardianSeniors();
+      if (connectedSenior?.seniorId) {
+        setSelectedElderId(connectedSenior.seniorId);
+      }
 
       setIsAddElderOpen(false);
       setNewSeniorForm({
@@ -1102,6 +1108,13 @@ function GuardianPage() {
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
       }).catch(() => {});
+
+      saveLocalSeniorAlert({
+        seniorId: targetElder.id,
+        type: "CALL_REQUEST",
+        title: "전화 요청",
+        message: "보호자가 전화를 요청했습니다.",
+      });
     }
 
     window.location.href = `tel:${phone}`;
@@ -1285,6 +1298,13 @@ function GuardianPage() {
         message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
       });
 
+      saveLocalSeniorAlert({
+        seniorId: activeElderId,
+        type: "MEDICINE",
+        title: "복약 알림",
+        message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
+      });
+
       alert("복약 알림을 보냈습니다.");
       setIsMedicineAlertOpen(false);
       setMedicineMessage("");
@@ -1304,7 +1324,10 @@ function GuardianPage() {
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
-        onOpenChat={() => setIsChatOpen(true)}
+        onOpenChat={() => {
+          setChatInitialRoomType("");
+          setIsChatOpen(true);
+        }}
         unreadChatCount={unreadChatCount}
       />
 
@@ -1329,8 +1352,12 @@ function GuardianPage() {
         senderRole="GUARDIAN"
         senderId={guardian?.id || getCurrentGuardianId()}
         senderName={guardian?.name || "보호자"}
+        initialRoomType={chatInitialRoomType}
         onReadChange={loadUnreadChatCount}
-        onClose={() => setIsChatOpen(false)}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatInitialRoomType("");
+        }}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1394,6 +1421,12 @@ function GuardianPage() {
             setSeniorSearch({ name: "", phone: "" });
             setSeniorSearchResults([]);
             setHasSearchedSenior(false);
+            setNewSeniorForm({
+              name: "",
+              phone: "",
+              region: "",
+              relation: "보호 대상자",
+            });
           }}
         >
           + 보호 대상자 추가
@@ -1482,6 +1515,10 @@ function GuardianPage() {
           onCloseCallResult={() => {
             setCallingAlert(null);
             setIsCallResultOpen(false);
+          }}
+          onOpenChat={() => {
+            setChatInitialRoomType("GUARDIAN_WELFARE");
+            setIsChatOpen(true);
           }}
         />
       </section>
@@ -1710,7 +1747,7 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
-    message: alert.time || "",
+    message: "",
     category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
     time: alert.time,
     isRead: alert.status !== "미확인",

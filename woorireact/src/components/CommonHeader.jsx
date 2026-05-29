@@ -142,11 +142,21 @@ function CommonHeader({
     )
   );
 
+  const getServerAlertId = (id) => {
+    if (id == null) return null;
+    const value = String(id);
+    const match = value.match(/(?:^|-)(local-alert-)?(\d+)$/);
+    if (!match) return null;
+    return Number(match[2]);
+  };
+
   const deletableFilteredNotifications = filteredNotifications.filter((notification) => notification.id);
-  const selectedDeletableNotificationIds = selectedNotificationKeys
+  const selectedDeletableNotifications = selectedNotificationKeys
     .map((key) => filteredNotifications.find((notification) => notification.key === key))
-    .filter((notification) => notification?.id)
-    .map((notification) => notification.id);
+    .filter((notification) => notification?.id);
+  const selectedDeletableNotificationIds = selectedDeletableNotifications
+    .map((notification) => getServerAlertId(notification.id))
+    .filter((id) => id != null);
 
   const toggleNotificationSelection = (key) => {
     setSelectedNotificationKeys((prev) => (
@@ -164,30 +174,36 @@ function CommonHeader({
     ));
   };
 
-  const removeNotificationsFromList = (ids) => {
-    const stringIds = ids.map(String);
+  const removeNotificationsFromList = (notificationsToHide) => {
+    const stringIds = notificationsToHide.map((notification) => String(notification.id));
     setHiddenNotificationIds((prev) => [...new Set([...prev, ...stringIds])]);
     setSelectedNotificationKeys([]);
   };
 
   const handleDeleteSelectedNotifications = async () => {
-    if (selectedDeletableNotificationIds.length === 0 || isDeletingNotifications) return;
+    if (selectedDeletableNotifications.length === 0 || isDeletingNotifications) return;
     setIsDeletingNotifications(true);
     try {
-      await deleteAlerts(selectedDeletableNotificationIds);
-      removeNotificationsFromList(selectedDeletableNotificationIds);
+      if (selectedDeletableNotificationIds.length > 0) {
+        await deleteAlerts(selectedDeletableNotificationIds);
+      }
+      removeNotificationsFromList(selectedDeletableNotifications);
     } finally {
       setIsDeletingNotifications(false);
     }
   };
 
   const handleDeleteAllFilteredNotifications = async () => {
-    const ids = deletableFilteredNotifications.map((notification) => notification.id);
-    if (ids.length === 0 || isDeletingNotifications) return;
+    const ids = deletableFilteredNotifications
+      .map((notification) => getServerAlertId(notification.id))
+      .filter((id) => id != null);
+    if (deletableFilteredNotifications.length === 0 || isDeletingNotifications) return;
     setIsDeletingNotifications(true);
     try {
-      await deleteAlerts(ids);
-      removeNotificationsFromList(ids);
+      if (ids.length > 0) {
+        await deleteAlerts(ids);
+      }
+      removeNotificationsFromList(deletableFilteredNotifications);
     } finally {
       setIsDeletingNotifications(false);
     }
@@ -286,7 +302,7 @@ function CommonHeader({
                 전체 선택
               </label>
               <div>
-                <button type="button" disabled={selectedDeletableNotificationIds.length === 0 || isDeletingNotifications} onClick={handleDeleteSelectedNotifications}>
+                <button type="button" disabled={selectedDeletableNotifications.length === 0 || isDeletingNotifications} onClick={handleDeleteSelectedNotifications}>
                   선택 삭제
                 </button>
                 <button type="button" disabled={deletableFilteredNotifications.length === 0 || isDeletingNotifications} onClick={handleDeleteAllFilteredNotifications}>

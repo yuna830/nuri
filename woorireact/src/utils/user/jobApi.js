@@ -6,7 +6,9 @@ const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
 const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
+const JOB_DB_WARM_PAGE_LIMIT = 10;
 const jobListCache = new Map();
+let jobCacheWarmupPromise = null;
 
 export const EMPL_MAP = {
   CM0101: "정규직",
@@ -113,6 +115,36 @@ const saveJobPostingsToCache = async (jobs) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(rows),
   }).catch(() => {});
+};
+
+const warmJobPostingDbCache = (numOfRows) => {
+  if (jobCacheWarmupPromise) return jobCacheWarmupPromise;
+
+  const lastWarmAt = Number(localStorage.getItem("job-db-cache-warmed-at") || 0);
+  if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) {
+    return null;
+  }
+
+  jobCacheWarmupPromise = (async () => {
+    for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += 1) {
+      const [senuri, seoul] = await Promise.allSettled([
+        fetchSenuriJobList(pageNo, "", numOfRows),
+        fetchSeoulJobInfo(pageNo, numOfRows),
+      ]);
+
+      const senuriJobs = senuri.status === "fulfilled" ? senuri.value.list : [];
+      const seoulJobs = seoul.status === "fulfilled" ? seoul.value.list : [];
+
+      if (senuriJobs.length === 0 && seoulJobs.length === 0) break;
+      await saveJobPostingsToCache([...senuriJobs, ...seoulJobs]);
+    }
+
+    localStorage.setItem("job-db-cache-warmed-at", String(Date.now()));
+  })().finally(() => {
+    jobCacheWarmupPromise = null;
+  });
+
+  return jobCacheWarmupPromise;
 };
 
 export const categorizeJob = (job) => {
@@ -311,6 +343,9 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   };
 
   saveJobPostingsToCache([...senuriData.list, ...seoulData.list]);
+  if (pageNo === 1 && !emplymShp) {
+    warmJobPostingDbCache(numOfRows);
+  }
   localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
   writeJobCache(cacheKey, data);
   return data;

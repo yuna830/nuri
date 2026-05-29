@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import CommonHeader from "../../components/CommonHeader.jsx";
 
 import "../../css/common/Login.css";
 import "../../css/welfare/WelfareMyPage.css";
@@ -320,11 +321,7 @@ function WelfareMyPage() {
     if (!worker) {
         return (
             <div className="wm-page">
-                <header className="wm-header">
-                    <div className="wm-brand-area">
-                        <Link to="/welfare" className="wm-service-name">우리 woori</Link>
-                    </div>
-                </header>
+                <CommonHeader homePath="/welfare" />
 
                 <main className="wm-content">
                     <section className="wm-empty-card">
@@ -340,13 +337,7 @@ function WelfareMyPage() {
 
     return (
         <div className="wm-page">
-            <header className="wm-header">
-                <div className="wm-brand-area">
-                    <Link to="/welfare" className="wj-service-name">
-                        우리 woori
-                    </Link>
-                </div>
-            </header>
+            <CommonHeader homePath="/welfare" rightText="마이페이지" />
 
             <main className="wm-content">
                 <div className="wm-layout">

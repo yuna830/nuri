@@ -23,6 +23,10 @@
   font-family: "Noto Sans KR", sans-serif;
 }
 
+.tcm-modal-welfare {
+  width: min(920px, calc(100vw - 2rem));
+}
+
 .tcm-shell {
   flex: 1 1 auto;
   min-height: 0;
@@ -294,6 +298,12 @@
   background: #ffffff;
 }
 
+.tcm-compose-input-wrap {
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
 .tcm-compose textarea {
   min-height: 72px;
   resize: vertical;
@@ -305,6 +315,43 @@
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.45;
+}
+
+.tcm-compose-attachment {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  padding: 0.35rem 0.45rem;
+  background: #fbfdf8;
+  color: #48694b;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.tcm-compose-attachment img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.tcm-compose-attachment span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tcm-compose-attachment button {
+  min-height: 28px;
+  width: 28px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #48694b;
 }
 
 .tcm-compose button {

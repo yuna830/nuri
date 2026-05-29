@@ -7,6 +7,7 @@ import {
     updateWelfareJobApplicationStatus,
 } from "../../api/welfareJobApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
+import CommonHeader from "../../components/CommonHeader.jsx";
 import {
     getJobApplicationSummaryCounts,
     isCompletedJobApplication,
@@ -128,11 +129,7 @@ function WelfareJobApplications() {
 
     return (
         <div className="wd-page">
-            <header className="wja-header">
-                <Link to="/welfare" className="wja-service-name">
-                    우리 woori
-                </Link>
-            </header>
+            <CommonHeader homePath="/welfare" rightText="일자리 신청 관리" />
 
             <main className="wja-content">
                 <aside className="wja-sidebar">

@@ -485,6 +485,7 @@ export default function UserPage() {
   const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
+  const [deviceStatus, setDeviceStatus] = useState("checking");
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -524,6 +525,7 @@ export default function UserPage() {
         ]);
         if (!isMounted) return;
         setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus(today?.status === "ok" ? "connected" : "checking");
         setActivityTrend(trend);
         setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
@@ -531,6 +533,7 @@ export default function UserPage() {
       } catch {
         if (!isMounted) return;
         setActivityToday(DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus("failed");
         setActivityTrend(null);
         setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
@@ -1253,7 +1256,12 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className="up-dot" /> 디바이스 연결됨
+              <div className={`up-dot ${deviceStatus === "failed" ? "danger" : deviceStatus === "checking" ? "pending" : ""}`} />
+              {deviceStatus === "connected"
+                ? "디바이스 연결됨"
+                : deviceStatus === "failed"
+                  ? "디바이스 연결 실패"
+                  : "디바이스 연결 시도중입니다"}
             </div>
             <div className="up-care-team">
               <div>

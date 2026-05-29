@@ -259,6 +259,7 @@ export default function LocationPage() {
   const mapFocusLocation = focusedSafeZone
     ? { lat: focusedSafeZone.centerLatitude, lng: focusedSafeZone.centerLongitude }
     : null;
+  const displayedMapCenter = mapFocusLocation || mapCenter;
 
   return (
     <div className="lp-root">
@@ -305,7 +306,7 @@ export default function LocationPage() {
             )}
             {!loading && (
               <KakaoMap
-                center={mapCenter}
+                center={displayedMapCenter}
                 zoom={4}
                 className="lp-map"
                 style={{ zIndex: 0 }}

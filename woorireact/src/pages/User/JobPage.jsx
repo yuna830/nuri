@@ -116,6 +116,32 @@ export default function JobPage() {
     ),
     [jobApplications],
   );
+  const [selectedInterestApplication, setSelectedInterestApplication] = useState(null);
+  const findCachedJobForApplication = useCallback((application) => {
+    if (!application?.jobId) return null;
+    return jobs.find((job) => String(job.jobId) === String(application.jobId)) || null;
+  }, [jobs]);
+  const buildApplicationDetailRows = useCallback((application, statusLabel = "상태") => {
+    const sourceJob = findCachedJobForApplication(application) || {};
+
+    return [
+      { key: statusLabel, val: application.status || "확인 대기" },
+      { key: "출처", val: sourceJob.source },
+      { key: "근무지", val: application.location || sourceJob.workPlcNm },
+      { key: "상세 주소", val: sourceJob.plDetAddr },
+      { key: "직종", val: sourceJob.jobclsNm },
+      { key: "근무 시간", val: sourceJob.workTime },
+      { key: "주당 시간", val: sourceJob.weekHours ? `${sourceJob.weekHours}시간` : "" },
+      { key: "급여", val: sourceJob.wage },
+      { key: "모집 인원", val: sourceJob.clltPrnnum ? `${sourceJob.clltPrnnum}명` : "" },
+      { key: "접수 기간", val: sourceJob.frDd || sourceJob.toDd ? `${formatDate(sourceJob.frDd)} ~ ${formatDate(sourceJob.toDd)}` : "" },
+      { key: "접수 방법", val: sourceJob.acptMthd },
+      { key: "연락처", val: sourceJob.clerkContt },
+      { key: "상세 내용", val: sourceJob.detCnts },
+      { key: "등록일", val: application.requestedAt || sourceJob.registeredAt },
+      { key: "공고번호", val: application.jobId },
+    ];
+  }, [findCachedJobForApplication]);
   const recommendedIds = useMemo(
     () => new Set(recommendedJobs.map((job) => `${job.source}-${job.jobId}`)),
     [recommendedJobs],
@@ -596,12 +622,7 @@ export default function JobPage() {
               </div>
             </div>
             <div className="jp-modal-body">
-              {[
-                { key: "추천 상태", val: selectedRecommendedApplication.status || "확인 대기" },
-                { key: "근무지", val: selectedRecommendedApplication.location },
-                { key: "추천일", val: selectedRecommendedApplication.requestedAt },
-                { key: "공고번호", val: selectedRecommendedApplication.jobId },
-              ].filter((row) => row.val).map((row) => (
+              {buildApplicationDetailRows(selectedRecommendedApplication, "추천 상태").filter((row) => row.val).map((row) => (
                 <div key={row.key} className="jp-modal-row">
                   <div className="jp-modal-key">{row.key}</div>
                   <div className="jp-modal-val">{row.val}</div>
@@ -653,7 +674,11 @@ export default function JobPage() {
               ) : (
                 <div className="jp-application-list">
                   {interestedApplications.map((application) => (
-                    <article className="jp-application-item" key={application.id}>
+                    <article
+                      className="jp-application-item jp-application-item-clickable"
+                      key={application.id}
+                      onClick={() => setSelectedInterestApplication(application)}
+                    >
                       <div>
                         <strong>{application.jobTitle || "관심 공고"}</strong>
                         <span>{application.organization || application.company || ""}</span>
@@ -663,6 +688,34 @@ export default function JobPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedInterestApplication && (
+        <div className="jp-overlay" onClick={() => setSelectedInterestApplication(null)}>
+          <div className="jp-modal jp-application-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="jp-modal-header">
+              <button
+                className="jp-modal-close"
+                type="button"
+                onClick={() => setSelectedInterestApplication(null)}
+              >
+                ×
+              </button>
+              <div className="jp-modal-title">{selectedInterestApplication.jobTitle || "관심 공고"}</div>
+              <div className="jp-modal-company">
+                {selectedInterestApplication.organization || selectedInterestApplication.company || "기관 정보 없음"}
+              </div>
+            </div>
+            <div className="jp-modal-body">
+              {buildApplicationDetailRows(selectedInterestApplication).filter((row) => row.val).map((row) => (
+                <div key={row.key} className="jp-modal-row">
+                  <div className="jp-modal-key">{row.key}</div>
+                  <div className="jp-modal-val">{row.val}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
