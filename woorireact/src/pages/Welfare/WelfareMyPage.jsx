@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     ArrowLeft,
     Building2,
     KeyRound,
     LogOut,
+    MessageCircle,
     Save,
     Search,
     Trash2,
@@ -13,6 +14,8 @@ import {
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import CommonHeader from "../../components/CommonHeader.jsx";
+import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
+import { fetchUnreadChatCount } from "../../api/chatApi";
 
 import "../../css/common/Login.css";
 import "../../css/welfare/WelfareMyPage.css";
@@ -73,6 +76,8 @@ function WelfareMyPage() {
     const [centerResults, setCenterResults] = useState([]);
     const [centerSearchMessage, setCenterSearchMessage] = useState("");
     const [isSearchingCenters, setIsSearchingCenters] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [passwordForm, setPasswordForm] = useState({
         newPassword: "",
@@ -88,6 +93,16 @@ function WelfareMyPage() {
             [key]: value,
         }));
     };
+
+    useEffect(() => {
+        const workerId = worker?.id || worker?.worker?.id || null;
+        if (!workerId) return;
+        fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
+        const timerId = setInterval(() => {
+            fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
+        }, 30000);
+        return () => clearInterval(timerId);
+    }, [worker]);
 
     const handleCenterSearch = async () => {
         const keyword = centerQuery.trim();
@@ -321,7 +336,17 @@ function WelfareMyPage() {
     if (!worker) {
         return (
             <div className="wm-page">
-                <CommonHeader homePath="/welfare" />
+                <CommonHeader
+                    homePath="/welfare"
+                    showNotificationButton={false}
+                    actions={
+                        <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
+                            <MessageCircle size={19} />
+                            {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+                        </button>
+                    }
+                />
+                <TripartiteChatModal isOpen={isChatOpen} rooms={[]} onClose={() => setIsChatOpen(false)} />
 
                 <main className="wm-content">
                     <section className="wm-empty-card">
@@ -337,7 +362,18 @@ function WelfareMyPage() {
 
     return (
         <div className="wm-page">
-            <CommonHeader homePath="/welfare" rightText="마이페이지" />
+            <CommonHeader
+                homePath="/welfare"
+                rightText="마이페이지"
+                showNotificationButton={false}
+                actions={
+                    <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
+                        <MessageCircle size={19} />
+                        {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+                    </button>
+                }
+            />
+            <TripartiteChatModal isOpen={isChatOpen} rooms={[]} onClose={() => setIsChatOpen(false)} />
 
             <main className="wm-content">
                 <div className="wm-layout">

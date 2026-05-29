@@ -12,6 +12,7 @@ function CommonHeader({
   homePath = "/",
   rightText,
   actions,
+  afterActions,
   className = "",
   notifications = [],
   notificationTabs = DEFAULT_NOTIFICATION_TABS,
@@ -237,6 +238,8 @@ function CommonHeader({
                 {unreadCount > 0 && <span className="common-app-badge">{unreadCount}</span>}
               </button>
             )}
+
+            {afterActions}
           </div>
         </div>
       </header>

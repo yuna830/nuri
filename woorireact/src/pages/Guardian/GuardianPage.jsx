@@ -1767,15 +1767,15 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
         }
       }}
       actions={
-        <>
-          <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
-            <MessageCircle size={19} />
-            {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
-          </button>
-          <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
-            긴급 신고
-          </button>
-        </>
+        <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
+          <MessageCircle size={19} />
+          {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+        </button>
+      }
+      afterActions={
+        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+          긴급 신고
+        </button>
       }
     />
   );

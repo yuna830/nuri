@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { MessageCircle, Search } from "lucide-react";
 
 import {
     EMPL_MAP,
@@ -11,6 +11,8 @@ import {
 } from "../../api/welfareJobApi";
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
+import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
+import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
@@ -42,6 +44,18 @@ function WelfareJobPostings() {
     const [recommendKeyword, setRecommendKeyword] = useState("");
     const [selectedSeniorId, setSelectedSeniorId] = useState("");
     const [welfareSeniors, setWelfareSeniors] = useState([]);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+    useEffect(() => {
+        const workerId = currentWorker?.id || currentWorker?.worker?.id || null;
+        if (!workerId) return;
+        fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
+        const timerId = setInterval(() => {
+            fetchUnreadChatCount(workerId, "WELFARE").then(setUnreadChatCount).catch(() => {});
+        }, 30000);
+        return () => clearInterval(timerId);
+    }, [currentWorker]);
 
     const isExpired = useCallback((job) => {
         const today = new Date();
@@ -312,6 +326,23 @@ function WelfareJobPostings() {
                 homePath="/welfare"
                 rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`}
                 className="wj-common-header"
+                showNotificationButton={false}
+                actions={
+                    <button
+                        className="common-app-icon-button"
+                        type="button"
+                        onClick={() => setIsChatOpen(true)}
+                        aria-label="메시지"
+                    >
+                        <MessageCircle size={19} />
+                        {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+                    </button>
+                }
+            />
+            <TripartiteChatModal
+                isOpen={isChatOpen}
+                rooms={[]}
+                onClose={() => setIsChatOpen(false)}
             />
 
             <main className="wj-content">
