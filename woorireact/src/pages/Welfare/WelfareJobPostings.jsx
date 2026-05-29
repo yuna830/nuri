@@ -336,20 +336,21 @@ function WelfareJobPostings() {
 
                     <div className="wj-sidebar-divider" />
 
-                    <p className="wj-sidebar-title">직종 분류</p>
-                    {JOB_CATEGORY_FILTERS.map((category) => (
-                        <button
-                            type="button"
-                            key={category.label}
-                            className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
-                            onClick={() => setActiveCategory(category.value)}
-                        >
-                            {category.label}
-                            {categoryCounts[category.value] > 0 && (
-                                <span className="wj-sidebar-count">{categoryCounts[category.value]}</span>
-                            )}
-                        </button>
-                    ))}
+                    <div className="wj-sidebar-category-box">
+                        {JOB_CATEGORY_FILTERS.map((category) => (
+                            <button
+                                type="button"
+                                key={category.label}
+                                className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
+                                onClick={() => setActiveCategory(category.value)}
+                            >
+                                {category.label}
+                                {categoryCounts[category.value] > 0 && (
+                                    <span className="wj-sidebar-count">{categoryCounts[category.value]}</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
                 </aside>
 
                 <div className="wj-main-area">

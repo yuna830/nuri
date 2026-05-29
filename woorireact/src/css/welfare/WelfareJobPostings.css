@@ -117,6 +117,17 @@
     border-top: 1px solid #e8f0e8;
 }
 
+.wj-sidebar-category-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #ffffff;
+    border: 1px solid #d4e8d6;
+    border-radius: 14px;
+    padding: 10px 6px;
+    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+}
+
 .wj-sidebar-title {
     margin: 0 12px 10px;
     color: #5f7d61;
