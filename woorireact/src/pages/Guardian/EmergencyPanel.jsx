@@ -2,9 +2,10 @@
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
-import { sendCheckInMessage } from "../../api/guardianApi.js";
+import { sendCheckInMessage, sendMedicineAlert } from "../../api/guardianApi.js";
 import { sendSeniorChatMessage } from "../../api/chatApi.js";
 import { getCurrentGuardian } from "../../utils/guardian/guardianSession.js";
+import { saveLocalSeniorAlert } from "../../api/localAlertStore.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -150,13 +151,33 @@ function EmergencyPanel({
     setIsMedicationReminderOpen(false);
   };
 
-  const handleSendMedicationReminder = () => {
+  const handleSendMedicationReminder = async () => {
     if (!medicationReminderMessage.trim()) {
       alert("알림 내용을 입력해주세요.");
       return;
     }
 
-    setMedicationReminderStatus("sent");
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
+
+    try {
+      await sendMedicineAlert({
+        seniorId: selectedElder.id,
+        guardianId,
+        message: medicationReminderMessage.trim(),
+      });
+
+      saveLocalSeniorAlert({
+        seniorId: selectedElder.id,
+        type: "MEDICINE",
+        title: "복약 알림",
+        message: medicationReminderMessage.trim(),
+      });
+
+      setMedicationReminderStatus("sent");
+    } catch {
+      alert("복약 알림 전송에 실패했습니다.");
+    }
   };
 
   const handleMedicationConfirmed = () => {
