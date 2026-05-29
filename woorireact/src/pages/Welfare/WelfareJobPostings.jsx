@@ -14,7 +14,6 @@ import CommonHeader from "../../components/CommonHeader.jsx";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
-import WelfareSidebar from "../../components/welfare/WelfareSidebar";
 
 import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareJobPostings.css";
@@ -356,10 +355,7 @@ function WelfareJobPostings() {
                 onClose={() => setIsChatOpen(false)}
             />
 
-            <div className="wd-layout">
-                <WelfareSidebar active="jobs" />
-
-                <main className="wj-main-area">
+            <div className="wj-content">
                     <nav className="wj-category-chips" aria-label="직종 분류">
                         {JOB_CATEGORY_FILTERS.map((category) => (
                             <button
@@ -400,6 +396,7 @@ function WelfareJobPostings() {
                             </label>
                         </div>
 
+                        <div className="wj-cards-scroll">
                         {isLoading && jobs.length === 0 && (
                             <p className="wj-empty-text">일자리 공고를 불러오는 중입니다.</p>
                         )}
@@ -482,7 +479,7 @@ function WelfareJobPostings() {
                                 {Math.min(PAGE_SIZE, Math.max(filteredJobs.length - visibleJobs.length, 0)) || PAGE_SIZE}건 더보기
                             </button>
                         )}
-                </main>
+                        </div>
             </div>
 
             {selectedJob && (

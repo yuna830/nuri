@@ -1,5 +1,8 @@
 .wj-page {
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-color);
     color: var(--text-color);
     box-sizing: border-box;
@@ -45,11 +48,23 @@
 }
 
 .wj-content {
+    flex: 1;
+    min-height: 0;
     width: 100%;
     max-width: 1280px;
     margin: 0 auto;
-    padding: 28px;
+    padding: 28px 28px 0 28px;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wj-cards-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 28px;
 }
 
 .wj-header-row {

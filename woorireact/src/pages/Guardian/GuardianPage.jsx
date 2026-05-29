@@ -1111,13 +1111,6 @@ function GuardianPage() {
       if (Array.isArray(created) && created[0]?.id) {
         knownAlertIdsRef.current.add(String(created[0].id));
       }
-
-      saveLocalSeniorAlert({
-        seniorId: targetElder.id,
-        type: "CALL_REQUEST",
-        title: "전화 요청",
-        message: "보호자가 전화를 요청했습니다.",
-      });
     }
 
     setIsCallResultOpen(true);

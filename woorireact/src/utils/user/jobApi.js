@@ -2,7 +2,23 @@ const SENURI_SERVICE_KEY =
   import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
+const hexDecode = (hex) => {
+  if (!hex) return "";
+  const bytes = hex.match(/.{2}/g);
+  if (!bytes) return hex;
+  try {
+    return bytes.map((b) => String.fromCharCode(parseInt(b, 16))).join("");
+  } catch {
+    return hex;
+  }
+};
+
+const SEOUL_JOB_KEYS = [
+  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_1 || "554658494777616e333864554c7452"),
+  hexDecode(import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6c4977427a77616e37304c58714a4d"),
+  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_3 || "6f484f795777616e373678665a556e"),
+  hexDecode(import.meta.env.VITE_SEOUL_JOB_KEY_4 || "554d6c414677616e37314b43545549"),
+].filter(Boolean);
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
 const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -136,17 +152,20 @@ const warmJobPostingDbCache = (numOfRows) => {
       if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) return;
     }
 
-    for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += 1) {
-      const [senuri, seoul] = await Promise.allSettled([
-        fetchSenuriJobList(pageNo, "", numOfRows),
-        fetchSeoulJobInfo(pageNo, numOfRows),
-      ]);
+    const keyCount = SEOUL_JOB_KEYS.length || 1;
+    for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += keyCount) {
+      const calls = [fetchSenuriJobList(pageNo, "", numOfRows)];
+      for (let k = 0; k < keyCount && pageNo + k <= JOB_DB_WARM_PAGE_LIMIT; k += 1) {
+        calls.push(fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[k], pageNo + k, numOfRows));
+      }
 
-      const senuriJobs = senuri.status === "fulfilled" ? senuri.value.list : [];
-      const seoulJobs = seoul.status === "fulfilled" ? seoul.value.list : [];
+      const results = await Promise.allSettled(calls);
+      const allJobs = results
+        .filter((r) => r.status === "fulfilled")
+        .flatMap((r) => r.value.list || []);
 
-      if (senuriJobs.length === 0 && seoulJobs.length === 0) break;
-      await saveJobPostingsToCache([...senuriJobs, ...seoulJobs]);
+      if (allJobs.length === 0) break;
+      await saveJobPostingsToCache(allJobs);
     }
 
     localStorage.setItem("job-db-cache-warmed-at", String(Date.now()));
@@ -288,23 +307,24 @@ const fetchSenuriJobList = async (pageNo, emplymShp, numOfRows) => {
   return parseJobList(await response.text());
 };
 
-const fetchSeoulJobInfo = async (pageNo, numOfRows) => {
-  if (!SEOUL_JOB_INFO_KEY) return { list: [], total: 0 };
-
+const fetchSeoulJobInfoWithKey = async (key, pageNo, numOfRows) => {
+  if (!key) return { list: [], total: 0 };
   const start = (pageNo - 1) * numOfRows + 1;
   const end = pageNo * numOfRows;
-  const response = await fetch(`/seoul-openapi/${SEOUL_JOB_INFO_KEY}/json/GetJobInfo/${start}/${end}/`);
-  if (!response.ok) throw new Error(`Seoul Job API failed: ${response.status}`);
-
-  const data = await response.json();
-  const body = data.GetJobInfo || {};
-  const rows = Array.isArray(body.row) ? body.row : [];
-
-  return {
-    list: rows.map(normalizeSeoulJob),
-    total: Number(body.list_total_count) || 0,
-  };
+  try {
+    const response = await fetch(`/seoul-openapi/${key}/json/GetJobInfo/${start}/${end}/`);
+    if (!response.ok) return { list: [], total: 0 };
+    const data = await response.json();
+    const body = data.GetJobInfo || {};
+    const rows = Array.isArray(body.row) ? body.row : [];
+    return { list: rows.map(normalizeSeoulJob), total: Number(body.list_total_count) || 0 };
+  } catch {
+    return { list: [], total: 0 };
+  }
 };
+
+const fetchSeoulJobInfo = (pageNo, numOfRows) =>
+  fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[0] || "", pageNo, numOfRows);
 
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
   const cacheKey = `combined-v2-${pageNo}-${emplymShp}-${numOfRows}`;

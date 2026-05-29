@@ -159,10 +159,14 @@ export default function JobPage() {
       let nextJobs = replace ? [] : jobs;
       let nextTotal = totalCount;
       let shouldContinue = true;
+      let startPageWasDbCache = false;
 
       while (shouldContinue) {
-        const result = await fetchJobList(nextPage, "", API_PAGE_SIZE);
-        nextTotal = result.total || nextTotal;
+        const currentPage = nextPage;
+        const result = await fetchJobList(currentPage, "", API_PAGE_SIZE);
+        if (currentPage === startPage && result.fromDbCache) startPageWasDbCache = true;
+        if (!result.fromDbCache) nextTotal = result.total || nextTotal;
+
         const merged = new Map(nextJobs.map((job) => [`${job.source}-${job.jobId}`, job]));
         result.list.forEach((job) => merged.set(`${job.source}-${job.jobId}`, job));
         nextJobs = Array.from(merged.values());
@@ -170,9 +174,10 @@ export default function JobPage() {
         const enoughForCategory = filterJobs(nextJobs).length >= targetCount;
         const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
         const emptyPage = result.list.length === 0;
-        const reachedSafetyLimit = nextPage >= 60;
+        const reachedSafetyLimit = currentPage >= 60;
+        const needsFreshPage = startPageWasDbCache && currentPage <= startPage;
 
-        shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
+        shouldContinue = (needsFreshPage || !enoughForCategory) && !loadedAll && !emptyPage && !reachedSafetyLimit;
         nextPage += 1;
       }
 
@@ -504,6 +509,7 @@ export default function JobPage() {
                 </div>
               </div>
 
+              <div className="jp-cards-scroll">
               {welfareRecommendedApplications.length > 0 && (
                 <section className="jp-welfare-recommend-section">
                   <div className="jp-welfare-recommend-head">
@@ -586,6 +592,7 @@ export default function JobPage() {
                     : "이 조건의 공고 더 찾아보기"}
                 </button>
               )}
+              </div>
             </main>
           </>
         )}

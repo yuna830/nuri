@@ -3,7 +3,8 @@ import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import { sendCheckInMessage } from "../../api/guardianApi.js";
-import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
+import { sendSeniorChatMessage } from "../../api/chatApi.js";
+import { getCurrentGuardian } from "../../utils/guardian/guardianSession.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -339,16 +340,27 @@ function EmergencyPanel({
       return;
     }
 
-    const guardianId = getCurrentGuardianId();
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
 
     try {
       setIsSendingCheckInMessage(true);
 
-      await sendCheckInMessage({
-        seniorId: selectedElder.id,
-        guardianId,
-        message: checkInMessage.trim(),
-      });
+      await Promise.all([
+        sendCheckInMessage({
+          seniorId: selectedElder.id,
+          guardianId,
+          message: checkInMessage.trim(),
+        }),
+        sendSeniorChatMessage({
+          seniorId: selectedElder.id,
+          roomType: "SENIOR_GUARDIAN",
+          senderRole: "GUARDIAN",
+          senderId: guardianId,
+          senderName: guardian?.name || "보호자",
+          message: checkInMessage.trim(),
+        }),
+      ]);
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
@@ -365,16 +377,27 @@ function EmergencyPanel({
 
     if (!confirmed) return;
 
-    const guardianId = getCurrentGuardianId();
+    const guardian = getCurrentGuardian();
+    const guardianId = guardian?.id ?? null;
 
     try {
       setIsSendingCheckInMessage(true);
 
-      await sendCheckInMessage({
-        seniorId: selectedElder.id,
-        guardianId,
-        message,
-      });
+      await Promise.all([
+        sendCheckInMessage({
+          seniorId: selectedElder.id,
+          guardianId,
+          message,
+        }),
+        sendSeniorChatMessage({
+          seniorId: selectedElder.id,
+          roomType: "SENIOR_GUARDIAN",
+          senderRole: "GUARDIAN",
+          senderId: guardianId,
+          senderName: guardian?.name || "보호자",
+          message,
+        }),
+      ]);
 
       alert("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);

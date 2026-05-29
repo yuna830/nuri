@@ -8,7 +8,10 @@
 
 .jp-root {
   background: #fffdec;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: "Noto Sans KR", sans-serif;
   color: #1e2a1f;
 }
@@ -294,23 +297,25 @@
 
 /* 레이아웃 */
 .jp-layout {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 1.6rem 2rem 2rem 2rem;
+  padding: 1.6rem 2rem 0 2rem;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 2rem;
-  align-items: start;
+  overflow: hidden;
 }
 
 /* 사이드바 */
 .jp-sidebar {
-  position: sticky;
-  top: 96px;
-  max-height: calc(100vh - 120px);
+  height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
   padding-top: 0;
+  padding-bottom: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -403,7 +408,18 @@
 
 /* 메인 */
 .jp-main {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-top: 0;
+}
+
+.jp-cards-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 2rem;
 }
 
 .jp-main-head {
@@ -705,19 +721,34 @@
     padding: 0 1rem;
   }
 
+  .jp-root {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    display: block;
+  }
+
   .jp-layout {
+    flex: none;
+    overflow: visible;
     grid-template-columns: 1fr;
     padding: 1rem;
   }
 
   .jp-sidebar {
-    position: static;
-    max-height: none;
-    padding-top: 0;
+    height: auto;
+    overflow-y: visible;
+    padding-bottom: 0;
   }
 
   .jp-main {
+    height: auto;
+    overflow: visible;
     padding-top: 0;
+  }
+
+  .jp-cards-scroll {
+    overflow: visible;
   }
 }
 
