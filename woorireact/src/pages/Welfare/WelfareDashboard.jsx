@@ -77,6 +77,7 @@ function WelfareDashboard() {
     }, []);
 
     const [seniors, setSeniors] = useState([]);
+    const [notificationSeniors, setNotificationSeniors] = useState([]);
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
@@ -182,6 +183,21 @@ function WelfareDashboard() {
             ignore = true;
             clearInterval(timerId);
         };
+    }, [currentWorker]);
+
+    useEffect(() => {
+        if (!currentWorker?.id) return;
+        let ignore = false;
+        const load = async () => {
+            try {
+                const data = await fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: currentWorker.id });
+                const raw = Array.isArray(data) ? data : data.content || [];
+                if (!ignore) setNotificationSeniors(raw.map(mapWelfareSenior));
+            } catch { /* silent */ }
+        };
+        load();
+        const timerId = setInterval(load, 15000);
+        return () => { ignore = true; clearInterval(timerId); };
     }, [currentWorker]);
 
     const loadUnreadChatCount = async () => {
@@ -383,7 +399,7 @@ function WelfareDashboard() {
         danger: alert.type !== "LAST_ACCESS",
     }));
 
-    const welfareNotifications = seniors.flatMap((senior) => {
+    const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
 
         if (senior.alertStatus === "미응답 SOS") {
