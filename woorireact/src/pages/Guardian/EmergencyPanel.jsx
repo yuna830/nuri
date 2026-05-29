@@ -5,7 +5,6 @@ import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import { sendCheckInMessage, sendMedicineAlert } from "../../api/guardianApi.js";
 import { sendSeniorChatMessage } from "../../api/chatApi.js";
 import { getCurrentGuardian } from "../../utils/guardian/guardianSession.js";
-import { saveLocalSeniorAlert } from "../../api/localAlertStore.js";
 
 const formatPoliceOccurredDate = (value) => {
   if (!value) {
@@ -164,13 +163,6 @@ function EmergencyPanel({
       await sendMedicineAlert({
         seniorId: selectedElder.id,
         guardianId,
-        message: medicationReminderMessage.trim(),
-      });
-
-      saveLocalSeniorAlert({
-        seniorId: selectedElder.id,
-        type: "MEDICINE",
-        title: "복약 알림",
         message: medicationReminderMessage.trim(),
       });
 

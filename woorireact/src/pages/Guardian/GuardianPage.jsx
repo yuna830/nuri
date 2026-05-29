@@ -17,7 +17,6 @@ import {
   sendMedicineAlert,
   updateSeniorRequestedInfo,
 } from "../../api/guardianApi";
-import { saveLocalSeniorAlert } from "../../api/localAlertStore";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
@@ -1292,13 +1291,6 @@ function GuardianPage() {
       await sendMedicineAlert({
         seniorId: activeElderId,
         guardianId,
-        message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
-      });
-
-      saveLocalSeniorAlert({
-        seniorId: activeElderId,
-        type: "MEDICINE",
-        title: "복약 알림",
         message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
       });
 
