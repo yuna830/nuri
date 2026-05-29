@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { BriefcaseBusiness, ClipboardList, UserPlus, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
+import { fetchWelfareJobApplications } from "../../api/welfareJobApi";
+import { isPendingJobApplication } from "../../utils/welfare/welfareSummaryStats";
 
 const getWorkerFromSession = () => {
     try {
@@ -10,8 +13,35 @@ const getWorkerFromSession = () => {
     }
 };
 
+const getCurrentWelfareWorkerId = () => {
+    try {
+        const saved =
+            sessionStorage.getItem("currentWelfareWorker") ||
+            localStorage.getItem("currentWelfareWorker") ||
+            sessionStorage.getItem("welfareWorker") ||
+            localStorage.getItem("welfareWorker");
+        const parsed = saved ? JSON.parse(saved) : null;
+        return parsed?.id || parsed?.worker?.id || parsed?.welfareWorker?.id || null;
+    } catch {
+        return null;
+    }
+};
+
 function WelfareSidebar({ active }) {
     const worker = getWorkerFromSession();
+    const [hasPendingApplications, setHasPendingApplications] = useState(false);
+
+    useEffect(() => {
+        const workerId = getCurrentWelfareWorkerId();
+        const check = () => {
+            fetchWelfareJobApplications(workerId)
+                .then((apps) => setHasPendingApplications(apps.some(isPendingJobApplication)))
+                .catch(() => {});
+        };
+        check();
+        const timerId = setInterval(check, 60_000);
+        return () => clearInterval(timerId);
+    }, []);
 
     return (
         <aside className="wd-sidebar">
@@ -40,6 +70,7 @@ function WelfareSidebar({ active }) {
                 >
                     <UserPlus size={17} />
                     일자리 신청
+                    {hasPendingApplications && <span className="wd-sidebar-new-badge">new</span>}
                 </Link>
 
                 <Link

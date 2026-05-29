@@ -89,6 +89,9 @@ public class JobInterestController {
         return jobInterestRepository.findById(id)
                 .map(interest -> {
                     interest.setStatus(trim(request.status()));
+                    if (request.applicationType() != null && !request.applicationType().isBlank()) {
+                        interest.setApplicationType(request.applicationType().trim());
+                    }
                     JobInterest saved = jobInterestRepository.save(interest);
                     return ResponseEntity.ok(toResponse(saved));
                 })
@@ -164,7 +167,8 @@ public class JobInterestController {
     ) {}
 
     public record JobInterestStatusRequest(
-            String status
+            String status,
+            String applicationType
     ) {}
 
     public record JobInterestResponse(

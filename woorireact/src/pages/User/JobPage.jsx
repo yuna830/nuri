@@ -287,6 +287,23 @@ export default function JobPage() {
     }
   };
 
+  const handleApplyFromInterest = async (application) => {
+    if (!application?.id) return;
+    try {
+      const response = await fetch(`/api/job-interests/${application.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "검토 대기", applicationType: "ONLINE" }),
+      });
+      if (!response.ok) throw new Error("apply failed");
+      await loadJobApplications();
+      setSelectedInterestApplication(null);
+      alert("복지사에게 일자리 신청을 보냈어요.");
+    } catch {
+      alert("신청에 실패했습니다.");
+    }
+  };
+
   const handleUpdateApplicationStatus = async (application, status) => {
     if (!application?.id) return;
 
@@ -728,6 +745,15 @@ export default function JobPage() {
                   <div className="jp-modal-val">{row.val}</div>
                 </div>
               ))}
+              <div className="jp-modal-actions">
+                <button
+                  className="jp-modal-apply"
+                  type="button"
+                  onClick={() => handleApplyFromInterest(selectedInterestApplication)}
+                >
+                  신청하기
+                </button>
+              </div>
             </div>
           </div>
         </div>

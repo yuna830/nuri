@@ -245,8 +245,7 @@ function WelfareJobApplications() {
                             </table>
                         </div>
                     )}
-                </section>
-            </main>
+                </main>
             </div>
 
             <WelfarePolicyChatButton />
