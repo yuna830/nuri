@@ -1100,7 +1100,6 @@ function GuardianPage() {
     }
 
     setCallingAlert(targetAlert);
-    setIsCallResultOpen(true);
 
     if (targetElder?.id) {
       await createCallRequestAlert({
@@ -1574,6 +1573,7 @@ function GuardianPage() {
               <textarea
                 value={medicineMessage}
                 onChange={(event) => setMedicineMessage(event.target.value)}
+                placeholder="여기에 작성하세요"
                 rows={4}
               />
             </label>
@@ -1582,9 +1582,9 @@ function GuardianPage() {
               <button
                 type="button"
                 className="medicine-alert-cancel"
-                onClick={() => setIsMedicineAlertOpen(false)}
+                onClick={() => setMedicineMessage("")}
               >
-                취소
+                다시 쓰기
               </button>
 
               <button

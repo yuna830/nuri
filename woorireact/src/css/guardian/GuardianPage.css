@@ -210,7 +210,7 @@
   top: 60px;
   z-index: 110;
   height: 48px;
-  padding: 0 max(28px, calc((100% - 1280px) / 2));
+  padding: 0 max(2rem, calc((100% - 1280px) / 2 + 2rem));
   border-bottom: 1px solid var(--border-color);
   background: var(--card-color);
   display: flex;

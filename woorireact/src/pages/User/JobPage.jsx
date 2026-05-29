@@ -745,7 +745,7 @@ export default function JobPage() {
                   <div className="jp-modal-val">{row.val}</div>
                 </div>
               ))}
-              <div className="jp-modal-actions">
+              <div className="jp-modal-actions" style={{ gridTemplateColumns: "1fr" }}>
                 <button
                   className="jp-modal-apply"
                   type="button"

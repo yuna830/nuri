@@ -32,7 +32,7 @@ public class MedicationAlertSchedulerService {
         this.healthInfoRepository = healthInfoRepository;
     }
 
-    @Scheduled(fixedDelay = 3_600_000)
+    @Scheduled(initialDelay = 10_000, fixedDelay = 3_600_000)
     public void checkMedicationAlerts() {
         List<Senior> seniors = seniorRepository.findAll();
         for (Senior senior : seniors) {

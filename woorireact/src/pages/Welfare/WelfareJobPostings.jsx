@@ -163,7 +163,9 @@ function WelfareJobPostings() {
 
             while (shouldContinue) {
                 const result = await fetchWelfareJobList(nextPage, "", API_PAGE_SIZE);
-                nextTotal = result.total || nextTotal;
+                if (!result.fromDbCache) {
+                    nextTotal = result.total || nextTotal;
+                }
 
                 const merged = new Map(nextJobs.map((job) => [job.jobId, job]));
                 (result.list || []).forEach((job) => {

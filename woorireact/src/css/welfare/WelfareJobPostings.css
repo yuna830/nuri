@@ -173,6 +173,7 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 14px;
+    margin-top: 4px;
 }
 
 .wj-category-chip {
@@ -218,9 +219,6 @@
 }
 
 .wj-search-row {
-    position: sticky;
-    top: 84px;
-    z-index: 40;
     display: flex;
     align-items: center;
     gap: 10px;
