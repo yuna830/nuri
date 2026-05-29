@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, ClipboardList, UserPlus, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { fetchWelfareJobApplications } from "../../api/welfareJobApi";
@@ -30,6 +30,10 @@ const getCurrentWelfareWorkerId = () => {
 function WelfareSidebar({ active }) {
     const worker = getWorkerFromSession();
     const [hasPendingApplications, setHasPendingApplications] = useState(false);
+    const hasNewJobPostings = useMemo(() => {
+        const lastVisited = Number(localStorage.getItem("woori-jobs-last-visited") || 0);
+        return Date.now() - lastVisited > 24 * 60 * 60 * 1000;
+    }, []);
 
     useEffect(() => {
         const workerId = getCurrentWelfareWorkerId();
@@ -79,6 +83,7 @@ function WelfareSidebar({ active }) {
                 >
                     <BriefcaseBusiness size={17} />
                     일자리 공고
+                    {hasNewJobPostings && <span className="wd-sidebar-new-badge">new</span>}
                 </Link>
 
                 <Link

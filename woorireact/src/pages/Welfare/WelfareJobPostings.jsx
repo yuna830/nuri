@@ -194,6 +194,7 @@ function WelfareJobPostings() {
     }, [filterJobs, jobs, totalCount]);
 
     useEffect(() => {
+        localStorage.setItem("woori-jobs-last-visited", Date.now().toString());
         loadUntilEnough({
             startPage: 1,
             targetCount: PAGE_SIZE,

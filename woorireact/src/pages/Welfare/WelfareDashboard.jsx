@@ -452,6 +452,10 @@ function WelfareDashboard() {
             String(notification.category || notification.detailCategory || notification.title || "").includes(keyword)
         )
     );
+    const hasNewJobPostings = useMemo(() => {
+        const lastVisited = Number(localStorage.getItem("woori-jobs-last-visited") || 0);
+        return Date.now() - lastVisited > 24 * 60 * 60 * 1000;
+    }, []);
 
     const dismissNotification = (notificationId) => {
         setDismissedNotifications((previousIds) =>
@@ -653,6 +657,7 @@ function WelfareDashboard() {
                         <Link to="/welfare/jobs" className="wd-sidebar-item">
                             <BriefcaseBusiness size={17} />
                             일자리 공고
+                            {hasNewJobPostings && <span className="wd-sidebar-new-badge">new</span>}
                         </Link>
 
                         <Link to="/welfare/mypage" className="wd-sidebar-item">
