@@ -136,17 +136,11 @@
 }
 
 .wpq-chat-history {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-height: 230px;
-    max-height: 380px;
-    overflow-y: auto;
-    margin: 14px 0 12px;
-    padding: 12px;
-    border: 1px solid #e4eadf;
-    border-radius: 8px;
-    background-color: #f8faf5;
+    min-height: 260px;
+    max-height: 440px;
+    padding: 14px;
+    gap: 14px;
+    background-color: #f7faf4;
 }
 
 .wpq-chat-empty {
@@ -157,11 +151,8 @@
 }
 
 .wpq-chat-message {
-    max-width: 92%;
-    padding: 11px 12px;
-    border-radius: 8px;
-    color: #243027;
-    line-height: 1.6;
+    border-radius: 10px;
+    line-height: 1.75;
     word-break: keep-all;
 }
 
@@ -171,15 +162,25 @@
 }
 
 .wpq-chat-message.user {
+    max-width: 78%;
+    padding: 12px 16px;
     align-self: flex-end;
-    background-color: #86a788;
+    background-color: #7f9f82;
     color: white;
 }
 
 .wpq-chat-message.assistant {
-    align-self: flex-start;
-    border: 1px solid #dde6d7;
-    background-color: white;
+    max-width: 100%;
+    width: 100%;
+    padding: 18px 20px;
+    border: 1px solid #dfe8d8;
+    background-color: #ffffff;
+    box-sizing: border-box;
+}
+
+.wpq-chat-message.assistant p {
+    font-size: 15px;
+    line-height: 1.85;
 }
 
 .wpq-message-target {
@@ -248,18 +249,50 @@
 }
 
 .wpq-evidence {
-    border-top: 1px solid #e8eadf;
+    margin-top: 16px;
     padding-top: 12px;
+    border-top: 1px solid #edf1e8;
+}
+
+.wpq-evidence strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #39483d;
+    font-size: 13px;
 }
 
 .wpq-evidence ul {
-    margin: 8px 0 0;
-    padding-left: 19px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .wpq-evidence li {
-    margin-bottom: 7px;
-    word-break: keep-all;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background-color: #eef5ec;
+    color: #405446;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.wpq-evidence li span {
+    color: #6f7d71;
+}
+
+.wpq-question-input {
+    min-height: 72px;
+    max-height: 120px;
+    margin-top: 4px;
+    background-color: white;
+}
+
+.wpq-action-row {
+    margin-top: 10px;
 }
 
 @media (max-width: 640px) {

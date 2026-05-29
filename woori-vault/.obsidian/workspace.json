@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "복지정책/차상위본인부담경감.md",
+                "file": "04_RAG_변환규칙/실종자데이터_관리규칙.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "차상위본인부담경감"
+              "title": "실종자데이터_관리규칙"
             }
           },
           {
@@ -27,16 +27,15 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "RAG메모/플랜.md",
+                "file": "01_복지_API/한국사회보장정보원_지자체복지서비스.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "플랜"
+              "title": "한국사회보장정보원_지자체복지서비스"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -93,7 +92,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 266.49999618530273
+    "width": 334.49999618530273
   },
   "right": {
     "id": "277221a58f061283",
@@ -109,7 +108,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "RAG메모/플랜.md",
+                "file": "04_RAG_변환규칙/실종자데이터_관리규칙.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +118,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "플랜 의 백링크"
+              "title": "실종자데이터_관리규칙 의 백링크"
             }
           },
           {
@@ -171,13 +170,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "RAG메모/플랜.md",
+                "file": "04_RAG_변환규칙/실종자데이터_관리규칙.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "플랜 의 개요"
+              "title": "실종자데이터_관리규칙 의 개요"
             }
           },
           {
@@ -186,10 +185,10 @@
             "state": {
               "type": "file-properties",
               "state": {
-                "file": "RAG메모/플랜.md"
+                "file": "04_RAG_변환규칙/실종자데이터_관리규칙.md"
               },
               "icon": "lucide-info",
-              "title": "플랜 의 파일 속성"
+              "title": "실종자데이터_관리규칙 의 파일 속성"
             }
           }
         ],
@@ -211,35 +210,42 @@
       "bases:새 베이스 생성하기": false
     }
   },
-  "active": "e7ae56eefd34f9e5",
+  "active": "c7fbaf002ec722fb",
   "lastOpenFiles": [
-    "복지정책/한부모가족지원.md",
+    "04_RAG_변환규칙/복지시설_Markdown_변환규칙.md",
+    "04_RAG_변환규칙/복지서비스_Markdown_변환규칙.md",
+    "03_프로젝트_구현메모/DB_저장_중복처리_기준.md",
+    "03_프로젝트_구현메모/복지_API_서버_처리흐름.md",
+    "03_프로젝트_구현메모/경찰청_API_서버_처리흐름.md",
+    "02_경찰청_API/경찰청_실종자검색_API.md",
+    "02_경찰청_API/경찰청_실종경보_API.md",
+    "01_복지_API/한국사회보장정보원_지자체복지서비스.md",
+    "01_복지_API/한국사회보장정보원_사회복지시설정보서비스.md",
+    "복지정책/차상위본인부담경감.md",
+    "무제.base",
+    "무제 4.base",
+    "무제 3.base",
+    "무제 2.base",
+    "무제 1.base",
+    "00_API_공통/API_문서작성_공통_템플릿.md",
+    "00_API_공통/인증키_보안_관리_규칙.md",
+    "00_API_공통/공공데이터_API_공통_관리_규칙.md",
+    "04_RAG_변환규칙/실종자데이터_관리규칙.md",
+    "복지정책/장기요양보험.md",
+    "04_RAG_변환규칙",
+    "03_프로젝트_구현메모",
+    "02_경찰청_API",
+    "01_복지_API",
+    "api/한국사회보장정보원_지자체복지서비스.md",
+    "00_API_공통",
+    "복지정책/무제.md",
+    "복지정책/방문건강관리사업.md",
     "RAG메모/플랜.md",
+    "복지정책/한부모가족지원.md",
     "복지정책/평생교육이용권.md",
     "복지정책/치아관리비용지원.md",
     "복지정책/치매안심센터.md",
     "복지정책/취약지역_어르신문화누림.md",
-    "복지정책/차상위본인부담경감.md",
-    "복지정책/지역사회통합돌봄.md",
-    "복지정책/주거급여.md",
-    "복지정책/정신건강심리상담바우처.md",
-    "복지정책/재난적의료비지원.md",
-    "복지정책/재가노인지원서비스.md",
-    "복지정책/장애인활동지원.md",
-    "복지정책/장애인일자리.md",
-    "복지정책/장애인연금.md",
-    "복지정책/장애아동수당.md",
-    "복지정책/장애아가족양육지원.md",
-    "복지정책/장애수당.md",
-    "복지정책/장기요양보험.md",
-    "복지정책/의료급여.md",
-    "복지정책/응급안전안심서비스.md",
-    "복지정책/에너지바우처.md",
-    "복지정책/언어발달지원사업.md",
-    "복지정책/어르신요금감면.md",
-    "복지정책/어르신국가예방접종지원.md",
-    "복지정책/방문건강관리사업.md",
-    "RAG메모",
-    "복지정책"
+    "복지정책/지역사회통합돌봄.md"
   ]
 }

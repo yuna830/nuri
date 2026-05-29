@@ -10,6 +10,15 @@ import {
 import "../../css/welfare/WelfarePolicyChatButton.css";
 
 function getEvidenceDisplay(item) {
+    const filename = item.filename || item.source || "";
+
+    if (filename.includes("Welfare_System_Guidebook")) {
+        return {
+            organization: "사회보장위원회",
+            title: "2025 나에게 힘이 되는 복지서비스 e-book",
+        };
+    }
+
     if (item.source_type === "public_api") {
         return {
             organization: item.department || "공공데이터포털",
@@ -45,6 +54,13 @@ function parseEvidenceJson(value) {
     } catch {
         return [];
     }
+}
+
+function formatAnswerText(text) {
+    return String(text || "")
+        .replace(/\*\*/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 }
 
 function WelfarePolicyChatButton({ senior = null, seniorOptions = [] }) {
@@ -215,11 +231,11 @@ function WelfarePolicyChatButton({ senior = null, seniorOptions = [] }) {
                     <section className="wpq-modal" onClick={(event) => event.stopPropagation()}>
                         <div className="wpq-header">
                             <div>
-                                <h2>복지 Q&A</h2>
+                                <h2>복지 제도 물어보기</h2>
                                 <p>
                                     {selectedSenior?.name
-                                        ? `${selectedSenior.name} 대상자 정보를 기준으로 복지 제도를 질문할 수 있습니다.`
-                                        : "대상자를 먼저 선택하거나 질문에 대상자 이름을 포함해 주세요."}
+                                        ? `${selectedSenior.name} 님의 나이, 건강, 생활 정보를 기준으로 확인합니다.`
+                                        : "대상자를 선택하거나 질문에 이름을 포함해 주세요."}
                                 </p>
                             </div>
 
@@ -260,7 +276,7 @@ function WelfarePolicyChatButton({ senior = null, seniorOptions = [] }) {
                                         {message.role === "user" && (
                                             <span className="wpq-message-target">{message.targetName}</span>
                                         )}
-                                        <p>{message.text}</p>
+                                        <p>{formatAnswerText(message.text)}</p>
 
                                         {message.evidence?.length > 0 && (
                                             <div className="wpq-evidence">

@@ -6,6 +6,7 @@ from qdrant_client.models import Distance, VectorParams
 from app.api.chat import router as chat_router
 from app.api.upload import router as upload_router
 from app.api.public_welfare import router as public_welfare_router
+from app.api import rag_documents
 
 from app.core.config import settings
 from app.services.embedding_service import EmbeddingService
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
 app.include_router(public_welfare_router, prefix="/api/public-welfare", tags=["public-welfare"])
+app.include_router(rag_documents.router,prefix="/api/rag-documents",tags=["RAG Documents"],)
 
 
 @app.get("/health")
