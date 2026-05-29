@@ -1047,17 +1047,16 @@ export default function UserPage() {
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    const handleLocalAlertChanged = (event) => {
-      if (!event.detail?.seniorId) return;
-      if (String(event.detail.seniorId) === String(seniorId)) loadCallRequest();
+    const handleStorageChange = (event) => {
+      if (event.key === `woori-local-alerts:${seniorId}`) loadCallRequest();
     };
-    window.addEventListener("woori-local-alerts-changed", handleLocalAlertChanged);
+    window.addEventListener("storage", handleStorageChange);
 
     return () => {
       cancelled = true;
       clearInterval(timerId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("woori-local-alerts-changed", handleLocalAlertChanged);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [initialSenior, pendingSos]);
 
