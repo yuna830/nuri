@@ -20,6 +20,15 @@
 .wd-sidebar {
     position: sticky;
     top: 84px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 18px;
+    scrollbar-width: none;
+}
+
+.wd-sidebar::-webkit-scrollbar {
+    display: none;
 }
 
 .wd-sidebar-profile {
@@ -94,6 +103,22 @@
 .wd-sidebar-item-active {
     background: #edf5ee;
     color: #4f6f52;
+}
+
+.wd-sidebar-new-badge {
+    margin-left: auto;
+    min-width: 34px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #e05252;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
 }
 
 .wd-sidebar-add-button {
@@ -1051,6 +1076,39 @@
 
 .wd-info-request-submit:hover {
     background: #739675;
+}
+
+.wd-add-senior-modal {
+    width: min(460px, calc(100vw - 32px));
+}
+
+.wd-add-senior-form {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.wd-add-senior-form label {
+    display: grid;
+    gap: 8px;
+    color: #48694b;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.wd-add-senior-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 13px;
+    border: 1px solid #cfe4d0;
+    border-radius: 10px;
+    color: #1e2a1f;
+    font: inherit;
+    font-weight: 700;
+}
+
+.wd-add-senior-status {
+    margin-top: 14px;
 }
 
 .wd-info-request-actions {

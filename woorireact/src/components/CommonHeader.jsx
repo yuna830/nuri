@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { deleteAlerts } from "../api/userPageApi.js";
 import "../css/common/CommonHeader.css";
 import "../css/user/UserCommonHeader.css";
 
@@ -11,6 +12,7 @@ function CommonHeader({
   homePath = "/",
   rightText,
   actions,
+  afterActions,
   className = "",
   notifications = [],
   notificationTabs = DEFAULT_NOTIFICATION_TABS,
@@ -22,6 +24,9 @@ function CommonHeader({
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [activeNotificationTab, setActiveNotificationTab] = useState(notificationTabs[0] || "전체");
+  const [selectedNotificationKeys, setSelectedNotificationKeys] = useState([]);
+  const [hiddenNotificationIds, setHiddenNotificationIds] = useState([]);
+  const [isDeletingNotifications, setIsDeletingNotifications] = useState(false);
   const notificationTabsRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +39,9 @@ function CommonHeader({
 
   const normalizedNotifications = useMemo(
     () =>
-      notifications.map((notification, index) => {
+      notifications
+        .filter((notification) => !hiddenNotificationIds.includes(String(notification.id)))
+        .map((notification, index) => {
         const status = notification.status || notification.readStatus || "";
 
         return {
@@ -52,7 +59,7 @@ function CommonHeader({
           raw: notification.raw || notification,
         };
       }),
-    [notifications]
+    [hiddenNotificationIds, notifications]
   );
 
   const unreadCount = normalizedNotifications.filter((notification) => !notification.isRead).length;
@@ -95,7 +102,17 @@ function CommonHeader({
   useEffect(() => {
     const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    setSelectedNotificationKeys([]);
   }, [activeNotificationTab]);
+
+  useEffect(() => {
+    if (!isNotificationOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isNotificationOpen]);
 
   const handleReadClick = async (event, notification) => {
     event.stopPropagation();
@@ -126,6 +143,73 @@ function CommonHeader({
     )
   );
 
+  const getServerAlertId = (id) => {
+    if (id == null) return null;
+    const value = String(id);
+    const match = value.match(/(?:^|-)(local-alert-)?(\d+)$/);
+    if (!match) return null;
+    return Number(match[2]);
+  };
+
+  const deletableFilteredNotifications = filteredNotifications.filter((notification) => notification.id);
+  const selectedDeletableNotifications = selectedNotificationKeys
+    .map((key) => filteredNotifications.find((notification) => notification.key === key))
+    .filter((notification) => notification?.id);
+  const selectedDeletableNotificationIds = selectedDeletableNotifications
+    .map((notification) => getServerAlertId(notification.id))
+    .filter((id) => id != null);
+
+  const toggleNotificationSelection = (key) => {
+    setSelectedNotificationKeys((prev) => (
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    ));
+  };
+
+  const toggleAllFilteredNotifications = () => {
+    const keys = deletableFilteredNotifications.map((notification) => notification.key);
+    const allSelected = keys.length > 0 && keys.every((key) => selectedNotificationKeys.includes(key));
+    setSelectedNotificationKeys((prev) => (
+      allSelected
+        ? prev.filter((key) => !keys.includes(key))
+        : [...new Set([...prev, ...keys])]
+    ));
+  };
+
+  const removeNotificationsFromList = (notificationsToHide) => {
+    const stringIds = notificationsToHide.map((notification) => String(notification.id));
+    setHiddenNotificationIds((prev) => [...new Set([...prev, ...stringIds])]);
+    setSelectedNotificationKeys([]);
+  };
+
+  const handleDeleteSelectedNotifications = async () => {
+    if (selectedDeletableNotifications.length === 0 || isDeletingNotifications) return;
+    setIsDeletingNotifications(true);
+    try {
+      if (selectedDeletableNotificationIds.length > 0) {
+        await deleteAlerts(selectedDeletableNotificationIds);
+      }
+      removeNotificationsFromList(selectedDeletableNotifications);
+    } finally {
+      setIsDeletingNotifications(false);
+    }
+  };
+
+  const handleDeleteAllFilteredNotifications = async () => {
+    const ids = deletableFilteredNotifications
+      .map((notification) => getServerAlertId(notification.id))
+      .filter((id) => id != null);
+    if (deletableFilteredNotifications.length === 0 || isDeletingNotifications) return;
+    setIsDeletingNotifications(true);
+    try {
+      if (ids.length > 0) {
+        await deleteAlerts(ids);
+      }
+      removeNotificationsFromList(deletableFilteredNotifications);
+    } finally {
+      setIsDeletingNotifications(false);
+    }
+  };
+
   return (
     <>
       <header className={headerClassName}>
@@ -141,6 +225,8 @@ function CommonHeader({
           <div className="common-app-actions">
             {rightText && <span className="common-app-header-text">{rightText}</span>}
 
+            {actions}
+
             {showNotificationButton && (
               <button
                 className="common-app-icon-button uch-alert-button"
@@ -153,7 +239,7 @@ function CommonHeader({
               </button>
             )}
 
-            {actions}
+            {afterActions}
           </div>
         </div>
       </header>
@@ -208,6 +294,26 @@ function CommonHeader({
               </button>
             </div>
 
+            <div className="uch-alert-toolbar">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={deletableFilteredNotifications.length > 0 && deletableFilteredNotifications.every((notification) => selectedNotificationKeys.includes(notification.key))}
+                  disabled={deletableFilteredNotifications.length === 0}
+                  onChange={toggleAllFilteredNotifications}
+                />
+                전체 선택
+              </label>
+              <div>
+                <button type="button" disabled={selectedDeletableNotifications.length === 0 || isDeletingNotifications} onClick={handleDeleteSelectedNotifications}>
+                  선택 삭제
+                </button>
+                <button type="button" disabled={deletableFilteredNotifications.length === 0 || isDeletingNotifications} onClick={handleDeleteAllFilteredNotifications}>
+                  전체 삭제
+                </button>
+              </div>
+            </div>
+
             <div className="uch-alert-panel-list">
               {filteredNotifications.length === 0 ? (
                 <p className="uch-alert-empty">표시할 알림이 없습니다.</p>
@@ -220,6 +326,16 @@ function CommonHeader({
                     }`}
                     onClick={onNotificationClick ? () => handleNotificationClick(notification) : undefined}
                   >
+                    <label className="uch-alert-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedNotificationKeys.includes(notification.key)}
+                        disabled={!notification.id}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleNotificationSelection(notification.key)}
+                        aria-label="알림 선택"
+                      />
+                    </label>
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
                         <span className={notification.isRead ? "read" : "unread"}>

@@ -1079,6 +1079,59 @@
   line-height: 1.6;
 }
 
+.checkin-saved-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.checkin-saved-item {
+  display: grid;
+  grid-template-columns: 1fr 28px;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #f4f8f1;
+}
+
+.checkin-saved-item span:first-child {
+  flex: 1;
+  word-break: keep-all;
+}
+
+.checkin-saved-message {
+  height: 100%;
+  min-width: 0;
+  padding: 10px 8px 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.checkin-saved-message:hover {
+  color: var(--deep-green);
+}
+
+.checkin-saved-remove {
+  width: 28px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: #9b4d4d;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.checkin-saved-remove:hover {
+  background: rgba(155, 77, 77, 0.1);
+}
+
 .outline-danger-button {
   height: 32px;
   padding: 0 12px;
@@ -1472,6 +1525,36 @@
   font-style: normal;
   font-weight: 900;
   line-height: 1;
+}
+
+.guardian-job-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.guardian-job-pager button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--deep-green);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.guardian-job-pager button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.guardian-job-pager span {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .guardian-consult-list {

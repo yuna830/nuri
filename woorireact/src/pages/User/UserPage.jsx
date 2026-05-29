@@ -25,6 +25,7 @@ import {
   readAlert,
   resolveUploadUrl,
   reverseGeocode,
+  sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
@@ -194,11 +195,12 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
 
 const DEFAULT_ACTIVITY_TODAY = {
-  status: "reference",
-  scores: { activity: 55, balance: 55, routine: 55, safety: 60 },
+  status: "pending",
+  scores: null,
   labels: { activity: "활동량", balance: "균형", routine: "생활 리듬", safety: "안전" },
-  overall_note: "아직 실측 데이터가 부족해 기본 참고 지표로 표시합니다.",
-  data_quality: { level: "insufficient", message: "감지 서버가 충분한 기록을 모으면 실제 활동 지표로 바뀝니다." },
+  message: "하루치 활동 데이터가 쌓이면 다음날부터 비교를 시작합니다.",
+  overall_note: "하루치 활동 데이터가 쌓이면 다음날부터 비교를 시작합니다.",
+  data_quality: { level: "insufficient", message: "오늘은 활동 데이터를 수집하고 있습니다." },
 };
 
 const DEFAULT_ACTIVITY_SLOTS = {
@@ -211,12 +213,12 @@ const DEFAULT_ACTIVITY_SLOTS = {
 
 const DEFAULT_ACTIVITY_BASELINE = {
   status: "pending",
-  message: "활동 기록이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+  message: "데이터를 수집하고 있습니다. 하루치 활동이 쌓이면 평소 기준선과 비교해 보여드립니다.",
 };
 
 const DEFAULT_FALL_PATTERN = {
   status: "pending",
-  message: "낙상 기록이 생기면 전후 활동 변화를 보여줍니다.",
+  message: "데이터를 수집하고 있습니다. 낙상 전후 변화는 기록이 쌓이면 보여드립니다.",
 };
 
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
@@ -247,7 +249,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
                       <strong>{slot.label}</strong>
                       <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
                     </div>
-                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "-"}</b>
+                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "수집 중"}</b>
                   </div>
                 ))}
               </div>
@@ -307,7 +309,13 @@ function todayValue() {
 }
 
 function getCurrentSeniorId(initialSenior) {
-  return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  try {
+    const saved = sessionStorage.getItem("currentSenior");
+    const sessionId = saved ? JSON.parse(saved)?.senior?.id : null;
+    return localStorage.getItem("current_senior_id") || sessionId || initialSenior?.id || "";
+  } catch {
+    return localStorage.getItem("current_senior_id") || initialSenior?.id || "";
+  }
 }
 
 const formatDongAddress = (address = "") => {
@@ -483,6 +491,7 @@ export default function UserPage() {
   const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
+  const [deviceStatus, setDeviceStatus] = useState("checking");
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -501,17 +510,20 @@ export default function UserPage() {
   const [currentLocationTime, setCurrentLocationTime] = useState("");
   const [isInRange, setIsInRange] = useState(true);
   const [safeZone, setSafeZone] = useState(null);
+  const [safeZones, setSafeZones] = useState([]);
 
   const [medicineAlert, setMedicineAlert] = useState(null);
+  const [infoUpdateRequestAlert, setInfoUpdateRequestAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+  const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
     const loadActivityCondition = async () => {
       try {
-        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
-          fetchActivityToday(),
+        const today = await fetchActivityToday();
+        const [trend, slots, baseline, fallPattern] = await Promise.all([
           fetchActivityTrend(1),
           fetchActivitySlots(),
           fetchActivityBaseline(14),
@@ -519,6 +531,7 @@ export default function UserPage() {
         ]);
         if (!isMounted) return;
         setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus(today?.status === "ok" ? "connected" : "checking");
         setActivityTrend(trend);
         setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
@@ -526,6 +539,7 @@ export default function UserPage() {
       } catch {
         if (!isMounted) return;
         setActivityToday(DEFAULT_ACTIVITY_TODAY);
+        setDeviceStatus("failed");
         setActivityTrend(null);
         setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
         setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
@@ -653,8 +667,6 @@ export default function UserPage() {
   };
 
   const updateLocation = async (lat, lon, accuracy) => {
-    setChanged(setCurrentPos, { lat, lon });
-
     const capturedAt = new Date();
     setCurrentLocationTime(
       capturedAt.toLocaleTimeString("ko-KR", {
@@ -677,6 +689,12 @@ export default function UserPage() {
         )
       : Infinity;
 
+    if (lastSavedLocation && movedMeters < 35) {
+      return;
+    }
+
+    setChanged(setCurrentPos, { lat, lon });
+
     const shouldResolveAddress =
       movedMeters >= 50 ||
       !currentAddress ||
@@ -694,7 +712,7 @@ export default function UserPage() {
       const seniorId = getCurrentSeniorId(initialSenior);
 
       if (seniorId && movedMeters >= 50) {
-        await fetch("http://localhost:8080/api/locations", {
+        await fetch("/api/locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -706,25 +724,28 @@ export default function UserPage() {
           }),
         }).catch(() => {});
 
-        lastSavedLocationRef.current = { lat, lon };
       }
+
+      lastSavedLocationRef.current = { lat, lon };
     } catch {
       setChanged(setCurrentAddress, "현재 위치");
     }
 
-    if (safeZone) {
-      const dist = Math.sqrt(
-        Math.pow((lat - safeZone.centerLatitude) * 111000, 2) +
-          Math.pow(
-            (lon - safeZone.centerLongitude) *
-              111000 *
-              Math.cos((lat * Math.PI) / 180),
-            2
-          )
-      );
+    const zones = safeZones.length > 0 ? safeZones : safeZone ? [safeZone] : [];
+    if (zones.length > 0) {
+      setChanged(setIsInRange, zones.some((zone) => {
+        const dist = Math.sqrt(
+          Math.pow((lat - zone.centerLatitude) * 111000, 2) +
+            Math.pow(
+              (lon - zone.centerLongitude) *
+                111000 *
+                Math.cos((lat * Math.PI) / 180),
+              2
+            )
+        );
 
-      setChanged(setIsInRange, dist <= safeZone.radiusMeters);
-
+        return dist <= zone.radiusMeters;
+      }));
     }
   };
 
@@ -773,12 +794,13 @@ export default function UserPage() {
     const loadSafeZoneForHome = () => {
       if (!seniorId) return;
 
-      fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+      fetch(`/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
         cache: "no-store",
       })
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           const zones = Array.isArray(data) ? data : data ? [data] : [];
+          setSafeZones(zones);
           if (zones.length > 0) setSafeZone(zones[0]);
         })
         .catch(() => {});
@@ -835,9 +857,10 @@ export default function UserPage() {
         if (saved) {
           const profile = JSON.parse(saved);
           const cachedSeniorId = profile?.senior?.id;
+          let canUseCachedProfile = true;
 
           if (cachedSeniorId) {
-            const response = await fetch(`http://localhost:8080/api/seniors/` + cachedSeniorId);
+            const response = await fetch(`/api/seniors/${cachedSeniorId}`);
 
             if (response.ok) {
               const freshProfile = await response.json();
@@ -851,15 +874,23 @@ export default function UserPage() {
               setChanged(setHealthScores, getHealthScoresFromProfile(freshProfile));
               return;
             }
+
+            if (response.status === 404) {
+              canUseCachedProfile = false;
+              sessionStorage.removeItem("currentSenior");
+              localStorage.removeItem("current_senior_id");
+            }
           }
 
-          setChanged(setUserName, profile?.senior?.name || "사용자");
-          setChanged(setCurrentProfile, profile);
-          setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
-          setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
-          loadMatchedCareTeam(cachedSeniorId, profile);
-          setChanged(setHealthScores, getHealthScoresFromProfile(profile));
-          return;
+          if (canUseCachedProfile) {
+            setChanged(setUserName, profile?.senior?.name || "사용자");
+            setChanged(setCurrentProfile, profile);
+            setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
+            setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
+            loadMatchedCareTeam(cachedSeniorId, profile);
+            setChanged(setHealthScores, getHealthScoresFromProfile(profile));
+            return;
+          }
         }
 
         const response = await fetch("http://localhost:8080/api/seniors");
@@ -938,13 +969,23 @@ export default function UserPage() {
   }, []);
 
   useEffect(() => {
-    if (!currentPos || !safeZone) return;
-    const dist = Math.sqrt(
-      Math.pow((currentPos.lat - safeZone.centerLatitude) * 111000, 2)
-      + Math.pow((currentPos.lon - safeZone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
-    );
-    setChanged(setIsInRange, dist <= safeZone.radiusMeters);
-  }, [currentPos, safeZone]);
+    const zones = safeZones.length > 0 ? safeZones : safeZone ? [safeZone] : [];
+    if (!currentPos || zones.length === 0) return;
+
+    const distances = zones.map((zone) => ({
+      zone,
+      distance: Math.sqrt(
+        Math.pow((currentPos.lat - zone.centerLatitude) * 111000, 2)
+        + Math.pow((currentPos.lon - zone.centerLongitude) * 111000 * Math.cos(currentPos.lat * Math.PI / 180), 2)
+      ),
+    })).sort((first, second) => first.distance - second.distance);
+
+    if (distances[0]?.zone) {
+      setSafeZone(distances[0].zone);
+    }
+
+    setChanged(setIsInRange, distances.some(({ zone, distance }) => distance <= zone.radiusMeters));
+  }, [currentPos, safeZone, safeZones]);
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
@@ -971,6 +1012,9 @@ export default function UserPage() {
       const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
       setMedicineAlert(medicineAlert || null);
 
+      const infoRequestAlert = alerts.find((alert) => alert.type === "INFO_UPDATE_REQUEST" && !alert.isRead);
+      setInfoUpdateRequestAlert(infoRequestAlert || null);
+
       const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
       setCheckInMessageAlert(checkInAlert || null);
 
@@ -996,10 +1040,23 @@ export default function UserPage() {
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 5000);
+    const timerId = setInterval(loadCallRequest, 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") loadCallRequest();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const handleStorageChange = (event) => {
+      if (event.key === `woori-local-alerts:${seniorId}`) loadCallRequest();
+    };
+    window.addEventListener("storage", handleStorageChange);
+
     return () => {
       cancelled = true;
       clearInterval(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [initialSenior, pendingSos]);
 
@@ -1076,12 +1133,62 @@ export default function UserPage() {
     setMedicineAlert(null);
   };
 
+  const handleGoToInfoUpdateRequest = async () => {
+    if (infoUpdateRequestAlert?.id) {
+      await readAlert(infoUpdateRequestAlert.id).catch(() => {});
+    }
+
+    const text = String(infoUpdateRequestAlert?.message || "");
+    let section = "personal";
+
+    if (/복약|약|medicine/i.test(text)) section = "medication";
+    else if (/질환|건강|수술|chronic/i.test(text)) section = "chronic";
+    else if (/거동|인지|감각|보행|시력|청력|mobility/i.test(text)) section = "mobility";
+    else if (/활동|이동|쉬는|activity/i.test(text)) section = "activity";
+    else if (/복지|혜택|welfare/i.test(text)) section = "welfare";
+    else if (/일자리|근무|직종|job/i.test(text)) section = "job";
+
+    setInfoUpdateRequestAlert(null);
+    navigate(`/profile?section=${section}`);
+  };
+
   const handleReadCheckInMessageAlert = async () => {
     if (checkInMessageAlert?.id) {
       await readAlert(checkInMessageAlert.id).catch(() => {});
     }
 
     setCheckInMessageAlert(null);
+    setCheckInReplyMessage("");
+  };
+
+  const handleReplyCheckInMessageAlert = async () => {
+    const reply = checkInReplyMessage.trim();
+
+    if (!reply) {
+      alert("답장 내용을 입력해주세요.");
+      return;
+    }
+
+    const seniorId = getCurrentSeniorId(initialSenior);
+
+    if (!seniorId) {
+      alert("사용자 정보를 확인할 수 없습니다.");
+      return;
+    }
+
+    try {
+      await sendCheckInReply({
+        seniorId,
+        reply,
+        originalMessage: checkInMessageAlert?.message || "",
+      });
+
+      await handleReadCheckInMessageAlert();
+      alert("보호자에게 답장을 보냈습니다.");
+    } catch (error) {
+      console.error("안부 답장 전송 실패:", error);
+      alert("답장 전송에 실패했습니다.");
+    }
   };
 
   const openAllSchedules = async () => {
@@ -1155,7 +1262,7 @@ export default function UserPage() {
       <UserCommonHeader showSos onSosClick={() => setShowSOS(true)} />
 
       <div className="up-layout">
-        <aside>
+        <aside className="up-aside">
           <div className="up-profile-card">
             <div className="up-profile-avatar">
               {profileImageUrl ? (
@@ -1168,7 +1275,12 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className="up-dot" /> 디바이스 연결됨
+              <div className={`up-dot ${deviceStatus === "failed" ? "danger" : deviceStatus === "checking" ? "pending" : ""}`} />
+              {deviceStatus === "connected"
+                ? "디바이스 연결됨"
+                : deviceStatus === "failed"
+                  ? "디바이스 연결 실패"
+                  : "디바이스 연결 시도중입니다"}
             </div>
             <div className="up-care-team">
               <div>
@@ -1198,37 +1310,7 @@ export default function UserPage() {
             </div>
           </div>
 
-          <div className="up-sidemenu">
-            {menus.map((menu, i) => (
-              <button
-                key={i}
-                className="up-sidemenu-item"
-                type="button"
-                onClick={() => {
-                  if (menu.disabled) {
-                    alert("AI 챗봇 기능은 준비 중입니다.");
-                    return;
-                  }
-                  if (menu.badgeKey === "jobs") {
-                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
-                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
-                    setJobHasNew(false);
-                  }
-                  navigate(menu.route);
-                }}
-              >
-                <span className="up-sidemenu-icon">{menu.icon}</span>
-                <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
-                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
-                    {menu.badge || "NEW"}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="up-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
+          <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
             <div className="up-card-head">
               <div className="up-card-title">현재 위치</div>
               <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
@@ -1282,12 +1364,44 @@ export default function UserPage() {
                   zoom={5}
                   className="up-mini-map"
                   safeZone={safeZone}
+                  safeZones={safeZones}
                   currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
                   currentLabel="현재 위치"
                   safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                  autoFit={false}
                 />
               </div>
             )}
+          </div>
+
+          <div className="up-sidemenu">
+            {menus.map((menu, i) => (
+              <button
+                key={i}
+                className="up-sidemenu-item"
+                type="button"
+                onClick={() => {
+                  if (menu.disabled) {
+                    alert("AI 챗봇 기능은 준비 중입니다.");
+                    return;
+                  }
+                  if (menu.badgeKey === "jobs") {
+                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
+                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+                    setJobHasNew(false);
+                  }
+                  navigate(menu.route);
+                }}
+              >
+                <span className="up-sidemenu-icon">{menu.icon}</span>
+                <span className="up-sidemenu-label">{menu.label}</span>
+                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
+                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
+                    {menu.badge || "NEW"}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </aside>
 
@@ -1406,6 +1520,7 @@ export default function UserPage() {
                   />
                 ) : (
                   <div className="up-activity-empty">
+                    <div className="up-activity-placeholder-score">--</div>
                     <div className="up-activity-empty-title">활동 데이터를 수집하는 중입니다</div>
                     <p>{activityToday.message || activityToday.data_quality?.message || "감지 서버가 충분한 기록을 모으면 활동 지표가 표시됩니다."}</p>
                   </div>
@@ -1542,19 +1657,59 @@ export default function UserPage() {
         </div>
       )}
 
-      {checkInMessageAlert && (
-        <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
-          <div className="up-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="up-modal-ico">💬</div>
+      {infoUpdateRequestAlert && (
+        <div className="up-overlay" onClick={() => setInfoUpdateRequestAlert(null)}>
+          <div className="up-modal medicine-alert-user-modal" onClick={(event) => event.stopPropagation()}>
             <div className="up-modal-title">
-              {checkInMessageAlert.title || "보호자 안부 메시지"}
+              {infoUpdateRequestAlert.title || "정보 수정 요청"}
             </div>
             <div className="up-modal-desc">
-              {checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}
+              {infoUpdateRequestAlert.message || "복지사가 정보 수정을 요청했습니다."}
             </div>
 
+            <div className="up-modal-row medicine-alert-modal-row">
+              <button
+                className="up-modal-ok medicine-alert-confirm-button"
+                type="button"
+                onClick={handleGoToInfoUpdateRequest}
+              >
+                수정하러 가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkInMessageAlert && (
+        <div className="up-overlay" onClick={handleReadCheckInMessageAlert}>
+          <div className="up-modal checkin-user-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="checkin-user-message">
+              <strong>{careTeam.guardianName || "보호자"}:</strong>
+              <span>{checkInMessageAlert.message || "보호자가 안부 메시지를 보냈습니다."}</span>
+            </div>
+
+            <textarea
+              className="checkin-user-reply-textarea"
+              value={checkInReplyMessage}
+              onChange={(event) => setCheckInReplyMessage(event.target.value)}
+              placeholder="보호자에게 보낼 답장을 입력해주세요."
+              rows={4}
+            />
+
             <div className="up-modal-row single">
-              <button className="up-modal-ok" type="button" onClick={handleReadCheckInMessageAlert}>
+              <button
+                className="checkin-user-send-button"
+                type="button"
+                onClick={handleReplyCheckInMessageAlert}
+              >
+                답장 보내기
+              </button>
+
+              <button
+                className="up-modal-ok"
+                type="button"
+                onClick={handleReadCheckInMessageAlert}
+              >
                 확인했어요
               </button>
             </div>

@@ -117,7 +117,7 @@ export default function ProfilePage() {
     }));
   };
 
-  const bmi = useMemo(() => calcBMI(form.height, form.weight), [form.height, form.weight]);
+  const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
 
   const saveProfile = async (nextForm) => {
     const savedCurrentSenior = sessionStorage.getItem("currentSenior");
@@ -217,8 +217,8 @@ export default function ProfilePage() {
               <InputField label="구/군" value={form.district} onChange={(value) => set("district", value)} />
             </div>
             <div className="pr-row">
-              <InputField label="동" value={form.dong} onChange={(value) => set("dong", value)} />
-              <InputField label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} />
+              <InputField label="도로명/지명/동네" value={form.dong} onChange={(value) => set("dong", value)} placeholder="예: 역삼로, 역삼역, 역삼동" />
+              <InputField label="상세주소" value={form.detailAddress} onChange={(value) => set("detailAddress", value)} placeholder="예: 101동 1203호" />
             </div>
             <div className="pr-row">
               <InputField label="연락처" value={form.phone} onChange={(value) => set("phone", formatPhoneNumber(value))} />
@@ -238,12 +238,13 @@ export default function ProfilePage() {
             </div>
             {bmi && (
               <div className="pr-bmi-box">
-                <div><div className="pr-bmi-label">BMI</div><div className="pr-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
-                <div><div className="pr-bmi-label">판정</div><div className="pr-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
+                <div className="pr-bmi-item"><div className="pr-bmi-label">BMI</div><div className="pr-bmi-val" style={{ color: bmi.color }}>{bmi.bmi}</div></div>
+                <div className="pr-bmi-item"><div className="pr-bmi-label">판정</div><div className="pr-bmi-status" style={{ color: bmi.color }}>{bmi.status}</div></div>
+                <div className="pr-bmi-guide">{bmi.guide}</div>
               </div>
             )}
-            <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "과거 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
-            <ChipField label="음주 여부" value={form.drinking} options={[NONE, "가끔", "자주"]} onSelect={(value) => set("drinking", value)} />
+            <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "금연 중", "과거 흡연", "가끔 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
+            <ChipField label="음주 여부" value={form.drinking} options={[NONE, "금주 실천 중", "가끔", "주 1~2회", "자주"]} onSelect={(value) => set("drinking", value)} />
             <InputField label="알레르기 정보" value={form.allergies} onChange={(value) => set("allergies", value)} />
           </section>
         );
@@ -320,7 +321,7 @@ export default function ProfilePage() {
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} onChange={(value) => set("maxDistance", value)} />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
-            <ChipField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onSelect={(value) => set("restNeed", value)} />
+            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
           </section>
         );
@@ -401,11 +402,11 @@ export default function ProfilePage() {
   );
 }
 
-function InputField({ label, value, onChange, type = "text", readOnly = false, disabled = false }) {
+function InputField({ label, value, onChange, type = "text", placeholder = "", readOnly = false, disabled = false }) {
   return (
     <div className="pr-field">
       <label className="pr-label">{label}</label>
-      <input className="pr-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} readOnly={readOnly} disabled={disabled} />
+      <input className="pr-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} readOnly={readOnly} disabled={disabled} />
     </div>
   );
 }

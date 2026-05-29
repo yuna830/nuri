@@ -1,14 +1,18 @@
-import { getJobLocation } from "../job/jobLocation";
-
 const SENURI_SERVICE_KEY =
   import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
   "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 
-const SEOUL_JOB_INFO_KEY = import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "";
+const SEOUL_JOB_KEYS = [
+  import.meta.env.VITE_SEOUL_JOB_KEY_1 || "6c4977427a77616e37304c58714a4d",
+  import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6f484f795777616e373678665a556e",
+  import.meta.env.VITE_SEOUL_JOB_KEY_3 || "554d6c414677616e37314b43545549",
+].filter(Boolean);
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
+const JOB_DB_REFRESH_TTL_MS = 24 * 60 * 60 * 1000;
+const JOB_DB_WARM_PAGE_LIMIT = 30;
 const jobListCache = new Map();
-const DETAIL_CONCURRENCY = 8;
+let jobCacheWarmupPromise = null;
 
 export const EMPL_MAP = {
   CM0101: "정규직",
@@ -96,13 +100,98 @@ const writeJobCache = (cacheKey, data) => {
   }
 };
 
+const fetchCachedJobPostings = async () => {
+  const response = await fetch("/api/job-cache");
+  if (!response.ok) return [];
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+};
+
+const saveJobPostingsToCache = async (jobs) => {
+  const rows = Array.isArray(jobs)
+    ? jobs.filter((job) => job?.source && job?.jobId)
+    : [];
+
+  if (rows.length === 0) return;
+
+  await fetch("/api/job-cache/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  }).catch(() => {});
+};
+
+const warmJobPostingDbCache = (numOfRows) => {
+  if (jobCacheWarmupPromise) return jobCacheWarmupPromise;
+
+  jobCacheWarmupPromise = (async () => {
+    try {
+      const res = await fetch("/api/job-cache/last-updated");
+      if (res.ok) {
+        const data = await res.json();
+        const serverLastUpdated = Number(data.epochMilli || 0);
+        if (serverLastUpdated && Date.now() - serverLastUpdated < JOB_DB_REFRESH_TTL_MS) {
+          return;
+        }
+      }
+    } catch {
+      // 서버 확인 실패 시 로컬 캐시로 fallback
+      const lastWarmAt = Number(localStorage.getItem("job-db-cache-warmed-at") || 0);
+      if (Date.now() - lastWarmAt < JOB_DB_REFRESH_TTL_MS) return;
+    }
+
+    const keyCount = SEOUL_JOB_KEYS.length || 1;
+    for (let pageNo = 2; pageNo <= JOB_DB_WARM_PAGE_LIMIT; pageNo += keyCount) {
+      const calls = [fetchSenuriJobList(pageNo, "", numOfRows)];
+      for (let k = 0; k < keyCount && pageNo + k <= JOB_DB_WARM_PAGE_LIMIT; k += 1) {
+        calls.push(fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[k], pageNo + k, numOfRows));
+      }
+
+      const results = await Promise.allSettled(calls);
+      const allJobs = results
+        .filter((r) => r.status === "fulfilled")
+        .flatMap((r) => r.value.list || []);
+
+      if (allJobs.length === 0) break;
+      await saveJobPostingsToCache(allJobs);
+    }
+
+    localStorage.setItem("job-db-cache-warmed-at", String(Date.now()));
+  })().finally(() => {
+    jobCacheWarmupPromise = null;
+  });
+
+  return jobCacheWarmupPromise;
+};
+
 export const categorizeJob = (job) => {
-  const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, getJobLocation(job));
+  const text = textOf(job.recrtTitle, job.jobclsNm, job.detCnts, job.workPlcNm);
   for (const category of JOB_CATEGORY_FILTERS) {
     if (!category.keywords.length) continue;
     if (category.keywords.some((keyword) => text.includes(keyword))) return category.label;
   }
   return "기타";
+};
+
+const OUTSIDE_SEOUL_PATTERN = /경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/;
+
+export const isJobRegionCompatible = (job, profile = {}) => {
+  const profileText = textOf(profile?.address, profile?.region, profile?.city, profile?.district, profile?.dong);
+  const jobText = textOf(job.workPlcNm, job.plDetAddr);
+
+  if (!profileText || !jobText) return true;
+
+  if (/서울/.test(profileText)) {
+    return /서울/.test(jobText) || !OUTSIDE_SEOUL_PATTERN.test(jobText);
+  }
+
+  const regionTokens = getRegionTokens(profile);
+  const normalizedJob = normalize(jobText);
+  const explicitOtherRegion = /서울|경기|인천|강원|충청|충남|충북|대전|세종|전라|전남|전북|광주|경상|경남|경북|대구|부산|울산|제주/.test(jobText);
+
+  if (!explicitOtherRegion) return true;
+
+  return regionTokens.some((token) => normalizedJob.includes(normalize(token)));
 };
 
 export const formatDate = (dateText) => {
@@ -137,7 +226,6 @@ const parseDeadlineDate = (text) => {
 const normalizeSenuriJob = (item) => ({
   jobId: item.querySelector("jobId")?.textContent || "",
   source: "노인일자리",
-  age: item.querySelector("age")?.textContent || "",
   recrtTitle: item.querySelector("recrtTitle")?.textContent || "",
   oranNm: item.querySelector("oranNm")?.textContent || "",
   emplymShp: item.querySelector("emplymShp")?.textContent || "CM0105",
@@ -172,85 +260,6 @@ export const parseJobList = (xmlText) => {
   };
 };
 
-const parseSenuriJobDetail = (xmlText) => {
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(xmlText, "text/xml");
-  const item = xml.querySelector("item");
-
-  if (!item) return null;
-
-  return {
-    jobId: item.querySelector("jobId")?.textContent || item.querySelector("wantedAuthNo")?.textContent || "",
-    age: item.querySelector("age")?.textContent || "",
-    wantedTitle: item.querySelector("wantedTitle")?.textContent || "",
-    plbizNm: item.querySelector("plbizNm")?.textContent || "",
-    plDetAddr: item.querySelector("plDetAddr")?.textContent || "",
-    etcItm: item.querySelector("etcItm")?.textContent || "",
-    clltPrnnum: item.querySelector("clltPrnnum")?.textContent || "",
-  };
-};
-
-const mergeSenuriJobDetail = (job, detail) => {
-  if (!detail) return job;
-
-  return {
-    ...job,
-    age: job.age || detail.age || "",
-    wantedTitle: job.wantedTitle || detail.wantedTitle || "",
-    recrtTitle: job.recrtTitle || detail.wantedTitle || "",
-    plbizNm: job.plbizNm || detail.plbizNm || "",
-    oranNm: job.oranNm || detail.plbizNm || "",
-    plDetAddr: job.plDetAddr || detail.plDetAddr || "",
-    etcItm: job.etcItm || detail.etcItm || "",
-    detCnts: job.detCnts || detail.etcItm || "",
-    clltPrnnum: job.clltPrnnum || detail.clltPrnnum || "",
-  };
-};
-
-const fetchSenuriJobDetail = async (jobId) => {
-  if (!jobId) return null;
-
-  const cacheKey = `senuri-detail-${jobId}`;
-  const cached = readJobCache(cacheKey);
-
-  if (cached) return cached;
-
-  const response = await fetch(
-    `/senuri/B552474/SenuriService/getJobInfo?ServiceKey=${SENURI_SERVICE_KEY}&id=${encodeURIComponent(jobId)}`,
-  );
-
-  if (!response.ok) {
-    throw new Error(`Senuri Job Detail API failed: ${response.status}`);
-  }
-
-  const detail = parseSenuriJobDetail(await response.text());
-  writeJobCache(cacheKey, detail);
-
-  return detail;
-};
-
-const enrichSenuriJobsWithDetails = async (jobs) => {
-  const enrichedJobs = [...jobs];
-  const targets = enrichedJobs
-    .map((job, index) => ({ job, index }))
-    .filter(({ job }) => job.jobId && !getJobLocation(job));
-
-  for (let index = 0; index < targets.length; index += DETAIL_CONCURRENCY) {
-    const chunk = targets.slice(index, index + DETAIL_CONCURRENCY);
-
-    await Promise.all(chunk.map(async ({ job, index: jobIndex }) => {
-      try {
-        const detail = await fetchSenuriJobDetail(job.jobId);
-        enrichedJobs[jobIndex] = mergeSenuriJobDetail(job, detail);
-      } catch {
-        enrichedJobs[jobIndex] = job;
-      }
-    }));
-  }
-
-  return enrichedJobs;
-};
-
 const normalizeSeoulJob = (row) => ({
   jobId: row.JO_REQST_NO || row.JO_REGIST_NO || "",
   source: "서울일자리",
@@ -283,36 +292,52 @@ const fetchSenuriJobList = async (pageNo, emplymShp, numOfRows) => {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Senuri Job API failed: ${response.status}`);
 
-  const data = parseJobList(await response.text());
-
-  return {
-    ...data,
-    list: await enrichSenuriJobsWithDetails(data.list),
-  };
+  return parseJobList(await response.text());
 };
 
-const fetchSeoulJobInfo = async (pageNo, numOfRows) => {
-  if (!SEOUL_JOB_INFO_KEY) return { list: [], total: 0 };
-
+const fetchSeoulJobInfoWithKey = async (key, pageNo, numOfRows) => {
+  if (!key) return { list: [], total: 0 };
   const start = (pageNo - 1) * numOfRows + 1;
   const end = pageNo * numOfRows;
-  const response = await fetch(`/seoul-openapi/${SEOUL_JOB_INFO_KEY}/json/GetJobInfo/${start}/${end}/`);
-  if (!response.ok) throw new Error(`Seoul Job API failed: ${response.status}`);
-
-  const data = await response.json();
-  const body = data.GetJobInfo || {};
-  const rows = Array.isArray(body.row) ? body.row : [];
-
-  return {
-    list: rows.map(normalizeSeoulJob),
-    total: Number(body.list_total_count) || 0,
-  };
+  try {
+    const response = await fetch(`/seoul-openapi/${key}/json/GetJobInfo/${start}/${end}/`);
+    if (!response.ok) return { list: [], total: 0 };
+    const data = await response.json();
+    const body = data.GetJobInfo || {};
+    const rows = Array.isArray(body.row) ? body.row : [];
+    return { list: rows.map(normalizeSeoulJob), total: Number(body.list_total_count) || 0 };
+  } catch {
+    return { list: [], total: 0 };
+  }
 };
 
+const fetchSeoulJobInfo = (pageNo, numOfRows) =>
+  fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[0] || "", pageNo, numOfRows);
+
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
-  const cacheKey = `combined-${pageNo}-${emplymShp}-${numOfRows}`;
+  const cacheKey = `combined-v3-${pageNo}-${emplymShp}-${numOfRows}`;
   const cached = readJobCache(cacheKey);
   if (cached) return cached;
+
+  const lastDbRefreshAt = Number(localStorage.getItem("job-db-cache-refreshed-at") || 0);
+  const shouldRefreshDbCache = Date.now() - lastDbRefreshAt > JOB_DB_REFRESH_TTL_MS;
+  const dbCachedJobs = pageNo === 1 && !emplymShp
+    ? await fetchCachedJobPostings().catch(() => [])
+    : [];
+  const cachedSources = new Set(dbCachedJobs.map((job) => job?.source).filter(Boolean));
+  const hasMixedDbCache = cachedSources.has("노인일자리") && cachedSources.has("서울일자리");
+
+  if (pageNo === 1 && !emplymShp && hasMixedDbCache && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
+    if (dbCachedJobs.length > 0) {
+      const data = {
+        list: dbCachedJobs,
+        total: dbCachedJobs.length,
+        fromDbCache: true,
+      };
+      writeJobCache(cacheKey, data);
+      return data;
+    }
+  }
 
   const [senuri, seoul] = await Promise.allSettled([
     fetchSenuriJobList(pageNo, emplymShp, numOfRows),
@@ -323,16 +348,25 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const seoulData = seoul.status === "fulfilled" ? seoul.value : { list: [], total: 0 };
   const merged = new Map();
 
-  [...senuriData.list, ...seoulData.list].forEach((job) => {
+  [...dbCachedJobs, ...senuriData.list, ...seoulData.list].forEach((job) => {
     if (!job.jobId) return;
     merged.set(`${job.source}-${job.jobId}`, job);
   });
 
   const data = {
     list: Array.from(merged.values()),
-    total: (senuriData.total || 0) + (seoulData.total || 0),
+    total: Math.max(
+      merged.size,
+      dbCachedJobs.length,
+      (senuriData.total || 0) + (seoulData.total || 0),
+    ),
   };
 
+  saveJobPostingsToCache([...senuriData.list, ...seoulData.list]);
+  if (pageNo === 1 && !emplymShp) {
+    warmJobPostingDbCache(numOfRows);
+  }
+  localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
   writeJobCache(cacheKey, data);
   return data;
 };
@@ -346,13 +380,11 @@ export const getSavedJobProfile = () => {
       const healthInfo = profile.healthInfo ?? {};
       const jobPreference = profile.jobPreference ?? {};
       return {
-        seniorId: senior.id,
         age: senior.age,
         address: senior.address || senior.region || "",
         city: senior.city || senior.sido || "",
         district: senior.district || senior.sigungu || "",
         dong: senior.dong || "",
-        healthStatus: healthInfo.healthStatus,
         maxHours: healthInfo.maxHours || jobPreference.maxHours,
         maxDistance: healthInfo.maxDistance || jobPreference.maxDistance,
         restNeed: healthInfo.restNeed || "",
@@ -395,7 +427,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
     ? profile.preferredCategories
     : String(profile?.preferredCategories || "").split(",").filter(Boolean);
 
-  if (selectedLabel && category === selectedLabel) {
+  if (selectedLabel && category !== selectedLabel) {
+    score -= MATCH_SCORE_WEIGHTS.category;
+    reasons.push("선택 직종과 다름");
+  } else if (selectedLabel && category === selectedLabel) {
     score += MATCH_SCORE_WEIGHTS.category;
     reasons.push("선택한 직종과 일치");
   } else if (preferredCategories.includes(category)) {
@@ -407,13 +442,15 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
   }
 
   const regionTokens = getRegionTokens(profile);
-  const jobLocationText = textOf(getJobLocation(job), job.plDetAddr);
-  const jobLocation = normalize(jobLocationText);
+  const jobLocation = normalize(textOf(job.workPlcNm, job.plDetAddr));
   const matchedRegion = regionTokens.find((token) => jobLocation.includes(normalize(token)));
-  if (matchedRegion) {
+  if (!isJobRegionCompatible(job, profile)) {
+    score -= MATCH_SCORE_WEIGHTS.region;
+    reasons.push("거주지와 거리가 있음");
+  } else if (matchedRegion) {
     score += MATCH_SCORE_WEIGHTS.region;
     reasons.push(`${matchedRegion} 근무지`);
-  } else if (/서울/.test(jobLocationText)) {
+  } else if (/서울/.test(textOf(job.workPlcNm, job.plDetAddr))) {
     score += Math.round(MATCH_SCORE_WEIGHTS.region * 0.45);
     reasons.push("서울 지역 공고");
   }

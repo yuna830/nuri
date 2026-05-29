@@ -60,8 +60,17 @@ public class WelfareWorkerController {
         String password = trim(request.password());
 
         return welfareWorkerRepository.findByWorkerId(workerId)
-                .filter(worker -> worker.getPassword().equals(hashPassword(password)))
-                .map(worker -> ResponseEntity.ok(toResponse(worker)))
+                .map(worker -> {
+                    if (!worker.getPassword().equals(hashPassword(password))) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).<WelfareWorkerResponse>build();
+                    }
+
+                    if (Boolean.FALSE.equals(worker.getActive())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).<WelfareWorkerResponse>build();
+                    }
+
+                    return ResponseEntity.ok(toResponse(worker));
+                })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
     }
 

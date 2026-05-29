@@ -8,7 +8,10 @@
 
 .jp-root {
   background: #fffdec;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: "Noto Sans KR", sans-serif;
   color: #1e2a1f;
 }
@@ -68,6 +71,88 @@
 
 .jp-main .jp-search-wrap {
   width: 100%;
+}
+
+.jp-application-status {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.jp-application-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.jp-application-head strong {
+  color: #1e2a1f;
+  font-size: 1rem;
+}
+
+.jp-application-head span {
+  color: #6f8b72;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.jp-application-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.jp-application-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f8fbf4;
+}
+
+.jp-application-item div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.jp-application-item strong {
+  overflow: hidden;
+  color: #1e2a1f;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-application-item span {
+  color: #6f7f70;
+  font-size: 0.78rem;
+}
+
+.jp-application-item em {
+  flex-shrink: 0;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: #eef6ef;
+  color: #48694b;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.jp-application-empty {
+  padding: 1.2rem;
+  border-radius: 12px;
+  background: #f8fbf4;
+  color: #6f8b72;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 /* 직종 분류 가로 스크롤 바 */
@@ -212,23 +297,25 @@
 
 /* 레이아웃 */
 .jp-layout {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 2rem 2rem 2rem;
+  padding: 1.6rem 2rem 0 2rem;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 2rem;
-  align-items: start;
+  overflow: hidden;
 }
 
 /* 사이드바 */
 .jp-sidebar {
-  position: sticky;
-  top: 96px;
-  max-height: calc(100vh - 120px);
+  height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
   padding-top: 0;
+  padding-bottom: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -321,7 +408,21 @@
 
 /* 메인 */
 .jp-main {
-  padding-top: 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.jp-cards-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 1.6rem;
+  padding-bottom: 2rem;
+  margin-right: -1.6rem;
+  scrollbar-gutter: stable;
 }
 
 .jp-main-head {
@@ -329,6 +430,14 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.jp-main-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.7rem;
 }
 
 .jp-main-label {
@@ -623,19 +732,34 @@
     padding: 0 1rem;
   }
 
+  .jp-root {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    display: block;
+  }
+
   .jp-layout {
+    flex: none;
+    overflow: visible;
     grid-template-columns: 1fr;
     padding: 1rem;
   }
 
   .jp-sidebar {
-    position: static;
-    max-height: none;
-    padding-top: 0;
+    height: auto;
+    overflow-y: visible;
+    padding-bottom: 0;
   }
 
   .jp-main {
+    height: auto;
+    overflow: visible;
     padding-top: 0;
+  }
+
+  .jp-cards-scroll {
+    overflow: visible;
   }
 }
 
@@ -644,16 +768,16 @@
   border: 0;
   border-radius: 0;
   padding: 0;
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.8rem;
   box-shadow: none;
 }
 
 .jp-recommend-head {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 0.9rem;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.55rem;
 }
 
 .jp-recommend-head strong {
@@ -677,6 +801,47 @@
   font-weight: 800;
   padding: 0.35rem 0.75rem;
   white-space: nowrap;
+}
+
+.jp-recommend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-items: end;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.jp-application-toggle {
+  min-height: 36px;
+  border: 1px solid #d4e8d6;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+  background: #ffffff;
+  color: #48694b;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jp-application-toggle:hover {
+  border-color: #86a788;
+  background: #eef6ef;
+}
+
+.jp-application-item-clickable {
+  cursor: pointer;
+}
+
+.jp-application-item-clickable:hover {
+  border-color: #86a788;
+  background: #fbfdf8;
+}
+
+.jp-application-modal {
+  max-width: 640px;
 }
 
 .jp-recommend-grid {
@@ -758,5 +923,148 @@
 }
 
 .jp-modal-secondary {
+  width: 100%;
+  margin-top: 0;
+  padding: 1rem;
+  border: 1px solid #e9c1c1;
+  border-radius: 14px;
+  background: #fff5f5;
+  color: #c94c4c;
+  font-size: 1rem;
+  font-weight: 800;
+  font-family: "Noto Sans KR", sans-serif;
+  cursor: pointer;
+}
+
+.jp-modal-secondary:hover {
+  background: #ffecec;
+}
+
+.jp-welfare-recommend-section {
+  margin-bottom: 1.1rem;
+  padding: 1rem;
+  border: 1px solid #b8d4ba;
+  border-radius: 16px;
+  background: #f8fbf4;
+}
+
+.jp-welfare-recommend-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.jp-welfare-recommend-head strong {
+  color: #1e2a1f;
+  font-size: 1rem;
+}
+
+.jp-welfare-recommend-head p {
+  margin-top: 0.2rem;
+  color: #6f8b72;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.jp-welfare-recommend-head span {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #48694b;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.jp-welfare-recommend-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.jp-welfare-recommend-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid #d4e8d6;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.jp-welfare-recommend-card div {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.jp-welfare-recommend-card strong,
+.jp-welfare-recommend-card span,
+.jp-welfare-recommend-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-welfare-recommend-card strong {
+  color: #1e2a1f;
+  font-size: 0.95rem;
+}
+
+.jp-welfare-recommend-card span,
+.jp-welfare-recommend-card small {
+  color: #6f8b72;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.jp-welfare-recommend-card em {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: #fff7df;
+  color: #8a5a00;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.jp-welfare-recommend-card button,
+.jp-recommend-response-actions button {
+  min-height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: #86a788;
+  color: #ffffff;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.jp-welfare-recommend-card button {
+  padding: 0 0.8rem;
+}
+
+.jp-recommend-response-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+
+.jp-recommend-response-actions button:nth-child(2) {
+  background: #9a6b5a;
+}
+
+.jp-recommend-response-actions button:nth-child(3) {
   background: #5f7d61;
+}
+
+@media (max-width: 720px) {
+  .jp-welfare-recommend-card,
+  .jp-recommend-response-actions {
+    grid-template-columns: 1fr;
+  }
 }

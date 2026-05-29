@@ -14,6 +14,24 @@ import "../../css/user/WeatherAlert.css";
 
 const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 const DEFAULT_POS = { lat: 37.5665, lon: 126.9780 };
+const DEFAULT_CLIMATE_INSIGHT = {
+  region: "현재 위치 확인 중",
+  title: "기후 정보를 수집하고 있습니다",
+  type: "수집 중",
+  tag: "확인 중",
+  status: "대기",
+  scores: [
+    { key: "기온", value: 25, color: "#e05252" },
+    { key: "강수", value: 25, color: "#4c9ed9" },
+    { key: "바람", value: 25, color: "#f0b429" },
+    { key: "건조", value: 25, color: "#8b6fd6" },
+  ],
+  tips: [
+    "현재 위치와 기상청 응답을 확인하고 있습니다.",
+    "잠시 후 자동으로 최신 기후 위험도가 갱신됩니다.",
+    "데이터가 늦어져도 기본 안전 안내는 계속 표시됩니다.",
+  ],
+};
 
 const LEVELS = {
   safe: { label: "안전", bg: "#86A788", barColor: "#86A788", icon: "✅", desc: "외출 가능" },
@@ -95,7 +113,7 @@ export default function WeatherAlert() {
   const [environmentAlerts, setEnvironmentAlerts] = useState([]);
   const [lastFetched, setLastFetched] = useState(null);
   const [fetching, setFetching] = useState(false);
-  const [insight, setInsight] = useState(null);
+  const [insight, setInsight] = useState(DEFAULT_CLIMATE_INSIGHT);
   const liveIntervalRef = useRef(null);
   const hourlyIntervalRef = useRef(null);
 
@@ -206,11 +224,23 @@ export default function WeatherAlert() {
 
   const loadInsight = async () => {
     const pos = await getPosition();
-    const [forecast, region] = await Promise.all([
-      fetchTodayForecast(pos.lat, pos.lon),
-      reverseGeocode(pos.lat, pos.lon),
-    ]);
-    setInsight(buildClimateInsightFromForecast(forecast, region));
+    const region = await reverseGeocode(pos.lat, pos.lon).catch(() => "현재 위치");
+
+    try {
+      const forecast = await fetchTodayForecast(pos.lat, pos.lon);
+      setInsight(buildClimateInsightFromForecast(forecast, region));
+    } catch {
+      setInsight({
+        ...DEFAULT_CLIMATE_INSIGHT,
+        region,
+        title: "기상청 응답을 기다리고 있습니다",
+        tips: [
+          "현재 위치는 확인했지만 기상청 API 응답이 지연되고 있습니다.",
+          "잠시 후 자동으로 다시 확인합니다.",
+          "발표 전에는 무리한 외출보다 날씨를 한 번 더 확인해주세요.",
+        ],
+      });
+    }
   };
 
   const loadEnvironmentAlerts = async () => {

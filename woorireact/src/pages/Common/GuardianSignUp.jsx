@@ -18,7 +18,6 @@ const defaultForm = {
 export default function GuardianSignUp() {
   const navigate = useNavigate();
   const [form, setForm] = useState(defaultForm);
-  const [error, setError] = useState("");
   const [seniorResults, setSeniorResults] = useState([]);
   const [selectedSenior, setSelectedSenior] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -56,7 +55,6 @@ export default function GuardianSignUp() {
     }
 
     try {
-      setError("");
       setIsSearching(true);
 
       const response = await fetch(
@@ -69,11 +67,11 @@ export default function GuardianSignUp() {
       setSeniorResults(results);
 
       if (!response.ok || results.length === 0) {
-        setError("검색된 사용자가 없습니다. 사용자 회원가입을 먼저 완료해주세요.");
+        alert("검색된 사용자가 없습니다. 사용자 회원가입을 먼저 완료해주세요.");
       }
     } catch (searchError) {
       console.error("사용자 검색 실패:", searchError);
-      setError("사용자 검색에 실패했습니다.");
+      alert("사용자 검색에 실패했습니다.");
     } finally {
       setIsSearching(false);
     }
@@ -82,7 +80,6 @@ export default function GuardianSignUp() {
   const selectSenior = (profile) => {
     setSelectedSenior(profile);
     set("selectedSeniorId", profile?.senior?.id || "");
-    setError("");
   };
 
   const handleSubmit = async () => {
@@ -95,7 +92,6 @@ export default function GuardianSignUp() {
 
     try {
       setSaving(true);
-      setError("");
 
       const response = await fetch("http://localhost:8080/api/guardians/signup", {
         method: "POST",
@@ -144,7 +140,6 @@ export default function GuardianSignUp() {
       </nav>
 
       <div className="su-layout">
-        {error && <div className="su-error">⚠️ {error}</div>}
 
         <section className="su-section">
           <div className="su-section-title">보호자 회원가입</div>

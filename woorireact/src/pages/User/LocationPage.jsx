@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 
@@ -69,21 +69,31 @@ export default function LocationPage() {
   const [coords, setCoords] = useState(null);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [historyByDate, setHistoryByDate] = useState({});
+  const [focusedSafeZone, setFocusedSafeZone] = useState(null);
   const lastSavedLocationRef = useRef(null);
 
+  const safeZoneDistances = useMemo(() => {
+    if (!currentPos) return [];
+
+    const zones = safeZones.length > 0 ? safeZones : [safeZone];
+    return zones
+      .filter((zone) => zone?.centerLatitude != null && zone?.centerLongitude != null)
+      .map((zone) => ({
+        zone,
+        distance: getDistanceMeters(
+          { lat: zone.centerLatitude, lng: zone.centerLongitude },
+          { lat: currentPos[0], lng: currentPos[1] }
+        ),
+      }))
+      .sort((first, second) => first.distance - second.distance);
+  }, [currentPos, safeZone, safeZones]);
+
+  const nearestSafeZoneDistance = safeZoneDistances[0] || null;
   const isInRange = currentPos
-    ? getDistanceMeters(
-        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-        { lat: currentPos[0], lng: currentPos[1] }
-      ) <= safeZone.radiusMeters
+    ? safeZoneDistances.some(({ zone, distance: zoneDistance }) => zoneDistance <= zone.radiusMeters)
     : true;
 
-  const distance = currentPos
-    ? Math.round(getDistanceMeters(
-        { lat: safeZone.centerLatitude, lng: safeZone.centerLongitude },
-        { lat: currentPos[0], lng: currentPos[1] }
-      ))
-    : 0;
+  const distance = nearestSafeZoneDistance ? Math.round(nearestSafeZoneDistance.distance) : 0;
 
   const saveCurrentLocation = async ({ lat, lon, nextAddress, accuracy }) => {
     const seniorId = getCurrentSeniorId();
@@ -96,7 +106,7 @@ export default function LocationPage() {
 
     if (movedMeters < 50) return;
 
-    await fetch("http://localhost:8080/api/locations", {
+    await fetch("/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -115,7 +125,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/locations/senior/${seniorId}/date?date=${date}`);
+      const response = await fetch(`/api/locations/senior/${seniorId}/date?date=${date}`);
       const data = response.ok ? await response.json() : [];
       const list = Array.isArray(data) ? data : [];
       setHistoryByDate(prev => ({
@@ -131,7 +141,7 @@ export default function LocationPage() {
     const seniorId = getCurrentSeniorId();
     if (!seniorId) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
+      const response = await fetch(`/api/safe-zones/senior/${seniorId}?t=${Date.now()}`, {
         cache: "no-store",
       });
       if (!response.ok || response.status === 204) return;
@@ -176,9 +186,20 @@ export default function LocationPage() {
   }, [currentPos, safeZones]);
 
   const updateLocation = useCallback(async (lat, lon, accuracy) => {
+  const previous = lastSavedLocationRef.current;
+  const movedMeters = previous
+    ? getDistanceMeters({ lat: previous.lat, lng: previous.lon }, { lat, lng: lon })
+    : Infinity;
+
+  setLastUpdate(getNow());
+
+  if (previous && movedMeters < 35) {
+    setLoading(false);
+    return;
+  }
+
   setCurrentPos([lat, lon]);
   setCoords({ lat: lat.toFixed(5), lon: lon.toFixed(5) });
-  setLastUpdate(getNow());
 
   const nextAddress = await getAddress(lat, lon);
   setAddress(nextAddress);
@@ -187,6 +208,8 @@ export default function LocationPage() {
     await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
     await loadLocationHistory(todayStr());
   } catch {}
+
+  lastSavedLocationRef.current = { lat, lon };
 
   setLoading(false);
 }, [loadLocationHistory]);
@@ -233,6 +256,10 @@ export default function LocationPage() {
         { lat: currentPos[0], lng: currentPos[1] },
       ]
     : [];
+  const mapFocusLocation = focusedSafeZone
+    ? { lat: focusedSafeZone.centerLatitude, lng: focusedSafeZone.centerLongitude }
+    : null;
+  const displayedMapCenter = mapFocusLocation || mapCenter;
 
   return (
     <div className="lp-root">
@@ -279,16 +306,21 @@ export default function LocationPage() {
             )}
             {!loading && (
               <KakaoMap
-                center={mapCenter}
+                center={displayedMapCenter}
                 zoom={4}
                 className="lp-map"
                 style={{ zIndex: 0 }}
                 safeZone={safeZone}
+                safeZones={safeZones}
                 currentLocation={currentLocationMarker}
                 currentLabel={currentPos ? `현재 위치<br />${address}<br />안전 반경까지 ${distance}m` : "현재 위치"}
                 safeZoneLabel={`${safeZone.name} 안전 반경 중심`}
                 route={routeToCurrentLocation}
-                showRoute={currentPos !== null}
+                showRoute={false}
+                autoFit={false}
+                focusLocation={mapFocusLocation}
+                focusKey={focusedSafeZone ? `${focusedSafeZone.id || focusedSafeZone.name}` : ""}
+                focusLevel={3}
                 fallback={
                   <div className="lp-map-placeholder">
                     <div className="lp-map-placeholder-icon">🗺️</div>
@@ -418,10 +450,14 @@ export default function LocationPage() {
           {/* 안전 반경 */}
           <div className="lp-range-card">
             <div className="lp-card-title"><span>안전 반경 설정</span></div>
-            <div className="lp-safe-zone-place">
+            <button
+              type="button"
+              className="lp-safe-zone-place"
+              onClick={() => setFocusedSafeZone(safeZone)}
+            >
               <strong>{safeZone.name}</strong>
               <span>{safeZone.address}</span>
-            </div>
+            </button>
             <div className="lp-range-main">
               <div>
                 <div className="lp-range-val">{safeZone.radiusMeters}</div>
@@ -437,10 +473,20 @@ export default function LocationPage() {
             {safeZones.length > 1 && (
               <div className="lp-safe-zone-list">
                 {safeZones.map((zone) => (
-                  <div className={`lp-safe-zone-item ${zone.id === safeZone.id ? "active" : ""}`} key={zone.id || zone.name}>
+                  <button
+                    type="button"
+                    className={`lp-safe-zone-item ${
+                      (zone.id && safeZone.id && String(zone.id) === String(safeZone.id)) || zone === safeZone ? "active" : ""
+                    }`}
+                    key={zone.id || zone.name}
+                    onClick={() => {
+                      setSafeZone(zone);
+                      setFocusedSafeZone(zone);
+                    }}
+                  >
                     <strong>{zone.name}</strong>
                     <span>{zone.address}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

@@ -1,0 +1,245 @@
+{
+  "main": {
+    "id": "0c003a5da3ca3fb3",
+    "type": "split",
+    "children": [
+      {
+        "id": "af0fca0a6fd662c1",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c7fbaf002ec722fb",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "복지정책/차상위본인부담경감.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "차상위본인부담경감"
+            }
+          },
+          {
+            "id": "e7ae56eefd34f9e5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "RAG메모/플랜.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "플랜"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "374b1f24f1ea985e",
+    "type": "split",
+    "children": [
+      {
+        "id": "17ef28773a7e2d05",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d9374dae41fdf951",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "2cc4789c3a88b783",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "49fedc3d0ffb8cba",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 266.49999618530273
+  },
+  "right": {
+    "id": "277221a58f061283",
+    "type": "split",
+    "children": [
+      {
+        "id": "c8e3a0d704b5a890",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d4f017df4c6ed06e",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "RAG메모/플랜.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "플랜 의 백링크"
+            }
+          },
+          {
+            "id": "212287024026f784",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "복지정책/치매안심센터.md.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "치매안심센터.md 의 나가는 링크"
+            }
+          },
+          {
+            "id": "0a3d91dd857f721c",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "6b676704d38a40a2",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "d953bd089bf49cc6",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "RAG메모/플랜.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "플랜 의 개요"
+            }
+          },
+          {
+            "id": "9418bd8bfc4eb08d",
+            "type": "leaf",
+            "state": {
+              "type": "file-properties",
+              "state": {
+                "file": "RAG메모/플랜.md"
+              },
+              "icon": "lucide-info",
+              "title": "플랜 의 파일 속성"
+            }
+          }
+        ],
+        "currentTab": 3
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "e7ae56eefd34f9e5",
+  "lastOpenFiles": [
+    "복지정책/한부모가족지원.md",
+    "RAG메모/플랜.md",
+    "복지정책/평생교육이용권.md",
+    "복지정책/치아관리비용지원.md",
+    "복지정책/치매안심센터.md",
+    "복지정책/취약지역_어르신문화누림.md",
+    "복지정책/차상위본인부담경감.md",
+    "복지정책/지역사회통합돌봄.md",
+    "복지정책/주거급여.md",
+    "복지정책/정신건강심리상담바우처.md",
+    "복지정책/재난적의료비지원.md",
+    "복지정책/재가노인지원서비스.md",
+    "복지정책/장애인활동지원.md",
+    "복지정책/장애인일자리.md",
+    "복지정책/장애인연금.md",
+    "복지정책/장애아동수당.md",
+    "복지정책/장애아가족양육지원.md",
+    "복지정책/장애수당.md",
+    "복지정책/장기요양보험.md",
+    "복지정책/의료급여.md",
+    "복지정책/응급안전안심서비스.md",
+    "복지정책/에너지바우처.md",
+    "복지정책/언어발달지원사업.md",
+    "복지정책/어르신요금감면.md",
+    "복지정책/어르신국가예방접종지원.md",
+    "복지정책/방문건강관리사업.md",
+    "RAG메모",
+    "복지정책"
+  ]
+}

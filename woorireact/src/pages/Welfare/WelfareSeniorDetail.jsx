@@ -1,17 +1,20 @@
 import { Link, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
+import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
+
 import {
     normalizeSenior,
     applySavedWelfareDecision,
     formatAgeGender,
     formatGps,
 } from "../../utils/welfare/welfareSenior";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     fetchWelfareSeniorDetail,
     requestGuardianConsultation,
     fetchSeniorAlerts,
+    requestSeniorInfoUpdate,
 } from "../../api/welfareDashboardApi";
 import KakaoMap from "../../components/KakaoMap";
 
@@ -34,6 +37,49 @@ const getSavedCounselingRecords = () => {
 };
 
 const findWelfareDemoCounselingRecords = () => [];
+
+const INFO_UPDATE_REQUEST_GROUPS = [
+    {
+        key: "personal",
+        label: "인적사항",
+        fields: ["이름", "생년월일", "성별", "연락처", "주소"],
+    },
+    {
+        key: "body",
+        label: "신체정보",
+        fields: ["키", "몸무게", "흡연 여부", "음주 여부", "알레르기 정보"],
+    },
+    {
+        key: "medication",
+        label: "복약정보",
+        fields: ["복용 약", "복용 시작일", "복용 간격", "하루 복용 횟수"],
+    },
+    {
+        key: "chronic",
+        label: "만성질환",
+        fields: ["당뇨", "고혈압", "심장질환", "관절질환", "수술 이력"],
+    },
+    {
+        key: "mobility",
+        label: "거동/인지/감각",
+        fields: ["보행", "기억/판단", "시력", "청력", "최근 낙상 경험"],
+    },
+    {
+        key: "welfare",
+        label: "복지정보",
+        fields: ["소득 구분", "가구 형태", "현재 받고 있는 복지 혜택", "복지 참고사항"],
+    },
+    {
+        key: "activity",
+        label: "활동 조건",
+        fields: ["하루 최대 활동 시간", "이동 가능 거리", "쉬는 시간", "하기 어려운 작업"],
+    },
+    {
+        key: "job",
+        label: "일자리 희망조건",
+        fields: ["희망 급여", "희망 요일", "희망 직종", "희망 근무 형태"],
+    },
+];
 
 const saveWelfareDecision = (seniorId, decision, reason) => {
     const savedDecisionDetails = JSON.parse(localStorage.getItem("welfareDecisionDetails") || "{}");
@@ -162,23 +208,21 @@ function WelfareSeniorDetail() {
     const [draftCounselingMemo, setDraftCounselingMemo] = useState("");
     const [isMemoEditing, setIsMemoEditing] = useState(false);
     const [memoStatusMessage, setMemoStatusMessage] = useState("");
-    const [draftDecision, setDraftDecision] = useState("미검토");
-    const [draftRejectionReason, setDraftRejectionReason] = useState("");
-    const [decisionStatusMessage, setDecisionStatusMessage] = useState("");
     const [isSendingConsultRequest, setIsSendingConsultRequest] = useState(false);
     const [consultRequestStatusMessage, setConsultRequestStatusMessage] = useState("");
     const [isConsultRequestModalOpen, setIsConsultRequestModalOpen] = useState(false);
     const [consultRequestMemo, setConsultRequestMemo] = useState("");
     const [seniorAlerts, setSeniorAlerts] = useState([]);
+    const [isInfoRequestModalOpen, setIsInfoRequestModalOpen] = useState(false);
+    const [selectedInfoRequestKeys, setSelectedInfoRequestKeys] = useState([]);
+    const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
+    const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
     
-    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "일자리 요청 상태", "전화 및 상담기록"];
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "전화 및 상담기록"];
     const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
     
-    const requestedCategory = location.state?.category === "복지사 소견"
-        ? "일자리 요청 상태"
-        : location.state?.category;
-    const initialCategory = CATEGORY_LIST.includes(requestedCategory)
-        ? requestedCategory
+    const initialCategory = CATEGORY_LIST.includes(location.state?.category)
+        ? location.state.category
         : "기본 정보";
     const [activeCategory, setActiveCategory] = useState(initialCategory);
     const [activeHealthCategory, setActiveHealthCategory] = useState("신체 정보");
@@ -198,9 +242,6 @@ function WelfareSeniorDetail() {
         const firstRecord = sortedRecords.find((record) => record.date === firstDate);
 
         setSenior(nextSenior);
-        setDraftDecision(nextSenior.welfareDecision || "미검토");
-        setDraftRejectionReason(nextSenior.welfareDecisionReason || "");
-        setDecisionStatusMessage("");
         setCounselingRecords(sortedRecords);
         setSelectedCounselingDate(firstDate);
         setDraftCounselingMemo(firstRecord?.content || "");
@@ -438,62 +479,6 @@ function WelfareSeniorDetail() {
         setMemoStatusMessage("");
     };
 
-    async function handleDecisionSave() {
-        const reason = draftDecision === "부적합" ? draftRejectionReason.trim() : "";
-
-        if (draftDecision === "부적합" && !reason) {
-            setDecisionStatusMessage("부적합일 경우 사유를 입력해주세요.");
-            return;
-        }
-
-        try {
-            setDecisionStatusMessage("");
-
-            const response = await fetch(`/api/seniors/${id}/decision`, {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    decision: draftDecision,
-                    reason,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to update decision");
-            }
-
-            const updatedData = await response.json();
-            const updatedSenior = mapSeniorProfileResponse(updatedData);
-            saveWelfareDecision(id, draftDecision, reason);
-            setSenior(applySavedWelfareDecision({
-                ...updatedSenior,
-                jobMatchingStatus: draftDecision,
-                welfareDecision: draftDecision,
-                welfareDecisionReason: reason,
-            }));
-        } catch {
-            saveWelfareDecision(id, draftDecision, reason);
-            setSenior((currentSenior) => (
-                currentSenior
-                    ? applySavedWelfareDecision({
-                        ...currentSenior,
-                        jobMatchingStatus: draftDecision,
-                        welfareDecision: draftDecision,
-                        welfareDecisionReason: reason,
-                    })
-                    : currentSenior
-            ));
-        }
-
-        setDecisionStatusMessage(
-            draftDecision === "부적합"
-                ? "부적합 사유가 일자리 요청 상태에 반영되었습니다."
-                : "판정 정보가 일자리 요청 상태에 저장되었습니다."
-        );
-    }
-
     function getDetail(target) {
         if (!target) {
             return {};
@@ -574,6 +559,49 @@ function WelfareSeniorDetail() {
             setConsultRequestStatusMessage("상담 요청 전송에 실패했습니다.");
         } finally {
             setIsSendingConsultRequest(false);
+        }
+    };
+
+    const toggleInfoRequestKey = (key) => {
+        setSelectedInfoRequestKeys((previousKeys) =>
+            previousKeys.includes(key)
+                ? previousKeys.filter((item) => item !== key)
+                : [...previousKeys, key]
+        );
+    };
+
+    const handleInfoUpdateRequest = async () => {
+        if (!senior?.id || selectedInfoRequestKeys.length === 0) {
+            setInfoRequestStatusMessage("수정을 요청할 항목을 하나 이상 선택해주세요.");
+            return;
+        }
+
+        const selectedLabels = INFO_UPDATE_REQUEST_GROUPS
+            .filter((group) => selectedInfoRequestKeys.includes(group.key))
+            .map((group) => group.label);
+
+        const confirmed = window.confirm(`${senior.name}님에게 ${selectedLabels.join(", ")} 정보수정 요청을 보내겠습니까?`);
+        if (!confirmed) return;
+
+        try {
+            setIsSendingInfoRequest(true);
+            setInfoRequestStatusMessage("");
+
+            await requestSeniorInfoUpdate({
+                seniorId: senior.id,
+                missingFields: selectedLabels,
+                toSenior: true,
+                toGuardian: false,
+            });
+
+            setInfoRequestStatusMessage("사용자에게 정보수정 요청을 보냈습니다.");
+            setSelectedInfoRequestKeys([]);
+            setIsInfoRequestModalOpen(false);
+        } catch (error) {
+            console.error("정보수정 요청 전송 실패:", error);
+            setInfoRequestStatusMessage("정보수정 요청 전송에 실패했습니다.");
+        } finally {
+            setIsSendingInfoRequest(false);
         }
     };
 
@@ -864,74 +892,18 @@ function WelfareSeniorDetail() {
         </section>
     );
 
-    const renderJobRequestInfo = () => (
-        <section className="wsd-detail-section">
-            <h2 className="wsd-section-title">일자리 요청 상태</h2>
-
-            {renderFields([
-                { label: "요청 건수", value: senior.jobRequestStatus },
-                { label: "검토 여부", value: senior.workRequestStatus },
-                { label: "적합 여부", value: senior.welfareDecision },
-                { label: "부적합 사유", value: senior.welfareDecisionReason || "등록된 사유 없음", wide: true },
-            ])}
-
-            <div className="wsd-decision-option-row">
-                {["적합", "보류", "부적합"].map((decision) => (
-                    <button
-                        type="button"
-                        key={decision}
-                        className={getDecisionButtonClass(decision)}
-                        onClick={() => setDraftDecision(decision)}
-                    >
-                        {decision}
-                    </button>
-                ))}
-            </div>
-
-            {draftDecision === "부적합" && (
-                <textarea
-                    value={draftRejectionReason}
-                    onChange={(event) => setDraftRejectionReason(event.target.value)}
-                    className="wsd-reason-textarea"
-                    placeholder="부적합 사유를 입력해주세요."
-                />
-            )}
-
-            <div className="wsd-memo-action-row">
-                <button
-                    type="button"
-                    className="wsd-small-button"
-                    onClick={handleDecisionSave}
-                >
-                    판정 저장
-                </button>
-            </div>
-
-            {decisionStatusMessage && (
-                <p className="wsd-status-message">{decisionStatusMessage}</p>
-            )}
-        </section>
-    );
-
     const renderActiveSection = () => {
         if (activeCategory === "기본 정보") return renderBasicInfo();
         if (activeCategory === "보호자 정보") return renderGuardianInfo();
         if (activeCategory === "건강 정보") return renderHealthInfo();
         if (activeCategory === "안심구역 관리") return renderSafeZoneInfo();
-        if (activeCategory === "일자리 요청 상태") return renderJobRequestInfo();
 
         return null;
     };
 
     return (
         <div className="wsd-page">
-            <header className="wsd-header">
-                <div className="wsd-brand-area">
-                    <Link to="/welfare" className="wsd-service-name">우리 woori</Link>
-                </div>
-
-                <div className="wsd-header-title">대상자 상세정보</div>
-            </header>
+            <WelfareCommonHeader rightText="대상자 상세정보" />
 
             <main className="wsd-content">
                 <div className="wsd-detail-header">
@@ -961,6 +933,16 @@ function WelfareSeniorDetail() {
                             <span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span>
                             <span className={getBadgeClass("alert", senior.alertStatus)}>{senior.alertStatus}</span>
                             <span className={getBadgeClass("decision", senior.welfareDecision)}>{senior.welfareDecision}</span>
+                            <button
+                                type="button"
+                                className="wsd-small-button"
+                                onClick={() => {
+                                    setInfoRequestStatusMessage("");
+                                    setIsInfoRequestModalOpen(true);
+                                }}
+                            >
+                                정보수정 요청
+                            </button>
                         </div>
 
                         <div className="wsd-category-layout">
@@ -1100,6 +1082,69 @@ function WelfareSeniorDetail() {
                 )}
             </main>
 
+            {isInfoRequestModalOpen && (
+                <div className="wsd-consult-modal-backdrop">
+                    <section className="wsd-consult-modal wsd-info-request-modal">
+                        <div className="wsd-consult-modal-header">
+                            <h3>정보수정 요청</h3>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsInfoRequestModalOpen(false)}
+                                disabled={isSendingInfoRequest}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        <div className="wsd-consult-modal-body">
+                            <div className="wsd-consult-modal-summary">
+                                <span>대상자</span>
+                                <strong>{senior.name}</strong>
+                                <small>{[formatAgeGender(senior), detail.address].filter(Boolean).join(" · ")}</small>
+                            </div>
+
+                            <div className="wsd-info-request-list">
+                                {INFO_UPDATE_REQUEST_GROUPS.map((group) => (
+                                    <label className="wsd-info-request-option" key={group.key}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedInfoRequestKeys.includes(group.key)}
+                                            onChange={() => toggleInfoRequestKey(group.key)}
+                                        />
+                                        <span>
+                                            <strong>{group.label}</strong>
+                                            <small>{group.fields.join(", ")}</small>
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+
+                            {infoRequestStatusMessage && (
+                                <p className="wsd-status-message">{infoRequestStatusMessage}</p>
+                            )}
+                        </div>
+
+                        <div className="wsd-consult-modal-actions">
+                            <button
+                                type="button"
+                                onClick={() => setIsInfoRequestModalOpen(false)}
+                                disabled={isSendingInfoRequest}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleInfoUpdateRequest}
+                                disabled={isSendingInfoRequest || selectedInfoRequestKeys.length === 0}
+                            >
+                                요청 보내기
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
             {isConsultRequestModalOpen && (
                 <div className="wsd-consult-modal-backdrop">
                     <section className="wsd-consult-modal">
@@ -1159,7 +1204,7 @@ function WelfareSeniorDetail() {
                 </div>
             )}
 
-            <WelfarePolicyQaButton senior={senior} />
+            <WelfarePolicyChatButton senior={senior} />
         </div>
     );
 }

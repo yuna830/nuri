@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "";
 const POLICE_API_BASE_URL = "http://localhost:8181";
 
 async function request(baseUrl, path, options = {}) {

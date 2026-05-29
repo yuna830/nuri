@@ -73,6 +73,28 @@
   transform: scale(1.03);
 }
 
+.common-app-header .common-app-soft-button {
+  min-height: 40px;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  padding: 0 1rem;
+  background: #ffffff;
+  color: #48694b;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.common-app-header .common-app-soft-button:hover {
+  border-color: #86a788;
+  background: #eef6ef;
+}
+
 .common-app-header .common-app-icon-button {
   position: relative;
   width: 40px;
@@ -152,8 +174,8 @@
 
 .uch-alert-item.common-alert-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: flex-start;
   gap: 0.85rem;
 }
 
@@ -162,8 +184,22 @@
 }
 
 .uch-alert-item.common-alert-item .uch-alert-content {
+  grid-column: 2;
   width: 100%;
   min-width: 0;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-select {
+  grid-column: 1;
+  align-self: flex-start;
+  margin-top: 0.4rem;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-action {
+  grid-column: 3;
+  align-self: center;
+  justify-self: end;
+  min-width: 82px;
 }
 
 .uch-alert-item.common-alert-item .uch-alert-meta span {

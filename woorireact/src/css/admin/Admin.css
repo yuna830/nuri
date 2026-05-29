@@ -126,12 +126,31 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  text-decoration: none;
+}
+
+.admin-summary-card.clickable {
+  cursor: pointer;
+}
+
+.admin-summary-card.clickable:hover {
+  border-color: #86a788;
+  background: #fbfdfb;
 }
 
 .admin-summary-card span {
   display: block;
   color: #65746a;
   font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-summary-card em {
+  display: block;
+  margin-top: 7px;
+  color: #7b857d;
+  font-size: 11px;
+  font-style: normal;
   font-weight: 800;
 }
 
@@ -160,6 +179,31 @@
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.admin-filter-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-filter-tab {
+  min-height: 36px;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4f6254;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-filter-tab:hover,
+.admin-filter-tab.active {
+  border-color: #86a788;
+  background: #edf5ee;
+  color: #3e6343;
 }
 
 .admin-search {
@@ -220,6 +264,14 @@
   background: #f7faf7;
 }
 
+.admin-inactive-row {
+  background: #fff7f7;
+}
+
+.admin-inactive-row td {
+  color: #8a3434;
+}
+
 .admin-name-cell {
   font-weight: 900;
   color: #19251d;
@@ -248,8 +300,8 @@
 }
 
 .admin-badge.inactive {
-  background: #eeeeee;
-  color: #626262;
+  background: #ffe3e3;
+  color: #b32626;
 }
 
 .admin-badge.warning {
@@ -278,6 +330,15 @@
   background: #edf5ee;
 }
 
+.admin-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-button:disabled:hover {
+  background: #ffffff;
+}
+
 .admin-button.primary {
   border-color: #86a788;
   background: #86a788;
@@ -286,6 +347,10 @@
 
 .admin-button.primary:hover {
   background: #78997b;
+}
+
+.admin-button.primary:disabled:hover {
+  background: #86a788;
 }
 
 .admin-detail-grid {
@@ -356,6 +421,20 @@
   margin-top: 14px;
   display: flex;
   gap: 8px;
+}
+
+.admin-action-message {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-action-message.success {
+  color: #2f7d38;
+}
+
+.admin-action-message.error {
+  color: #c62828;
 }
 
 .admin-select {

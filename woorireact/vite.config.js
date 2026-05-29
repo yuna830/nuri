@@ -5,7 +5,6 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const kakaoRestApiKey = (env.VITE_KAKAO_REST_API_KEY || '').trim()
-  const apiProxyTarget = (env.VITE_API_PROXY_TARGET || 'http://localhost:8080').trim()
 
   return {
   plugins: [
@@ -28,7 +27,11 @@ export default defineConfig(({ mode }) => {
         secure: false,
       },
       '/api': {
-        target: apiProxyTarget,
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
       '/senuri': {

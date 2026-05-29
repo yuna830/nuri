@@ -51,8 +51,16 @@ const isWithinDays = (value, days) => {
 
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
   const today = new Date();
+  const seenIds = new Set();
 
   return apiAlerts
+    .filter((alert) => {
+      if (!alert.id) return true;
+      const key = String(alert.id);
+      if (seenIds.has(key)) return false;
+      seenIds.add(key);
+      return true;
+    })
     .filter((alert) => {
       if (!alert.createdAt) return false;
 

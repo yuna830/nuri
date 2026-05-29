@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Repeat2 } from "lucide-react";
 
@@ -11,25 +11,55 @@ function AdminSeniorDetail() {
   const { seniors, welfareWorkers, welfareById, guardianById, isLoading, loadError } = useAdminData();
   const senior = useMemo(() => seniors.find((item) => String(item.id) === String(id)), [id, seniors]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [localWorkerId, setLocalWorkerId] = useState(null);
+  const [localWorkerId, setLocalWorkerId] = useState(undefined);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
 
   const displayedSenior = senior
     ? {
         ...senior,
-        welfareId: localWorkerId ?? senior.welfareId,
-        welfareWorker: localWorkerId ? null : senior.welfareWorker,
+        welfareId: localWorkerId !== undefined ? localWorkerId : senior.welfareId,
+        welfareWorker: localWorkerId !== undefined ? null : senior.welfareWorker,
       }
     : null;
 
   const worker = getSeniorWelfareWorker(displayedSenior, welfareById);
   const guardians = getSeniorGuardians(displayedSenior, guardianById);
+  const currentWorkerId = displayedSenior?.welfareId ? String(displayedSenior.welfareId) : "";
+  const hasSelectionChanged = selectedWorkerId !== currentWorkerId;
+  const actionLabel = selectedWorkerId ? "\uc7ac\ubc30\uc815" : worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\uc7ac\ubc30\uc815";
+
+  useEffect(() => {
+    if (!displayedSenior) return;
+
+    setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
+  }, [displayedSenior?.id, displayedSenior?.welfareId]);
 
   const handleReassign = async () => {
-    if (!selectedWorkerId || !displayedSenior) return;
+    if (!displayedSenior || !hasSelectionChanged) return;
 
-    await updateSeniorWelfareWorker(displayedSenior.id, selectedWorkerId);
-    setLocalWorkerId(Number(selectedWorkerId));
-    window.alert("\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.");
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const updatedSenior = await updateSeniorWelfareWorker(displayedSenior.id, selectedWorkerId);
+      setLocalWorkerId(updatedSenior.welfareId ?? null);
+      setSaveMessage({
+        type: "success",
+        text: selectedWorkerId
+          ? "\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4."
+          : "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ud574\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: selectedWorkerId
+          ? "\uc7ac\ubc30\uc815 \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4."
+          : "\ub2f4\ub2f9 \ud574\uc81c\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -77,7 +107,7 @@ function AdminSeniorDetail() {
             {worker ? (
               <div className="admin-linked-item">
                 <strong>{worker.name}</strong>
-                <span>{`${worker.center} · ${worker.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
+                <span>{`${worker.center || "-"} / ${worker.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
               </div>
             ) : (
               <p className="admin-empty">{"\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ubc30\uc815\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4."}</p>
@@ -87,21 +117,32 @@ function AdminSeniorDetail() {
               <select
                 className="admin-select"
                 value={selectedWorkerId}
-                onChange={(event) => setSelectedWorkerId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedWorkerId(event.target.value);
+                  setSaveMessage(null);
+                }}
                 aria-label="\uc7ac\ubc30\uc815\ud560 \ubcf5\uc9c0\uc0ac"
               >
-                <option value="">{"\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
+                <option value="">{worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
                 {welfareWorkers.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {`${item.name} · ${item.center}`}
+                    {`${item.name} / ${item.center || "-"}${item.active ? "" : " / \ube44\ud65c\uc131"}`}
                   </option>
                 ))}
               </select>
-              <button type="button" className="admin-button primary" onClick={handleReassign}>
+              <button
+                type="button"
+                className="admin-button primary"
+                onClick={handleReassign}
+                disabled={!hasSelectionChanged || isSaving}
+              >
                 <Repeat2 size={16} />
-                {"\uc7ac\ubc30\uc815"}
+                {isSaving ? "\uc800\uc7a5 \uc911" : actionLabel}
               </button>
             </div>
+            {saveMessage ? (
+              <p className={`admin-action-message ${saveMessage.type}`}>{saveMessage.text}</p>
+            ) : null}
           </section>
 
           <section className="admin-panel">
@@ -113,7 +154,7 @@ function AdminSeniorDetail() {
                 guardians.map((guardian) => (
                   <div key={guardian.id} className="admin-linked-item">
                     <strong>{guardian.name}</strong>
-                    <span>{`${guardian.relation || "\uad00\uacc4 \ubbf8\ub4f1\ub85d"} · ${guardian.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
+                    <span>{`${guardian.relation || "\uad00\uacc4 \ubbf8\ub4f1\ub85d"} / ${guardian.phone || "\uc5f0\ub77d\ucc98 \uc5c6\uc74c"}`}</span>
                   </div>
                 ))
               )}

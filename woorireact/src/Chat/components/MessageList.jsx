@@ -6,7 +6,7 @@ const MessageList = forwardRef(function MessageList(
 ) {
   return (
     <div className="chatbot-messages" aria-live="polite">
-      {messages.map((message, index) => (
+      {messages.filter((message) => !message.hidden).map((message, index) => (
         <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
           {message.imageUrl && (
             <img

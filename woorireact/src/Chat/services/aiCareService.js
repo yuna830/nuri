@@ -65,9 +65,14 @@ export async function createCareResponse({ text, schedules, history = [], profil
   }
 
   try {
+    const latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
+    const foodIngredientAnswer = answerFoodIngredientQuestion(text, latestFoodAnalysisMemory);
+    if (foodIngredientAnswer) return foodIngredientAnswer;
+
     const content = await askGemini([
       { role: "system", content: CARE_ASSISTANT_SYSTEM_PROMPT },
       ...(profileContext ? [{ role: "system", content: buildProfileContextPrompt(profileContext) }] : []),
+      ...(latestFoodAnalysisMemory ? [{ role: "system", content: buildFoodAnalysisContextPrompt(latestFoodAnalysisMemory) }] : []),
       ...toRecentAiMessages(history),
       { role: "user", content: text },
     ], {
@@ -85,6 +90,9 @@ export async function createCareResponse({ text, schedules, history = [], profil
     }
     if (error.status === 429) {
       return "Gemini 요청 한도에 걸렸어요. 잠시 후 다시 말씀해 주세요.";
+    }
+    if (error.status === 403) {
+      return "Gemini API 키가 차단됐어요. 새 키로 교체한 뒤 개발 서버를 다시 시작해 주세요.";
     }
     return "답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.";
   }
@@ -107,6 +115,69 @@ function buildProfileContextPrompt(profileContext) {
 알레르기 성분이 의심되면 먹기 전에 확인하라고 안내한다.
 진단이나 처방처럼 의료 전문가 판단이 필요한 내용은 병원/전문가 확인을 권한다.
 `.trim();
+}
+
+function getLatestFoodAnalysisMemory(history) {
+  return [...history]
+    .reverse()
+    .find((message) => message.hidden && String(message.content || "").includes("[FOOD_ANALYSIS_MEMORY]"))
+    ?.content || "";
+}
+
+function buildFoodAnalysisContextPrompt(memory) {
+  return `
+Recent food-label analysis context:
+${memory}
+
+Rules for follow-up answers about this food:
+- User registered allergies are personal health data, not food ingredients.
+- Only say an ingredient is in the food when it appears in OCR text, detected allergens, or Personal allergy conflicts found.
+- If Personal allergy conflicts found is "none", do not say the user's allergies are contained in the food.
+- If the user asks whether an allergen is included and OCR is uncertain, say it was not clearly found and recommend checking the ingredients label.
+- Do not use Markdown bold markers like **text** because this chat view displays them as plain text.
+`.trim();
+}
+
+function answerFoodIngredientQuestion(text, memory) {
+  if (!memory) return "";
+
+  const match = text.match(/([가-힣A-Za-z0-9\s]+?)\s*(?:들어\s*있|들었|있어|포함|함유)/);
+  const ingredient = match?.[1]?.trim().replace(/[?!.]/g, "");
+  if (!ingredient || ingredient.length > 20) return "";
+
+  const ocrText = extractFoodMemorySection(memory, "OCR text:");
+  const detectedAllergens = extractFoodMemorySection(memory, "Detected allergens JSON:");
+  const conflicts = extractFoodMemorySection(memory, "Personal allergy conflicts found:");
+  const haystack = normalizeIngredientText([ocrText, detectedAllergens, conflicts].join(" "));
+  const needle = normalizeIngredientText(ingredient);
+
+  if (!needle) return "";
+
+  if (haystack.includes(needle)) {
+    return `네, OCR 원재료명에서 ${ingredient}가 보여요. 다만 사진 인식 결과라서 실제 섭취 전에는 원재료명 부분을 한 번 더 확인해 주세요.`;
+  }
+
+  return `OCR 원문에서는 ${ingredient}가 명확히 확인되지 않았어요. 알레르기나 제한 식품이면 원재료명 부분을 직접 확인하는 것이 안전해요.`;
+}
+
+function extractFoodMemorySection(memory, label) {
+  const startIndex = memory.indexOf(label);
+  if (startIndex < 0) return "";
+
+  const start = startIndex + label.length;
+  const rest = memory.slice(start);
+  const nextLabel = rest.search(/\n(?:Product name|User registered allergies|Personal allergy conflicts found|Nutrients JSON|Detected allergens JSON|Warnings JSON|Assistant visible summary|OCR text|\[\/FOOD_ANALYSIS_MEMORY\])/);
+  return (nextLabel >= 0 ? rest.slice(0, nextLabel) : rest).trim();
+}
+
+function normalizeIngredientText(value) {
+  return String(value || "")
+    .replace(/\s/g, "")
+    .replace(/아모드/g, "아몬드")
+    .replace(/마가다미아/g, "마카다미아")
+    .replace(/키슈너트/g, "캐슈너트")
+    .replace(/피스치오/g, "피스타치오")
+    .replace(/피간/g, "피칸");
 }
 
 async function askGemini(messages, requestConfig = {}) {
@@ -200,6 +271,7 @@ async function requestGemini({ systemText, contents, generationConfig }) {
 function toRecentAiMessages(history) {
   return history
     .filter((message) => message.role === "user" || message.role === "assistant")
+    .filter((message) => !message.hidden)
     .slice(-8)
     .map((message) => ({
       role: message.role,
@@ -242,7 +314,7 @@ function normalizeScheduleIntent(value) {
 }
 
 function normalizeCareResponse(content) {
-  const answer = content?.trim();
+  const answer = content?.trim().replace(/\*\*/g, "");
   if (!answer) return "답변을 만들지 못했어요. 다시 한 번 말씀해 주세요.";
   return answer;
 }

@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell } from "lucide-react";
+import { Bell, MessageCircle } from "lucide-react";
 import {
   getGuardianAlerts,
   readAlert,
@@ -34,8 +34,10 @@ import {
 } from "../../utils/guardian/guardianSafeZone";
 import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
+import { fetchUnreadChatCount } from "../../api/chatApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
+import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
 import EmergencyPanel from "./EmergencyPanel";
@@ -248,6 +250,9 @@ function GuardianPage() {
       },
     ],
   });
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialRoomType, setChatInitialRoomType] = useState("");
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -255,6 +260,26 @@ function GuardianPage() {
   );
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
+
+  const loadUnreadChatCount = useCallback(async () => {
+    if (!activeElderId) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const count = await fetchUnreadChatCount({
+      viewerRole: "GUARDIAN",
+      seniorId: activeElderId,
+    }).catch(() => 0);
+
+    setUnreadChatCount(count);
+  }, [activeElderId]);
+
+  useEffect(() => {
+    loadUnreadChatCount();
+    const timerId = window.setInterval(loadUnreadChatCount, 5000);
+    return () => window.clearInterval(timerId);
+  }, [loadUnreadChatCount]);
 
   useEffect(() => {
     if (!activeElderId) {
@@ -384,6 +409,27 @@ function GuardianPage() {
     const safeZoneEntries = await Promise.all(
       nextElders.map(async (elder) => [elder.id, await loadSafeZones(elder)])
     );
+
+    const nextSafeZoneForms = Object.fromEntries(safeZoneEntries);
+    setSafeZoneForms(nextSafeZoneForms);
+
+    setSelectedSafeZoneIds((prev) => {
+      const next = { ...prev };
+
+      nextElders.forEach((elder) => {
+        const zones = nextSafeZoneForms[elder.id] || [];
+        const savedId = localStorage.getItem(`guardian-selected-safe-zone:${elder.id}`);
+
+        if (savedId && zones.some((zone) => String(zone.id) === savedId)) {
+          next[elder.id] = savedId;
+          return;
+        }
+
+        next[elder.id] = zones[zones.length - 1]?.id || zones[0]?.id;
+      });
+
+      return next;
+    });
 
     setSafeZoneForms(Object.fromEntries(safeZoneEntries));
 
@@ -686,6 +732,8 @@ function GuardianPage() {
   const handleSelectSafeZoneForm = (safeZoneId) => {
     if (!activeElderId) return;
 
+    localStorage.setItem(`guardian-selected-safe-zone:${activeElderId}`, String(safeZoneId));
+
     setSelectedSafeZoneIds((prev) => ({
       ...prev,
       [activeElderId]: safeZoneId,
@@ -715,27 +763,35 @@ function GuardianPage() {
 
     if (!seniorId) {
       alert("보호 대상자를 먼저 선택해주세요.");
-      return;
+      return false;
     }
 
     try {
+      const currentZones = safeZoneForms[seniorId] ?? getDefaultSafeZones(selectedElder);
+      const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
+
+      if (!exists && currentZones.length >= 3) {
+        alert("안전 반경은 최대 3개까지 등록할 수 있습니다.");
+        return false;
+      }
+
       const savedSafeZone = await saveSafeZone(seniorId, safeZoneForm);
 
       setSafeZoneForms((prev) => {
-        const currentZones = prev[seniorId] ?? getDefaultSafeZones(selectedElder);
-        const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
+        const latestZones = prev[seniorId] ?? getDefaultSafeZones(selectedElder);
+        const hasSameZone = latestZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
 
         return {
           ...prev,
-          [seniorId]: exists
-            ? currentZones.map((zone) =>
-                String(zone.id) === String(safeZoneForm.id)
-                  ? savedSafeZone
-                  : zone
+          [seniorId]: hasSameZone
+            ? latestZones.map((zone) =>
+                String(zone.id) === String(safeZoneForm.id) ? savedSafeZone : zone
               )
-            : [...currentZones, savedSafeZone],
+            : [...latestZones, savedSafeZone],
         };
       });
+
+      localStorage.setItem(`guardian-selected-safe-zone:${seniorId}`, String(savedSafeZone.id));
 
       setSelectedSafeZoneIds((prev) => ({
         ...prev,
@@ -743,9 +799,11 @@ function GuardianPage() {
       }));
 
       alert("안전 반경이 저장되었습니다.");
+      return true;
     } catch (error) {
       console.error("안전 반경 저장 실패:", error);
       alert("안전 반경 저장에 실패했습니다.");
+      return false;
     }
   };
 
@@ -856,6 +914,7 @@ function GuardianPage() {
       });
 
       await reloadGuardianSeniors();
+      setSelectedElderId(seniorId);
 
       setIsAddElderOpen(false);
       setSeniorSearch({ name: "", phone: "" });
@@ -883,9 +942,12 @@ function GuardianPage() {
         return;
       }
 
-      await createAndConnectSenior(guardianId, newSeniorForm);
+      const connectedSenior = await createAndConnectSenior(guardianId, newSeniorForm);
 
       await reloadGuardianSeniors();
+      if (connectedSenior?.seniorId) {
+        setSelectedElderId(connectedSenior.seniorId);
+      }
 
       setIsAddElderOpen(false);
       setNewSeniorForm({
@@ -1037,16 +1099,20 @@ function GuardianPage() {
     }
 
     setCallingAlert(targetAlert);
-    setIsCallResultOpen(true);
 
     if (targetElder?.id) {
-      await createCallRequestAlert({
+      const created = await createCallRequestAlert({
         seniorId: targetElder.id,
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
-      }).catch(() => {});
+      }).catch(() => null);
+
+      if (Array.isArray(created) && created[0]?.id) {
+        knownAlertIdsRef.current.add(String(created[0].id));
+      }
     }
 
+    setIsCallResultOpen(true);
     window.location.href = `tel:${phone}`;
   };
 
@@ -1247,6 +1313,40 @@ function GuardianPage() {
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
         onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+        onOpenChat={() => {
+          setChatInitialRoomType("");
+          setIsChatOpen(true);
+        }}
+        unreadChatCount={unreadChatCount}
+      />
+
+      <TripartiteChatModal
+        isOpen={isChatOpen}
+        seniorId={selectedElder?.id}
+        seniorName={selectedElder?.name || "사용자"}
+        rooms={[
+          {
+            roomType: "SENIOR_GUARDIAN",
+            seniorId: selectedElder?.id,
+            title: selectedElder?.name || "사용자",
+            subtitle: "사용자와 1:1 대화",
+          },
+          {
+            roomType: "GUARDIAN_WELFARE",
+            seniorId: selectedElder?.id,
+            title: "복지사",
+            subtitle: `${selectedElder?.name || "사용자"}님 담당 복지사와 1:1 대화`,
+          },
+        ]}
+        senderRole="GUARDIAN"
+        senderId={guardian?.id || getCurrentGuardianId()}
+        senderName={guardian?.name || "보호자"}
+        initialRoomType={chatInitialRoomType}
+        onReadChange={loadUnreadChatCount}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatInitialRoomType("");
+        }}
       />
 
       <nav className="elder-tabs" aria-label="보호 대상자 목록">
@@ -1310,6 +1410,12 @@ function GuardianPage() {
             setSeniorSearch({ name: "", phone: "" });
             setSeniorSearchResults([]);
             setHasSearchedSenior(false);
+            setNewSeniorForm({
+              name: "",
+              phone: "",
+              region: "",
+              relation: "보호 대상자",
+            });
           }}
         >
           + 보호 대상자 추가
@@ -1353,6 +1459,7 @@ function GuardianPage() {
 
         <LocationPanel
           selectedElder={selectedElder}
+          safeZones={safeZones}
           safeZoneForm={safeZoneForm}
           hasCurrentLocation={hasCurrentLocation}
           location={location}
@@ -1397,6 +1504,14 @@ function GuardianPage() {
           onCloseCallResult={() => {
             setCallingAlert(null);
             setIsCallResultOpen(false);
+          }}
+          onOpenChat={() => {
+            setChatInitialRoomType("GUARDIAN_WELFARE");
+            setIsChatOpen(true);
+          }}
+          onOpenUserChat={() => {
+            setChatInitialRoomType("SENIOR_GUARDIAN");
+            setIsChatOpen(true);
           }}
         />
       </section>
@@ -1452,6 +1567,7 @@ function GuardianPage() {
               <textarea
                 value={medicineMessage}
                 onChange={(event) => setMedicineMessage(event.target.value)}
+                placeholder="여기에 작성하세요"
                 rows={4}
               />
             </label>
@@ -1460,9 +1576,9 @@ function GuardianPage() {
               <button
                 type="button"
                 className="medicine-alert-cancel"
-                onClick={() => setIsMedicineAlertOpen(false)}
+                onClick={() => setMedicineMessage("")}
               >
-                취소
+                다시 쓰기
               </button>
 
               <button
@@ -1621,11 +1737,11 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport }) {
+function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport, onOpenChat, unreadChatCount = 0 }) {
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
     title: alert.message || "보호 대상자 알림",
-    message: alert.time || "",
+    message: "",
     category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
     time: alert.time,
     isRead: alert.status !== "미확인",
@@ -1645,6 +1761,12 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
         }
       }}
       actions={
+        <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
+          <MessageCircle size={19} />
+          {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+        </button>
+      }
+      afterActions={
         <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
           긴급 신고
         </button>

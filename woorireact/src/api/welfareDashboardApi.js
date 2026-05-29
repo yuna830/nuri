@@ -1,7 +1,8 @@
+const WELFARE_API_BASE = "http://localhost:8181";
 const WELFARE_SENIORS_CACHE_KEY = "welfare:seniors";
 const welfareSeniorsCache = new Map();
 
-const makeSeniorCacheKey = ({ page = 0, size = 6 } = {}) => `${page}-${size}`;
+const makeSeniorCacheKey = ({ page = 0, size = 6, welfareWorkerId = "all" } = {}) => `${welfareWorkerId || "all"}-${page}-${size}`;
 
 const readSeniorCacheStore = () => {
     try {
@@ -28,8 +29,8 @@ const saveSeniorCache = (cacheKey, data) => {
     });
 };
 
-export const getCachedWelfareSeniors = ({ page = 0, size = 6 } = {}) => {
-    const cacheKey = makeSeniorCacheKey({ page, size });
+export const getCachedWelfareSeniors = ({ page = 0, size = 6, welfareWorkerId = "all" } = {}) => {
+    const cacheKey = makeSeniorCacheKey({ page, size, welfareWorkerId });
     return welfareSeniorsCache.get(cacheKey) || readSeniorCacheStore()[cacheKey] || null;
 };
 
@@ -53,7 +54,7 @@ export const getCachedWelfareSeniorById = (seniorId) => {
 };
 
 // 복지 대상자 목록 불러오기 API 추가 (페이징 지원)
-export const fetchWelfareSeniors = async ({ page, size } = {}) => {
+export const fetchWelfareSeniors = async ({ page, size, welfareWorkerId } = {}) => {
     const params = new URLSearchParams();
 
     if (page !== undefined) {
@@ -64,12 +65,16 @@ export const fetchWelfareSeniors = async ({ page, size } = {}) => {
         params.set("size", size);
     }
 
+    if (welfareWorkerId !== undefined && welfareWorkerId !== null && welfareWorkerId !== "") {
+        params.set("welfareWorkerId", welfareWorkerId);
+    }
+
     const queryString = params.toString();
-    const cacheKey = makeSeniorCacheKey({ page: page ?? 0, size: size ?? 6 });
+    const cacheKey = makeSeniorCacheKey({ page: page ?? 0, size: size ?? 6, welfareWorkerId: welfareWorkerId ?? "all" });
     const response = await fetch(`/api/seniors/welfare${queryString ? `?${queryString}` : ""}`);
 
     if (!response.ok) {
-        const cached = getCachedWelfareSeniors({ page: page ?? 0, size: size ?? 6 });
+        const cached = getCachedWelfareSeniors({ page: page ?? 0, size: size ?? 6, welfareWorkerId: welfareWorkerId ?? "all" });
         if (cached) return cached;
         throw new Error("Failed to load welfare seniors");
     }
@@ -77,6 +82,37 @@ export const fetchWelfareSeniors = async ({ page, size } = {}) => {
     const data = await response.json();
     saveSeniorCache(cacheKey, data);
     return data;
+};
+
+export const searchSeniorExact = async ({ name, phone }) => {
+    const params = new URLSearchParams({
+        name: name || "",
+        phone: phone || "",
+    });
+    const response = await fetch(`/api/seniors/search-exact?${params.toString()}`);
+
+    if (!response.ok) {
+        return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+};
+
+export const assignWelfareSenior = async ({ seniorId, welfareWorkerId }) => {
+    const response = await fetch(`/api/seniors/${seniorId}/welfare-worker`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ welfareWorkerId }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to assign welfare senior");
+    }
+
+    return response.json();
 };
 
 export const fetchWelfareSeniorDetail = async (seniorId) => {
@@ -109,7 +145,7 @@ export const fetchWelfareSeniorDetail = async (seniorId) => {
 
 // 복지 알림 불러오기 API 추가
 export const fetchWelfareAlerts = async () => {
-    const response = await fetch("/api/alerts/welfare");
+    const response = await fetch(`${WELFARE_API_BASE}/api/alerts/welfare`);
 
     if (!response.ok) {
         return [];

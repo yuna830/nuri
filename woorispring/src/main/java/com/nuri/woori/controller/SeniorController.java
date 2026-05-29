@@ -8,6 +8,7 @@ import com.nuri.woori.controller.SeniorController.FindNameResponse;
 import com.nuri.woori.entity.Guardian;
 import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.LocationStatus;
+import com.nuri.woori.entity.WelfareWorker;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.GuardianRepository;
@@ -15,12 +16,15 @@ import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.JobPreferenceRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import com.nuri.woori.repository.WelfareWorkerRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
-import com.nuri.woori.service.HealthStatusMlService;
+import com.nuri.woori.repository.WelfareWorkerRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
@@ -43,7 +47,7 @@ public class SeniorController {
     private final GuardianSeniorRepository guardianSeniorRepository;
     private final LocationStatusRepository locationStatusRepository;
     private final AlertRepository alertRepository;
-    private final HealthStatusMlService healthStatusMlService;
+    private final WelfareWorkerRepository welfareWorkerRepository;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -54,7 +58,7 @@ public class SeniorController {
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
             AlertRepository alertRepository,
-            HealthStatusMlService healthStatusMlService) {
+            WelfareWorkerRepository welfareWorkerRepository) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -63,7 +67,7 @@ public class SeniorController {
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.locationStatusRepository = locationStatusRepository;
         this.alertRepository = alertRepository;
-        this.healthStatusMlService = healthStatusMlService;
+        this.welfareWorkerRepository = welfareWorkerRepository;
     }
 
     @PostMapping
@@ -117,7 +121,6 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
-        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -140,7 +143,11 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null);
+                null,
+                null,
+                "",
+                "",
+                "");
     }
 
     @GetMapping
@@ -198,6 +205,24 @@ public class SeniorController {
         return toProfileResponse(senior);
     }
 
+//    @PatchMapping("/{id}/welfare-worker")
+//    public SeniorProfileResponse updateSeniorWelfareWorker(
+//            @PathVariable Long id,
+//            @RequestBody SeniorWelfareWorkerRequest request
+//    ) {
+//        Senior senior = seniorRepository.findById(id)
+//                .orElseThrow(() -> new RuntimeException("Senior not found"));
+//
+//        if (request.welfareWorkerId() != null) {
+//            welfareWorkerRepository.findById(request.welfareWorkerId())
+//                    .orElseThrow(() -> new RuntimeException("Welfare worker not found"));
+//        }
+//
+//        senior.setWelfareWorkerId(request.welfareWorkerId());
+//        Senior savedSenior = seniorRepository.save(senior);
+//
+//        return toProfileResponse(savedSenior);
+//    }
     @PostMapping("/login")
     public SeniorProfileResponse loginSenior(@RequestBody SeniorLoginRequest request) {
         String name = request.name() == null ? "" : request.name().trim();
@@ -205,6 +230,10 @@ public class SeniorController {
 
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (Boolean.FALSE.equals(senior.getActive())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");
+        }
 
         senior.setLastLoginAt(LocalDateTime.now());
         Senior savedSenior = seniorRepository.save(senior);
@@ -341,7 +370,6 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
-        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -367,7 +395,11 @@ public class SeniorController {
                 "",
                 "",
                 null,
-                null);
+                null,
+                null,
+                "",
+                "",
+                "");
     }
 
     @PatchMapping("/{id}/decision")
@@ -504,7 +536,6 @@ public class SeniorController {
             healthInfo.setMedicineCount(request.medicationsJson().isBlank() ? "없음" : "1개 이상");
         }
 
-        healthInfo.setHealthStatus(healthStatusMlService.evaluate(senior, healthInfo));
         healthInfoRepository.save(healthInfo);
 
         return toProfileResponse(savedSenior);
@@ -541,9 +572,14 @@ public class SeniorController {
     @GetMapping("/welfare")
     public Object getWelfareSeniors(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Long welfareWorkerId) {
         if (page == null && size == null) {
-            return seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+            List<Senior> seniors = welfareWorkerId == null
+                    ? seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
+                    : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+
+            return seniors
                     .stream()
                     .map(this::toWelfareSeniorListResponse)
                     .toList();
@@ -551,8 +587,10 @@ public class SeniorController {
 
         int pageNumber = Math.max(0, page == null ? 0 : page);
         int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
-        Page<Senior> seniorPage = seniorRepository.findAll(
-                PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id")));
+        PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id"));
+        Page<Senior> seniorPage = welfareWorkerId == null
+                ? seniorRepository.findAll(pageRequest)
+                : seniorRepository.findByWelfareWorkerId(welfareWorkerId, pageRequest);
 
         return new WelfareSeniorPageResponse(
                 seniorPage.getContent()
@@ -563,6 +601,19 @@ public class SeniorController {
                 seniorPage.getTotalPages(),
                 seniorPage.getNumber(),
                 seniorPage.getSize());
+    }
+
+    @PatchMapping("/{id}/welfare-worker")
+    public ResponseEntity<SeniorProfileResponse> updateSeniorWelfareWorker(
+            @PathVariable Long id,
+            @RequestBody SeniorWelfareWorkerRequest request) {
+        return seniorRepository.findById(id)
+                .map(senior -> {
+                    senior.setWelfareWorkerId(request.welfareWorkerId());
+                    Senior savedSenior = seniorRepository.save(senior);
+                    return ResponseEntity.ok(toProfileResponse(savedSenior));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
@@ -645,6 +696,10 @@ public class SeniorController {
             Boolean hasGuardian) {
     }
 
+    public record SeniorWelfareWorkerRequest(
+            Long welfareWorkerId) {
+    }
+
     public record WelfareDecisionRequest(
             String decision,
             String reason) {
@@ -675,6 +730,7 @@ public class SeniorController {
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
                 .orElse(null);
+        WelfareWorker welfareWorker = findWelfareWorker(senior);
 
         return new SeniorProfileResponse(
                 senior,
@@ -685,7 +741,11 @@ public class SeniorController {
                 "",
                 "",
                 safeZone,
-                latestLocation);
+                latestLocation,
+                welfareWorker == null ? null : welfareWorker.getId(),
+                welfareWorker == null ? "" : welfareWorker.getName(),
+                welfareWorker == null ? "" : welfareWorker.getPhone(),
+                welfareWorker == null ? "" : welfareWorker.getCenter());
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -714,6 +774,7 @@ public class SeniorController {
         LocationStatus latestLocation = locationStatusRepository
                 .findTopBySeniorIdOrderByReceivedAtDesc(senior.getId())
                 .orElse(null);
+        WelfareWorker welfareWorker = findWelfareWorker(senior);
 
         return new SeniorProfileResponse(
                 senior,
@@ -724,7 +785,19 @@ public class SeniorController {
                 guardian == null ? "" : guardian.getName(),
                 guardian == null ? "" : guardian.getPhone(),
                 safeZone,
-                latestLocation);
+                latestLocation,
+                welfareWorker == null ? null : welfareWorker.getId(),
+                welfareWorker == null ? "" : welfareWorker.getName(),
+                welfareWorker == null ? "" : welfareWorker.getPhone(),
+                welfareWorker == null ? "" : welfareWorker.getCenter());
+    }
+
+    private WelfareWorker findWelfareWorker(Senior senior) {
+        if (senior == null || senior.getWelfareWorkerId() == null) {
+            return null;
+        }
+
+        return welfareWorkerRepository.findById(senior.getWelfareWorkerId()).orElse(null);
     }
 
     private Integer toInteger(String value) {
@@ -836,6 +909,10 @@ public class SeniorController {
             String guardianName,
             String guardianPhone,
             SafeZones safeZone,
-            LocationStatus lastGps) {
+            LocationStatus lastGps,
+            Long welfareWorkerId,
+            String socialWorkerName,
+            String socialWorkerPhone,
+            String socialWorkerCenter) {
     }
 }

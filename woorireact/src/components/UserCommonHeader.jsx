@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle } from "lucide-react";
 import {
   createSosAlert,
   createSosCancelAlert,
@@ -11,6 +13,8 @@ import {
   readAlert,
 } from "../api/userPageApi.js";
 import CommonHeader from "./CommonHeader.jsx";
+import TripartiteChatModal from "./TripartiteChatModal.jsx";
+import { fetchUnreadChatCount } from "../api/chatApi.js";
 import "../css/user/UserCommonHeader.css";
 
 const ALERT_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
@@ -79,6 +83,8 @@ const formatAlertTime = (value) => {
 const getAlertTitle = (alert) => {
   if (alert.title) return alert.title;
   switch (alert.type) {
+    case "INFO_UPDATE_REQUEST":
+      return "정보수정 요청";
     case "CALL_REQUEST":
       return "전화 요청";
     case "MEDICINE":
@@ -110,11 +116,14 @@ const getAlertCategory = (type) => {
     case "MEDICINE":
       return "복약";
     case "PROFILE_UPDATE_REQUEST":
+    case "INFO_UPDATE_REQUEST":
     case "PROFILE_UPDATE":
     case "JOB_RECOMMEND":
     case "JOB_CONTACT_REQUEST":
     case "WELFARE_REQUEST":
       return "요청";
+    case "CHECK_IN_REPLY":
+      return "답장";
     default:
       return "기타";
   }
@@ -142,6 +151,7 @@ const normalizeUserAlert = (alert) => ({
   requiresGuardianConfirm: isSafeZoneAlert(alert.type),
   danger: ["FALL_DETECTED", "FALL_RISK", "SAFE_ZONE", "SAFE_ZONE_EXIT", "SOS"].includes(alert.type),
   sortTime: toDate(alert.createdAt || alert.time)?.getTime() || 0,
+  type: alert.type,
 });
 
 const normalizeClimateAlert = (alert, index) => ({
@@ -153,13 +163,28 @@ const normalizeClimateAlert = (alert, index) => ({
   time: formatAlertTime(alert.createdAt || alert.baseTime || alert.time),
   isRead: true,
   canRead: false,
-  canDelete: false,
+  canDelete: true,
   requiresGuardianConfirm: false,
   danger: alert.level === "warning" || alert.level === "danger",
   sortTime: toDate(alert.createdAt || alert.baseTime || alert.time)?.getTime() || 0,
 });
 
+const getProfileSectionFromInfoRequest = (message = "") => {
+  const text = String(message);
+
+  if (/복약|약|복용/.test(text)) return "medication";
+  if (/만성|질환|수술|건강/.test(text)) return "chronic";
+  if (/거동|인지|감각|보행|시력|청력|낙상/.test(text)) return "mobility";
+  if (/활동|이동|쉬는|작업|환경/.test(text)) return "activity";
+  if (/복지|소득|가구|혜택/.test(text)) return "welfare";
+  if (/일자리|희망|근무|급여|직종/.test(text)) return "job";
+  if (/키|몸무게|BMI|흡연|음주|알레르기|신체/.test(text)) return "body";
+
+  return "personal";
+};
+
 export function UserCommonHeader({ showSos = true, onSosClick }) {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -168,10 +193,23 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [activeAlertTab, setActiveAlertTab] = useState(ALERT_TABS[0]);
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
+  const [deletedAlertKeys, setDeletedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const alertTabsRef = useRef(null);
+  const deletedAlertKeysRef = useRef([]);
+
+  const currentSeniorForChat = useMemo(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("currentSenior") || "null");
+      return saved?.senior || saved || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const isFilled = (value) => {
     return value !== null && value !== undefined && String(value).trim() !== "";
@@ -215,7 +253,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       const [seniorAlerts, climateAlerts, currentProfile] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
         fetchLatestClimateAlerts(seniorId).catch(() => []),
-        fetch(`http://localhost:8080/api/seniors/${seniorId}`)
+        fetch(`/api/seniors/${seniorId}`)
           .then((response) => (response.ok ? response.json() : null))
           .catch(() => null),
       ]);
@@ -249,6 +287,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
       const combined = [
         ...seniorAlerts
+          .filter((alert) => !["SOS", "SOS_CANCEL"].includes(alert.type))
           .filter((alert) => !resolvedInfoRequestIds.has(alert.id))
           .filter(shouldShowAlert)
           .map(normalizeUserAlert),
@@ -262,8 +301,10 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         })
         .slice(0, 40);
 
-      setAlerts(combined);
-      setSelectedAlertKeys((prev) => prev.filter((key) => combined.some((alert) => alert.key === key)));
+      const visibleCombined = combined.filter((alert) => !deletedAlertKeysRef.current.includes(alert.key));
+
+      setAlerts(visibleCombined);
+      setSelectedAlertKeys((prev) => prev.filter((key) => visibleCombined.some((alert) => alert.key === key)));
     } finally {
       if (!silent) setLoadingAlerts(false);
     }
@@ -275,6 +316,27 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     return () => clearInterval(timerId);
   }, []);
 
+  const loadUnreadChatCount = async () => {
+    const seniorId = getCurrentSeniorId();
+    if (!seniorId) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const count = await fetchUnreadChatCount({
+      viewerRole: "SENIOR",
+      seniorId,
+    }).catch(() => 0);
+
+    setUnreadChatCount(count);
+  };
+
+  useEffect(() => {
+    loadUnreadChatCount();
+    const timerId = setInterval(loadUnreadChatCount, 5000);
+    return () => clearInterval(timerId);
+  }, []);
+
   const unreadCount = alerts.filter((alert) => !alert.isRead).length;
   const filteredAlerts = useMemo(() => alerts.filter((alert) => {
     if (activeAlertTab === "전체") return true;
@@ -283,9 +345,11 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   }), [activeAlertTab, alerts, recentlyReadKeys]);
 
   const deletableFilteredAlerts = filteredAlerts.filter((alert) => alert.canDelete);
-  const selectedDeletableIds = selectedAlertKeys
+  const selectedDeletableAlerts = selectedAlertKeys
     .map((key) => alerts.find((alert) => alert.key === key))
-    .filter((alert) => alert?.canDelete)
+    .filter((alert) => alert?.canDelete);
+  const selectedDeletableIds = selectedDeletableAlerts
+    .filter((alert) => alert.id)
     .map((alert) => alert.id);
 
   const getTabCount = (tab) => {
@@ -319,6 +383,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     setSelectedAlertKeys([]);
   }, [activeAlertTab]);
 
+  useEffect(() => {
+    if (!isAlertPanelOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAlertPanelOpen]);
+
   const toggleAlertSelection = (key) => {
     setSelectedAlertKeys((prev) => (
       prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
@@ -350,21 +423,23 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     }
   };
 
-  const removeAlertsFromList = (ids) => {
-    setAlerts((prev) => prev.filter((alert) => !ids.includes(alert.id)));
+  const removeAlertsFromList = (keys) => {
+    deletedAlertKeysRef.current = [...new Set([...deletedAlertKeysRef.current, ...keys])];
+    setDeletedAlertKeys(deletedAlertKeysRef.current);
+    setAlerts((prev) => prev.filter((alert) => !keys.includes(alert.key)));
     setSelectedAlertKeys([]);
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedDeletableIds.length === 0 || deletingAlerts) return;
+    if (selectedDeletableAlerts.length === 0 || deletingAlerts) return;
     setDeletingAlerts(true);
     try {
       if (selectedDeletableIds.length === 1) {
         await deleteAlert(selectedDeletableIds[0]);
-      } else {
+      } else if (selectedDeletableIds.length > 1) {
         await deleteAlerts(selectedDeletableIds);
       }
-      removeAlertsFromList(selectedDeletableIds);
+      removeAlertsFromList(selectedDeletableAlerts.map((alert) => alert.key));
     } catch (error) {
       console.error("알림 삭제 실패:", error);
       window.alert("알림 삭제에 실패했습니다.");
@@ -374,12 +449,15 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   const handleDeleteAllFiltered = async () => {
-    const ids = deletableFilteredAlerts.map((alert) => alert.id);
-    if (ids.length === 0 || deletingAlerts) return;
+    const ids = deletableFilteredAlerts.filter((alert) => alert.id).map((alert) => alert.id);
+    const keys = deletableFilteredAlerts.map((alert) => alert.key);
+    if (keys.length === 0 || deletingAlerts) return;
     setDeletingAlerts(true);
     try {
-      await deleteAlerts(ids);
-      removeAlertsFromList(ids);
+      if (ids.length > 0) {
+        await deleteAlerts(ids);
+      }
+      removeAlertsFromList(keys);
     } catch (error) {
       console.error("알림 전체 삭제 실패:", error);
       window.alert("알림 삭제에 실패했습니다.");
@@ -438,6 +516,10 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         rightText={formatKoreanDate()}
         actions={
           <>
+            <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
+              <MessageCircle size={19} />
+              {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+            </button>
             <button className="common-app-icon-button uch-alert-button" type="button" onClick={openAlertPanel} aria-label="알림">
               🔔
               {unreadCount > 0 && <span className="common-app-badge">{unreadCount}</span>}
@@ -449,6 +531,31 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
             ) : null}
           </>
         }
+      />
+
+      <TripartiteChatModal
+        isOpen={isChatOpen}
+        seniorId={currentSeniorForChat?.id || getCurrentSeniorId()}
+        seniorName={currentSeniorForChat?.name || "사용자"}
+        rooms={[
+          {
+            roomType: "SENIOR_GUARDIAN",
+            seniorId: currentSeniorForChat?.id || getCurrentSeniorId(),
+            title: "보호자",
+            subtitle: "보호자와 1:1 대화",
+          },
+          {
+            roomType: "SENIOR_WELFARE",
+            seniorId: currentSeniorForChat?.id || getCurrentSeniorId(),
+            title: "복지사",
+            subtitle: "담당 복지사와 1:1 대화",
+          },
+        ]}
+        senderRole="SENIOR"
+        senderId={currentSeniorForChat?.id || Number(getCurrentSeniorId())}
+        senderName={currentSeniorForChat?.name || "사용자"}
+        onReadChange={loadUnreadChatCount}
+        onClose={() => setIsChatOpen(false)}
       />
 
       {infoRequestAlert && (
@@ -473,14 +580,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   setInfoRequestAlert(null);
-
-                  if (infoRequestAlert.id) {
-                    await readAlert(infoRequestAlert.id).catch(() => {});
-                  }
-
-                  navigate("/profile");
+                  navigate(`/profile?section=${getProfileSectionFromInfoRequest(infoRequestAlert.message)}`);
                 }}
               >
                 정보 입력하기
@@ -540,7 +642,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                 전체 선택
               </label>
               <div>
-                <button type="button" disabled={selectedDeletableIds.length === 0 || deletingAlerts} onClick={handleDeleteSelected}>
+                <button type="button" disabled={selectedDeletableAlerts.length === 0 || deletingAlerts} onClick={handleDeleteSelected}>
                   선택 삭제
                 </button>
                 <button type="button" disabled={deletableFilteredAlerts.length === 0 || deletingAlerts} onClick={handleDeleteAllFiltered}>
@@ -568,12 +670,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     </label>
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
-                        <span className={userAlert.isRead ? "read" : "unread"}>
-                          {userAlert.isRead ? "확인됨" : "확인 필요"}
-                        </span>
                         <span>{userAlert.category}</span>
                       </div>
-                      <strong>{userAlert.title}</strong>
+                      {userAlert.type !== "CHECK_IN_REPLY" && <strong>{userAlert.title}</strong>}
                       <p>{userAlert.message}</p>
                       {userAlert.time && <span>{userAlert.time}</span>}
                     </div>

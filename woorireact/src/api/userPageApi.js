@@ -8,22 +8,52 @@ import {
   markLocalAlertRead,
 } from "./localAlertStore";
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = "";
+const FALL_API_PORT = "8010";
 const getDefaultFallApiBase = () => {
   const host = window.location.hostname;
 
   if (host && host !== "localhost" && host !== "127.0.0.1") {
-    return `${window.location.protocol}//${host}:8000`;
+    return `${window.location.protocol}//${host}:${FALL_API_PORT}`;
   }
 
-  return "http://127.0.0.1:8000";
+  return `http://127.0.0.1:${FALL_API_PORT}`;
+};
+
+const getSavedFallApiBase = () => {
+  const saved = localStorage.getItem("woori_fall_api_base");
+  return saved?.includes(":8000") ? "" : saved;
 };
 
 const FALL_API_BASE = (
   import.meta.env.VITE_FALL_API_BASE ||
-  localStorage.getItem("woori_fall_api_base") ||
+  getSavedFallApiBase() ||
   getDefaultFallApiBase()
 ).replace(/\/$/, "");
+const FALL_API_COOLDOWN_MS = 3 * 60 * 1000;
+let fallApiUnavailableUntil = 0;
+
+const fetchFallApi = async (path, options = {}) => {
+  if (Date.now() < fallApiUnavailableUntil) {
+    throw new Error("Fall detection server unavailable");
+  }
+
+  try {
+    const response = await fetch(`${FALL_API_BASE}${path}`, {
+      cache: "no-store",
+      ...options,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Fall API failed: ${response.status}`);
+    }
+
+    return response;
+  } catch (error) {
+    fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;
+    throw error;
+  }
+};
 const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
 const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 
@@ -316,6 +346,7 @@ export const getCurrentSeniorId = () => {
 export const resolveUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
   if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
   return `${API_BASE}${imageUrl}`;
 };
 
@@ -393,6 +424,20 @@ export const createSosCancelAlert = async ({ seniorId, latitude, longitude }) =>
   return response.json();
 };
 
+export const sendCheckInReply = async ({ seniorId, reply, originalMessage }) => {
+  const response = await fetch("/api/alerts/check-in-reply", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId, reply, originalMessage }),
+  });
+
+  if (!response.ok) {
+    throw new Error("check-in reply failed");
+  }
+
+  return response.json();
+};
+
 export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, address }) => {
   const response = await fetch(`${API_BASE}/api/alerts/safe-zone`, {
     method: "POST",
@@ -430,90 +475,44 @@ export const getFallCaptureUrl = (filename) => {
 };
 
 export const fetchFallCaptures = async () => {
-  const response = await fetch(`${FALL_API_BASE}/captures`, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error("Fall captures failed");
-  }
-
+  const response = await fetchFallApi("/captures");
   const data = await response.json();
   return Array.isArray(data?.captures) ? data.captures : [];
 };
 
 export const fetchFallDetectionStatus = async () => {
-  const response = await fetch(`${FALL_API_BASE}/status`, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error("Fall detection server failed");
-  }
-
+  const response = await fetchFallApi("/status");
   return response.json();
 };
 
 export const fetchActivityToday = async () => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/today`, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error("Activity today failed");
-  }
-
+  const response = await fetchFallApi("/health/activity/today");
   return response.json();
 };
 
 export const fetchActivityTrend = async (days = 7) => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/trend?days=${encodeURIComponent(days)}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error("Activity trend failed");
-  }
-
+  const response = await fetchFallApi(`/health/activity/trend?days=${encodeURIComponent(days)}`);
   return response.json();
 };
 
 export const fetchFallEvents = async (days = 1) => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/falls?days=${encodeURIComponent(days)}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error("Fall events failed");
-  }
-
+  const response = await fetchFallApi(`/health/activity/falls?days=${encodeURIComponent(days)}`);
   const data = await response.json();
   return Array.isArray(data?.events) ? data.events : [];
 };
 
 export const fetchActivitySlots = async () => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/slots`, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error("Activity slots failed");
-  }
-
+  const response = await fetchFallApi("/health/activity/slots");
   return response.json();
 };
 
 export const fetchActivityBaseline = async (days = 14) => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/baseline?days=${encodeURIComponent(days)}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error("Activity baseline failed");
-  }
-
+  const response = await fetchFallApi(`/health/activity/baseline?days=${encodeURIComponent(days)}`);
   return response.json();
 };
 
 export const fetchFallPattern = async () => {
-  const response = await fetch(`${FALL_API_BASE}/health/activity/fall-pattern`, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error("Fall pattern failed");
-  }
-
+  const response = await fetchFallApi("/health/activity/fall-pattern");
   return response.json();
 };
 
@@ -556,7 +555,13 @@ export const deleteAlert = async (alertId) => {
 
 export const deleteAlerts = async (alertIds) => {
   const localIds = alertIds.filter(isLocalAlertId);
-  const serverIds = alertIds.filter((alertId) => !isLocalAlertId(alertId));
+  const serverIds = alertIds
+    .filter((alertId) => !isLocalAlertId(alertId))
+    .map((alertId) => {
+      const match = String(alertId).match(/(\d+)$/);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((alertId) => Number.isFinite(alertId));
 
   if (localIds.length > 0) {
     deleteLocalAlerts(localIds);

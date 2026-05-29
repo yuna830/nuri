@@ -24,15 +24,32 @@ const TEXT = {
 };
 
 function AdminWelfare() {
-  const { seniors, welfareWorkers, isLoading, loadError, reload } = useAdminData();
+  const { seniors, welfareWorkers, isLoading, loadError } = useAdminData();
   const [updatingId, setUpdatingId] = useState(null);
+  const [activeOverrides, setActiveOverrides] = useState({});
+  const [actionMessage, setActionMessage] = useState(null);
+
+  const displayWorkers = welfareWorkers.map((worker) => ({
+    ...worker,
+    active: activeOverrides[worker.id] ?? worker.active,
+  }));
 
   const toggleActive = async (worker) => {
     setUpdatingId(worker.id);
+    setActionMessage(null);
 
     try {
-      await updateWelfareWorkerActive(worker.id, !worker.active);
-      await reload();
+      const updatedWorker = await updateWelfareWorkerActive(worker.id, !worker.active);
+      setActiveOverrides((current) => ({ ...current, [worker.id]: updatedWorker.active }));
+      setActionMessage({
+        type: "success",
+        text: "\uacc4\uc815 \uc0c1\ud0dc\uac00 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+      });
+    } catch (error) {
+      setActionMessage({
+        type: "error",
+        text: "\uacc4\uc815 \uc0c1\ud0dc \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -46,10 +63,13 @@ function AdminWelfare() {
       </header>
 
       {loadError ? <p className="admin-empty">{TEXT.error}</p> : null}
+      {actionMessage ? (
+        <p className={`admin-action-message ${actionMessage.type}`}>{actionMessage.text}</p>
+      ) : null}
 
       {isLoading ? (
         <p className="admin-empty">{TEXT.loading}</p>
-      ) : welfareWorkers.length === 0 ? (
+      ) : displayWorkers.length === 0 ? (
         <p className="admin-empty">{TEXT.empty}</p>
       ) : (
         <div className="admin-table-box">
@@ -65,8 +85,8 @@ function AdminWelfare() {
               </tr>
             </thead>
             <tbody>
-              {welfareWorkers.map((worker) => (
-                <tr key={worker.id}>
+              {displayWorkers.map((worker) => (
+                <tr key={worker.id} className={worker.active ? "" : "admin-inactive-row"}>
                   <td className="admin-name-cell">{worker.name}</td>
                   <td>{worker.center || "-"}</td>
                   <td>{worker.phone || "-"}</td>

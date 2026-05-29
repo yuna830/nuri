@@ -2,7 +2,7 @@ package com.nuri.woori.service;
 
 import com.nuri.woori.entity.PoliceMissingAlert;
 import com.nuri.woori.repository.PoliceMissingAlertRepository;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -24,8 +24,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class PoliceMissingAlertService {
@@ -33,19 +33,18 @@ public class PoliceMissingAlertService {
     private static final String AMBER_API_URL = "https://www.safe182.go.kr/api/lcm/amberList.do";
     private static final String FIND_CHILD_API_URL = "https://www.safe182.go.kr/api/lcm/findChildList.do";
     private static final int ROW_SIZE = 100;
-    private static final int MAX_PAGES = 10;
+    private static final int MAX_PAGES = 4;
 
     private final PoliceMissingAlertRepository policeMissingAlertRepository;
+    private final Environment environment;
     private final RestClient restClient = RestClient.create();
 
-    @Value("${police.safe182.esntl-id:}")
-    private String esntlId;
-
-    @Value("${police.safe182.auth-key:}")
-    private String authKey;
-
-    public PoliceMissingAlertService(PoliceMissingAlertRepository policeMissingAlertRepository) {
+    public PoliceMissingAlertService(
+            PoliceMissingAlertRepository policeMissingAlertRepository,
+            Environment environment
+    ) {
         this.policeMissingAlertRepository = policeMissingAlertRepository;
+        this.environment = environment;
     }
 
     public List<PoliceMissingAlert> getLatestAlerts() {
@@ -131,8 +130,8 @@ public class PoliceMissingAlertService {
 
     private Safe182Page requestPage(LocalDate date, int page) {
         LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("esntlId", esntlId);
-        form.add("authKey", authKey);
+        form.add("esntlId", getSafe182EsntlId());
+        form.add("authKey", getSafe182AuthKey());
         form.add("rowSize", String.valueOf(ROW_SIZE));
         form.add("page", String.valueOf(page));
         form.add("xmlUseYN", "Y");
@@ -150,8 +149,8 @@ public class PoliceMissingAlertService {
 
     private Safe182Page requestPageWithoutDate(int page) {
         LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("esntlId", esntlId);
-        form.add("authKey", authKey);
+        form.add("esntlId", getSafe182EsntlId());
+        form.add("authKey", getSafe182AuthKey());
         form.add("rowSize", String.valueOf(ROW_SIZE));
         form.add("page", String.valueOf(page));
         form.add("xmlUseYN", "Y");
@@ -286,6 +285,7 @@ public class PoliceMissingAlertService {
         alert.setHairColor(text(item, "haircolrDscd"));
         alert.setClothing(text(item, "alldressingDscd"));
         alert.setFeature(text(item, "etcSpfeatr"));
+
         String externalKey = String.join("|",
                 safe(name),
                 safe(occurredDate),
@@ -474,9 +474,44 @@ public class PoliceMissingAlertService {
     }
 
     private void validateApiKeys() {
-        if (esntlId == null || esntlId.isBlank() || authKey == null || authKey.isBlank()) {
+        String esntlId = getSafe182EsntlId();
+        String authKey = getSafe182AuthKey();
+
+        if (esntlId.isBlank() || authKey.isBlank()) {
             throw new RuntimeException("Safe182 API key is missing");
         }
+    }
+
+    private String getSafe182EsntlId() {
+        return firstNonBlank(
+                safeProperty("police.safe182.esntl-id"),
+                safeProperty("SAFE182_ESNTL_ID")
+        );
+    }
+
+    private String getSafe182AuthKey() {
+        return firstNonBlank(
+                safeProperty("police.safe182.auth-key"),
+                safeProperty("SAFE182_AUTH_KEY")
+        );
+    }
+
+    private String safeProperty(String key) {
+        try {
+            return environment.getProperty(key, "");
+        } catch (IllegalArgumentException error) {
+            return "";
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+
+        return "";
     }
 
     private void logSyncResult(LocalDate date, int page, Safe182Page parsedPage) {

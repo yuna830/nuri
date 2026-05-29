@@ -45,7 +45,7 @@ const KOREAN_NUMBER_VALUES = {
 const KOREAN_TIME_NUMBER_PATTERN =
   "열하나|열한|열두|열둘|다섯|여섯|일곱|여덟|아홉|하나|둘|셋|넷|한|두|세|네|삼십|사십|오십|이십|십|열";
 export const TIME_EXPRESSION_PATTERN_SOURCE =
-  `(오전|오후|아침|저녁|밤|새벽)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분?)?\\s*(?:에)?`;
+  `(오전|오후|아침|저녁|밤|새벽|낮|점심)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분?)?\\s*(?:에)?`;
 
 export function normalizeScheduleText(text) {
   return TYPO_REPLACEMENTS.reduce(
@@ -224,7 +224,7 @@ function splitIntoItems(text) {
 
 function normalizeMeridiem(value = "") {
   if (/오전|아침|새벽/.test(value)) return "오전";
-  if (/오후|저녁|밤/.test(value)) return "오후";
+  if (/오후|저녁|밤|낮|점심/.test(value)) return "오후";
   return "";
 }
 

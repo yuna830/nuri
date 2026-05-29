@@ -26,6 +26,7 @@ function normalizeElderForWelfare(elder) {
     age: String(elder.age || "").replace(/[^0-9]/g, ""),
     gender: elder.gender === "-" ? "" : elder.gender,
     region: elder.address,
+    address: elder.address,
     healthStatus: elder.condition,
     medicationInfo: elder.medications?.map((item) => item.name).filter(Boolean).join(", "),
     incomeLevel: elder.incomeLevel,
@@ -37,8 +38,6 @@ function normalizeElderForWelfare(elder) {
 
 function cleanKoreanAnswer(value) {
   return String(value || "")
-    .replaceAll("さん", "님")
-    .replaceAll("氏", "님")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -60,7 +59,7 @@ function formatConsultationTime(value) {
   });
 }
 
-function GuardianWelfarePanel({ selectedElder }) {
+function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
   const [histories, setHistories] = useState([]);
   const [jobApplications, setJobApplications] = useState([]);
   const [consultationItems, setConsultationItems] = useState([]);
@@ -75,6 +74,7 @@ function GuardianWelfarePanel({ selectedElder }) {
   const [isConfirmingConsultation, setIsConfirmingConsultation] = useState(false);
   const [consultationResponseType, setConsultationResponseType] = useState("now");
   const [consultationScheduleAt, setConsultationScheduleAt] = useState("");
+  const [jobPage, setJobPage] = useState(0);
 
   const senior = useMemo(
     () => normalizeElderForWelfare(selectedElder),
@@ -106,6 +106,7 @@ function GuardianWelfarePanel({ selectedElder }) {
       if (!ignore) {
         setHistories(Array.isArray(historyData) ? historyData : []);
         setJobApplications(Array.isArray(jobData) ? jobData : []);
+        setJobPage(0);
         setConsultationItems(
           Array.isArray(alertData)
             ? alertData.filter((item) => (
@@ -143,12 +144,18 @@ function GuardianWelfarePanel({ selectedElder }) {
   const latestConsultationItem = consultationItems
     .slice()
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  const jobPageSize = 3;
+  const totalJobPages = Math.max(1, Math.ceil(jobApplications.length / jobPageSize));
+  const pagedJobApplications = jobApplications.slice(
+    jobPage * jobPageSize,
+    jobPage * jobPageSize + jobPageSize
+  );
 
   const handleAsk = async () => {
     const trimmedQuestion = question.trim();
 
     if (!trimmedQuestion) {
-      setErrorMessage("질문을 입력해주세요.");
+      setErrorMessage("질문을 입력해 주세요.");
       return;
     }
 
@@ -183,37 +190,37 @@ function GuardianWelfarePanel({ selectedElder }) {
     if (!selectedConsultation?.id) return;
 
     try {
-        setIsConfirmingConsultation(true);
-        setErrorMessage("");
+      setIsConfirmingConsultation(true);
+      setErrorMessage("");
 
-        const updatedAlert = await respondWelfareConsultation(selectedConsultation.id, {
+      const updatedAlert = await respondWelfareConsultation(selectedConsultation.id, {
         responseType: consultationResponseType,
         scheduleAt: consultationResponseType === "schedule" ? consultationScheduleAt : "",
-        });
+      });
 
-        setConsultationItems((prev) =>
+      setConsultationItems((prev) =>
         prev.map((item) =>
-            item.id === selectedConsultation.id ? updatedAlert : item
+          item.id === selectedConsultation.id ? updatedAlert : item
         )
-        );
+      );
 
-        setSelectedConsultation(null);
-        setConsultationResponseType("now");
-        setConsultationScheduleAt("");
+      setSelectedConsultation(null);
+      setConsultationResponseType("now");
+      setConsultationScheduleAt("");
     } catch (error) {
-        console.error("상담 요청 응답 저장 실패:", error);
-        setErrorMessage("상담 요청 응답 저장에 실패했습니다.");
+      console.error("상담 요청 응답 저장 실패:", error);
+      setErrorMessage("상담 요청 응답 저장에 실패했습니다.");
     } finally {
-        setIsConfirmingConsultation(false);
+      setIsConfirmingConsultation(false);
     }
-};
+  };
 
   return (
     <section className="card guardian-welfare-card">
       <div className="card-header guardian-welfare-header">
         <h2>복지 확인</h2>
 
-        <button type="button" className="guardian-welfare-contact-button">
+        <button type="button" className="guardian-welfare-contact-button" onClick={onOpenChat}>
           복지사에게 문의
         </button>
       </div>
@@ -228,7 +235,7 @@ function GuardianWelfarePanel({ selectedElder }) {
             <p>신청 또는 추천된 일자리 내역이 없습니다.</p>
           ) : (
             <div className="guardian-job-list">
-              {jobApplications.map((job) => (
+              {pagedJobApplications.map((job) => (
                 <article key={job.id} className="guardian-job-item">
                   <div>
                     <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
@@ -242,6 +249,17 @@ function GuardianWelfarePanel({ selectedElder }) {
                   </small>
                 </article>
               ))}
+              {jobApplications.length > jobPageSize && (
+                <div className="guardian-job-pager">
+                  <button type="button" onClick={() => setJobPage((page) => Math.max(0, page - 1))} disabled={jobPage === 0}>
+                    &lt;
+                  </button>
+                  <span>{jobPage + 1} / {totalJobPages}</span>
+                  <button type="button" onClick={() => setJobPage((page) => Math.min(totalJobPages - 1, page + 1))} disabled={jobPage >= totalJobPages - 1}>
+                    &gt;
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -255,25 +273,25 @@ function GuardianWelfarePanel({ selectedElder }) {
             <p>복지사가 보낸 상담 요청이나 상담 내역이 없습니다.</p>
           ) : (
             <div className="guardian-consult-list">
-                <article key={latestConsultationItem.id} className="guardian-consult-item">
-                  <div>
-                    <strong>{latestConsultationItem.title || "상담 요청"}</strong>
-                    <span>{formatConsultationTime(latestConsultationItem.createdAt)}</span>
-                  </div>
+              <article key={latestConsultationItem.id} className="guardian-consult-item">
+                <div>
+                  <strong>{latestConsultationItem.title || "상담 요청"}</strong>
+                  <span>{formatConsultationTime(latestConsultationItem.createdAt)}</span>
+                </div>
 
-                  <p>{latestConsultationItem.message || "복지사가 상담 확인을 요청했습니다."}</p>
+                <p>{latestConsultationItem.message || "복지사가 상담 확인을 요청했습니다."}</p>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedConsultation(latestConsultationItem);
-                      setConsultationResponseType(latestConsultationItem.guardianResponseType || "now");
-                      setConsultationScheduleAt(latestConsultationItem.guardianScheduleAt || "");
-                    }}
-                  >
-                    상담 선택
-                  </button>
-                </article>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedConsultation(latestConsultationItem);
+                    setConsultationResponseType(latestConsultationItem.guardianResponseType || "now");
+                    setConsultationScheduleAt(latestConsultationItem.guardianScheduleAt || "");
+                  }}
+                >
+                  상담 선택
+                </button>
+              </article>
             </div>
           )}
         </section>
@@ -310,88 +328,88 @@ function GuardianWelfarePanel({ selectedElder }) {
 
       {selectedConsultation && (
         <div className="guardian-consult-modal-backdrop">
-            <section className="guardian-consult-modal">
+          <section className="guardian-consult-modal">
             <div className="guardian-consult-modal-header">
-                <h3>복지사 상담 요청</h3>
+              <h3>복지사 상담 요청</h3>
 
-                <button
+              <button
                 type="button"
                 onClick={() => setSelectedConsultation(null)}
-                >
+              >
                 닫기
-                </button>
+              </button>
             </div>
 
             <div className="guardian-consult-modal-body">
-                <strong>
+              <strong>
                 {selectedConsultation.title || "복지사 상담 요청"}
-                </strong>
+              </strong>
 
-                <p>
+              <p>
                 {selectedConsultation.message ||
-                    "복지사가 보호자 상담 확인을 요청했습니다."}
-                </p>
+                  "복지사가 보호자 상담 확인을 요청했습니다."}
+              </p>
 
-                <div className="guardian-consult-choice-heading">
-                    상담 방식을 선택해 주세요
-                </div>
+              <div className="guardian-consult-choice-heading">
+                상담 방식을 선택해 주세요.
+              </div>
 
-                <div className="guardian-consult-choice-group">
-                    <button
-                    type="button"
-                    className={consultationResponseType === "now" ? "active" : ""}
-                    onClick={() => setConsultationResponseType("now")}
-                    >
-                    <strong>지금 바로 상담 가능</strong>
-                    <span>복지사 확인 후 연락 가능</span>
-                    </button>
+              <div className="guardian-consult-choice-group">
+                <button
+                  type="button"
+                  className={consultationResponseType === "now" ? "active" : ""}
+                  onClick={() => setConsultationResponseType("now")}
+                >
+                  <strong>지금 바로 상담 가능</strong>
+                  <span>복지사 확인 후 연락 가능</span>
+                </button>
 
-                    <button
-                    type="button"
-                    className={consultationResponseType === "schedule" ? "active" : ""}
-                    onClick={() => setConsultationResponseType("schedule")}
-                    >
-                    <strong>상담 날짜 정하기</strong>
-                    <span>가능한 날짜와 시간을 선택 후 전달</span>
-                    </button>
-                </div>
+                <button
+                  type="button"
+                  className={consultationResponseType === "schedule" ? "active" : ""}
+                  onClick={() => setConsultationResponseType("schedule")}
+                >
+                  <strong>상담 일정 정하기</strong>
+                  <span>가능한 날짜와 시간을 선택 후 전달</span>
+                </button>
+              </div>
 
-                {consultationResponseType === "schedule" && (
-                    <label className="guardian-consult-schedule-field">
-                    상담 희망 일시
-                    <input
-                        type="datetime-local"
-                        value={consultationScheduleAt}
-                        onChange={(event) => setConsultationScheduleAt(event.target.value)}
-                    />
-                    </label>
-                )}
+              {consultationResponseType === "schedule" && (
+                <label className="guardian-consult-schedule-field">
+                  상담 희망 일시
+                  <input
+                    type="datetime-local"
+                    value={consultationScheduleAt}
+                    onChange={(event) => setConsultationScheduleAt(event.target.value)}
+                  />
+                </label>
+              )}
 
-                <small>
-                선택 내용을 확인하면 복지사 화면에 보호자 확인 완료 상태로 표시됩니다.
-                </small>
+              <small>
+                선택 내용을 확인하면 복지사 화면에 보호자 응답 상태로 표시됩니다.
+              </small>
             </div>
 
             <div className="guardian-consult-modal-actions">
-                <button
+              <button
                 type="button"
                 onClick={handleConfirmConsultation}
                 disabled={
-                    isConfirmingConsultation
-                    || selectedConsultation.guardianResponseType
-                    || (consultationResponseType === "schedule" && !consultationScheduleAt)
+                  isConfirmingConsultation
+                  || selectedConsultation.guardianResponseType
+                  || (consultationResponseType === "schedule" && !consultationScheduleAt)
                 }
-                >
+              >
                 {selectedConsultation.guardianResponseType
-                    ? "이미 응답함"
-                    : isConfirmingConsultation
+                  ? "이미 응답됨"
+                  : isConfirmingConsultation
                     ? "응답 저장 중..."
                     : "응답 완료"}
-                </button>
+              </button>
             </div>
-            </section>
+          </section>
         </div>
-    )}
+      )}
     </section>
   );
 }

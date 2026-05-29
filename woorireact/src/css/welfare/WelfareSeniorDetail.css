@@ -207,19 +207,6 @@
     color: #e05252;
 }
 
-.wsd-detail-value.wsd-review-complete,
-.wsd-detail-value.wsd-review-pending {
-    background-color: transparent;
-    color: var(--text-color);
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.45;
-}
-
-.wsd-detail-value.wsd-review-pending {
-    color: var(--text-color);
-}
-
 .wsd-category-layout {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);
@@ -525,6 +512,48 @@
 .wsd-consult-modal-actions button:disabled {
     opacity: 0.65;
     cursor: not-allowed;
+}
+
+.wsd-info-request-modal {
+    width: min(640px, 100%);
+}
+
+.wsd-info-request-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.wsd-info-request-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #d4e8d6;
+    border-radius: 10px;
+    background: #fbfdf8;
+    cursor: pointer;
+}
+
+.wsd-info-request-option input {
+    margin-top: 4px;
+    accent-color: #6f9272;
+}
+
+.wsd-info-request-option span {
+    display: grid;
+    gap: 4px;
+}
+
+.wsd-info-request-option strong {
+    color: #1e2a1f;
+    font-size: 14px;
+}
+
+.wsd-info-request-option small {
+    color: #667266;
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .wsd-section-fields {

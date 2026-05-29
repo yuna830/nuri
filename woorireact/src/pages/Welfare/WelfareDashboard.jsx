@@ -1,22 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-    BriefcaseBusiness,
-    ClipboardList,
-    Search,
-    UserPlus,
-    UserRound,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MessageCircle, Search } from "lucide-react";
 
 import {
+    assignWelfareSenior,
     fetchWelfareAlerts,
     fetchWelfareSeniors,
     requestSeniorInfoUpdate,
+    searchSeniorExact,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
+import WelfareSidebar from "../../components/welfare/WelfareSidebar";
+import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
+import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
-import WelfarePolicyQaButton from "../../components/welfare/WelfarePolicyQaButton";
+import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     getMissingSeniorInfoFields,
     getSeniorSummaryCounts,
@@ -72,10 +71,13 @@ function WelfareDashboard() {
     }, []);
 
     const [seniors, setSeniors] = useState([]);
+    const [notificationSeniors, setNotificationSeniors] = useState([]);
     const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
     const [dismissedNotifications, setDismissedNotifications] = useState([]);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
@@ -91,6 +93,11 @@ function WelfareDashboard() {
         toSenior: true,
         toGuardian: true,
     });
+    const [seniorReloadKey, setSeniorReloadKey] = useState(0);
+    const [isAddSeniorModalOpen, setIsAddSeniorModalOpen] = useState(false);
+    const [addSeniorForm, setAddSeniorForm] = useState({ name: "", phone: "" });
+    const [addSeniorStatus, setAddSeniorStatus] = useState("");
+    const [isAddingSenior, setIsAddingSenior] = useState(false);
 
     useEffect(() => {
         if (!currentWorker) {
@@ -111,6 +118,7 @@ function WelfareDashboard() {
                 const data = await fetchWelfareSeniors({
                     page: currentPage - 1,
                     size: ITEM_PER_PAGE,
+                    welfareWorkerId: currentWorker.id,
                 });
                 const rawSeniors = Array.isArray(data) ? data : data.content;
                 const nextSeniors = Array.isArray(rawSeniors) ? rawSeniors.map(mapWelfareSenior) : [];
@@ -139,7 +147,7 @@ function WelfareDashboard() {
         return () => {
             ignore = true;
         };
-    }, [currentPage, currentWorker]);
+    }, [currentPage, currentWorker, seniorReloadKey]);
 
     useEffect(() => {
         if (!currentWorker) return;
@@ -169,6 +177,34 @@ function WelfareDashboard() {
             ignore = true;
             clearInterval(timerId);
         };
+    }, [currentWorker]);
+
+    useEffect(() => {
+        if (!currentWorker?.id) return;
+        let ignore = false;
+        const load = async () => {
+            try {
+                const data = await fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: currentWorker.id });
+                const raw = Array.isArray(data) ? data : data.content || [];
+                if (!ignore) setNotificationSeniors(raw.map(mapWelfareSenior));
+            } catch { /* silent */ }
+        };
+        load();
+        const timerId = setInterval(load, 15000);
+        return () => { ignore = true; clearInterval(timerId); };
+    }, [currentWorker]);
+
+    const loadUnreadChatCount = async () => {
+        const count = await fetchUnreadChatCount({ viewerRole: "WELFARE" }).catch(() => 0);
+        setUnreadChatCount(count);
+    };
+
+    useEffect(() => {
+        if (!currentWorker) return;
+
+        loadUnreadChatCount();
+        const timerId = setInterval(loadUnreadChatCount, 5000);
+        return () => clearInterval(timerId);
     }, [currentWorker]);
 
     const regionOptions = useMemo(() => ["서울 전체", ...SEOUL_DISTRICTS], []);
@@ -357,7 +393,7 @@ function WelfareDashboard() {
         danger: alert.type !== "LAST_ACCESS",
     }));
 
-    const welfareNotifications = seniors.flatMap((senior) => {
+    const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
 
         if (senior.alertStatus === "미응답 SOS") {
@@ -397,10 +433,11 @@ function WelfareDashboard() {
         return notifications;
     });
 
-    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications].filter(
-        (notification) => !dismissedNotifications.includes(notification.id)
-    );
-
+    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications]
+        .filter((notification, index, source) =>
+            source.findIndex((item) => item.id === notification.id) === index
+        )
+        .filter((notification) => !dismissedNotifications.includes(notification.id));
     const dismissNotification = (notificationId) => {
         setDismissedNotifications((previousIds) =>
             previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
@@ -456,6 +493,51 @@ function WelfareDashboard() {
         }
     };
 
+    const openAddSeniorModal = () => {
+        setAddSeniorForm({ name: "", phone: "" });
+        setAddSeniorStatus("");
+        setIsAddSeniorModalOpen(true);
+    };
+
+    const handleAddSenior = async () => {
+        if (!currentWorker?.id) return;
+
+        const name = addSeniorForm.name.trim();
+        const phone = addSeniorForm.phone.trim();
+
+        if (!name || !phone) {
+            setAddSeniorStatus("대상자 이름과 전화번호를 모두 입력해주세요.");
+            return;
+        }
+
+        try {
+            setIsAddingSenior(true);
+            setAddSeniorStatus("");
+
+            const matches = await searchSeniorExact({ name, phone });
+            const target = matches[0]?.senior || matches[0];
+
+            if (!target?.id) {
+                setAddSeniorStatus("일치하는 대상자를 찾지 못했습니다. 이름과 전화번호를 확인해주세요.");
+                return;
+            }
+
+            await assignWelfareSenior({
+                seniorId: target.id,
+                welfareWorkerId: currentWorker.id,
+            });
+
+            setIsAddSeniorModalOpen(false);
+            setCurrentPage(1);
+            setSeniorReloadKey((key) => key + 1);
+        } catch (error) {
+            console.error("대상자 추가 실패:", error);
+            setAddSeniorStatus("대상자 추가에 실패했습니다.");
+        } finally {
+            setIsAddingSenior(false);
+        }
+    };
+
     return (
         <div className="wd-page">
             <CommonHeader
@@ -484,59 +566,51 @@ function WelfareDashboard() {
                 }}
                 actions={
                     <button
+                        className="common-app-icon-button"
+                        type="button"
+                        onClick={() => setIsChatOpen(true)}
+                        aria-label="메시지"
+                    >
+                        <MessageCircle size={19} />
+                        {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}
+                    </button>
+                }
+                afterActions={
+                    <button
                         className="common-app-danger-button"
                         type="button"
-                        onClick={() => navigate("/signup")}
+                        onClick={openAddSeniorModal}
                     >
                         대상자 추가
                     </button>
                 }
             />
 
+            <TripartiteChatModal
+                isOpen={isChatOpen}
+                rooms={seniors.flatMap((senior) => [
+                    {
+                        roomType: "SENIOR_WELFARE",
+                        seniorId: senior.id,
+                        title: `${senior.name || "대상자"} 사용자`,
+                        subtitle: "사용자와 1:1 대화",
+                    },
+                    {
+                        roomType: "GUARDIAN_WELFARE",
+                        seniorId: senior.id,
+                        title: `${senior.name || "대상자"} 보호자`,
+                        subtitle: "보호자와 1:1 대화",
+                    },
+                ])}
+                senderRole="WELFARE"
+                senderId={currentWorker?.id}
+                senderName={currentWorker?.name || "복지사"}
+                onReadChange={loadUnreadChatCount}
+                onClose={() => setIsChatOpen(false)}
+            />
+
             <div className="wd-layout">
-                <aside className="wd-sidebar">
-                    <div className="wd-sidebar-profile">
-                        <div className="wd-sidebar-avatar">
-                            <UserRound size={26} />
-                        </div>
-
-                        <div>
-                            <strong>{currentWorker?.name || "복지사"} 복지사</strong>
-                            <span>{currentWorker?.center || "소속 기관 미등록"}</span>
-                        </div>
-                    </div>
-
-                    <nav className="wd-sidebar-nav">
-                        <Link to="/welfare" className="wd-sidebar-item wd-sidebar-item-active">
-                            <ClipboardList size={17} />
-                            대상자 목록
-                        </Link>
-
-                        <Link to="/welfare/job-applications" className="wd-sidebar-item">
-                            <UserPlus size={17} />
-                            일자리 신청
-                        </Link>
-
-                        <Link to="/welfare/jobs" className="wd-sidebar-item">
-                            <BriefcaseBusiness size={17} />
-                            일자리 공고
-                        </Link>
-
-                        <Link to="/welfare/mypage" className="wd-sidebar-item">
-                            <UserRound size={17} />
-                            마이페이지
-                        </Link>
-                    </nav>
-
-                    <button
-                        type="button"
-                        className="wd-sidebar-add-button"
-                        onClick={() => navigate("/signup")}
-                    >
-                        <UserPlus size={17} />
-                        대상자 추가
-                    </button>
-                </aside>
+                <WelfareSidebar active="seniors" onAddSenior={openAddSeniorModal} />
 
                 <main className="wd-content">
                     <WelfareSummaryCards
@@ -674,6 +748,75 @@ function WelfareDashboard() {
                 </main>
             </div>
 
+            {isAddSeniorModalOpen && (
+                <div className="wd-modal-backdrop" onClick={() => setIsAddSeniorModalOpen(false)}>
+                    <section className="wd-info-request-modal wd-add-senior-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="wd-info-request-header">
+                            <h2>대상자 추가</h2>
+
+                            <button
+                                type="button"
+                                className="wd-info-request-close"
+                                onClick={() => setIsAddSeniorModalOpen(false)}
+                                disabled={isAddingSenior}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        <div className="wd-add-senior-form">
+                            <label>
+                                대상자 이름
+                                <input
+                                    type="text"
+                                    value={addSeniorForm.name}
+                                    onChange={(event) => setAddSeniorForm((form) => ({ ...form, name: event.target.value }))}
+                                    placeholder="예: 김우리"
+                                />
+                            </label>
+
+                            <label>
+                                전화번호
+                                <input
+                                    type="tel"
+                                    value={addSeniorForm.phone}
+                                    onChange={(event) => setAddSeniorForm((form) => ({ ...form, phone: event.target.value }))}
+                                    placeholder="예: 010-1234-5678"
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                            handleAddSenior();
+                                        }
+                                    }}
+                                />
+                            </label>
+                        </div>
+
+                        {addSeniorStatus && (
+                            <p className="wd-info-request-fields wd-add-senior-status">{addSeniorStatus}</p>
+                        )}
+
+                        <div className="wd-info-request-actions">
+                            <button
+                                type="button"
+                                className="wd-info-request-cancel"
+                                onClick={() => setIsAddSeniorModalOpen(false)}
+                                disabled={isAddingSenior}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                className="wd-info-request-submit"
+                                onClick={handleAddSenior}
+                                disabled={isAddingSenior}
+                            >
+                                추가하기
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
             {infoRequestTarget && (
                 <div className="wd-modal-backdrop" onClick={() => setInfoRequestTarget(null)}>
                     <section className="wd-info-request-modal" onClick={(event) => event.stopPropagation()}>
@@ -749,7 +892,7 @@ function WelfareDashboard() {
                 </div>
             )}
 
-            <WelfarePolicyQaButton seniorOptions={currentSeniors} />
+            <WelfarePolicyChatButton seniorOptions={currentSeniors} />
         </div>
     );
 }

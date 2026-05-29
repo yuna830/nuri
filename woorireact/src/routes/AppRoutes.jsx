@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import WelfareDashboard from "../pages/Welfare/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
@@ -32,13 +32,9 @@ function AppRoutes() {
         {/* Common */}
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/user-login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/user-signup" element={<SignUp />} />
         <Route path="/glogin" element={<GuardianLogin />} />
-        <Route path="/guardian-login" element={<GuardianLogin />} />
         <Route path="/gsignup" element={<GuardianSignUp />} />
-        <Route path="/guardian-signup" element={<GuardianSignUp />} />
 
         {/* Welfare */}
         <Route path="/wlogin" element={<WelfareLogin />} />
@@ -54,8 +50,6 @@ function AppRoutes() {
 
         {/* Chat */}
         <Route path="/chat" element={<ChatAssistant />} />
-        <Route path="/schedule" element={<Navigate to="/chat?mode=schedule" replace />} />
-        <Route path="/schedule/chat" element={<Navigate to="/chat?mode=schedule" replace />} />
 
         {/* Guardian */}
         <Route path="/guardian" element={<GuardianPage />} />

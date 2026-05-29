@@ -1,11 +1,17 @@
 .wj-page {
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-color);
     color: var(--text-color);
     box-sizing: border-box;
 }
 
 .wj-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
     height: 64px;
     padding: 0 max(28px, calc((100% - 1280px) / 2 + 28px));
     border-bottom: 1px solid var(--border-color);
@@ -42,11 +48,24 @@
 }
 
 .wj-content {
+    flex: 1;
+    min-height: 0;
     width: 100%;
     max-width: 1280px;
     margin: 0 auto;
-    padding: 28px;
+    padding: 28px 28px 0 28px;
     box-sizing: border-box;
+    overflow: hidden;
+}
+
+.wj-cards-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 14px;
+    padding-bottom: 28px;
+    scrollbar-gutter: stable;
 }
 
 .wj-header-row {
@@ -65,194 +84,60 @@
 }
 
 .wj-layout {
+    height: 100%;
     display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 20px;
-    align-items: flex-start;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+    overflow: hidden;
+}
+
+.wj-layout-with-main-sidebar {
+    grid-template-columns: 240px minmax(0, 1fr);
 }
 
 .wj-main-area {
-    min-width: 0;
-}
-
-.wj-page-recommendation .wj-content {
-    max-width: 1240px;
-    padding-top: 6px;
-}
-
-.wj-page-recommendation .wj-layout {
-    display: grid;
-    grid-template-columns: 270px minmax(0, 900px);
-    justify-content: center;
-    gap: 18px;
-}
-
-.wj-page-recommendation .wj-sidebar,
-.wj-page-recommendation .wj-search-row {
-    display: none;
-}
-
-.wj-page-recommendation .wj-main-area {
-    border: 1px solid #cfe7d3;
-    border-radius: 18px;
-    background: #fffef8;
-    padding: 22px 10px 18px;
-    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
-}
-
-.wj-senior-profile-card {
-    position: sticky;
-    top: 84px;
-    border: 1px solid #cfe0cf;
-    border-radius: 16px;
-    background: #fffef8;
-    padding: 24px 22px;
-    box-shadow: 0 2px 12px rgba(134, 167, 136, 0.08);
-}
-
-.wj-senior-profile-avatar {
-    width: 74px;
-    height: 74px;
-    margin: 0 auto 14px;
-    border-radius: 50%;
-    background: #eef6ef;
-    color: #86a788;
-    display: grid;
-    place-items: center;
-}
-
-.wj-senior-profile-heading {
-    text-align: center;
-    padding-bottom: 18px;
-    border-bottom: 1px solid #ded8c8;
-}
-
-.wj-senior-profile-heading strong {
-    display: block;
-    color: #17231a;
-    font-size: 22px;
-    font-weight: 900;
-    line-height: 1.25;
-}
-
-.wj-senior-profile-heading span {
-    display: block;
-    margin-top: 8px;
-    color: #6f7d70;
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.wj-senior-profile-list {
-    margin: 18px 0 0;
-}
-
-.wj-senior-profile-list div {
-    display: grid;
-    grid-template-columns: 82px minmax(0, 1fr);
-    gap: 12px;
-    align-items: center;
-    min-height: 34px;
-}
-
-.wj-senior-profile-list div + div {
-    margin-top: 8px;
-}
-
-.wj-senior-profile-list dt {
-    color: #6f7d70;
-    font-size: 13px;
-    font-weight: 900;
-}
-
-.wj-senior-profile-list dd {
-    margin: 0;
-    color: #111827;
-    font-size: 13px;
-    font-weight: 800;
-    line-height: 1.4;
-    word-break: keep-all;
-    overflow-wrap: anywhere;
-}
-
-.wj-senior-health-badge {
-    min-height: 24px;
-    padding: 0 10px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.wj-senior-health-good {
-    background: #e7f1e9;
-    color: #2f6d45;
-}
-
-.wj-senior-health-warning {
-    background: #fff0ba;
-    color: #8a6100;
-}
-
-.wj-senior-health-danger {
-    background: #ffe0e1;
-    color: #a22929;
-}
-
-.wj-senior-health-empty {
-    background: #eeeeee;
-    color: #666666;
-}
-
-.wj-recommend-summary {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 0 2px 16px;
-}
-
-.wj-recommend-summary strong {
-    display: block;
-    color: #17231a;
-    font-size: 16px;
-    font-weight: 900;
-    margin-bottom: 6px;
-}
-
-.wj-recommend-summary p {
-    margin: 0;
-    color: #6f8a70;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.wj-recommend-summary > span {
-    flex-shrink: 0;
-    min-height: 32px;
-    padding: 0 14px;
-    border-radius: 999px;
-    border: 1px solid #f0aa24;
-    background: #fff8e8;
-    color: #9b6a00;
-    display: inline-flex;
-    align-items: center;
-    font-size: 13px;
-    font-weight: 900;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 4px;
 }
 
 .wj-sidebar {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background-color: white;
+    gap: 4px;
+    padding: 4px 8px 20px;
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.wj-sidebar::-webkit-scrollbar {
+    display: none;
+}
+
+.wj-sidebar-divider {
+    margin: 12px 8px;
+    border: none;
+    border-top: 1px solid #e8f0e8;
+}
+
+.wj-sidebar-category-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #ffffff;
     border: 1px solid #d4e8d6;
     border-radius: 14px;
-    padding: 16px 6px;
-    position: sticky;
-    top: 92px;
+    padding: 10px 6px;
     box-shadow: 0 2px 12px rgba(134, 167, 136, 0.07);
+}
+
+.wj-sidebar-category-under-nav {
+    margin-top: 14px;
+    padding-bottom: 18px;
 }
 
 .wj-sidebar-title {
@@ -331,6 +216,61 @@
     background: #ffffff;
 }
 
+.wj-category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    margin-top: 4px;
+}
+
+.wj-category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #d4e8d6;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #5f7d61;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.wj-category-chip:hover {
+    border-color: #86a788;
+    background: #f2f6f0;
+}
+
+.wj-category-chip-active {
+    border-color: #86a788;
+    background: #86a788;
+    color: #ffffff;
+}
+
+.wj-category-chip-count {
+    min-width: 22px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(134, 167, 136, 0.15);
+    color: #5f7d61;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wj-category-chip-active .wj-category-chip-count {
+    background: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
 .wj-search-row {
     display: flex;
     align-items: center;
@@ -340,8 +280,9 @@
     background-color: white;
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 20px;
     box-sizing: border-box;
+    box-shadow: 0 8px 18px rgba(134, 167, 136, 0.08);
 }
 
 .wj-search-icon {
@@ -405,6 +346,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-top: 4px;
 }
 
 .wj-job-card {
@@ -461,9 +403,8 @@
     gap: 10px;
 }
 
-.wj-match-badge,
-.wj-senior-job-badge,
 .wj-job-type-badge,
+.wj-source-badge,
 .wj-employment-badge {
     padding: 6px 12px;
     border-radius: 999px;
@@ -472,16 +413,20 @@
     white-space: nowrap;
 }
 
-.wj-match-badge {
-    border: 1px solid #e0a018;
-    background-color: #e0a018;
-    color: #ffffff;
+.wj-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    row-gap: 8px;
+    min-width: 220px;
 }
 
-.wj-senior-job-badge {
-    border: 1px solid #b7d8f6;
-    background-color: #edf7ff;
-    color: #3776ad;
+.wj-source-badge {
+    border-color: #bdd9ef;
+    background-color: #edf6ff;
+    color: #326c9e;
 }
 
 .wj-job-type-badge {
@@ -515,153 +460,8 @@
     white-space: nowrap;
 }
 
-.wj-match-reasons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-}
-
-.wj-match-reasons span {
-    max-width: 100%;
-    padding: 7px 10px;
-    border-radius: 8px;
-    background: #fffdec;
-    border: 1px solid #d4e8d6;
-    color: #5f7d61;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.35;
-}
-
 .wj-job-card {
     cursor: pointer;
-}
-
-.wj-page-recommendation .wj-job-list {
-    gap: 12px;
-}
-
-.wj-page-recommendation .wj-job-card {
-    min-height: 184px;
-    padding: 19px 22px 16px 27px;
-    border: 1.5px solid #f0aa24;
-    border-radius: 17px;
-    background: #fffdf8;
-}
-
-.wj-page-recommendation .wj-job-card:hover {
-    border-color: #e0a018;
-    box-shadow: 0 6px 18px rgba(224, 160, 24, 0.14);
-}
-
-.wj-page-recommendation .wj-job-card-accent {
-    width: 5px;
-    background: #f0a817;
-}
-
-.wj-page-recommendation .wj-job-card-top {
-    align-items: flex-start;
-    margin-bottom: 14px;
-}
-
-.wj-page-recommendation .wj-job-title {
-    max-width: 520px;
-    color: #17231a;
-    font-size: 18px;
-    font-weight: 900;
-}
-
-.wj-page-recommendation .wj-organization {
-    color: #6c936f;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.wj-page-recommendation .wj-badge-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-.wj-recommend-chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
-}
-
-.wj-recommend-chip {
-    min-height: 28px;
-    padding: 0 12px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.wj-recommend-chip-soft {
-    border: 1px solid transparent;
-    background: #eef7ef;
-    color: #6b936f;
-}
-
-.wj-recommend-chip-outline {
-    border: 1px solid #efb33d;
-    background: #fff8e8;
-    color: #966700;
-}
-
-.wj-recommend-chip-distance {
-    border: 1px solid #d56a60;
-    background: #fff0ef;
-    color: #a23a31;
-}
-
-.wj-health-condition-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-.wj-health-condition-label {
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 8px;
-    background: #f8ead4;
-    color: #9a6411;
-    display: inline-flex;
-    align-items: center;
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.wj-recommend-chip-health {
-    border: 1px solid #f0c16a;
-    background: #fff8e8;
-    color: #8d650f;
-}
-
-.wj-match-reasons-recommend {
-    margin-top: 12px;
-}
-
-.wj-match-reasons-recommend span {
-    background: #f6fbf6;
-    border-color: #cfe7d3;
-    color: #5f7d61;
-}
-
-.wj-recommend-date {
-    margin-top: 16px;
-    color: #6b936f;
-    font-size: 13px;
-    font-weight: 700;
 }
 
 .wj-modal-overlay {
@@ -901,35 +701,48 @@
     }
 
     .wj-content {
-        padding: 20px;
+        padding: 16px 16px 0;
+        overflow: auto;
     }
 
     .wj-layout {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
     }
 
-    .wj-page-recommendation .wj-layout {
-        grid-template-columns: 1fr;
+    .wj-main-area {
+        overflow: visible;
     }
 
-    .wj-senior-profile-card {
-        position: static;
+    .wj-cards-scroll {
+        overflow: visible;
     }
 
     .wj-sidebar {
-        position: static;
+        height: auto;
+        overflow: visible;
         flex-direction: row;
         flex-wrap: wrap;
+        gap: 6px;
+        padding: 14px 10px;
+    }
+
+    .wj-sidebar-divider {
+        width: 100%;
+        margin: 6px 0;
     }
 
     .wj-sidebar-title {
         width: 100%;
+        margin: 0 4px 4px;
     }
 
     .wj-sidebar-item {
         width: auto;
         min-height: 36px;
         font-size: 13px;
+        padding: 0 14px;
     }
 }
 

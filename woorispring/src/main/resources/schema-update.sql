@@ -112,3 +112,50 @@ alter table guardians
 
 alter table welfare_workers
     add column if not exists active boolean default true;
+
+create table if not exists rag_documents (
+    document_id varchar(64) primary key,
+    filename varchar(500) not null,
+    title varchar(500),
+    source varchar(255),
+    status varchar(50) not null,
+    qdrant_collection varchar(255),
+    text_length integer default 0,
+    chunk_count integer default 0,
+    created_at timestamp default current_timestamp,
+    updated_at timestamp default current_timestamp
+);
+
+create table if not exists rag_ingest_jobs (
+    job_id varchar(64) primary key,
+    document_id varchar(64) not null,
+    filename varchar(500) not null,
+    status varchar(50) not null,
+    total_chunks integer default 0,
+    processed_chunks integer default 0,
+    saved_count integer default 0,
+    cache_hit_count integer default 0,
+    cache_miss_count integer default 0,
+    error_message text,
+    created_at timestamp default current_timestamp,
+    updated_at timestamp default current_timestamp
+);
+
+create index if not exists idx_rag_ingest_jobs_document_id
+    on rag_ingest_jobs (document_id);
+
+create table if not exists rag_public_welfare_jobs (
+    job_id varchar(64) primary key,
+    status varchar(50) not null,
+    start_page integer not null,
+    end_page integer not null,
+    current_page integer not null,
+    num_of_rows integer not null,
+    delay_seconds integer default 0,
+    processed_pages integer default 0,
+    saved_documents integer default 0,
+    saved_chunks integer default 0,
+    error_message text,
+    created_at timestamp default current_timestamp,
+    updated_at timestamp default current_timestamp
+);
