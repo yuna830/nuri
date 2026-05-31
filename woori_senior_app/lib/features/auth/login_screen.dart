@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/storage/senior_session_storage.dart';
-import '../home/senior_home_screen.dart';
+import '../shell/app_shell.dart';
 import 'sign_up_screen.dart';
 
 class SeniorLoginScreen extends StatefulWidget {
@@ -63,7 +63,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => SeniorHomeScreen(seniorId: seniorId)),
+        MaterialPageRoute(builder: (_) => AppShell(seniorId: seniorId)),
       );
     } catch (_) {
       setState(() {
@@ -97,7 +97,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                       width: 58,
                       height: 58,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF86A788).withOpacity(0.14),
+                        color: const Color(0xFF86A788).withValues(alpha: 0.14),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
