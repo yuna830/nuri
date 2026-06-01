@@ -180,8 +180,8 @@ class SeniorApi {
     String keyword = '',
     int size = 20,
   }) async {
-    final uri = Uri.parse(
-        '$apiBaseUrl/api/jobs?page=$page&size=$size&keyword=${Uri.encodeComponent(keyword)}');
+    // Spring은 /api/job-cache (flat list) 로 캐싱된 공고를 제공
+    final uri = Uri.parse('$apiBaseUrl/api/job-cache');
     final response = await http.get(uri);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -189,9 +189,23 @@ class SeniorApi {
     }
 
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    if (decoded is Map<String, dynamic>) return decoded;
-    if (decoded is List) return {'list': decoded, 'total': decoded.length};
-    return {'list': [], 'total': 0};
+    List<dynamic> all = decoded is List ? decoded : [];
+
+    // 키워드 필터 (서버에서 안 해주므로 클라이언트에서 처리)
+    if (keyword.isNotEmpty) {
+      final kw = keyword.toLowerCase();
+      all = all.where((j) {
+        if (j is! Map) return false;
+        return ['recrtTitle', 'oranNm', 'workPlcNm', 'jobclsNm', 'source']
+            .any((k) => '${j[k] ?? ''}'.toLowerCase().contains(kw));
+      }).toList();
+    }
+
+    final total = all.length;
+    final start = ((page - 1) * size).clamp(0, total);
+    final end = (start + size).clamp(0, total);
+
+    return {'list': all.sublist(start, end), 'total': total};
   }
 
   /// 일자리 신청 목록 (관심/신청 모두)
@@ -259,7 +273,11 @@ class SeniorApi {
       throw Exception('API 요청 실패: $path');
     }
 
-    return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('API 응답 형식 오류: $path');
+    }
+    return decoded;
   }
 
   Future<List<dynamic>> _getJsonList(String path) async {

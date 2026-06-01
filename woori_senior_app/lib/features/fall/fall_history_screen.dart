@@ -53,6 +53,7 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
 
   Timer? _refreshTimer;
   Timer? _serverTimer;
+  bool _loadInProgress = false;
 
   int _page = 1;
   static const int _pageSize = 5;
@@ -74,24 +75,24 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
   }
 
   Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
     try {
       final alerts = await _api.fetchFallAlerts(widget.seniorId);
+      if (!mounted) return;
       final List<Map<String, dynamic>> logs = alerts
           .whereType<Map<String, dynamic>>()
-          .map((a) => a)
           .toList();
       logs.sort((a, b) {
         final ta = DateTime.tryParse('${a['createdAt'] ?? ''}') ?? DateTime(0);
         final tb = DateTime.tryParse('${b['createdAt'] ?? ''}') ?? DateTime(0);
         return tb.compareTo(ta);
       });
-      if (mounted) {
-        setState(() {
-          _logs = logs;
-          _loading = false;
-          _error = null;
-        });
-      }
+      setState(() {
+        _logs = logs;
+        _loading = false;
+        _error = null;
+      });
     } catch (_) {
       if (mounted && _loading) {
         setState(() {
@@ -99,20 +100,22 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
           _loading = false;
         });
       }
+    } finally {
+      _loadInProgress = false;
     }
   }
 
   Future<void> _checkFallServer() async {
     try {
       final res = await http
-          .get(Uri.parse('$_fallServerUrl/api/fall/status'))
+          .get(Uri.parse('$_fallServerUrl/status'))
           .timeout(const Duration(seconds: 2));
       if (!mounted) return;
       if (res.statusCode == 200) {
-        // Try to parse score
         final body = res.body;
         final scoreMatch = RegExp(r'"score"\s*:\s*(\d+)').firstMatch(body);
         final detectedMatch = RegExp(r'"fall_detected"\s*:\s*(true|false)').firstMatch(body);
+        if (!mounted) return;
         setState(() {
           _serverOnline = true;
           _fallScore = int.tryParse(scoreMatch?.group(1) ?? '0') ?? 0;
@@ -121,13 +124,12 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
         return;
       }
     } catch (_) {}
-    if (mounted) {
-      setState(() {
-        _serverOnline = false;
-        _fallDetected = false;
-        _fallScore = 0;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _serverOnline = false;
+      _fallDetected = false;
+      _fallScore = 0;
+    });
   }
 
   @override
@@ -170,7 +172,7 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
                             serverOnline: _serverOnline,
                             fallDetected: _fallDetected,
                             score: _fallScore,
-                            videoUrl: '$_fallServerUrl/video_feed',
+                            videoUrl: '$_fallServerUrl/video',
                           ),
                           const SizedBox(height: 12),
                           _SummaryRow(
@@ -413,7 +415,7 @@ class _VideoPlaceholder extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'python -m uvicorn main:app --port 8010',
+          'py -m uvicorn main:app --host 0.0.0.0 --port 8010',
           style: TextStyle(color: Color(0xFF6B7280), fontSize: 10, fontFamily: 'monospace'),
         ),
       ],

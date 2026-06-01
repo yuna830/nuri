@@ -123,9 +123,22 @@ int _matchScore(Map<String, dynamic> job, Map<String, dynamic> profile, String c
 
 // ─── screen ──────────────────────────────────────────────────────────────────
 
+typedef ActionRegistrar = void Function({
+  required VoidCallback action,
+  required IconData icon,
+  required String tooltip,
+});
+
 class JobScreen extends StatefulWidget {
-  const JobScreen({super.key, required this.seniorId});
+  const JobScreen({
+    super.key,
+    required this.seniorId,
+    this.hideAppBar = false,
+    this.onRegisterAction,
+  });
   final int seniorId;
+  final bool hideAppBar;
+  final ActionRegistrar? onRegisterAction;
 
   @override
   State<JobScreen> createState() => _JobScreenState();
@@ -155,6 +168,11 @@ class _JobScreenState extends State<JobScreen> {
     super.initState();
     _loadAll();
     _appTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadApplications());
+    widget.onRegisterAction?.call(
+      action: _showApplications,
+      icon: Icons.list_alt_outlined,
+      tooltip: '신청 내역',
+    );
   }
 
   @override
@@ -171,8 +189,33 @@ class _JobScreenState extends State<JobScreen> {
   Future<void> _loadProfile() async {
     try {
       final raw = await _api.fetchProfile(widget.seniorId);
-      final s = raw['senior'] as Map<String, dynamic>? ?? raw;
-      if (mounted) setState(() => _profile = s);
+      final s = raw['senior'] as Map<String, dynamic>? ?? {};
+      final h = raw['healthInfo'] as Map<String, dynamic>? ?? {};
+      final j = raw['jobPreference'] as Map<String, dynamic>? ?? {};
+
+      List<String> parseList(dynamic v) {
+        if (v == null) return [];
+        if (v is List) return v.map((e) => '$e').toList();
+        final str = '$v'.trim();
+        if (str.isEmpty || str == '[]') return [];
+        return str.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+
+      // senior + healthInfo + jobPreference 합쳐서 profile로 사용
+      final merged = {
+        ...s,
+        'region': s['region'] ?? s['address'] ?? '',
+        'maxHours': h['maxHours'] ?? '',
+        'maxDistance': h['maxDistance'] ?? '',
+        'restNeed': h['restNeed'] ?? '',
+        'avoidEnvironment': parseList(h['avoidEnvironment']),
+        'disabledWork': parseList(h['disabledWork']),
+        'payType': j['payType'] ?? '',
+        'hopeDays': parseList(j['hopeDays']),
+        'hopeJobType': parseList(j['hopeJobType']),
+        'hopeCondition': parseList(j['hopeCondition']),
+      };
+      if (mounted) setState(() => _profile = merged);
     } catch (_) {}
   }
 
@@ -218,7 +261,9 @@ class _JobScreenState extends State<JobScreen> {
         final filtered = _applyFilters(merged.values.toList());
         final enough = filtered.length >= _visibleCount + 5;
         final loadedAll = total > 0 && merged.length >= total;
-        cont = !enough && !loadedAll && list.isNotEmpty && page < 30;
+        // total==0이고 list가 비어있으면 더 이상 데이터 없음
+        final noMoreData = list.isEmpty || (total == 0 && list.length < 100);
+        cont = !enough && !loadedAll && !noMoreData && page < 15;
         page++;
       }
 
@@ -256,6 +301,45 @@ class _JobScreenState extends State<JobScreen> {
       }
       return true;
     }).toList();
+  }
+
+  int get _interestCount => _applications
+      .where((a) =>
+          (a['applicationType'] == 'INTEREST' || a['status'] == '관심 있음') &&
+          !['관심 삭제', '삭제', '취소'].contains(a['status']))
+      .length;
+
+  int get _appliedCount => _applications
+      .where((a) => !['INTEREST', 'RECOMMEND'].contains(a['applicationType']))
+      .length;
+
+  void _showInterestJobs() {
+    final interested = _applications
+        .where((a) =>
+            (a['applicationType'] == 'INTEREST' || a['status'] == '관심 있음') &&
+            !['관심 삭제', '삭제', '취소'].contains(a['status']))
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _InterestSheet(
+        applications: interested,
+        onDelete: (id) async {
+          await _api.updateJobApplicationStatus(id, '관심 삭제');
+          await _loadApplications();
+        },
+        onApply: (id) async {
+          await _api.updateJobApplicationStatus(id, '검토 대기');
+          await _loadApplications();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('신청했어요.'), backgroundColor: Color(0xFF86A788)),
+            );
+          }
+        },
+      ),
+    );
   }
 
   List<Map<String, dynamic>> get _scored {
@@ -378,24 +462,30 @@ class _JobScreenState extends State<JobScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          '일자리',
-          style: TextStyle(color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
-        ),
-        actions: [
-          if (applied.isNotEmpty)
-            TextButton.icon(
-              onPressed: _showApplications,
-              icon: const Icon(Icons.list_alt_outlined, size: 18, color: Color(0xFF86A788)),
-              label: Text('신청 ${applied.length}건',
-                  style: const TextStyle(color: Color(0xFF86A788), fontWeight: FontWeight.w800)),
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              title: const Text(
+                '일자리',
+                style: TextStyle(
+                    color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
+              ),
+              actions: [
+                if (applied.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _showApplications,
+                    icon: const Icon(Icons.list_alt_outlined,
+                        size: 18, color: Color(0xFF86A788)),
+                    label: Text('신청 ${applied.length}건',
+                        style: const TextStyle(
+                            color: Color(0xFF86A788),
+                            fontWeight: FontWeight.w800)),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF86A788)))
           : Column(children: [
@@ -417,6 +507,42 @@ class _JobScreenState extends State<JobScreen> {
                   _category = v;
                   _visibleCount = 20;
                 }),
+              ),
+              // 관심공고 / 신청공고 버튼
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showInterestJobs,
+                      icon: const Icon(Icons.bookmark_outline, size: 16),
+                      label: Text('관심공고${_interestCount > 0 ? " ($_interestCount)" : ""}'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF86A788),
+                        side: const BorderSide(color: Color(0xFF86A788)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showApplications,
+                      icon: const Icon(Icons.list_alt_outlined, size: 16),
+                      label: Text('신청공고${_appliedCount > 0 ? " ($_appliedCount)" : ""}'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF4C9ED9),
+                        side: const BorderSide(color: Color(0xFF4C9ED9)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ]),
               ),
               if (_error != null)
                 Padding(
@@ -716,28 +842,51 @@ class _WelfareRecommendSection extends StatelessWidget {
   }
 }
 
-// ─── 내 희망 조건 카드 ─────────────────────────────────────────────────────────
+// ─── 내 희망 조건 카드 (접기/펼치기) ──────────────────────────────────────────
 
-class _ProfileConditionCard extends StatelessWidget {
+class _ProfileConditionCard extends StatefulWidget {
   const _ProfileConditionCard({required this.profile});
   final Map<String, dynamic> profile;
 
   @override
+  State<_ProfileConditionCard> createState() => _ProfileConditionCardState();
+}
+
+class _ProfileConditionCardState extends State<_ProfileConditionCard> {
+  bool _expanded = false;
+
+  String _listStr(dynamic v) {
+    if (v is List) return v.join(' · ');
+    return '$v';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rows = <String, String>{};
-    if ((profile['region'] as String? ?? '').isNotEmpty) {
-      rows['거주지'] = profile['region'];
-    }
-    if ((profile['maxHours'] as String? ?? '').isNotEmpty) {
-      rows['활동시간'] = profile['maxHours'];
-    }
-    if ((profile['maxDistance'] as String? ?? '').isNotEmpty) {
-      rows['이동거리'] = profile['maxDistance'];
-    }
-    if ((profile['payType'] as String? ?? '').isNotEmpty) {
-      rows['급여형태'] = profile['payType'];
-    }
-    if (rows.isEmpty) return const SizedBox.shrink();
+    final p = widget.profile;
+
+    // 항상 보이는 조건
+    final basic = <String, String>{};
+    if ((p['region'] as String? ?? '').isNotEmpty) basic['거주지'] = p['region'];
+    if ((p['payType'] as String? ?? '').isNotEmpty) basic['급여형태'] = p['payType'];
+    if ((p['maxHours'] as String? ?? '').isNotEmpty) basic['활동시간'] = p['maxHours'];
+    if ((p['maxDistance'] as String? ?? '').isNotEmpty) basic['이동거리'] = p['maxDistance'];
+
+    // 더보기 조건
+    final extra = <String, String>{};
+    final hopeDays = p['hopeDays'];
+    if (hopeDays is List && hopeDays.isNotEmpty) extra['희망요일'] = _listStr(hopeDays);
+    final hopeJobType = p['hopeJobType'];
+    if (hopeJobType is List && hopeJobType.isNotEmpty) extra['희망직종'] = _listStr(hopeJobType);
+    final hopeCondition = p['hopeCondition'];
+    if (hopeCondition is List && hopeCondition.isNotEmpty) extra['희망조건'] = _listStr(hopeCondition);
+    final restNeed = p['restNeed'] as String? ?? '';
+    if (restNeed.isNotEmpty && restNeed != '없음') extra['휴식'] = restNeed;
+    final avoid = p['avoidEnvironment'];
+    if (avoid is List && avoid.isNotEmpty) extra['피할환경'] = _listStr(avoid);
+
+    if (basic.isEmpty && extra.isEmpty) return const SizedBox.shrink();
+
+    final displayed = _expanded ? {...basic, ...extra} : basic;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -748,16 +897,30 @@ class _ProfileConditionCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFF86A788).withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('내 희망 조건',
-            style: TextStyle(
-                color: Color(0xFF2D5A2E),
-                fontSize: 13,
-                fontWeight: FontWeight.w900)),
+        Row(children: [
+          const Text('내 희망 조건',
+              style: TextStyle(
+                  color: Color(0xFF2D5A2E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900)),
+          const Spacer(),
+          if (extra.isNotEmpty)
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Text(
+                _expanded ? '접기 ▲' : '더보기 ▼',
+                style: const TextStyle(
+                    color: Color(0xFF86A788),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+        ]),
         const SizedBox(height: 6),
         Wrap(
           spacing: 16,
           runSpacing: 4,
-          children: rows.entries
+          children: displayed.entries
               .map((e) => RichText(
                     text: TextSpan(children: [
                       TextSpan(
@@ -832,16 +995,20 @@ class _CompactJobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final score = job['__score'] as int? ?? 0;
     final expired = _isExpired(job);
+    // 추천 카드는 항상 주황 테마
     return GestureDetector(
       onTap: expired ? null : onTap,
       child: Container(
         width: 180,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: expired ? const Color(0xFFFAFAFA) : const Color(0xFFFFFBF0),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: expired ? const Color(0xFFE5E7EB) : const Color(0xFF86A788).withValues(alpha: 0.4),
+            color: expired
+                ? const Color(0xFFE5E7EB)
+                : const Color(0xFFF0B429).withValues(alpha: 0.6),
+            width: expired ? 1 : 1.5,
           ),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -849,14 +1016,16 @@ class _CompactJobCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFF86A788).withValues(alpha: 0.12),
+                color: const Color(0xFFF0B429).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('추천 $score점',
-                  style: const TextStyle(
-                      color: Color(0xFF2D5A2E),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800)),
+              child: Text(
+                score > 0 ? '⭐ 추천 $score점' : '⭐ 추천',
+                style: const TextStyle(
+                    color: Color(0xFF92400E),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800),
+              ),
             ),
             if (expired) ...[
               const SizedBox(width: 4),
@@ -900,6 +1069,9 @@ class _JobCard extends StatelessWidget {
     final category = _categorize(job);
     final score = job['__score'] as int? ?? 0;
 
+    // 색깔: 마감=회색, 일반=초록
+    final barColor = expired ? const Color(0xFFD1D5DB) : const Color(0xFF86A788);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -914,7 +1086,7 @@ class _JobCard extends StatelessWidget {
             Container(
               width: 5,
               decoration: BoxDecoration(
-                color: expired ? const Color(0xFFD1D5DB) : const Color(0xFF86A788),
+                color: barColor,
                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
               ),
             ),
@@ -937,14 +1109,24 @@ class _JobCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (score > 0)
+                    // 의미있는 점수(10점 이상)만 표시
+                    if (score >= 10)
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
-                        child: Text('$score점',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF86A788).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '매칭 $score점',
                             style: const TextStyle(
-                                color: Color(0xFF86A788),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800)),
+                                color: Color(0xFF2D5A2E),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800),
+                          ),
+                        ),
                       ),
                   ]),
                   const SizedBox(height: 4),
@@ -1268,6 +1450,124 @@ class _ExpiredBadge extends StatelessWidget {
       child: const Text('마감',
           style: TextStyle(
               color: Color(0xFF6B7280), fontSize: 11, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+// ─── 관심공고 시트 ─────────────────────────────────────────────────────────────
+
+class _InterestSheet extends StatelessWidget {
+  const _InterestSheet({
+    required this.applications,
+    required this.onDelete,
+    required this.onApply,
+  });
+  final List<Map<String, dynamic>> applications;
+  final Future<void> Function(int id) onDelete;
+  final Future<void> Function(int id) onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.95,
+      minChildSize: 0.3,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 10, bottom: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1D5DB),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(children: [
+              const Expanded(
+                child: Text('관심 공고 목록',
+                    style: TextStyle(
+                        color: Color(0xFF1F2A20),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ]),
+          ),
+          Expanded(
+            child: applications.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🔖', style: TextStyle(fontSize: 40)),
+                        SizedBox(height: 12),
+                        Text('등록한 관심공고가 없습니다',
+                            style: TextStyle(
+                                color: Color(0xFF6D766A),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    controller: ctrl,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: applications.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final a = applications[i];
+                      final id = a['id'];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        title: Text(
+                          a['jobTitle']?.toString() ?? '관심 공고',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          a['company']?.toString() ??
+                              a['organization']?.toString() ?? '',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: id == null
+                                  ? null
+                                  : () => onApply(id is int ? id : int.parse('$id')),
+                              child: const Text('신청',
+                                  style: TextStyle(
+                                      color: Color(0xFF86A788),
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                            TextButton(
+                              onPressed: id == null
+                                  ? null
+                                  : () => onDelete(id is int ? id : int.parse('$id')),
+                              child: const Text('삭제',
+                                  style: TextStyle(
+                                      color: Color(0xFFD94E4E),
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ]),
+      ),
     );
   }
 }

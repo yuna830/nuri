@@ -46,10 +46,23 @@ const int _defaultRadius = 200;
 //  LocationScreen
 // ─────────────────────────────────────────────
 
+typedef ActionRegistrar = void Function({
+  required VoidCallback action,
+  required IconData icon,
+  required String tooltip,
+});
+
 class LocationScreen extends StatefulWidget {
-  const LocationScreen({super.key, required this.seniorId});
+  const LocationScreen({
+    super.key,
+    required this.seniorId,
+    this.hideAppBar = false,
+    this.onRegisterAction,
+  });
 
   final int seniorId;
+  final bool hideAppBar;
+  final ActionRegistrar? onRegisterAction;
 
   @override
   State<LocationScreen> createState() => _LocationScreenState();
@@ -83,13 +96,22 @@ class _LocationScreenState extends State<LocationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadSafeZones();
-    _getLocation();
-    _loadHistory(_selectedDate);
+    // 권한 요청이 다른 권한 요청과 겹치지 않도록 첫 프레임 이후 실행
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadSafeZones();
+      _getLocation();
+      _loadHistory(_selectedDate);
+    });
     _locationTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) => _getLocation());
+        Timer.periodic(const Duration(seconds: 30), (_) => _getLocationSilent());
     _safeZoneTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _loadSafeZones());
+    widget.onRegisterAction?.call(
+      action: _getLocation,
+      icon: Icons.refresh,
+      tooltip: '새로고침',
+    );
   }
 
   @override
@@ -120,7 +142,29 @@ class _LocationScreenState extends State<LocationScreen>
     } catch (_) {}
   }
 
-  // ── GPS 위치 취득 ──────────────────────────────
+  // ── 타이머 전용 silent 갱신 (로딩 스피너 없이) ──
+  Future<void> _getLocationSilent() async {
+    if (!mounted) return;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+      final address = await _reverseGeocode(pos.latitude, pos.longitude);
+      await _maybeAutoSave(pos.latitude, pos.longitude, address);
+      if (!mounted) return;
+      setState(() {
+        _lat = pos.latitude;
+        _lon = pos.longitude;
+        _address = address;
+        _lastUpdate = _nowHm();
+        _error = null;
+      });
+      _mapController.move(LatLng(pos.latitude, pos.longitude), 15);
+    } catch (_) {}
+  }
+
+  // ── GPS 위치 취득 (최초 로드용, 로딩 스피너 표시) ──
   Future<void> _getLocation() async {
     if (!mounted) return;
     setState(() {
@@ -355,24 +399,24 @@ class _LocationScreenState extends State<LocationScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFFDEC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          '위치 확인',
-          style: TextStyle(
-            color: Color(0xFF1F2A20),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF86A788)),
-            tooltip: '새로고침',
-            onPressed: _loading ? null : _getLocation,
-          ),
-        ],
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              title: const Text(
+                '위치 확인',
+                style: TextStyle(
+                    color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Color(0xFF86A788)),
+                  tooltip: '새로고침',
+                  onPressed: _loading ? null : _getLocation,
+                ),
+              ],
       ),
       body: SafeArea(
         child: ListView(
@@ -955,17 +999,20 @@ class _DistanceCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            '🏠 $nearestName까지',
-            style: TextStyle(
-              fontSize: 14,
-              color: isInRange
-                  ? const Color(0xFF7A9A7C)
-                  : const Color(0xFFD94E4E),
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              '🏠 $nearestName까지',
+              style: TextStyle(
+                fontSize: 14,
+                color: isInRange
+                    ? const Color(0xFF7A9A7C)
+                    : const Color(0xFFD94E4E),
+                fontWeight: FontWeight.w700,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Text(
             '${distance}m',
             style: TextStyle(
@@ -976,13 +1023,16 @@ class _DistanceCard extends StatelessWidget {
                   : const Color(0xFFD94E4E),
             ),
           ),
-          const SizedBox(width: 6),
-          Text(
-            isInRange ? '(반경 ${radius}m 내)' : '(반경 ${radius}m 초과)',
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF6D766A),
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              isInRange ? '(${radius}m 내)' : '(${radius}m 초과)',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6D766A),
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

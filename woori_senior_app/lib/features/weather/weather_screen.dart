@@ -212,9 +212,22 @@ String _nowHm() {
 //  WeatherScreen
 // ─────────────────────────────────────────────
 
+typedef ActionRegistrar = void Function({
+  required VoidCallback action,
+  required IconData icon,
+  required String tooltip,
+});
+
 class WeatherScreen extends StatefulWidget {
-  const WeatherScreen({super.key, required this.seniorId});
+  const WeatherScreen({
+    super.key,
+    required this.seniorId,
+    this.hideAppBar = false,
+    this.onRegisterAction,
+  });
   final int seniorId;
+  final bool hideAppBar;
+  final ActionRegistrar? onRegisterAction;
 
   @override
   State<WeatherScreen> createState() => _WeatherScreenState();
@@ -240,6 +253,11 @@ class _WeatherScreenState extends State<WeatherScreen>
     _loadAll();
     _refreshTimer =
         Timer.periodic(const Duration(minutes: 1), (_) => _loadAll());
+    widget.onRegisterAction?.call(
+      action: _loadAll,
+      icon: Icons.refresh,
+      tooltip: '새로고침',
+    );
   }
 
   @override
@@ -373,36 +391,37 @@ class _WeatherScreenState extends State<WeatherScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFFDEC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          '기후 알림',
-          style: TextStyle(
-            color: Color(0xFF1F2A20),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: _fetching
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.refresh, color: Color(0xFF86A788)),
-                    onPressed: _loadAll,
-                    tooltip: '새로고침',
-                  ),
-          ),
-        ],
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              title: const Text(
+                '기후 알림',
+                style: TextStyle(
+                    color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: _fetching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.refresh,
+                              color: Color(0xFF86A788)),
+                          onPressed: _loadAll,
+                          tooltip: '새로고침',
+                        ),
+                ),
+              ],
       ),
       body: SafeArea(
         child: _loading
@@ -459,6 +478,44 @@ class _Body extends StatelessWidget {
         // ── 기후 인사이트 ──────────────────────
         if (insight != null) ...[
           _InsightCard(insight: insight!),
+          const SizedBox(height: 12),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(children: [
+              Text('🌤️', style: TextStyle(fontSize: 32)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('오늘의 날씨',
+                        style: TextStyle(
+                            color: Color(0xFF1F2A20),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900)),
+                    SizedBox(height: 4),
+                    Text('날씨 정보를 불러오는 중입니다.\n위치 권한을 허용하면 상세 정보가 표시됩니다.',
+                        style: TextStyle(
+                            color: Color(0xFF6D766A),
+                            fontSize: 12,
+                            height: 1.4)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
           const SizedBox(height: 12),
         ],
 
@@ -837,7 +894,7 @@ class _DonutPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────
-//  Alert List Card
+//  Alert List Card — 최신 1건만 카드로 표시
 // ─────────────────────────────────────────────
 class _AlertListCard extends StatelessWidget {
   const _AlertListCard({
@@ -849,68 +906,181 @@ class _AlertListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (alerts.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE8F5E9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFF86A788).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+                child: Text('🌤️', style: TextStyle(fontSize: 26))),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Row(children: [
+                const Text('기후 알림',
+                    style: TextStyle(
+                        color: Color(0xFF1F2A20),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900)),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF86A788).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('안전',
+                      style: TextStyle(
+                          color: Color(0xFF86A788),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              const Text(
+                '현재 발령된 기상특보가 없습니다.\n오늘 하루 기후 상태는 비교적 안전합니다.',
+                style: TextStyle(
+                    color: Color(0xFF6D766A), fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 6),
+              Text('갱신 $lastFetched',
+                  style: const TextStyle(
+                      color: Color(0xFFBDBDBD), fontSize: 11)),
+            ]),
+          ),
+        ]),
+      );
+    }
+
+    // 최신 알림 1건만
+    final latest = alerts.first;
+    final levelKey = latest['level'] as String? ?? 'safe';
+    final level = _levels[levelKey] ?? _levels['safe']!;
+    final message = latest['message']?.toString() ??
+        latest['description']?.toString() ??
+        '기후 알림이 있습니다.';
+    final type = latest['type']?.toString() ?? '기후 알림';
+    final region = latest['region']?.toString() ?? '';
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: level.color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: level.color.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '전체 알림 (${alerts.length}건)',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF1F2A20),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '마지막 갱신 $lastFetched',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6D766A),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // 헤더
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          decoration: BoxDecoration(
+            color: level.color.withValues(alpha: 0.08),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(15)),
           ),
-          const SizedBox(height: 12),
-          if (alerts.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
+          child: Row(children: [
+            Text(level.icon, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('🌤️', style: TextStyle(fontSize: 40)),
-                    SizedBox(height: 8),
-                    Text(
-                      '현재 기후 위험 알림이 없습니다',
-                      style: TextStyle(
+                Text('기후 알림',
+                    style: const TextStyle(
                         color: Color(0xFF6D766A),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+                Text(type,
+                    style: TextStyle(
+                        color: level.color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900)),
+              ]),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: level.color,
+                borderRadius: BorderRadius.circular(12),
               ),
-            )
-          else
-            ...alerts.map((alert) => _AlertCard(alert: alert)),
-        ],
-      ),
+              child: Text(level.label,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900)),
+            ),
+          ]),
+        ),
+        // 본문
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Text(message,
+                style: const TextStyle(
+                    color: Color(0xFF1F2A20),
+                    fontSize: 14,
+                    height: 1.5)),
+            const SizedBox(height: 10),
+            Row(children: [
+              if (region.isNotEmpty) ...[
+                const Icon(Icons.location_on_outlined,
+                    size: 13, color: Color(0xFF6D766A)),
+                const SizedBox(width: 3),
+                Text(region,
+                    style: const TextStyle(
+                        color: Color(0xFF6D766A), fontSize: 12)),
+                const SizedBox(width: 12),
+              ],
+              const Icon(Icons.access_time,
+                  size: 13, color: Color(0xFFBDBDBD)),
+              const SizedBox(width: 3),
+              Text('갱신 $lastFetched',
+                  style: const TextStyle(
+                      color: Color(0xFFBDBDBD), fontSize: 12)),
+              if (alerts.length > 1) ...[
+                const Spacer(),
+                Text('외 ${alerts.length - 1}건',
+                    style: const TextStyle(
+                        color: Color(0xFF86A788),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ]),
+          ]),
+        ),
+      ]),
     );
   }
 }

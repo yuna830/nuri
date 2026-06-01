@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -155,72 +157,99 @@ List<String> _parseList(dynamic v) {
 }
 
 _ProfileForm _apiToForm(Map<String, dynamic> raw) {
+  // Spring SeniorProfileResponse: { senior:{}, healthInfo:{}, jobPreference:{}, ... }
   final s = raw['senior'] as Map<String, dynamic>? ?? raw;
+  final h = raw['healthInfo'] as Map<String, dynamic>? ?? {};
+  final j = raw['jobPreference'] as Map<String, dynamic>? ?? {};
   final form = _ProfileForm();
 
+  // ── 인적사항 (Senior 엔티티) ─────────────────────
   form.name = '${s['name'] ?? ''}';
   form.phone = '${s['phone'] ?? ''}';
   form.birthDate = '${s['birthDate'] ?? ''}';
   form.gender = '${s['gender'] ?? '여성'}';
-  form.region = '${s['region'] ?? ''}';
-  form.disabilityGrade = s['disabilityGrade']?.toString().isNotEmpty == true
-      ? '${s['disabilityGrade']}'
-      : _none;
-  form.disabilityType = s['disabilityType']?.toString().isNotEmpty == true
-      ? '${s['disabilityType']}'
-      : _none;
+  form.region = '${s['region'] ?? s['address'] ?? ''}';
+  form.disabilityGrade = _orNone(s['disabilityGrade']);
+  form.disabilityType = _orNone(s['disabilityType']);
 
-  form.height = '${s['height'] ?? ''}';
-  form.weight = '${s['weight'] ?? ''}';
-  form.smoking = s['smoking']?.toString().isNotEmpty == true ? '${s['smoking']}' : _none;
-  form.drinking = s['drinking']?.toString().isNotEmpty == true ? '${s['drinking']}' : _none;
-  form.allergies = '${s['allergies'] ?? ''}';
+  // ── 신체정보 (HealthInfo 엔티티) ─────────────────
+  form.height = '${h['height'] ?? ''}';
+  form.weight = '${h['weight'] ?? ''}';
+  form.smoking  = _orNone(h['smoking']);
+  form.drinking = _orNone(h['drinking']);
+  form.allergies = '${h['allergies'] ?? ''}';
 
-  form.medicineCount = s['medicineCount']?.toString().isNotEmpty == true
-      ? '${s['medicineCount']}'
-      : _none;
+  // ── 복약정보 ──────────────────────────────────────
+  form.medicineCount = _orNone(h['medicineCount']);
 
-  final medsRaw = s['medicationsJson'] ?? s['medications'];
-  if (medsRaw is List) {
-    form.medications = medsRaw
-        .whereType<Map>()
-        .map((m) => {'name': '${m['name'] ?? ''}', 'dose': '${m['dose'] ?? ''}'})
-        .toList();
+  final medsJson = h['medicationsJson'];
+  if (medsJson is String && medsJson.isNotEmpty && medsJson != '[]') {
+    try {
+      final parsed = jsonDecode(medsJson);
+      if (parsed is List) {
+        form.medications = parsed
+            .whereType<Map>()
+            .map((m) => {'name': '${m['name'] ?? ''}', 'dose': '${m['dose'] ?? ''}'})
+            .toList();
+      }
+    } catch (_) {}
   }
 
+  // ── 만성질환 (HealthInfo 필드명: heartDisease, jointDisease …) ──
+  // Spring DB 컬럼명 → Flutter form 키 매핑
+  final chronicMap = <String, String>{
+    'diabetes':    'diabetes',
+    'hypertension':'hypertension',
+    'heart':       'heartDisease',   // Spring: heartDisease
+    'joint':       'jointDisease',
+    'stroke':      'stroke',
+    'kidney':      'kidneyDisease',
+    'lung':        'lungDisease',
+    'liver':       'liverDisease',
+    'cancer':      'cancer',
+  };
   for (final d in _chronicDiseases) {
-    final k = d['key']!;
-    final v = s[k]?.toString() ?? '';
-    form.chronic[k] = v.isNotEmpty ? v : _none;
+    final formKey = d['key']!;
+    final dbKey  = chronicMap[formKey] ?? formKey;
+    form.chronic[formKey] = _orNone(h[dbKey]);
   }
 
-  form.walkingAid = s['walkingAid']?.toString().isNotEmpty == true ? '${s['walkingAid']}' : _none;
-  form.dementia = s['dementia']?.toString().isNotEmpty == true ? '${s['dementia']}' : _none;
-  form.vision = s['vision']?.toString().isNotEmpty == true ? '${s['vision']}' : _none;
-  form.hearing = s['hearing']?.toString().isNotEmpty == true ? '${s['hearing']}' : _none;
-  form.recentFall = s['recentFall']?.toString().isNotEmpty == true ? '${s['recentFall']}' : _none;
-  form.hasSurgery = s['hasSurgery']?.toString().isNotEmpty == true ? '${s['hasSurgery']}' : _none;
-  form.surgeryDetail = '${s['surgeryDetail'] ?? ''}';
-  form.otherDisease = '${s['otherDisease'] ?? ''}';
+  // ── 거동/인지 ─────────────────────────────────────
+  form.walkingAid   = _orNone(h['walkingAid']);
+  form.dementia     = _orNone(h['dementia']);
+  form.vision       = _orNone(h['vision']);
+  form.hearing      = _orNone(h['hearing']);
+  form.recentFall   = _orNone(h['recentFall']);
+  form.hasSurgery   = _orNone(h['hasSurgery']);
+  form.surgeryDetail = '${h['surgeryDetail'] ?? ''}';
+  form.otherDisease  = '${h['otherDisease'] ?? ''}';
 
-  form.maxHours = s['maxHours']?.toString().isNotEmpty == true ? '${s['maxHours']}' : _none;
-  form.maxDistance = s['maxDistance']?.toString().isNotEmpty == true ? '${s['maxDistance']}' : _none;
-  form.disabledWork = _parseList(s['disabledWork']);
-  form.restNeeds = s['restNeeds']?.toString().isNotEmpty == true ? '${s['restNeeds']}' : _none;
-  form.avoidEnvironments = _parseList(s['avoidEnvironments']);
+  // ── 활동조건 (Spring: restNeed / avoidEnvironment — 단수) ──
+  form.maxHours        = _orNone(h['maxHours']);
+  form.maxDistance     = _orNone(h['maxDistance']);
+  form.disabledWork    = _parseList(h['disabledWork']);
+  form.restNeeds       = _orNone(h['restNeed']);       // Spring: restNeed
+  form.avoidEnvironments = _parseList(h['avoidEnvironment']); // Spring: avoidEnvironment
 
-  form.incomeLevel = s['incomeLevel']?.toString().isNotEmpty == true ? '${s['incomeLevel']}' : _none;
-  form.householdType = s['householdType']?.toString().isNotEmpty == true ? '${s['householdType']}' : _none;
-  form.currentBenefits = _parseList(s['currentBenefits']);
-  form.welfareMemo = '${s['welfareMemo'] ?? s['memo'] ?? ''}';
+  // ── 복지정보 ─────────────────────────────────────
+  form.incomeLevel     = _orNone(h['incomeLevel']);
+  form.householdType   = _orNone(h['householdType']);
+  form.currentBenefits = _parseList(h['currentBenefits']);
+  form.welfareMemo     = '${h['welfareMemo'] ?? ''}';
 
-  form.payType = s['payType']?.toString().isNotEmpty == true ? '${s['payType']}' : _none;
-  form.hopeDays = _parseList(s['hopeDays']);
-  form.hopeJobType = _parseList(s['hopeJobType']);
-  form.hopeCondition = _parseList(s['hopeCondition']);
-  form.jobMemo = '${s['jobMemo'] ?? ''}';
+  // ── 일자리 (JobPreference 엔티티, memo 필드 사용) ──
+  form.payType     = _orNone(j['payType']);
+  form.hopeDays    = _parseList(j['hopeDays']);
+  form.hopeJobType = _parseList(j['hopeJobType']);
+  form.hopeCondition = _parseList(j['hopeCondition']);
+  form.jobMemo     = '${j['memo'] ?? ''}';  // Spring: memo (not jobMemo)
 
   return form;
+}
+
+String _orNone(dynamic v) {
+  final s = v?.toString() ?? '';
+  return s.isNotEmpty ? s : _none;
 }
 
 Map<String, dynamic> _formToApi(_ProfileForm f) {
@@ -269,9 +298,22 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
+typedef ActionRegistrar = void Function({
+  required VoidCallback action,
+  required IconData icon,
+  required String tooltip,
+});
+
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.seniorId});
+  const ProfileScreen({
+    super.key,
+    required this.seniorId,
+    this.hideAppBar = false,
+    this.onRegisterAction,
+  });
   final int seniorId;
+  final bool hideAppBar;
+  final ActionRegistrar? onRegisterAction;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -292,6 +334,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _tabController = TabController(length: _sections.length, vsync: this);
     _load();
+    widget.onRegisterAction?.call(
+      action: _save,
+      icon: Icons.save_outlined,
+      tooltip: '저장',
+    );
   }
 
   @override
@@ -307,11 +354,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         _error = null;
       });
       final raw = await _api.fetchProfile(widget.seniorId);
+      if (!mounted) return;
       setState(() {
         _form = _apiToForm(raw);
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '프로필을 불러오지 못했습니다.';
         _loading = false;
@@ -345,12 +394,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          '내 정보',
-          style: TextStyle(color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
-        ),
+        automaticallyImplyLeading: !widget.hideAppBar,
+        title: widget.hideAppBar
+            ? null
+            : const Text(
+                '내 정보',
+                style: TextStyle(
+                    color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
+              ),
         actions: [
-          if (!_loading)
+          if (!_loading && !widget.hideAppBar)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: TextButton(

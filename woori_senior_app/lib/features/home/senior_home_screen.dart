@@ -65,11 +65,25 @@ bool _isCheckIn(Map a) => a['type'] == 'CHECK_IN_MESSAGE' && a['isRead'] != true
 //  SeniorHomeScreen
 // ─────────────────────────────────────────────
 
+typedef ActionRegistrar = void Function({
+  required VoidCallback action,
+  required IconData icon,
+  required String tooltip,
+});
+
 class SeniorHomeScreen extends StatefulWidget {
-  const SeniorHomeScreen({super.key, required this.seniorId, this.onTabSwitch});
+  const SeniorHomeScreen({
+    super.key,
+    required this.seniorId,
+    this.onTabSwitch,
+    this.hideAppBar = false,
+    this.onRegisterAction,
+  });
 
   final int seniorId;
   final ValueChanged<int>? onTabSwitch;
+  final bool hideAppBar;
+  final ActionRegistrar? onRegisterAction;
 
   @override
   State<SeniorHomeScreen> createState() => _SeniorHomeScreenState();
@@ -101,6 +115,11 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _homeDataFuture = _loadHomeData();
     _startAlertPolling();
+    widget.onRegisterAction?.call(
+      action: _showLogoutDialog,
+      icon: Icons.logout,
+      tooltip: '로그아웃',
+    );
   }
 
   @override
@@ -113,7 +132,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && mounted) {
       _pollAlerts();
       setState(() {
         _homeDataFuture = _loadHomeData();
@@ -235,16 +254,19 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   // ── 알림 처리 ──────────────────────────────────
-  Future<void> _readAlert(int? alertId) async {
+  Future<void> _readAlert(dynamic alertId) async {
     if (alertId == null) return;
+    // JSON int는 int or num으로 올 수 있음
+    final id = alertId is int ? alertId : int.tryParse('$alertId');
+    if (id == null) return;
     try {
-      await _api.readAlert(alertId);
+      await _api.readAlert(id);
     } catch (_) {}
   }
 
   Future<void> _handleCallAlert() async {
     final alert = _callAlert;
-    await _readAlert(alert?['id'] as int?);
+    await _readAlert(alert?['id']);
     setState(() => _callAlert = null);
     final phone = _cachedData?.senior['guardian'] is Map
         ? '${(_cachedData!.senior['guardian'] as Map)['phone'] ?? ''}'
@@ -257,17 +279,17 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   Future<void> _dismissCallAlert() async {
-    await _readAlert(_callAlert?['id'] as int?);
+    await _readAlert(_callAlert?['id']);
     setState(() => _callAlert = null);
   }
 
   Future<void> _dismissMedicineAlert() async {
-    await _readAlert(_medicineAlert?['id'] as int?);
+    await _readAlert(_medicineAlert?['id']);
     setState(() => _medicineAlert = null);
   }
 
   Future<void> _dismissInfoAlert() async {
-    await _readAlert(_infoAlert?['id'] as int?);
+    await _readAlert(_infoAlert?['id']);
     setState(() => _infoAlert = null);
   }
 
@@ -280,7 +302,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
         reply: reply,
         originalMessage: '${_checkInAlert?['message'] ?? ''}',
       );
-      await _readAlert(_checkInAlert?['id'] as int?);
+      await _readAlert(_checkInAlert?['id']);
       if (!mounted) return;
       setState(() => _checkInAlert = null);
       _replyController.clear();
@@ -296,7 +318,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   Future<void> _dismissCheckInAlert() async {
-    await _readAlert(_checkInAlert?['id'] as int?);
+    await _readAlert(_checkInAlert?['id']);
     setState(() {
       _checkInAlert = null;
       _replyController.clear();
@@ -341,41 +363,43 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFFDEC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          '우리 woori',
-          style: TextStyle(
-            color: Color(0xFF86A788),
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFD94E4E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              title: const Text(
+                '우리 woori',
+                style: TextStyle(
+                  color: Color(0xFF86A788),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              onPressed: _showSosDialog,
-              icon: const Text('🚨'),
-              label: const Text('SOS',
-                  style: TextStyle(fontWeight: FontWeight.w900)),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFD94E4E),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _showSosDialog,
+                    icon: const Text('🚨'),
+                    label: const Text('SOS',
+                        style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Color(0xFF86A788)),
+                  tooltip: '로그아웃',
+                  onPressed: _showLogoutDialog,
+                ),
+              ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFF86A788)),
-            tooltip: '로그아웃',
-            onPressed: _showLogoutDialog,
-          ),
-        ],
-      ),
       body: Stack(
         children: [
           SafeArea(
@@ -391,7 +415,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
                   return _ErrorView(onRetry: _refresh);
                 }
 
-                final data = snapshot.data ?? _cachedData!;
+                final data = snapshot.data ?? _cachedData;
+                if (data == null) return _ErrorView(onRetry: _refresh);
                 return _HomeBody(
                   data: data,
                   fallCount: _todayFallCount(),
@@ -587,22 +612,21 @@ class _HomeBody extends StatelessWidget {
   }
 
   String _guardianSummary(Map<String, dynamic> profile) {
-    final guardians = profile['guardians'];
-    if (guardians is List && guardians.isNotEmpty) {
-      final g = guardians.first;
-      if (g is Map<String, dynamic>) {
-        final name = _textFrom(g, ['name'], '보호자');
-        final rel = _textFrom(g, ['relation'], '');
-        return rel.isEmpty ? name : '$name ($rel)';
-      }
+    // Spring SeniorProfileResponse: flat 필드 guardianName, guardianPhone
+    final name = _textFrom(profile, ['guardianName'], '');
+    if (name.isNotEmpty) {
+      final rel = _textFrom(profile, ['relation'], '');
+      return rel.isEmpty ? name : '$name ($rel)';
     }
     return '보호자 매칭 전';
   }
 
   String _workerSummary(Map<String, dynamic> profile) {
-    final worker = profile['welfareWorker'];
-    if (worker is Map<String, dynamic>) {
-      return _textFrom(worker, ['name'], '복지사 매칭 전');
+    // Spring SeniorProfileResponse: flat 필드 socialWorkerName, socialWorkerCenter
+    final name = _textFrom(profile, ['socialWorkerName'], '');
+    if (name.isNotEmpty) {
+      final center = _textFrom(profile, ['socialWorkerCenter'], '');
+      return center.isEmpty ? name : '$name · $center';
     }
     return '복지사 매칭 전';
   }
@@ -1209,35 +1233,76 @@ class _ClimateAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasAlert = alerts.isNotEmpty;
+    final String message = hasAlert
+        ? (alerts.first is Map<String, dynamic>
+            ? _textFrom(
+                alerts.first as Map<String, dynamic>,
+                ['message', 'type', 'level'],
+                '기후 알림')
+            : '기후 알림')
+        : '현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.';
+
+    final Color iconBg =
+        hasAlert ? const Color(0xFFFFF3CD) : const Color(0xFFEBF5E9);
+    final Color iconColor =
+        hasAlert ? const Color(0xFFE07B00) : const Color(0xFF4C8A50);
+    final IconData icon =
+        hasAlert ? Icons.warning_amber_rounded : Icons.wb_sunny_rounded;
+
     return _BaseCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const _SectionTitle(title: '기후 알림'),
-          const SizedBox(height: 10),
-          if (alerts.isEmpty)
-            const Text(
-                '현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.',
-                style: TextStyle(
-                    color: Color(0xFF1F2A20),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    height: 1.45))
-          else
-            ...alerts.map((alert) {
-              final text = alert is Map<String, dynamic>
-                  ? _textFrom(alert, ['message', 'type', 'level'], '기후 알림')
-                  : '기후 알림';
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(text,
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: iconColor, size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('기후 알림',
+                        style: TextStyle(
+                            color: Color(0xFF1F2A20),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900)),
+                    if (alerts.length > 1) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE07B00),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text('${alerts.length}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(message,
                     style: const TextStyle(
-                        color: Color(0xFF1F2A20),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.45)),
-              );
-            }),
+                        color: Color(0xFF4A5C4B),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5)),
+              ],
+            ),
+          ),
         ],
       ),
     );
