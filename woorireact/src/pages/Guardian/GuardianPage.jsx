@@ -1448,6 +1448,7 @@ function GuardianPage() {
           onConnectSenior={handleConnectSenior}
           onCreateAndConnectSenior={handleCreateAndConnectSenior}
           onDeleteElder={handleDeleteElder}
+          onProfileUpdated={reloadGuardianSeniors}
           onOpenMedicineAlert={handleOpenMedicineAlert}
           activityReport={activityReport}
         />

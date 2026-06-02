@@ -514,7 +514,7 @@ function WelfareSeniorDetail() {
 
             await requestGuardianConsultation({
                 seniorId: senior.id,
-                message: consultRequestMemo.trim() || `${senior.name}님과 관련해 복지사 상담 확인이 필요합니다.`,
+                message: consultRequestMemo.trim() || "복지사와 상담이 필요합니다.",
             });
 
             setConsultRequestStatusMessage("보호자에게 상담 요청을 보냈습니다.");
@@ -1127,7 +1127,7 @@ function WelfareSeniorDetail() {
                                 <textarea
                                     value={consultRequestMemo}
                                     onChange={(event) => setConsultRequestMemo(event.target.value)}
-                                    placeholder={`${senior.name}님과 관련해 복지사 상담 확인이 필요합니다.`}
+                                    placeholder="상담 요청 내용을 입력하세요."
                                 />
                             </label>
                         </div>

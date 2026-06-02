@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi";
-import { updateSeniorRequestedInfo } from "../../api/guardianApi";
+import { updateGuardianSeniorRelation, updateSeniorRequestedInfo } from "../../api/guardianApi";
+import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
 
 const ACTIVITY_LABELS = {
   activity: "활동성",
@@ -87,6 +88,9 @@ function UserPanel({
   onSearchSenior,
   onConnectSenior,
   onCreateAndConnectSenior,
+  onDeleteElder,
+  onProfileUpdated,
+
   activityReport,
 }) {
   const [deviceBattery, setDeviceBattery] = useState(null);
@@ -115,6 +119,14 @@ function UserPanel({
     };
   }, []);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [profileEditForm, setProfileEditForm] = useState({
+    relation: "",
+    phone: "",
+    condition: "",
+    medications: "",
+  });
+  const [isSavingProfileEdit, setIsSavingProfileEdit] = useState(false);
 
   const profileMenuRef = useRef(null);
 
@@ -139,6 +151,68 @@ function UserPanel({
     localStorage.setItem("current_senior_id", String(selectedElder.id));
 
     navigate("/user");
+  };
+
+  const openProfileEdit = () => {
+    setProfileEditForm({
+      relation: selectedElder.relation || "",
+      phone: selectedElder.phone || "",
+      condition: selectedElder.condition || "",
+      medications: selectedElder.medications?.map((item) => item.name).join(", ") || "",
+    });
+
+    setIsProfileEditOpen(true);
+    setIsProfileMenuOpen(false);
+  };
+
+  const handleProfileEditChange = (key, value) => {
+    setProfileEditForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const buildMedicationPayload = (value) => {
+    const names = String(value || "")
+      .split(/[,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    return JSON.stringify(names.map((name) => ({ name })));
+  };
+
+  const handleSaveProfileEdit = async () => {
+    if (!selectedElder?.id) return;
+
+    const guardianId = getCurrentGuardianId();
+    const relation = profileEditForm.relation.trim() || "보호 대상자";
+
+    try {
+      setIsSavingProfileEdit(true);
+
+      await updateSeniorRequestedInfo(selectedElder.id, {
+        phone: profileEditForm.phone.trim(),
+        otherDisease: profileEditForm.condition.trim(),
+        medicationsJson: buildMedicationPayload(profileEditForm.medications),
+      });
+
+      if (guardianId) {
+        await updateGuardianSeniorRelation(guardianId, selectedElder.id, relation);
+      }
+
+      selectedElder.relation = relation;
+      selectedElder.phone = profileEditForm.phone.trim();
+      selectedElder.condition = profileEditForm.condition.trim();
+      selectedElder.medications = JSON.parse(buildMedicationPayload(profileEditForm.medications));
+
+      await onProfileUpdated?.();
+      setIsProfileEditOpen(false);
+    } catch (error) {
+      console.error("보호 대상자 정보 수정 실패:", error);
+      alert("보호 대상자 정보 수정에 실패했습니다.");
+    } finally {
+      setIsSavingProfileEdit(false);
+    }
   };
 
   const savedGuardianProfileImage = profileImages[selectedElderId] ?? null;
@@ -274,11 +348,14 @@ function UserPanel({
 
             {profileImage && isProfileMenuOpen && (
               <div className="profile-image-menu">
+                <button type="button" onClick={openProfileEdit}>
+                  정보 수정
+                </button>
                 <button type="button" onClick={handleChangeProfileImage}>
-                  변경
+                  사진 변경
                 </button>
                 <button type="button" onClick={handleDeleteProfileImage}>
-                  삭제
+                  사진 삭제
                 </button>
               </div>
             )}
@@ -311,14 +388,6 @@ function UserPanel({
             <div>
               <dt>나이</dt>
               <dd>{selectedElder.age}</dd>
-            </div>
-            <div>
-              <dt>소득 수준</dt>
-              <dd>{selectedElder.incomeLevel || "미등록"}</dd>
-            </div>
-            <div>
-              <dt>가구 형태</dt>
-              <dd>{selectedElder.householdType || "미등록"}</dd>
             </div>
             <div>
               <dt>담당 복지사</dt>
@@ -466,6 +535,73 @@ function UserPanel({
           </section>
         )}
       </aside>
+
+      {isProfileEditOpen && (
+        <div className="profile-edit-backdrop" onClick={() => setIsProfileEditOpen(false)}>
+          <section className="profile-edit-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="profile-edit-header">
+              <div>
+                <h2>보호 대상자 정보 수정</h2>
+                <p>{selectedElder.name}님의 카드 정보를 간단히 수정합니다.</p>
+              </div>
+
+              <button type="button" onClick={() => setIsProfileEditOpen(false)}>
+                닫기
+              </button>
+            </div>
+
+            <div className="profile-edit-form">
+              <label>
+                관계
+                <input
+                  value={profileEditForm.relation}
+                  onChange={(event) => handleProfileEditChange("relation", event.target.value)}
+                  placeholder="예: 엄마, 아빠, 배우자"
+                />
+              </label>
+
+              <label>
+                연락처
+                <input
+                  value={profileEditForm.phone}
+                  onChange={(event) => handleProfileEditChange("phone", formatPhoneNumber(event.target.value))}
+                  placeholder="010-0000-0000"
+                  inputMode="numeric"
+                />
+              </label>
+
+              <label>
+                주요 질환
+                <input
+                  value={profileEditForm.condition}
+                  onChange={(event) => handleProfileEditChange("condition", event.target.value)}
+                  placeholder="예: 치매/인지, 당뇨"
+                />
+              </label>
+
+              <label>
+                복약 정보
+                <textarea
+                  value={profileEditForm.medications}
+                  onChange={(event) => handleProfileEditChange("medications", event.target.value)}
+                  placeholder="예: 당뇨약, 관절약"
+                  rows={3}
+                />
+              </label>
+            </div>
+
+            <div className="profile-edit-actions">
+              <button type="button" onClick={() => setIsProfileEditOpen(false)}>
+                취소
+              </button>
+
+              <button type="button" onClick={handleSaveProfileEdit} disabled={isSavingProfileEdit}>
+                {isSavingProfileEdit ? "저장 중" : "저장"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isAddElderOpen && (
         <AddElderModal

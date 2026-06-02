@@ -34,12 +34,15 @@ export default function WelfareLogin() {
     workerId: "",
     password: "",
   });
+  const [error, setError] = useState("");
 
   const set = (key, value) => {
     setForm((previousForm) => ({ ...previousForm, [key]: value }));
   };
 
   const handleLogin = async () => {
+    setError("");
+
     const workerId = form.workerId.trim();
     const password = form.password.trim();
 
@@ -66,7 +69,11 @@ export default function WelfareLogin() {
       });
 
       if (!response.ok) {
-        alert("복지사 아이디 또는 비밀번호를 확인해주세요.");
+        if (response.status === 403) {
+          setError("\ube44\ud65c\uc131\ud654\ub41c \uacc4\uc815\uc785\ub2c8\ub2e4. \uad00\ub9ac\uc790\uc5d0\uac8c \ubb38\uc758\ud574\uc8fc\uc138\uc694.");
+        } else {
+          setError("\ubcf5\uc9c0\uc0ac \uc544\uc774\ub514 \ub610\ub294 \ube44\ubc00\ubc88\ud638\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.");
+        }
         return;
       }
 
@@ -82,7 +89,7 @@ export default function WelfareLogin() {
 
       navigate("/welfare");
     } catch {
-      alert("서버에 연결할 수 없습니다.");
+      setError("\uc11c\ubc84\uc5d0 \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.");
     }
   };
 
@@ -203,6 +210,8 @@ export default function WelfareLogin() {
               <br />
               더 빠른 돌봄 관리를 돕습니다.
             </div>
+
+            {error && <div className="login-error">{error}</div>}
 
             <label className="login-label">복지사 아이디</label>
             <input

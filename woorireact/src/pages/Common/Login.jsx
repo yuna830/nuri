@@ -63,6 +63,11 @@ export default function Login() {
         return;
       }
 
+      if (response.status === 403) {
+        setError("\ube44\ud65c\uc131\ud654\ub41c \uacc4\uc815\uc785\ub2c8\ub2e4. \uad00\ub9ac\uc790\uc5d0\uac8c \ubb38\uc758\ud574\uc8fc\uc138\uc694.");
+        return;
+      }
+
       localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
       navigate("/signup");
     } catch (loginError) {

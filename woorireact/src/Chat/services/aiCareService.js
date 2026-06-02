@@ -66,6 +66,9 @@ export async function createCareResponse({ text, schedules, history = [], profil
 
   try {
     const latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
+    const foodSafetyAnswer = answerFoodSafetyQuestion(text, latestFoodAnalysisMemory, profileContext);
+    if (foodSafetyAnswer) return foodSafetyAnswer;
+
     const foodIngredientAnswer = answerFoodIngredientQuestion(text, latestFoodAnalysisMemory);
     if (foodIngredientAnswer) return foodIngredientAnswer;
 
@@ -160,13 +163,130 @@ function answerFoodIngredientQuestion(text, memory) {
   return `OCR 원문에서는 ${ingredient}가 명확히 확인되지 않았어요. 알레르기나 제한 식품이면 원재료명 부분을 직접 확인하는 것이 안전해요.`;
 }
 
+function answerFoodSafetyQuestion(text, memory, profileContext) {
+  if (!memory || !isFoodSafetyQuestion(text)) return "";
+
+  const productName = getVisibleFoodName(memory);
+  const conflicts = extractFoodMemorySection(memory, "Personal allergy conflicts found:");
+  const ocrText = extractFoodMemorySection(memory, "OCR text:");
+  const hasConflicts = conflicts && conflicts !== "none";
+  const diseaseCaution = getFoodDiseaseCaution(profileContext);
+
+  if (hasConflicts) {
+    return [
+      `${productName}로 보여요.`,
+      "",
+      "드시지 마세요.",
+      "",
+      "이유",
+      `- 등록된 알레르기와 관련된 성분이 보여요: ${formatAllergyConflicts(conflicts)}`,
+      "",
+      "확인해 주세요",
+      "- 드시기 전에 원재료명을 다시 확인해 주세요.",
+    ].join("\n");
+  }
+
+  if (diseaseCaution.length > 0) {
+    return [
+      `${productName}로 보여요.`,
+      "",
+      "조금만 드세요.",
+      "",
+      "주의할 점",
+      ...diseaseCaution,
+      "",
+      "드실 때",
+      "- 작은 양만 덜어 드세요.",
+      "- 국물이나 양념은 적게 드세요.",
+      "- 가능하면 성분표도 확인해 주세요.",
+    ].join("\n");
+  }
+
+  if (!ocrText) {
+    return [
+      `${productName}로 보여요.`,
+      "",
+      "사진만으로는 드셔도 되는지 판단하기 어려워요.",
+      "",
+      "확인해 주세요",
+      "- 알레르기나 제한 식품이 있다면 원재료명을 확인해 주세요.",
+    ].join("\n");
+  }
+
+  return [
+    `${productName}로 보여요.`,
+    "",
+    "사진에서 피해야 할 성분은 명확히 보이지 않아요.",
+    "",
+    "확인해 주세요",
+    "- 드시기 전에 원재료명을 한 번 더 확인해 주세요.",
+  ].join("\n");
+}
+
+function isFoodSafetyQuestion(text) {
+  const normalized = String(text || "")
+    .replace(/\s/g, "")
+    .replace(/머거/g, "먹어")
+    .replace(/먹거/g, "먹어")
+    .replace(/먹어두/g, "먹어도")
+    .replace(/드셔두/g, "드셔도")
+    .replace(/섭취해두/g, "섭취해도");
+
+  return /(먹어도|먹어봐도|드셔도|섭취해도|먹으면|먹을수있)/.test(normalized);
+}
+
+function getFoodDiseaseCaution(profileContext) {
+  const diseases = profileContext?.diseases || {};
+  const cautions = [];
+
+  if (hasHealthCondition(diseases.diabetes)) {
+    cautions.push("- 당뇨: 단 음식과 탄수화물은 적게 드세요.");
+  }
+
+  const saltSensitiveConditions = [
+    [diseases.hypertension, "고혈압"],
+    [diseases.heartDisease, "심장질환"],
+    [diseases.kidneyDisease, "신장질환"],
+  ]
+    .filter(([value]) => hasHealthCondition(value))
+    .map(([, label]) => label);
+
+  if (saltSensitiveConditions.length > 0) {
+    cautions.push(`- ${saltSensitiveConditions.join("·")}: 짠 음식과 국물은 적게 드세요.`);
+  }
+  if (hasHealthCondition(diseases.liverDisease)) {
+    cautions.push("- 간질환: 자극적이거나 기름진 음식은 적게 드세요.");
+  }
+
+  return cautions;
+}
+
+function formatAllergyConflicts(conflicts) {
+  return conflicts.replace(/\s*->\s*/g, ": ");
+}
+
+function hasHealthCondition(value) {
+  if (typeof value === "boolean") return value;
+
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized && !["없음", "아니오", "false", "no", "0", "정상"].includes(normalized);
+}
+
+function getVisibleFoodName(memory) {
+  const name = extractFoodMemorySection(memory, "Product name:")
+    .split("\n")[0]
+    .trim();
+
+  return name && name !== "unknown" ? name : "사진 속 음식";
+}
+
 function extractFoodMemorySection(memory, label) {
   const startIndex = memory.indexOf(label);
   if (startIndex < 0) return "";
 
   const start = startIndex + label.length;
   const rest = memory.slice(start);
-  const nextLabel = rest.search(/\n(?:Product name|User registered allergies|Personal allergy conflicts found|Nutrients JSON|Detected allergens JSON|Warnings JSON|Assistant visible summary|OCR text|\[\/FOOD_ANALYSIS_MEMORY\])/);
+  const nextLabel = rest.search(/\n(?:Product name|User registered allergies|Personal allergy conflicts found|Image classification accepted|Image classification confidence|Nutrients JSON|Detected allergens JSON|Warnings JSON|Assistant visible summary|OCR text|\[\/FOOD_ANALYSIS_MEMORY\])/);
   return (nextLabel >= 0 ? rest.slice(0, nextLabel) : rest).trim();
 }
 

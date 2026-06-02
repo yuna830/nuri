@@ -695,6 +695,15 @@
   white-space: nowrap;
 }
 
+.wj-layout-with-main-sidebar {
+    overflow: visible;
+}
+
+.wj-layout-with-main-sidebar > .wd-sidebar {
+    margin-top: -10px;
+    max-height: calc(100vh - 90px);
+}
+
 @media (max-width: 900px) {
     .wj-header {
         padding: 0 20px;

@@ -145,3 +145,17 @@ export const recommendWelfareJobToSenior = async ({ seniorId, job }) => {
         alertSent: Boolean(alertResult),
     };
 };
+
+export const fetchSeniorJobApplications = async (seniorId) => {
+    if (!seniorId) return [];
+
+    const response = await fetch(`/api/job-interests/senior/${seniorId}`);
+
+    if (!response.ok) {
+        throw new Error("Failed to load senior job applications");
+    }
+
+    const data = await response.json();
+
+    return Array.isArray(data) ? data : [];
+};

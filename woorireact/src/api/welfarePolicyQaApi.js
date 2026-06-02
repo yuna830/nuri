@@ -1,12 +1,12 @@
 const FASTAPI_BASE_URL = "http://localhost:8001";
-const SPRING_API_BASE_URL = "http://localhost:8181";
+const SPRING_API_BASE_URL = "http://localhost:8080";
 
 function valueOrNull(value) {
     if (value === null || value === undefined || value === "") {
         return null;
     }
 
-    return value;
+    return String(value);
 }
 
 function toArray(value) {
@@ -29,6 +29,9 @@ function buildWelfareProfile(senior) {
         return null;
     }
 
+    const healthInfo = senior.healthInfo || {};
+    const jobPreference = senior.jobPreference || {};
+
     return {
         name: valueOrNull(senior.name),
         displayNameAliases: senior.name
@@ -43,12 +46,69 @@ function buildWelfareProfile(senior) {
             : [],
         age: senior.age ? Number(String(senior.age).replace(/[^0-9]/g, "")) : null,
         gender: valueOrNull(senior.gender),
+        height: valueOrNull(healthInfo.height),
+        weight: valueOrNull(healthInfo.weight),
+        smoking: valueOrNull(healthInfo.smoking),
+        drinking: valueOrNull(healthInfo.drinking),
+        allergies: valueOrNull(healthInfo.allergies),
+        medicineCount: valueOrNull(healthInfo.medicineCount),
+        medications: Array.isArray(healthInfo.medications)
+            ? healthInfo.medications
+            : (() => {
+                try {
+                    const parsed = JSON.parse(healthInfo.medicationsJson || "[]");
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            })(),
+
+        incomeLevel: valueOrNull(senior.incomeLevel || senior.income || healthInfo.incomeLevel),
+        householdType: valueOrNull(senior.householdType || healthInfo.householdType),
+        currentBenefits: toArray(senior.currentBenefits || healthInfo.currentBenefits),
+        welfareMemo: valueOrNull(senior.welfareMemo || healthInfo.welfareMemo),
+
+        diseases: [
+            healthInfo.diabetes && `당뇨: ${healthInfo.diabetes}`,
+            healthInfo.hypertension && `고혈압: ${healthInfo.hypertension}`,
+            healthInfo.heartDisease && `심장질환: ${healthInfo.heartDisease}`,
+            healthInfo.jointDisease && `관절질환: ${healthInfo.jointDisease}`,
+            healthInfo.stroke && `뇌졸중: ${healthInfo.stroke}`,
+            healthInfo.kidneyDisease && `신장질환: ${healthInfo.kidneyDisease}`,
+            healthInfo.lungDisease && `호흡기질환: ${healthInfo.lungDisease}`,
+            healthInfo.liverDisease && `간질환: ${healthInfo.liverDisease}`,
+            healthInfo.cancer && `암: ${healthInfo.cancer}`,
+        ].filter(Boolean),
+
+        mobilityInfo: [
+            healthInfo.walkingAid && `보행 보조기구: ${healthInfo.walkingAid}`,
+            healthInfo.dementia && `인지/기억 어려움: ${healthInfo.dementia}`,
+            healthInfo.vision && `시력: ${healthInfo.vision}`,
+            healthInfo.hearing && `청력: ${healthInfo.hearing}`,
+            healthInfo.recentFall && `최근 낙상: ${healthInfo.recentFall}`,
+            healthInfo.hasSurgery && `수술 이력: ${healthInfo.hasSurgery}`,
+            healthInfo.surgeryDetail && `수술 내용: ${healthInfo.surgeryDetail}`,
+            healthInfo.otherDisease && `기타 질환: ${healthInfo.otherDisease}`,
+        ].filter(Boolean),
+
+        workLimitations: [
+            healthInfo.maxHours && `하루 최대 근무 시간: ${healthInfo.maxHours}`,
+            healthInfo.maxDistance && `최대 이동 거리: ${healthInfo.maxDistance}`,
+            healthInfo.disabledWork && `어려운 업무: ${healthInfo.disabledWork}`,
+            healthInfo.restNeed && `휴식 필요도: ${healthInfo.restNeed}`,
+            healthInfo.avoidEnvironment && `피해야 할 환경: ${healthInfo.avoidEnvironment}`,
+        ].filter(Boolean),
+
+        jobPreference: {
+            payType: valueOrNull(jobPreference.payType),
+            hopeDays: valueOrNull(jobPreference.hopeDays),
+            hopeJobType: valueOrNull(jobPreference.hopeJobType),
+            hopeCondition: valueOrNull(jobPreference.hopeCondition),
+            memo: valueOrNull(jobPreference.memo),
+        },
         region: valueOrNull(senior.region),
         address: valueOrNull(senior.address),
-        incomeLevel: valueOrNull(senior.incomeLevel || senior.income),
-        householdType: valueOrNull(senior.householdType),
         livingAlone: valueOrNull(senior.livingAlone),
-        diseases: toArray(senior.diseases || senior.healthStatus || senior.majorDiseases),
         medicationInfo: valueOrNull(senior.medicationInfo || senior.medicineInfo),
         basicLivelihoodStatus: valueOrNull(senior.basicLivelihoodStatus),
         nearPovertyStatus: valueOrNull(senior.nearPovertyStatus),
@@ -59,8 +119,16 @@ function buildWelfareProfile(senior) {
         ),
         longTermCareGrade: valueOrNull(senior.longTermCareGrade),
         jobRequestStatus: valueOrNull(senior.jobRequestStatus),
-        currentBenefits: toArray(senior.currentBenefits),
-        welfareMemo: valueOrNull(senior.welfareMemo),
+        jobApplications: Array.isArray(senior.jobApplications)
+            ? senior.jobApplications.map((job) => ({
+                jobTitle: valueOrNull(job.jobTitle),
+                organization: valueOrNull(job.organization || job.company),
+                status: valueOrNull(job.status),
+                location: valueOrNull(job.location),
+                requestedAt: valueOrNull(job.requestedAt),
+                applicationType: valueOrNull(job.applicationType),
+            }))
+            : [],
     };
 }
 
