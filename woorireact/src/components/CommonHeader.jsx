@@ -31,6 +31,7 @@ function CommonHeader({
 
   useEffect(() => {
     if (!notificationTabs.includes(activeNotificationTab)) {
+       
       setActiveNotificationTab(notificationTabs[0] || "전체");
     }
   }, [activeNotificationTab, notificationTabs]);
@@ -102,6 +103,7 @@ function CommonHeader({
   useEffect(() => {
     const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+     
     setSelectedNotificationKeys([]);
   }, [activeNotificationTab]);
 

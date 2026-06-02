@@ -32,6 +32,7 @@ export function useAdminData() {
   }, []);
 
   useEffect(() => {
+     
     load();
   }, [load]);
 

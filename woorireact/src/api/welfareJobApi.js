@@ -1,12 +1,6 @@
 import { sendWelfareSeniorAlert } from "./welfareAlertApi";
 import { fetchJobList as fetchCombinedJobList } from "../utils/user/jobApi";
 
-const SERVICE_KEY =
-    "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
-
-const JOB_CACHE_TTL_MS = 10 * 60 * 1000;
-const jobListCache = new Map();
-
 export const EMPL_MAP = {
     CM0101: "정규직",
     CM0102: "계약직",
@@ -27,59 +21,6 @@ export const JOB_CATEGORY_FILTERS = [
     { label: "물류·유통", value: "물류", keywords: ["물류", "유통", "매장", "판매"] },
     { label: "기타", value: "기타", keywords: [] },
 ];
-
-const readJobCache = (cacheKey) => {
-    const memoryCached = jobListCache.get(cacheKey);
-
-    if (memoryCached && Date.now() - memoryCached.savedAt < JOB_CACHE_TTL_MS) {
-        return memoryCached.data;
-    }
-
-    try {
-        const cached = JSON.parse(sessionStorage.getItem(`welfare-job-list:${cacheKey}`) || "null");
-
-        if (cached && Date.now() - cached.savedAt < JOB_CACHE_TTL_MS) {
-            jobListCache.set(cacheKey, cached);
-            return cached.data;
-        }
-    } catch {
-        return null;
-    }
-
-    return null;
-};
-
-const writeJobCache = (cacheKey, data) => {
-    const cached = { savedAt: Date.now(), data };
-    jobListCache.set(cacheKey, cached);
-
-    try {
-        sessionStorage.setItem(`welfare-job-list:${cacheKey}`, JSON.stringify(cached));
-    } catch {
-        return;
-    }
-};
-
-const fetchCachedJobPostings = async () => {
-    const response = await fetch("/api/job-cache");
-    if (!response.ok) return [];
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
-};
-
-const saveJobPostingsToCache = async (jobs) => {
-    const rows = Array.isArray(jobs)
-        ? jobs.filter((job) => job?.source && job?.jobId)
-        : [];
-
-    if (rows.length === 0) return;
-
-    await fetch("/api/job-cache/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rows),
-    }).catch(() => {});
-};
 
 export const categorizeJob = (job) => {
     const text = `${job.recrtTitle || ""} ${job.jobclsNm || ""} ${job.detCnts || ""}`;

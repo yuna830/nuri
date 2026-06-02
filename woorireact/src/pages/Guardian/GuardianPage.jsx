@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import {
   getGuardianAlerts,
   readAlert,
@@ -19,7 +19,7 @@ import {
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
-import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
+import { getDistanceMeters, formatShortAddress } from "../../utils/guardian/location";
 import {
   getDateValue,
   fetchLatestLocation,
@@ -177,7 +177,6 @@ function GuardianPage() {
   const [isRouteVisible, setIsRouteVisible] = useState(true);
 
   const [apiAlerts, setApiAlerts] = useState([]);
-  const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const knownAlertIdsRef = useRef(new Set());
   const didLoadAlertsRef = useRef(false);
   const [guardianToast, setGuardianToast] = useState(null);
@@ -333,8 +332,6 @@ function GuardianPage() {
     () => buildDisplayedAlerts(apiAlerts, reportedAlertIds),
     [apiAlerts, reportedAlertIds]
   );
-
-  const unreadAlertCount = displayedAlerts.filter((alert) => alert.status === "미확인").length;
 
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
@@ -634,7 +631,7 @@ function GuardianPage() {
   const isOutsideSafeZone = hasCurrentLocation && distance > safeZoneForm.radiusMeters;
 
   const getElderStatus = (elder) => {
-    const form = safeZoneForms[elder.id] ?? getDefaultSafeZone(elder);
+    const form = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
 
     if (!elder.currentLocation) return "unknown";
 
@@ -1148,7 +1145,6 @@ function GuardianPage() {
       `${targetElder?.name ?? selectedElder.name}의 SOS 요청 후 연락이 되지 않아 실종 신고합니다.`
     );
 
-    setIsAlertPanelOpen(false);
     setReportingAlertId(alert?.id ?? null);
     setIsMissingReportOpen(true);
   };

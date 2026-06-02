@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import "../../css/user/WeatherGraph.css";
 import {
@@ -186,8 +185,6 @@ const createFallbackHourly = () => {
 };
 
 export default function WeatherGraph() {
-  const navigate = useNavigate();
-
   const [hourlyData, setHourlyData]   = useState([]);
   const [current, setCurrent]         = useState(null);
   const [loading, setLoading]         = useState(true);
@@ -206,7 +203,9 @@ export default function WeatherGraph() {
         const p = JSON.parse(saved);
         setProfile(p?.healthInfo || null);
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, []);
 
   const fetchEnvironment = async (lat, lon) => {

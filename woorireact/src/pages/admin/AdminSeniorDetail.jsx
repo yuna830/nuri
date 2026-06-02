@@ -32,6 +32,7 @@ function AdminSeniorDetail() {
   useEffect(() => {
     if (!displayedSenior) return;
 
+     
     setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
   }, [displayedSenior?.id, displayedSenior?.welfareId]);
 
@@ -50,7 +51,7 @@ function AdminSeniorDetail() {
           ? "\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4."
           : "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ud574\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
       });
-    } catch (error) {
+    } catch {
       setSaveMessage({
         type: "error",
         text: selectedWorkerId

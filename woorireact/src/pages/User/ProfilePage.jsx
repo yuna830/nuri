@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
-import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { uploadProfileImage } from "../../api/userPageApi.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
@@ -49,6 +49,7 @@ export default function ProfilePage() {
     const requestedSection = searchParams.get("section");
 
     if (SECTIONS.some((section) => section.id === requestedSection)) {
+       
       setActiveSection(requestedSection);
     }
   }, [searchParams]);

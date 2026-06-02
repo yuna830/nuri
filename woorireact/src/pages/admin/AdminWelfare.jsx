@@ -45,7 +45,7 @@ function AdminWelfare() {
         type: "success",
         text: "\uacc4\uc815 \uc0c1\ud0dc\uac00 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
       });
-    } catch (error) {
+    } catch {
       setActionMessage({
         type: "error",
         text: "\uacc4\uc815 \uc0c1\ud0dc \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",

@@ -69,10 +69,8 @@ function UserPanel({
   hasCurrentLocation,
   isOutsideSafeZone,
   distance,
-  lastNormalLocation,
   safeZones,
   safeZoneForm,
-  formatShortAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
   onSelectSafeZoneForm,
@@ -89,7 +87,6 @@ function UserPanel({
   onSearchSenior,
   onConnectSenior,
   onCreateAndConnectSenior,
-  onDeleteElder,
   activityReport,
 }) {
   const [deviceBattery, setDeviceBattery] = useState(null);
@@ -161,6 +158,7 @@ function UserPanel({
     : [];
 
   useEffect(() => {
+     
     setIsProfileMenuOpen(false);
   }, [selectedElderId]);
 
@@ -209,10 +207,11 @@ function UserPanel({
         return next;
       });
 
+      // eslint-disable-next-line react-hooks/immutability
       selectedElder.profileImageUrl = imageUrl;
       setIsProfileMenuOpen(false);
-    } catch (error) {
-      console.error("프로필 사진 저장 실패:", error);
+    } catch {
+      console.error("프로필 사진 저장 실패");
       alert("프로필 사진 저장에 실패했습니다.");
     } finally {
       event.target.value = "";
@@ -239,10 +238,11 @@ function UserPanel({
         return next;
       });
 
+      // eslint-disable-next-line react-hooks/immutability
       selectedElder.profileImageUrl = "";
       setIsProfileMenuOpen(false);
-    } catch (error) {
-      console.error("프로필 사진 삭제 실패:", error);
+    } catch {
+      console.error("프로필 사진 삭제 실패");
       alert("프로필 사진 삭제에 실패했습니다.");
     }
   };

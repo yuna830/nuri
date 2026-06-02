@@ -6,10 +6,8 @@ import {
   COLORS,
   calcHealthScore,
   menus,
-  schedules,
 } from "../../utils/user/userPageData";
 import {
-  createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
   fetchActivityBaseline,
@@ -32,33 +30,6 @@ import { fetchJobList } from "../../utils/user/jobApi";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
-
-const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
-
-const toGrid = (lat, lon) => {
-  const RE = 6371.00877, GRID = 5.0, SLAT1 = 30.0, SLAT2 = 60.0;
-  const OLON = 126.0, OLAT = 38.0, XO = 43, YO = 136;
-  const DEGRAD = Math.PI / 180.0;
-  const re = RE / GRID;
-  const slat1 = SLAT1 * DEGRAD, slat2 = SLAT2 * DEGRAD;
-  const olon = OLON * DEGRAD, olat = OLAT * DEGRAD;
-  let sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5);
-  sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
-  let sf = Math.tan(Math.PI * 0.25 + slat1 * 0.5);
-  sf = Math.pow(sf, sn) * Math.cos(slat1) / sn;
-  let ro = Math.tan(Math.PI * 0.25 + olat * 0.5);
-  ro = re * sf / Math.pow(ro, sn);
-  let ra = Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5);
-  ra = re * sf / Math.pow(ra, sn);
-  let theta = lon * DEGRAD - olon;
-  if (theta > Math.PI) theta -= 2.0 * Math.PI;
-  if (theta < -Math.PI) theta += 2.0 * Math.PI;
-  theta *= sn;
-  return {
-    nx: Math.floor(ra * Math.sin(theta) + XO + 0.5),
-    ny: Math.floor(ro - ra * Math.cos(theta) + YO + 0.5),
-  };
-};
 
 const getInitialSeniorProfile = () => {
   try {
@@ -440,24 +411,6 @@ const isCallAlertHandled = (alert) => {
   return getHandledCallAlertIds().has(String(alert.id));
 };
 
-const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
-
-const shouldSendSafeZoneAlert = (seniorId, safeZone, lat, lon) => {
-  if (!seniorId || !safeZone) return false;
-
-  const roundedLat = Math.round(lat * 1000);
-  const roundedLon = Math.round(lon * 1000);
-  const key = `safe-zone-alert:${seniorId}:${safeZone.radiusMeters}:${roundedLat}:${roundedLon}`;
-  const lastSentAt = Number(localStorage.getItem(key) || 0);
-
-  if (Date.now() - lastSentAt < SAFE_ZONE_ALERT_COOLDOWN_MS) {
-    return false;
-  }
-
-  localStorage.setItem(key, String(Date.now()));
-  return true;
-};
-
 export default function UserPage() {
   const navigate = useNavigate();
   const initialProfile = getInitialSeniorProfile();
@@ -474,6 +427,7 @@ export default function UserPage() {
   const [showSOS, setShowSOS] = useState(false);
   const [activityInfoModal, setActivityInfoModal] = useState(null);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
+  // eslint-disable-next-line no-unused-vars
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
@@ -486,12 +440,14 @@ export default function UserPage() {
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
+  // eslint-disable-next-line no-unused-vars
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [activityToday, setActivityToday] = useState(DEFAULT_ACTIVITY_TODAY);
   const [activityTrend, setActivityTrend] = useState(null);
   const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
+  // eslint-disable-next-line no-unused-vars
   const [deviceStatus, setDeviceStatus] = useState("checking");
   const [sensorConnected, setSensorConnected] = useState(null);
   const [scheduleList, setScheduleList] = useState([]);
@@ -604,21 +560,6 @@ export default function UserPage() {
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const currentTime = pad(now.getHours()) + ":" + pad(now.getMinutes());
     const currentDateTime = `${today} ${currentTime}`;
-
-    const getPositionForAlert = () => new Promise((resolve) => {
-      if (currentPos) {
-        resolve({ lat: currentPos.lat, lon: currentPos.lon });
-        return;
-      }
-      if (!navigator.geolocation) {
-        resolve({ lat: 37.5665, lon: 126.9780 });
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => resolve({ lat: 37.5665, lon: 126.9780 })
-      );
-    });
 
     try {
       const seniorId = getSavedSeniorId();
@@ -945,6 +886,7 @@ export default function UserPage() {
 
     const currentDate = new Date();
     const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+     
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
@@ -1007,6 +949,7 @@ export default function UserPage() {
     })).sort((first, second) => first.distance - second.distance);
 
     if (distances[0]?.zone) {
+       
       setSafeZone(distances[0].zone);
     }
 

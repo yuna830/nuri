@@ -84,6 +84,7 @@ export default function TripartiteChatModal({
     const preferredRoom = initialRoomType
       ? visibleRooms.find((room) => room.roomType === initialRoomType)
       : null;
+     
     setActiveRoomKey((previousKey) => {
       if (preferredRoom?.key) return preferredRoom.key;
       return visibleRooms.some((room) => room.key === previousKey)
@@ -120,6 +121,7 @@ export default function TripartiteChatModal({
   useEffect(() => {
     if (!isOpen || !(activeRoom?.seniorId || seniorId)) return undefined;
 
+     
     loadMessages();
     const timerId = window.setInterval(() => {
       if (historyPage === 0) {

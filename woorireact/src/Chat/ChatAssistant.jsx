@@ -31,7 +31,9 @@ const getResolvedSeniorId = () => {
       if (id) localStorage.setItem("current_senior_id", id);
       return id;
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
   return null;
 };
 
@@ -79,6 +81,7 @@ export default function ChatAssistant() {
   useEffect(() => {
     if (searchParams.get("mode") === "schedule") {
       setEditingSchedule(null);
+       
       setMode("schedule");
     }
   }, [searchParams]);

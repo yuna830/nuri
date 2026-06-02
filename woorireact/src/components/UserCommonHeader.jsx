@@ -193,7 +193,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [activeAlertTab, setActiveAlertTab] = useState(ALERT_TABS[0]);
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
-  const [deletedAlertKeys, setDeletedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
@@ -311,6 +310,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
+     
     loadAlerts();
     const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
     return () => clearInterval(timerId);
@@ -332,6 +332,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
+     
     loadUnreadChatCount();
     const timerId = setInterval(loadUnreadChatCount, 5000);
     return () => clearInterval(timerId);
@@ -380,6 +381,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     const activeTabButton = alertTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+     
     setSelectedAlertKeys([]);
   }, [activeAlertTab]);
 
@@ -425,7 +427,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
   const removeAlertsFromList = (keys) => {
     deletedAlertKeysRef.current = [...new Set([...deletedAlertKeysRef.current, ...keys])];
-    setDeletedAlertKeys(deletedAlertKeysRef.current);
     setAlerts((prev) => prev.filter((alert) => !keys.includes(alert.key)));
     setSelectedAlertKeys([]);
   };

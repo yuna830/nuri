@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPin, Clock, Shield } from "lucide-react";
 
 import KakaoMap from "../../components/KakaoMap.jsx";
 import NearbyHelpPlaces from "../../components/user/NearbyHelpPlaces.jsx";
-import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 
 import {
   SAFE_RADIUS,
@@ -12,7 +11,6 @@ import {
   getNow,
 } from "../../utils/user/locationPageUtils";
 import { getDistanceMeters } from "../../utils/guardian/location";
-import { createSafeZoneAlert } from "../../api/userPageApi.js";
 import "../../css/user/LocationPage.css";
 
 const DEFAULT_SAFE_ZONE = {
@@ -39,26 +37,9 @@ const toHistoryItem = (item) => ({
   place: item.address || "현재 위치",
 });
 
-const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
 
-const shouldSendSafeZoneAlert = (seniorId, safeZone, lat, lon) => {
-  if (!seniorId || !safeZone) return false;
-
-  const roundedLat = Math.round(lat * 1000);
-  const roundedLon = Math.round(lon * 1000);
-  const key = `safe-zone-alert:${seniorId}:${safeZone.radiusMeters}:${roundedLat}:${roundedLon}`;
-  const lastSentAt = Number(localStorage.getItem(key) || 0);
-
-  if (Date.now() - lastSentAt < SAFE_ZONE_ALERT_COOLDOWN_MS) {
-    return false;
-  }
-
-  localStorage.setItem(key, String(Date.now()));
-  return true;
-};
 
 export default function LocationPage() {
-  const navigate = useNavigate();
   const [currentPos, setCurrentPos] = useState(null);
   const [safeZone, setSafeZone] = useState(DEFAULT_SAFE_ZONE);
   const [safeZones, setSafeZones] = useState([]);
@@ -207,7 +188,9 @@ export default function LocationPage() {
   try {
     await saveCurrentLocation({ lat, lon, nextAddress, accuracy });
     await loadLocationHistory(todayStr());
-  } catch {}
+  } catch {
+    // ignore
+  }
 
   lastSavedLocationRef.current = { lat, lon };
 
