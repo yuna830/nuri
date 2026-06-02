@@ -7,5 +7,5 @@ const String apiBaseUrl = String.fromEnvironment(
 
 const String fallServerBaseUrl = String.fromEnvironment(
   'FALL_API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:8010',
+  defaultValue: 'http://10.0.2.2:8000',
 );

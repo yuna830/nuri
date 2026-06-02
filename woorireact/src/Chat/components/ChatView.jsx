@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
+import { AI_API_BASE } from "../../config/api.js";
 import { createCareResponse } from "../services/aiCareService";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { getCurrentUserHealthContext, useChatFlow } from "../hooks/useChatFlow";

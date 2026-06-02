@@ -19,6 +19,6 @@ export const WELFARE_API_BASE =
 export const POLICE_API_BASE =
   trimEnv(import.meta.env.VITE_POLICE_API_BASE_URL) || SPRING_API_BASE;
 
-export const FALL_API_PORT = trimEnv(import.meta.env.VITE_FALL_API_PORT) || "8010";
+export const FALL_API_PORT = trimEnv(import.meta.env.VITE_FALL_API_PORT) || "8000";
 
 export const getDefaultFallApiBase = () => sameHostBase(FALL_API_PORT);

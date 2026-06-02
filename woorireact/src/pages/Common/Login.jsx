@@ -69,8 +69,13 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
-      navigate("/signup");
+      if (response.status === 404) {
+        localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
+        navigate("/signup");
+        return;
+      }
+
+      setError("로그인 확인 중 문제가 발생했습니다. 서버와 DB 연결 상태를 확인해주세요.");
     } catch (loginError) {
       console.error("사용자 로그인 실패:", loginError);
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");

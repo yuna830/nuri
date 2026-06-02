@@ -193,6 +193,14 @@ const DEFAULT_FALL_PATTERN = {
   message: "데이터를 수집하고 있습니다. 낙상 전후 변화는 기록이 쌓이면 보여드립니다.",
 };
 
+const getSafeZoneAlertRadius = (zone, accuracy) => {
+  const radius = Number(zone?.radiusMeters ?? 500);
+  const gpsTolerance = accuracy == null
+    ? 75
+    : Math.min(Math.max(Number(accuracy) || 75, 50), 150);
+  return radius + gpsTolerance + 30;
+};
+
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
   const slotList = slots?.slots ? Object.entries(slots.slots) : [];
   const baselineItems = baseline?.today_comparison
@@ -419,6 +427,7 @@ export default function UserPage() {
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
+  const locationWatchRef = useRef(null);
   // 보호자 페이지 이동 경로에서 위치가 너무 자주 저장되는 것을 방지
   const lastSavedLocationRef = useRef(null);
 
@@ -461,6 +470,7 @@ export default function UserPage() {
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
+  const dismissedMedicineAlertIdsRef = useRef(new Set());
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -657,10 +667,11 @@ export default function UserPage() {
       : Infinity;
 
     if (lastSavedLocation && movedMeters < 35) {
+      setChanged(setCurrentPos, { lat, lon, accuracy });
       return;
     }
 
-    setChanged(setCurrentPos, { lat, lon });
+    setChanged(setCurrentPos, { lat, lon, accuracy });
 
     const shouldResolveAddress =
       movedMeters >= 50 ||
@@ -711,7 +722,7 @@ export default function UserPage() {
             )
         );
 
-        return dist <= zone.radiusMeters;
+        return dist <= getSafeZoneAlertRadius(zone, accuracy);
       }));
     }
   };
@@ -719,30 +730,36 @@ export default function UserPage() {
   const startLocationTracking = () => {
     if (!navigator.geolocation) return;
 
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    };
+
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
         updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
-      () => fetchWeather(37.5665, 126.9780)
+      () => fetchWeather(37.5665, 126.9780),
+      options
     );
 
-    // 30초마다 위치 자동 갱신
-    locationIntervalRef.current = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          pos.coords.accuracy
-        ),
-        () => {}
-      );
-    }, 30000);
+    locationWatchRef.current = navigator.geolocation.watchPosition(
+      pos => updateLocation(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy
+      ),
+      () => {},
+      options
+    );
 
     weatherIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-        () => fetchWeather(37.5665, 126.9780)
+        () => fetchWeather(37.5665, 126.9780),
+        options
       );
     }, 10 * 60 * 1000);
   };
@@ -939,6 +956,7 @@ export default function UserPage() {
 
     return () => {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+      if (locationWatchRef.current != null) navigator.geolocation.clearWatch(locationWatchRef.current);
       if (weatherIntervalRef.current) clearInterval(weatherIntervalRef.current);
       if (weatherAlertIntervalRef.current) clearInterval(weatherAlertIntervalRef.current);
       if (safeZoneIntervalId) clearInterval(safeZoneIntervalId);
@@ -999,7 +1017,10 @@ export default function UserPage() {
       setSafeZone(distances[0].zone);
     }
 
-    setChanged(setIsInRange, distances.some(({ zone, distance }) => distance <= zone.radiusMeters));
+    setChanged(
+      setIsInRange,
+      distances.some(({ zone, distance }) => distance <= getSafeZoneAlertRadius(zone, currentPos.accuracy))
+    );
   }, [currentPos, safeZone, safeZones]);
 
   useEffect(() => {
@@ -1024,7 +1045,11 @@ export default function UserPage() {
       const callAlert = rawCallAlerts.find((alert) => !isCallAlertHandled(alert));
       setIncomingCallAlert(callAlert || null);
 
-      const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
+      const medicineAlert = alerts.find((alert) => (
+        alert.type === "MEDICINE"
+        && !alert.isRead
+        && !dismissedMedicineAlertIdsRef.current.has(String(alert.id))
+      ));
       setMedicineAlert(medicineAlert || null);
 
       const infoRequestAlert = alerts.find((alert) => alert.type === "INFO_UPDATE_REQUEST" && !alert.isRead);
@@ -1142,10 +1167,14 @@ export default function UserPage() {
 
   const handleReadMedicineAlert = async () => {
     if (medicineAlert?.id) {
-      await readAlert(medicineAlert.id).catch(() => {});
+      dismissedMedicineAlertIdsRef.current.add(String(medicineAlert.id));
     }
 
     setMedicineAlert(null);
+
+    if (medicineAlert?.id) {
+      await readAlert(medicineAlert.id).catch(() => {});
+    }
   };
 
   const handleGoToInfoUpdateRequest = async () => {

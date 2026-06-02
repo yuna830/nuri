@@ -8,6 +8,7 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.HealthInfoRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -21,19 +22,26 @@ public class MedicationAlertSchedulerService {
     private final SeniorRepository seniorRepository;
     private final HealthInfoRepository healthInfoRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final boolean autoMedicationAlertsEnabled;
 
     public MedicationAlertSchedulerService(
             AlertRepository alertRepository,
             SeniorRepository seniorRepository,
-            HealthInfoRepository healthInfoRepository
+            HealthInfoRepository healthInfoRepository,
+            @Value("${app.medication-alert.auto-enabled:false}") boolean autoMedicationAlertsEnabled
     ) {
         this.alertRepository = alertRepository;
         this.seniorRepository = seniorRepository;
         this.healthInfoRepository = healthInfoRepository;
+        this.autoMedicationAlertsEnabled = autoMedicationAlertsEnabled;
     }
 
     @Scheduled(initialDelay = 10_000, fixedDelay = 3_600_000)
     public void checkMedicationAlerts() {
+        if (!autoMedicationAlertsEnabled) {
+            return;
+        }
+
         List<Senior> seniors = seniorRepository.findAll();
         for (Senior senior : seniors) {
             try {

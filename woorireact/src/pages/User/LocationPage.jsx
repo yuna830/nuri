@@ -211,7 +211,8 @@ export default function LocationPage() {
         position.coords.longitude,
         position.coords.accuracy
       ),
-      () => { setError("위치 권한을 허용해주세요."); setLoading(false); }
+      () => { setError("위치 권한을 허용해주세요."); setLoading(false); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [updateLocation]);
 
