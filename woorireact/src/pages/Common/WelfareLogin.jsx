@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 
 import "../../css/common/Login.css";
 
-const API_BASE = "http://localhost:8080";
+import { SPRING_API_BASE } from "../../config/api.js";
+
+const API_BASE = SPRING_API_BASE;
 
 const welfareFeatures = [
   {

@@ -88,6 +88,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   double? _lastSavedLat;
   double? _lastSavedLon;
+  DateTime? _lastSavedAt;
   String? _serverReceivedAt; // 서버 마지막 수신 시각
 
   Timer? _locationTimer;
@@ -307,7 +308,7 @@ class _LocationScreenState extends State<LocationScreen>
     return '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
   }
 
-  // ── 위치 자동 저장 (최초 or 50m 이동 시) ──────
+  // ── 위치 자동 저장 (최초, 50m 이동, 또는 5분 생존 신호) ──────
   Future<void> _maybeAutoSave(double lat, double lon, String address,
       {double? accuracy}) async {
     final prevLat = _lastSavedLat;
@@ -317,8 +318,12 @@ class _LocationScreenState extends State<LocationScreen>
         ? double.infinity
         : _metersApart(prevLat, prevLon, lat, lon);
 
-    // 최초 위치는 거리 무관하게 저장 (웹에서 바로 보이도록)
-    if (!isFirst && moved < 50) return;
+    final now = DateTime.now();
+    final shouldHeartbeat = _lastSavedAt == null ||
+        now.difference(_lastSavedAt!) >= const Duration(minutes: 5);
+
+    // 최초 위치는 거리 무관하게 저장하고, 정지 상태도 5분마다 최신 시각을 갱신
+    if (!isFirst && moved < 50 && !shouldHeartbeat) return;
 
     try {
       await _api.saveLocation(
@@ -330,6 +335,7 @@ class _LocationScreenState extends State<LocationScreen>
       );
       _lastSavedLat = lat;
       _lastSavedLon = lon;
+      _lastSavedAt = now;
     } catch (_) {}
   }
 

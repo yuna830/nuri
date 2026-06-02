@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 import "../../css/common/Login.css";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 
-const API_BASE = "http://localhost:8080";
+import { SPRING_API_BASE } from "../../config/api.js";
+
+const API_BASE = SPRING_API_BASE;
 
 const FEATURES = [
   { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로 확인" },

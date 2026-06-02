@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
@@ -906,7 +906,7 @@ export default function UserPage() {
           }
         }
 
-        const response = await fetch("http://localhost:8080/api/seniors");
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors`);
         if (!response.ok) return;
 
         const profiles = await response.json();

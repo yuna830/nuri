@@ -4,10 +4,11 @@ import '../chat/chat_screen.dart';
 import '../home/senior_home_screen.dart';
 import '../job/job_screen.dart';
 import '../location/location_screen.dart';
+import '../notifications/notification_screen.dart';
 import '../profile/profile_screen.dart';
 import '../weather/weather_screen.dart';
 
-const _tabTitles = ['홈', '위치 확인', '기후 알림', '일자리', '채팅', '내 정보'];
+const _tabTitles = ['홈', '위치', '기후', '일자리', '채팅', '알림', '내 정보'];
 
 const _tabIcons = [
   Icons.home_outlined,
@@ -15,6 +16,7 @@ const _tabIcons = [
   Icons.wb_sunny_outlined,
   Icons.work_outline,
   Icons.chat_bubble_outline,
+  Icons.notifications_outlined,
   Icons.person_outline,
 ];
 
@@ -24,6 +26,7 @@ const _tabSelectedIcons = [
   Icons.wb_sunny,
   Icons.work,
   Icons.chat_bubble,
+  Icons.notifications,
   Icons.person,
 ];
 
@@ -134,6 +137,11 @@ class _AppShellState extends State<AppShell> {
             onRegisterAction: _registerAction,
           ),
           ChatScreen(seniorId: widget.seniorId),
+          NotificationScreen(
+            seniorId: widget.seniorId,
+            hideAppBar: true,
+            onRegisterAction: _registerAction,
+          ),
           ProfileScreen(
             seniorId: widget.seniorId,
             hideAppBar: true,

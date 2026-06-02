@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/api/senior_api.dart';
+import '../../core/config/app_config.dart';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
   bool _serverOnline = false;
   bool _fallDetected = false;
   int _fallScore = 0;
-  static const String _fallServerUrl = 'http://localhost:8010';
+  static const String _fallServerUrl = fallServerBaseUrl;
 
   Timer? _refreshTimer;
   Timer? _serverTimer;

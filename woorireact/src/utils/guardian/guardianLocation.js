@@ -1,3 +1,5 @@
+import { SPRING_API_BASE } from "../../config/api.js";
+
 export const getDateValue = (date = new Date()) => {
   const timezoneOffset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
@@ -32,7 +34,7 @@ export const fetchFullRoadAddress = async (lat, lng, fallbackAddress) => {
 };
 
 export const fetchLatestLocation = async (seniorId, fallbackAddress) => {
-  const response = await fetch(`http://localhost:8080/api/locations/senior/${seniorId}/latest`);
+  const response = await fetch(`${SPRING_API_BASE}/api/locations/senior/${seniorId}/latest`);
 
   if (!response.ok || response.status === 204) return null;
 
@@ -51,7 +53,7 @@ export const fetchLatestLocation = async (seniorId, fallbackAddress) => {
 
 export const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddress) => {
   const response = await fetch(
-    `http://localhost:8080/api/locations/senior/${seniorId}/date?date=${dateValue}`
+    `${SPRING_API_BASE}/api/locations/senior/${seniorId}/date?date=${dateValue}`
   );
 
   if (!response.ok || response.status === 204) return [];

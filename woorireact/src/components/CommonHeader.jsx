@@ -347,6 +347,13 @@ function CommonHeader({
                       </div>
                       <strong>{notification.title}</strong>
                       <p>{notification.message}</p>
+                      {notification.raw?.imageUrl && (
+                        <img
+                          className="uch-alert-thumbnail"
+                          src={notification.raw.imageUrl}
+                          alt={`${notification.title} 사진`}
+                        />
+                      )}
                       {notification.time && <span>{notification.time}</span>}
                     </div>
 

@@ -43,10 +43,14 @@ class SeniorApi {
 
   /// 알림 읽음 처리
   Future<void> readAlert(int alertId) async {
-    await http.patch(
+    final response = await http.patch(
       Uri.parse('$apiBaseUrl/api/alerts/$alertId/read'),
       headers: {'Content-Type': 'application/json'},
     );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('알림 확인 처리 실패');
+    }
   }
 
   Future<void> sendSos(int seniorId, {double? lat, double? lon}) async {
@@ -68,7 +72,7 @@ class SeniorApi {
 
   /// SOS 잘못 누름 취소 알림
   Future<void> sendSosCancel(int seniorId, {double? lat, double? lon}) async {
-    await http.post(
+    final response = await http.post(
       Uri.parse('$apiBaseUrl/api/alerts/sos/cancel'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -78,6 +82,10 @@ class SeniorApi {
         'address': '모바일 앱',
       }),
     );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('SOS 취소 전송 실패');
+    }
   }
 
   /// 안부 메시지 답장
@@ -142,7 +150,7 @@ class SeniorApi {
     String address = '',
     double? accuracy,
   }) async {
-    await http.post(
+    final response = await http.post(
       Uri.parse('$apiBaseUrl/api/locations'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -153,6 +161,10 @@ class SeniorApi {
         if (accuracy != null) 'accuracy': accuracy,
       }),
     );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('위치 저장 실패');
+    }
   }
 
   /// 안전 반경 목록

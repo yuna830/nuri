@@ -8,17 +8,9 @@ import {
   markLocalAlertRead,
 } from "./localAlertStore";
 
-const API_BASE = "";
-const FALL_API_PORT = "8000";
-const getDefaultFallApiBase = () => {
-  const host = window.location.hostname;
+import { FALL_API_PORT, SPRING_API_BASE, getDefaultFallApiBase } from "../config/api.js";
 
-  if (host && host !== "localhost" && host !== "127.0.0.1") {
-    return `${window.location.protocol}//${host}:${FALL_API_PORT}`;
-  }
-
-  return `http://127.0.0.1:${FALL_API_PORT}`;
-};
+const API_BASE = SPRING_API_BASE;
 
 const getSavedFallApiBase = () => {
   return localStorage.getItem("woori_fall_api_base") || null;
@@ -342,11 +334,31 @@ export const getCurrentSeniorId = () => {
   return profile?.senior?.id || localStorage.getItem("current_senior_id") || "";
 };
 
+const LOCAL_UPLOAD_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
 export const resolveUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
-  return `${API_BASE}${imageUrl}`;
+
+  const value = String(imageUrl).trim();
+  if (!value) return "";
+  if (value.startsWith("blob:") || value.startsWith("data:")) return value;
+  if (value.startsWith("uploads/")) return `/${value}`;
+
+  try {
+    const parsed = new URL(value, window.location.origin);
+
+    if (parsed.pathname.startsWith("/uploads/") && LOCAL_UPLOAD_HOSTS.has(parsed.hostname)) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      return parsed.href;
+    }
+  } catch {
+    // Keep non-URL values below.
+  }
+
+  return `${API_BASE}${value}`;
 };
 
 export const uploadProfileImage = async (file) => {
@@ -362,7 +374,13 @@ export const uploadProfileImage = async (file) => {
     throw new Error("Profile image upload failed");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  return {
+    ...data,
+    imageUrl: resolveUploadUrl(data?.imageUrl),
+    fileUrl: resolveUploadUrl(data?.fileUrl),
+  };
 };
 
 export const fetchTodayClimateAlerts = async (seniorId) => {
@@ -451,11 +469,19 @@ export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, addre
   return response.json();
 };
 
-export const createFallAlert = async ({ seniorId, latitude, longitude, address, score, imageUrl }) => {
+export const createFallAlert = async ({
+  seniorId,
+  latitude,
+  longitude,
+  address,
+  score,
+  imageUrl,
+  ...extra
+}) => {
   const response = await fetch(`${API_BASE}/api/alerts/fall`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl }),
+    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl, ...extra }),
   });
 
   if (!response.ok) {

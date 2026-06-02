@@ -215,6 +215,17 @@
   word-break: keep-all;
 }
 
+.uch-alert-thumbnail {
+  display: block;
+  width: min(220px, 100%);
+  aspect-ratio: 16 / 9;
+  margin: 0.55rem 0 0;
+  border-radius: 8px;
+  border: 1px solid #e0e7de;
+  object-fit: cover;
+  background: #f6f8f4;
+}
+
 .guardian-alert-actions {
   display: flex;
   flex-direction: column;

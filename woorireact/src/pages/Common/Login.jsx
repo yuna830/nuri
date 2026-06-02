@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import "../../css/common/Login.css";
 
 const FEATURES = [
@@ -46,7 +47,7 @@ export default function Login() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:8080/api/seniors/login", {
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmedName, phone: trimmedPhone }),
@@ -109,7 +110,7 @@ export default function Login() {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/api/seniors/find-name", {
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors/find-name`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: helpForm.phone }),
@@ -135,7 +136,7 @@ export default function Login() {
         return;
       }
 
-      const response = await fetch("http://localhost:8080/api/seniors/find-phone", {
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors/find-phone`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

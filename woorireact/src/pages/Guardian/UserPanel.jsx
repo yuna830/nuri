@@ -266,15 +266,16 @@ function UserPanel({
 
     try {
       const { imageUrl } = await uploadProfileImage(file);
+      const nextImageUrl = resolveUploadUrl(imageUrl);
 
       await updateSeniorRequestedInfo(selectedElder.id, {
-        profileImageUrl: imageUrl,
+        profileImageUrl: nextImageUrl,
       });
 
       setProfileImages((prev) => {
         const next = {
           ...prev,
-          [selectedElderId]: imageUrl,
+          [selectedElderId]: nextImageUrl,
         };
 
         localStorage.setItem("guardianProfileImages", JSON.stringify(next));
@@ -282,7 +283,7 @@ function UserPanel({
       });
 
       // eslint-disable-next-line react-hooks/immutability
-      selectedElder.profileImageUrl = imageUrl;
+      selectedElder.profileImageUrl = nextImageUrl;
       setIsProfileMenuOpen(false);
     } catch {
       console.error("프로필 사진 저장 실패");

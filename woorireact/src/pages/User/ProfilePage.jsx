@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
-import { uploadProfileImage } from "../../api/userPageApi.js";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
@@ -62,7 +63,7 @@ export default function ProfilePage() {
           const cachedProfile = JSON.parse(savedCurrentSenior);
           const seniorId = cachedProfile?.senior?.id;
           if (seniorId) {
-            const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`);
+            const response = await fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`);
             if (response.ok) {
               const freshProfile = await response.json();
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
@@ -72,7 +73,7 @@ export default function ProfilePage() {
           }
         }
 
-        const response = await fetch("http://localhost:8080/api/seniors");
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors`);
         if (!response.ok) return;
         const profiles = await response.json();
         const latestProfile = profiles[profiles.length - 1];
@@ -131,8 +132,11 @@ export default function ProfilePage() {
     const seniorId = profile?.senior?.id;
     if (!seniorId) throw new Error("사용자 ID를 찾을 수 없습니다.");
 
-    const payload = normalizeForm(nextForm);
-    const response = await fetch(`http://localhost:8080/api/seniors/${seniorId}`, {
+    const payload = {
+      ...normalizeForm(nextForm),
+      profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
+    };
+    const response = await fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -152,7 +156,7 @@ export default function ProfilePage() {
     try {
       setUploadingPhoto(true);
       const { imageUrl } = await uploadProfileImage(file);
-      const nextForm = { ...form, profileImageUrl: imageUrl };
+      const nextForm = { ...form, profileImageUrl: resolveUploadUrl(imageUrl) };
       setForm(nextForm);
       await saveProfile(nextForm);
     } catch (error) {

@@ -1313,7 +1313,7 @@ class _AppFeatureGrid extends StatelessWidget {
   final int seniorId;
   final ValueChanged<int>? onTabSwitch;
 
-  // tab indices: 홈0 위치1 기후2 일자리3 내정보4
+  // tab indices: 홈0 위치1 기후2 일자리3 채팅4 알림5 내정보6
   VoidCallback _go(BuildContext ctx, int tab, Widget Function() fallback) {
     return onTabSwitch != null
         ? () => onTabSwitch!(tab)
@@ -1345,7 +1345,7 @@ class _AppFeatureGrid extends StatelessWidget {
       (
         Icons.person_outline,
         '내 정보',
-        _go(context, 4, () => ProfileScreen(seniorId: seniorId)),
+        _go(context, 6, () => ProfileScreen(seniorId: seniorId)),
       ),
       (
         Icons.work_outline,

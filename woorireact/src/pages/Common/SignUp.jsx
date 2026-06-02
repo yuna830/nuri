@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
-import { uploadProfileImage } from "../../api/userPageApi.js";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
@@ -93,7 +94,7 @@ export default function SignUp() {
       setUploadingPhoto(true);
       setError("");
       const { imageUrl } = await uploadProfileImage(file);
-      set("profileImageUrl", imageUrl);
+      set("profileImageUrl", resolveUploadUrl(imageUrl));
     } catch (uploadError) {
       console.error("회원가입 사진 업로드 실패:", uploadError);
       setError("사진 업로드에 실패했습니다. 다시 시도해주세요.");
@@ -130,8 +131,11 @@ export default function SignUp() {
     try {
       setSaving(true);
       setError("");
-      const payload = normalizeForm(form);
-      const response = await fetch("http://localhost:8080/api/seniors", {
+      const payload = {
+        ...normalizeForm(form),
+        profileImageUrl: resolveUploadUrl(form.profileImageUrl),
+      };
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

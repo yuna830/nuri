@@ -18,8 +18,9 @@ import "../../css/common/Login.css";
 import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareMyPage.css";
 
-const AUTH_API_BASE = "http://localhost:8080";
-const WELFARE_API_BASE = "http://localhost:8181";
+import { SPRING_API_BASE, WELFARE_API_BASE } from "../../config/api.js";
+
+const AUTH_API_BASE = SPRING_API_BASE;
 
 const getCurrentWorker = () => {
     try {

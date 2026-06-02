@@ -384,15 +384,31 @@ function WelfareDashboard() {
         }
     };
 
-    const dbWelfareNotifications = dbWelfareAlerts.map((alert) => ({
-        id: `db-${alert.id}`,
-        seniorId: alert.seniorId,
-        title: alert.title,
-        message: alert.message,
-        category: alert.type === "LAST_ACCESS" ? "복지" : "긴급",
-        detailCategory: alert.type === "LAST_ACCESS" ? "기본 정보" : "안전구역 관리",
-        danger: alert.type !== "LAST_ACCESS",
-    }));
+    const dbWelfareNotifications = dbWelfareAlerts.map((alert) => {
+        const isFallAlert = alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK";
+        const isLastAccessAlert = alert.type === "LAST_ACCESS";
+
+        return {
+            id: `db-${alert.id}`,
+            seniorId: alert.seniorId,
+            title: isFallAlert ? "낙상 감지 알림" : alert.title,
+            message: isFallAlert
+                ? `${alert.message || "대상자의 낙상이 감지되었습니다."} 보호자 확인 또는 대처 답변이 없으면 신고 조치를 검토해주세요.`
+                : alert.message,
+            category: isFallAlert ? "낙상" : isLastAccessAlert ? "복지" : "긴급",
+            detailCategory: isFallAlert ? "낙상 대응" : isLastAccessAlert ? "기본 정보" : "안전구역 관리",
+            danger: !isLastAccessAlert,
+            time: alert.createdAt
+                ? new Date(alert.createdAt).toLocaleString("ko-KR", {
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                })
+                : "",
+            raw: alert,
+        };
+    });
 
     const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
@@ -552,9 +568,12 @@ function WelfareDashboard() {
                     time: notification.time,
                     isRead: false,
                     danger: notification.danger === true || notification.category === "긴급",
-                    raw: notification,
+                    raw: {
+                        ...notification,
+                        imageUrl: notification.raw?.imageAccessUrl || notification.raw?.imageUrl || notification.imageUrl || "",
+                    },
                 }))}
-                notificationTabs={["전체", "긴급", "정보 미입력", "일자리", "복지", "읽지 않음"]}
+                notificationTabs={["전체", "긴급", "낙상", "정보 미입력", "일자리", "복지", "읽지 않음"]}
                 onReadNotification={(notification) => dismissNotification(notification.id)}
                 onNotificationClick={(notification) => {
                     if (notification.seniorId) {

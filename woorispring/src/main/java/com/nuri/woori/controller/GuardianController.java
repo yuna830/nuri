@@ -70,13 +70,11 @@ public class GuardianController {
             return ResponseEntity.status(404).body(Map.of("message", "EMAIL_NOT_FOUND"));
         }
 
+        Guardian guardian = guardianOpt.get();
         if (Boolean.FALSE.equals(guardian.getActive())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");
         }
 
-        return toResponse(guardian);
-
-        Guardian guardian = guardianOpt.get();
         if (!guardian.getPassword().equals(hashPassword(request.password()))) {
             return ResponseEntity.status(401).body(Map.of("message", "PASSWORD_MISMATCH"));
         }

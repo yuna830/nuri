@@ -56,7 +56,12 @@ public class LocationController {
                 request.latitude(),
                 request.longitude()
         ) < 50) {
-            return latestLocation;
+            latestLocation.setLatitude(request.latitude());
+            latestLocation.setLongitude(request.longitude());
+            latestLocation.setAddress(request.address());
+            latestLocation.setAccuracy(request.accuracy());
+            latestLocation.setReceivedAt(LocalDateTime.now());
+            return locationStatusRepository.save(latestLocation);
         }
 
         LocationStatus locationStatus = new LocationStatus();

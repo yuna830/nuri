@@ -185,13 +185,33 @@ export default function FallHistory() {
 
       try {
         const position = await getPosition();
+        const detectedAt = new Date().toISOString();
+        const captureFromStatus = getCaptureNameFromStatus(status);
+        const captureUrl = captureFromStatus ? getFallCaptureUrl(captureFromStatus) : "";
+        const score = Number(status.score) || 0;
+        const fallDetails = {
+          detectedAt,
+          score,
+          posture: status.posture || status.pose || "",
+          ensembleMode: status.ensemble_mode || status.ensembleMode || "",
+          captureName: captureFromStatus,
+          captureUrl,
+          locationText: position.address || "위치 확인 필요",
+        };
+
         const result = await createFallAlert({
           seniorId,
           latitude: position.latitude,
           longitude: position.longitude,
           address: position.address,
-          score: Number(status.score) || 0,
-          imageUrl: getCaptureNameFromStatus(status),
+          score,
+          imageUrl: captureFromStatus,
+          imageAccessUrl: captureUrl,
+          fallDetails,
+          notifyGuardian: true,
+          notifyWelfare: true,
+          escalationRequired: true,
+          escalationMessage: "보호자 확인 또는 대처 답변이 없으면 담당 복지사가 신고 조치를 검토합니다.",
         });
         rememberCapture(captureName);
         const createdAlert = Array.isArray(result) ? result[0] : null;

@@ -12,7 +12,7 @@ import MessageList from "./MessageList";
 import ScheduleConfirmBox from "./ScheduleConfirmBox";
 import TodaySchedulePanel from "./TodaySchedulePanel";
 
-const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8001/food";
+const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || `${AI_API_BASE}/food`;
 
 export default function ChatView({
   messages,

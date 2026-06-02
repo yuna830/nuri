@@ -1,3 +1,5 @@
+import { SPRING_API_BASE } from "../../config/api.js";
+
 export const getDefaultSafeZones = (elder) => ([
   {
     id: "default-home",
@@ -39,7 +41,7 @@ export const loadSafeZones = async (elder) => {
     // cache is optional
   }
 
-  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${elder.id}`);
+  const response = await fetch(`${SPRING_API_BASE}/api/safe-zones/senior/${elder.id}`);
 
   if (!response.ok || response.status === 204) {
     return getDefaultSafeZones(elder);
@@ -64,7 +66,7 @@ export const loadSafeZones = async (elder) => {
 };
 
 export const createSafeZone = async (seniorId, safeZoneForm) => {
-  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}`, {
+  const response = await fetch(`${SPRING_API_BASE}/api/safe-zones/senior/${seniorId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -88,7 +90,7 @@ export const createSafeZone = async (seniorId, safeZoneForm) => {
 };
 
 export const updateSafeZone = async (seniorId, safeZoneId, safeZoneForm) => {
-  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
+  const response = await fetch(`${SPRING_API_BASE}/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -112,7 +114,7 @@ export const updateSafeZone = async (seniorId, safeZoneId, safeZoneForm) => {
 };
 
 export const deleteSafeZone = async (seniorId, safeZoneId) => {
-  const response = await fetch(`http://localhost:8080/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
+  const response = await fetch(`${SPRING_API_BASE}/api/safe-zones/senior/${seniorId}/${safeZoneId}`, {
     method: "DELETE",
   });
 
