@@ -19,6 +19,21 @@ import {
   todayValue,
 } from "./utils/scheduleText";
 import { withUserGreeting } from "./utils/userGreeting";
+import {
+  createAssistantConversation,
+  deleteAssistantConversation,
+  fetchAssistantConversations,
+  fetchAssistantMessages,
+  saveAssistantMessage,
+  updateAssistantConversationTitle,
+} from "./services/assistantConversationApi";
+
+const createWelcomeMessages = () => [
+  {
+    role: "assistant",
+    content: withUserGreeting("안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요."),
+  },
+];
 
 const getResolvedSeniorId = () => {
   const fromStorage = getCurrentSeniorId();
@@ -32,7 +47,7 @@ const getResolvedSeniorId = () => {
       return id;
     }
   } catch {
-    // ignore
+    // Fall back to the stored senior id lookup result.
   }
   return null;
 };
@@ -43,14 +58,146 @@ export default function ChatAssistant() {
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [savedSchedules, setSavedSchedules] = useState([]);
   const [chatSchedules, setChatSchedules] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
+  const [isConversationLoading, setIsConversationLoading] = useState(true);
+  const persistedMessageCountRef = useRef(0);
+  const saveQueueRef = useRef(Promise.resolve());
   const didShowBriefingRef = useRef(false);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: withUserGreeting("안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요."),
-    },
-  ]);
+  const [messages, setMessages] = useState(createWelcomeMessages);
+
+  async function refreshConversations(seniorId = getResolvedSeniorId()) {
+    if (!seniorId) return [];
+    const recentConversations = await fetchAssistantConversations(seniorId);
+    setConversations(recentConversations);
+    return recentConversations;
+  }
+
+  async function openConversation(conversationId, { closePanel = true } = {}) {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId) return;
+
+    setIsConversationLoading(true);
+    try {
+      const savedMessages = await fetchAssistantMessages(seniorId, conversationId);
+      const nextMessages = savedMessages.length > 0
+        ? savedMessages.map((message) => ({
+            ...message,
+            role: message.role.toLowerCase(),
+          }))
+        : createWelcomeMessages();
+
+      persistedMessageCountRef.current = savedMessages.length;
+      setActiveConversationId(conversationId);
+      setMessages(nextMessages);
+      if (closePanel) setIsConversationPanelOpen(false);
+    } catch (error) {
+      console.error("대화 불러오기 오류:", error);
+    } finally {
+      setIsConversationLoading(false);
+    }
+  }
+
+  async function createConversation({ closePanel = true } = {}) {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId) return;
+
+    setIsConversationLoading(true);
+    try {
+      const conversation = await createAssistantConversation(seniorId);
+      persistedMessageCountRef.current = 0;
+      setActiveConversationId(conversation.id);
+      setMessages(createWelcomeMessages());
+      setConversations((prev) => [conversation, ...prev]);
+      if (closePanel) setIsConversationPanelOpen(false);
+    } catch (error) {
+      console.error("새 대화 생성 오류:", error);
+    } finally {
+      setIsConversationLoading(false);
+    }
+  }
+
+  async function removeConversation(conversationId) {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId) return;
+
+    try {
+      await deleteAssistantConversation(seniorId, conversationId);
+      const remaining = conversations.filter((conversation) => conversation.id !== conversationId);
+      setConversations(remaining);
+
+      if (conversationId !== activeConversationId) return;
+      if (remaining.length > 0) {
+        await openConversation(remaining[0].id, { closePanel: false });
+      } else {
+        await createConversation({ closePanel: false });
+      }
+    } catch (error) {
+      console.error("대화 삭제 오류:", error);
+    }
+  }
+
+  async function renameConversation(conversationId, title) {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId) return;
+
+    try {
+      const updated = await updateAssistantConversationTitle(seniorId, conversationId, title);
+      setConversations((prev) =>
+        prev.map((conversation) => conversation.id === conversationId ? updated : conversation)
+      );
+    } catch (error) {
+      console.error("대화 제목 수정 오류:", error);
+    }
+  }
+
+  useEffect(() => {
+    async function initializeConversations() {
+      const seniorId = getResolvedSeniorId();
+      if (!seniorId) {
+        setIsConversationLoading(false);
+        return;
+      }
+
+      try {
+        const recentConversations = await refreshConversations(seniorId);
+        if (recentConversations.length > 0) {
+          await openConversation(recentConversations[0].id);
+        } else {
+          await createConversation();
+        }
+      } catch (error) {
+        console.error("최근 대화 초기화 오류:", error);
+        setIsConversationLoading(false);
+      }
+    }
+
+    initializeConversations();
+  }, []);
+
+  useEffect(() => {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId || !activeConversationId) return;
+
+    const newMessages = messages.slice(persistedMessageCountRef.current);
+    persistedMessageCountRef.current = messages.length;
+    const visibleMessages = newMessages.filter((message) => !message.hidden && message.content);
+
+    if (visibleMessages.length === 0) return;
+
+    saveQueueRef.current = saveQueueRef.current
+      .then(async () => {
+        for (const message of visibleMessages) {
+          await saveAssistantMessage(seniorId, activeConversationId, message);
+        }
+        await refreshConversations(seniorId);
+      })
+      .catch((error) => {
+        console.error("대화 메시지 저장 오류:", error);
+      });
+  }, [activeConversationId, messages]);
 
   function showTodayBriefing(schedules) {
     if (didShowBriefingRef.current) return;
@@ -81,7 +228,6 @@ export default function ChatAssistant() {
   useEffect(() => {
     if (searchParams.get("mode") === "schedule") {
       setEditingSchedule(null);
-       
       setMode("schedule");
     }
   }, [searchParams]);
@@ -247,6 +393,16 @@ export default function ChatAssistant() {
       onScheduleUpdate={handleScheduleUpdate}
       onScheduleEdit={openScheduleEdit}
       onScheduleDelete={handleScheduleDelete}
+      conversations={conversations}
+      activeConversationId={activeConversationId}
+      isConversationPanelOpen={isConversationPanelOpen}
+      isConversationLoading={isConversationLoading}
+      onConversationPanelToggle={() => setIsConversationPanelOpen((open) => !open)}
+      onConversationPanelClose={() => setIsConversationPanelOpen(false)}
+      onConversationCreate={createConversation}
+      onConversationSelect={openConversation}
+      onConversationDelete={removeConversation}
+      onConversationRename={renameConversation}
     />
   );
 }

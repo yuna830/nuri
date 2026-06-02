@@ -13,7 +13,7 @@ async function request(path, options) {
     throw error;
   }
 
-  return response.json();
+  return response.status === 204 ? null : response.json();
 }
 
 export function signupAdmin(form) {
@@ -46,5 +46,12 @@ export function updateAdminStatus(adminId, status) {
     method: "PATCH",
     headers: getAdminHeaders(),
     body: JSON.stringify({ status }),
+  });
+}
+
+export function deleteCurrentAdmin() {
+  return request("/api/admins/me", {
+    method: "DELETE",
+    headers: getAdminHeaders(),
   });
 }
