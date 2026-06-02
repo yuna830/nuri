@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/guardians")
@@ -60,14 +62,16 @@ public class GuardianController {
     }
 
     @PostMapping("/login")
-    public GuardianResponse login(@RequestBody GuardianLoginRequest request) {
-        Guardian guardian = guardianRepository.findByEmail(request.email()).orElseThrow(() -> new RuntimeException("Guardian not found"));
-
-        if (!guardian.getPassword().equals(hashPassword(request.password()))) {
-            throw new RuntimeException("Password mismatch");
+    public ResponseEntity<?> login(@RequestBody GuardianLoginRequest request) {
+        Optional<Guardian> guardianOpt = guardianRepository.findByEmail(request.email());
+        if (guardianOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("message", "EMAIL_NOT_FOUND"));
         }
-
-        return toResponse(guardian);
+        Guardian guardian = guardianOpt.get();
+        if (!guardian.getPassword().equals(hashPassword(request.password()))) {
+            return ResponseEntity.status(401).body(Map.of("message", "PASSWORD_MISMATCH"));
+        }
+        return ResponseEntity.ok(toResponse(guardian));
     }
 
     @PostMapping("/find-email")
@@ -162,6 +166,18 @@ public class GuardianController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{guardianId}/seniors/{seniorId}/relation")
+    public ResponseEntity<GuardianSenior> updateSeniorRelation(
+            @PathVariable Long guardianId,
+            @PathVariable Long seniorId,
+            @RequestBody GuardianSeniorRelationRequest request) {
+        GuardianSenior guardianSenior = guardianSeniorRepository.findByGuardianIdAndSeniorId(guardianId, seniorId)
+                .orElseThrow(() -> new RuntimeException("Connected senior not found"));
+
+        guardianSenior.setRelation(request.relation());
+        return ResponseEntity.ok(guardianSeniorRepository.save(guardianSenior));
+    }
+
     private GuardianResponse toResponse(Guardian guardian) {
         return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), !Boolean.FALSE.equals(guardian.getActive()));
     }
@@ -207,6 +223,7 @@ public class GuardianController {
     public record ResetPasswordRequest(String email, String phone, String newPassword) {}
     public record GuardianSeniorConnectRequest(Long seniorId, String relation) {}
     public record GuardianSeniorCreateRequest(String name, String phone, String region, String relation) {}
+    public record GuardianSeniorRelationRequest(String relation) {}
     public record GuardianSignupRequest(String name, String phone, String email, String password, Long seniorId, String seniorRelation) {}
     public record GuardianLoginRequest(String email, String password) {}
     public record ActiveRequest(Boolean active) {}

@@ -20,6 +20,31 @@
     background-color: #6f9272;
 }
 
+.wpq-sidebar-button {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 18px;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: #ffffff;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: "Noto Sans KR", sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wpq-sidebar-button:hover {
+    background: #f2f6f0;
+}
+
+.wpq-sidebar-button svg {
+    color: #4f6f52;
+}
+
 .wpq-overlay {
     position: fixed;
     inset: 0;

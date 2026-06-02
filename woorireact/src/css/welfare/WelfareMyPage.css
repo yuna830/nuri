@@ -91,7 +91,7 @@
     color: var(--main-color);
     display: grid;
     place-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 
 .wm-profile-name {
@@ -109,7 +109,7 @@
     width: 100%;
     height: 1px;
     background-color: var(--border-color);
-    margin: 22px 0;
+    margin: 20px 0;
 }
 
 .wm-profile-list {
@@ -146,6 +146,7 @@
     margin-top: 24px;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    transform: translateY(15px);
     gap: 8px;
 }
 
@@ -482,6 +483,46 @@
     color: white;
     font-weight: 800;
     text-decoration: none;
+}
+
+.wm-layout-single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.wm-profile-panel-sidebar {
+    margin-bottom: 14px;
+    padding: 24px 18px;
+}
+
+.wm-page .wd-layout {
+    align-items: stretch;
+}
+
+.wm-page .wd-sidebar,
+.wm-page .wm-content,
+.wm-page .wm-layout,
+.wm-page .wm-main-column {
+    height: 100%;
+}
+
+.wm-page .wd-sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+.wm-profile-panel-sidebar,
+.wm-form-panel {
+    min-height: 0;
+}
+
+.wm-profile-panel-sidebar {
+    justify-content: flex-start;
+    padding: 36px 24px;
+}
+
+.wm-page .wm-content {
+    padding-top: 0;
+    transform: translateY(0px);
 }
 
 @media (max-width: 900px) {

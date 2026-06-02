@@ -3,6 +3,7 @@ package com.nuri.woori.controller;
 import com.nuri.woori.entity.PoliceMissingAlert;
 import com.nuri.woori.repository.PoliceMissingAlertRepository;
 import com.nuri.woori.service.PoliceMissingAlertService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,9 @@ public class PoliceMissingAlertController {
 
     private final PoliceMissingAlertService policeMissingAlertService;
     private final PoliceMissingAlertRepository policeMissingAlertRepository;
+
+    @Value("${app.upload-root:uploads}")
+    private String uploadRoot;
 
     public PoliceMissingAlertController(
             PoliceMissingAlertService policeMissingAlertService,
@@ -60,7 +64,10 @@ public class PoliceMissingAlertController {
 
             if (photoValue.startsWith("/uploads/")) {
                 String relativePath = photoValue.replaceFirst("^/uploads/", "");
-                Path imagePath = Paths.get("uploads").resolve(relativePath).normalize();
+                Path imagePath = Paths.get(uploadRoot)
+                        .resolve(relativePath)
+                        .toAbsolutePath()
+                        .normalize();
                 imageBytes = Files.readAllBytes(imagePath);
             } else {
                 imageBytes = Base64.getMimeDecoder().decode(photoValue);

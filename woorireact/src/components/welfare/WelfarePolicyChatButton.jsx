@@ -63,7 +63,7 @@ function formatAnswerText(text) {
         .trim();
 }
 
-function WelfarePolicyChatButton({ senior = null, seniorOptions = [] }) {
+function WelfarePolicyChatButton({ senior = null, seniorOptions = [], variant = "floating" }) {
     const [isOpen, setIsOpen] = useState(false);
     const [question, setQuestion] = useState("");
     const [selectedSeniorId, setSelectedSeniorId] = useState("");
@@ -218,12 +218,13 @@ function WelfarePolicyChatButton({ senior = null, seniorOptions = [] }) {
         <>
             <button
                 type="button"
-                className="wpq-floating-button"
+                className={variant === "sidebar" ? "wpq-sidebar-button" : "wpq-floating-button"}
                 onClick={() => setIsOpen(true)}
                 aria-label="복지 Q&A 열기"
                 title="복지 Q&A"
             >
-                <HelpCircle size={25} />
+                <HelpCircle size={variant === "sidebar" ? 17 : 25} />
+                {variant === "sidebar" && <span>AI 복지 확인</span>}
             </button>
 
             {isOpen && (

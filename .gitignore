@@ -1,6 +1,7 @@
-stt_server/ 
+stt_server/
 woorispring/uploads/
 .venv
-.png
-.jpg
-.jpeg
+
+# Flutter 앱 환경변수 (커밋 금지)
+woori_guardian_app/.env
+woori_senior_app/.env

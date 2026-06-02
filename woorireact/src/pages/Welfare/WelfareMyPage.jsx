@@ -326,7 +326,47 @@ function WelfareMyPage() {
                 <WelfareCommonHeader />
 
                 <div className="wd-layout">
-                    <WelfareSidebar active="mypage" />
+                    <WelfareSidebar
+                        active="mypage"
+                        profileSlot={
+                            <aside className="wm-profile-panel wm-profile-panel-sidebar">
+                                <div className="wm-avatar">
+                                    <UserRound size={34} />
+                                </div>
+
+                                <strong className="wm-profile-name">{worker.name} 복지사</strong>
+                                <span className="wm-profile-center">{worker.center || "소속 기관 미등록"}</span>
+
+                                <div className="wm-profile-divider" />
+
+                                <dl className="wm-profile-list">
+                                    <div className="wm-profile-row">
+                                        <dt>아이디</dt>
+                                        <dd>{worker.workerId || "-"}</dd>
+                                    </div>
+                                    <div className="wm-profile-row">
+                                        <dt>이메일</dt>
+                                        <dd>{worker.email || "-"}</dd>
+                                    </div>
+                                    <div className="wm-profile-row">
+                                        <dt>최근 로그인</dt>
+                                        <dd>{formatLoginAt(worker.loginAt)}</dd>
+                                    </div>
+                                </dl>
+
+                                <div className="wm-account-actions">
+                                    <button type="button" className="wm-secondary-button" onClick={handleLogout}>
+                                        <LogOut size={16} />
+                                        로그아웃
+                                    </button>
+                                    <button type="button" className="wm-danger-button" onClick={handleWithdraw}>
+                                        <Trash2 size={16} />
+                                        탈퇴
+                                    </button>
+                                </div>
+                            </aside>
+                        }
+                    />
                     <main>
                         <section className="wm-empty-card">
                             <h1 className="wm-empty-title">로그인이 필요합니다</h1>
@@ -345,190 +385,194 @@ function WelfareMyPage() {
             <WelfareCommonHeader rightText="마이페이지" />
 
             <div className="wd-layout">
-                <WelfareSidebar active="mypage" />
-                <main className="wm-content">
-                <div className="wm-layout">
-                    <aside className="wm-profile-panel">
-                        <div className="wm-avatar">
-                            <UserRound size={34} />
+    <WelfareSidebar
+        active="mypage"
+        profileSlot={
+            <aside className="wm-profile-panel wm-profile-panel-sidebar">
+                <div className="wm-avatar">
+                    <UserRound size={34} />
+                </div>
+
+                <strong className="wm-profile-name">{worker.name} 복지사</strong>
+                <span className="wm-profile-center">{worker.center || "소속 기관 미등록"}</span>
+
+                <div className="wm-profile-divider" />
+
+                <dl className="wm-profile-list">
+                    <div className="wm-profile-row">
+                        <dt>아이디</dt>
+                        <dd>{worker.workerId || "-"}</dd>
+                    </div>
+                    <div className="wm-profile-row">
+                        <dt>이메일</dt>
+                        <dd>{worker.email || "-"}</dd>
+                    </div>
+                    <div className="wm-profile-row">
+                        <dt>최근 로그인</dt>
+                        <dd>{formatLoginAt(worker.loginAt)}</dd>
+                    </div>
+                </dl>
+
+                <div className="wm-account-actions">
+                    <button type="button" className="wm-secondary-button" onClick={handleLogout}>
+                        <LogOut size={16} />
+                        로그아웃
+                    </button>
+                    <button type="button" className="wm-danger-button" onClick={handleWithdraw}>
+                        <Trash2 size={16} />
+                        탈퇴
+                    </button>
+                </div>
+            </aside>
+        }
+    />
+
+    <main className="wm-content">
+        <div className="wm-layout wm-layout-single">
+            <div className="wm-main-column">
+                <section className="wm-form-panel">
+                    <div className="wm-section-head">
+                        <div>
+                            <h2 className="wm-section-title">계정 정보 수정</h2>
+                            <p className="wm-section-desc">저장한 정보는 대상자 관리 화면의 계정 정보에 반영됩니다.</p>
                         </div>
 
-                        <strong className="wm-profile-name">{worker.name} 복지사</strong>
-                        <span className="wm-profile-center">{worker.center || "소속 기관 미등록"}</span>
+                        <Building2 size={22} className="wm-section-icon" />
+                    </div>
 
-                        <div className="wm-profile-divider" />
+                    {error && <div className="wm-error-box">{error}</div>}
 
-                        <dl className="wm-profile-list">
-                            <div className="wm-profile-row">
-                                <dt>아이디</dt>
-                                <dd>{worker.workerId || "-"}</dd>
-                            </div>
-                            <div className="wm-profile-row">
-                                <dt>이메일</dt>
-                                <dd>{worker.email || "-"}</dd>
-                            </div>
-                            <div className="wm-profile-row">
-                                <dt>최근 로그인</dt>
-                                <dd>{formatLoginAt(worker.loginAt)}</dd>
-                            </div>
-                        </dl>
+                    <div className="wm-form-grid">
+                        <label className="wm-field wm-field-half">
+                            <span className="wm-label">이름 수정</span>
+                            <input
+                                className="wm-input"
+                                value={form.name}
+                                onChange={(event) => set("name", event.target.value)}
+                                placeholder="예: 박정아"
+                            />
+                        </label>
 
-                        <div className="wm-account-actions">
-                            <button type="button" className="wm-secondary-button" onClick={handleLogout}>
-                                <LogOut size={16} />
-                                로그아웃
-                            </button>
-                            <button type="button" className="wm-danger-button" onClick={handleWithdraw}>
-                                <Trash2 size={16} />
-                                탈퇴
-                            </button>
-                        </div>
-                    </aside>
+                        <label className="wm-field wm-field-half">
+                            <span className="wm-label">아이디 확인</span>
+                            <input
+                                className="wm-input wm-readonly-input"
+                                value={worker.workerId || ""}
+                                readOnly
+                            />
+                        </label>
 
-                    <div className="wm-main-column">
-                        <section className="wm-form-panel">
-                            <div className="wm-section-head">
-                                <div>
-                                    <h2 className="wm-section-title">계정 정보 수정</h2>
-                                    <p className="wm-section-desc">저장한 정보는 대상자 관리 화면의 계정 정보에 반영됩니다.</p>
-                                </div>
-
-                                <Building2 size={22} className="wm-section-icon" />
-                            </div>
-
-                            {error && <div className="wm-error-box">{error}</div>}
-
-                            <div className="wm-form-grid">
-                                <label className="wm-field wm-field-half">
-                                    <span className="wm-label">이름 수정</span>
-                                    <input
-                                        className="wm-input"
-                                        value={form.name}
-                                        onChange={(event) => set("name", event.target.value)}
-                                        placeholder="예: 박정아"
-                                    />
-                                </label>
-
-                                <label className="wm-field wm-field-half">
-                                    <span className="wm-label">아이디 확인</span>
-                                    <input
-                                        className="wm-input wm-readonly-input"
-                                        value={worker.workerId || ""}
-                                        readOnly
-                                    />
-                                </label>
-
-                                <div className="wm-field wm-center-field">
-                                    <span className="wm-label">소속 기관 수정</span>
-                                    <div className="wm-search-row">
-                                        <input
-                                            className="wm-input"
-                                            value={centerQuery}
-                                            onChange={(event) => {
-                                                setCenterQuery(event.target.value);
-                                                setSelectedCenter("");
-                                                setCenterResults([]);
-                                                setCenterSearchMessage("");
-                                            }}
-                                            placeholder="예: 광진노인종합복지관"
-                                            onKeyDown={(event) => event.key === "Enter" && handleCenterSearch()}
-                                        />
-                                        <button
-                                            type="button"
-                                            className="wm-search-button"
-                                            onClick={handleCenterSearch}
-                                            disabled={isSearchingCenters}
-                                        >
-                                            <Search size={15} />
-                                            {isSearchingCenters ? "검색중" : "검색"}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="wm-apply-button"
-                                            onClick={handleApplyCenter}
-                                        >
-                                            수정
-                                        </button>
-                                    </div>
-
-                                    <span className="wm-current-center">
-                                        현재 적용값: {form.center || "소속 기관 미등록"}
-                                    </span>
-
-                                    {centerSearchMessage && (
-                                        <p className="wm-center-suggest-empty">{centerSearchMessage}</p>
-                                    )}
-
-                                    {centerResults.length > 0 && (
-                                        <div className="wm-center-suggest-list">
-                                            {centerResults.map((center) => (
-                                                <button
-                                                    type="button"
-                                                    key={`${center.code}-${center.name}`}
-                                                    className="wm-center-suggest-item"
-                                                    onClick={() => handleSelectCenter(center)}
-                                                >
-                                                    <strong>{center.name}</strong>
-                                                    {center.type && <span>{center.type}</span>}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <label className="wm-field wm-field-half">
-                                    <span className="wm-label">담당 지역 수정</span>
-                                    <input
-                                        className="wm-input"
-                                        value={form.region}
-                                        onChange={(event) => set("region", event.target.value)}
-                                        placeholder="예: 서울시 광진구"
-                                    />
-                                </label>
-
-                                <label className="wm-field wm-field-half">
-                                    <span className="wm-label">연락처 수정</span>
-                                    <input
-                                        className="wm-input"
-                                        value={form.phone}
-                                        onChange={(event) => set("phone", formatPhoneNumber(event.target.value))}
-                                        placeholder="예: 010-1234-5678"
-                                    />
-                                </label>
-                            </div>
-
-                            <div className="wm-security-row">
-                                <div className="wm-security-copy">
-                                    <strong>비밀번호 재설정</strong>
-                                    <span>계정 보안을 위해 필요할 때 새 비밀번호로 변경할 수 있습니다.</span>
-                                </div>
-
+                        <div className="wm-field wm-center-field">
+                            <span className="wm-label">소속 기관 수정</span>
+                            <div className="wm-search-row">
+                                <input
+                                    className="wm-input"
+                                    value={centerQuery}
+                                    onChange={(event) => {
+                                        setCenterQuery(event.target.value);
+                                        setSelectedCenter("");
+                                        setCenterResults([]);
+                                        setCenterSearchMessage("");
+                                    }}
+                                    placeholder="예: 광진노인종합복지관"
+                                    onKeyDown={(event) => event.key === "Enter" && handleCenterSearch()}
+                                />
                                 <button
                                     type="button"
-                                    className="wm-reset-button"
-                                    onClick={openPasswordModal}
+                                    className="wm-search-button"
+                                    onClick={handleCenterSearch}
+                                    disabled={isSearchingCenters}
                                 >
-                                    <KeyRound size={16} />
-                                    재설정
+                                    <Search size={15} />
+                                    {isSearchingCenters ? "검색중" : "검색"}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="wm-apply-button"
+                                    onClick={handleApplyCenter}
+                                >
+                                    수정
                                 </button>
                             </div>
-                        </section>
 
-                        <div className="wm-save-row">
-                            <button
-                                type="button"
-                                className="wm-save-button"
-                                onClick={handleSave}
-                                disabled={isSaving}
-                            >
-                                <Save size={17} />
-                                {isSaving ? "저장중" : "저장"}
-                            </button>
+                            <span className="wm-current-center">
+                                현재 적용값: {form.center || "소속 기관 미등록"}
+                            </span>
+
+                            {centerSearchMessage && (
+                                <p className="wm-center-suggest-empty">{centerSearchMessage}</p>
+                            )}
+
+                            {centerResults.length > 0 && (
+                                <div className="wm-center-suggest-list">
+                                    {centerResults.map((center) => (
+                                        <button
+                                            type="button"
+                                            key={`${center.code}-${center.name}`}
+                                            className="wm-center-suggest-item"
+                                            onClick={() => handleSelectCenter(center)}
+                                        >
+                                            <strong>{center.name}</strong>
+                                            {center.type && <span>{center.type}</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
+
+                        <label className="wm-field wm-field-half">
+                            <span className="wm-label">담당 지역 수정</span>
+                            <input
+                                className="wm-input"
+                                value={form.region}
+                                onChange={(event) => set("region", event.target.value)}
+                                placeholder="예: 서울시 광진구"
+                            />
+                        </label>
+
+                        <label className="wm-field wm-field-half">
+                            <span className="wm-label">연락처 수정</span>
+                            <input
+                                className="wm-input"
+                                value={form.phone}
+                                onChange={(event) => set("phone", formatPhoneNumber(event.target.value))}
+                                placeholder="예: 010-1234-5678"
+                            />
+                        </label>
                     </div>
+
+                    <div className="wm-security-row">
+                        <div className="wm-security-copy">
+                            <strong>비밀번호 재설정</strong>
+                            <span>계정 보안을 위해 필요할 때 새 비밀번호로 변경할 수 있습니다.</span>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="wm-reset-button"
+                            onClick={openPasswordModal}
+                        >
+                            <KeyRound size={16} />
+                            재설정
+                        </button>
+                    </div>
+                </section>
+
+                <div className="wm-save-row">
+                    <button
+                        type="button"
+                        className="wm-save-button"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                    >
+                        <Save size={17} />
+                        {isSaving ? "저장중" : "저장"}
+                    </button>
                 </div>
-                </main>
             </div>
+        </div>
+    </main>
+</div>
             {isPasswordModalOpen && (
                 <div className="login-modal-backdrop" onClick={closePasswordModal}>
                     <section className="login-modal" onClick={(event) => event.stopPropagation()}>

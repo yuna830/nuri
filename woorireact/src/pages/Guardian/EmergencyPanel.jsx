@@ -2,7 +2,7 @@
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
-import { sendCheckInMessage, sendMedicineAlert } from "../../api/guardianApi.js";
+import { sendCheckInMessage, sendMedicineAlert, getPolicePhotoUrl } from "../../api/guardianApi.js";
 import { sendSeniorChatMessage } from "../../api/chatApi.js";
 import { getCurrentGuardian } from "../../utils/guardian/guardianSession.js";
 
@@ -890,7 +890,7 @@ function EmergencyPanel({
                     <article className="police-missing-item">
                       {visiblePoliceAlert.id && (
                         <img
-                          src={`http://localhost:8181/api/police-missing-alerts/${visiblePoliceAlert.id}/photo`}
+                          src={getPolicePhotoUrl(visiblePoliceAlert.id)}
                           alt={`${visiblePoliceAlert.name} 실종정보 사진`}
                         />
                       )}
@@ -1018,7 +1018,7 @@ function EmergencyPanel({
                     >
                       {alert.id ? (
                         <img
-                          src={`http://localhost:8181/api/police-missing-alerts/${alert.id}/photo`}
+                          src={getPolicePhotoUrl(alert.id)}
                           alt={`${alert.name || "실종자"} 실종정보 사진`}
                         />
                       ) : (
