@@ -8,16 +8,19 @@ import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
+  CARE_NEEDS,
   CURRENT_BENEFITS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
   HOUSEHOLD_TYPES,
-  INCOME_LEVELS,
+  HOUSING_TYPES,
   JOB_CONDITIONS,
   JOB_TYPES,
+  LIVING_COST_STATUSES,
   MEDICINE_COUNTS,
   NONE,
+  PENSION_STATUSES,
   REST_NEEDS,
   SECTIONS,
   VISION_LEVELS,
@@ -326,17 +329,35 @@ export default function ProfilePage() {
           </section>
         );
 
-      case "welfare":
+      case "welfare": {
+        const needsCheck = [
+          form.livingCostStatus,
+          form.householdType,
+          form.pensionStatus,
+          form.housingType,
+          ...(form.currentBenefits || []),
+          ...(form.careNeeds || []),
+        ].includes("잘 모르겠어요");
         return (
           <section className="pr-section">
             <div className="pr-section-title">복지정보</div>
-            <div className="pr-hint">복지 지원 대상 여부와 이미 받고 있는 혜택을 확인하기 위한 정보입니다.</div>
-            <ChipField label="소득 구분" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
+            <div className="pr-hint">복지 지원 대상 여부와 필요한 서비스를 파악하기 위한 정보입니다.</div>
+            <ChipField label="생활비 상황" value={form.livingCostStatus} options={LIVING_COST_STATUSES} onSelect={(value) => set("livingCostStatus", value)} />
             <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
             <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
-            <TextareaField label="그 밖에 받고 있는 혜택이나 참고사항" value={form.welfareMemo} onChange={(value) => set("welfareMemo", value)} rows={4} />
+            <ChipField label="연금 수급 상태" value={form.pensionStatus} options={PENSION_STATUSES} onSelect={(value) => set("pensionStatus", value)} />
+            <ChipField label="주거 형태" value={form.housingType} options={HOUSING_TYPES} onSelect={(value) => set("housingType", value)} />
+            <MultiChipField label="도움이 필요한 일" values={form.careNeeds} options={CARE_NEEDS} onToggle={(value) => toggleArr("careNeeds", value)} />
+            <TextareaField label="그 밖에 참고사항" value={form.welfareMemo} onChange={(value) => set("welfareMemo", value)} rows={4} />
+            {needsCheck && (
+              <div className="pr-guardian-notice">
+                <strong>복지사 확인 필요</strong>
+                <p>일부 항목을 잘 모르겠다고 하셨어요. 보호자나 복지사가 확인 후 입력해 드릴 수 있어요.</p>
+              </div>
+            )}
           </section>
         );
+      }
 
       case "job":
         return (

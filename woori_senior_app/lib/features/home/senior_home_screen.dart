@@ -588,8 +588,6 @@ class _HomeBody extends StatelessWidget {
           _ScheduleCard(schedules: data.schedules),
           const SizedBox(height: 14),
           _ClimateAlertCard(alerts: data.climateAlerts),
-          const SizedBox(height: 14),
-          _AppFeatureGrid(seniorId: seniorId, onTabSwitch: onTabSwitch),
         ],
       ),
     );

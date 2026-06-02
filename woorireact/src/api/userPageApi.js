@@ -9,7 +9,7 @@ import {
 } from "./localAlertStore";
 
 const API_BASE = "";
-const FALL_API_PORT = "8010";
+const FALL_API_PORT = "8000";
 const getDefaultFallApiBase = () => {
   const host = window.location.hostname;
 
@@ -21,8 +21,7 @@ const getDefaultFallApiBase = () => {
 };
 
 const getSavedFallApiBase = () => {
-  const saved = localStorage.getItem("woori_fall_api_base");
-  return saved?.includes(":8000") ? "" : saved;
+  return localStorage.getItem("woori_fall_api_base") || null;
 };
 
 const FALL_API_BASE = (
@@ -483,6 +482,33 @@ export const fetchFallCaptures = async () => {
 export const fetchFallDetectionStatus = async () => {
   const response = await fetchFallApi("/status");
   return response.json();
+};
+
+export const fetchSensorBattery = async (seniorId) => {
+  // 1순위: Fall server /status 응답에서 battery 필드 추출
+  try {
+    const status = await fetchFallDetectionStatus();
+    const value = status?.battery ?? status?.sensorBattery ?? status?.sensor_battery;
+    if (value != null) return Math.round(Number(value));
+  } catch {
+    // fall server 미응답 또는 battery 필드 없음
+  }
+
+  // 2순위: Spring Boot /api/seniors/{id}/battery
+  if (seniorId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/seniors/${seniorId}/battery`);
+      if (res.ok) {
+        const data = await res.json();
+        const value = data?.battery ?? data?.sensorBattery;
+        if (value != null) return Math.round(Number(value));
+      }
+    } catch {
+      // 엔드포인트 없음
+    }
+  }
+
+  return null;
 };
 
 export const fetchActivityToday = async () => {

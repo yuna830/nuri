@@ -88,6 +88,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   double? _lastSavedLat;
   double? _lastSavedLon;
+  String? _serverReceivedAt; // 서버 마지막 수신 시각
 
   Timer? _locationTimer;
   Timer? _safeZoneTimer;
@@ -100,6 +101,7 @@ class _LocationScreenState extends State<LocationScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadSafeZones();
+      _loadServerLocation(); // 서버 저장 위치 먼저 표시
       _getLocation();
       _loadHistory(_selectedDate);
     });
@@ -143,6 +145,30 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   // ── 타이머 전용 silent 갱신 (로딩 스피너 없이) ──
+  // ── 서버 최신 위치 불러오기 ─────────────────────
+  Future<void> _loadServerLocation() async {
+    try {
+      final data = await _api.fetchLatestLocation(widget.seniorId);
+      if (data == null || !mounted) return;
+      final lat = (data['latitude'] as num?)?.toDouble();
+      final lon = (data['longitude'] as num?)?.toDouble();
+      final address = data['address'] as String? ?? '';
+      final receivedAt = data['receivedAt'] as String?;
+      if (lat == null || lon == null) return;
+      if (!mounted) return;
+      setState(() {
+        _lat ??= lat;
+        _lon ??= lon;
+        if (_address == '위치 정보 없음') _address = address;
+        _serverReceivedAt = receivedAt;
+        _loading = false;
+      });
+      try {
+        _mapController.move(LatLng(lat, lon), 15);
+      } catch (_) {}
+    } catch (_) {}
+  }
+
   Future<void> _getLocationSilent() async {
     if (!mounted) return;
     try {
@@ -151,7 +177,8 @@ class _LocationScreenState extends State<LocationScreen>
       );
       if (!mounted) return;
       final address = await _reverseGeocode(pos.latitude, pos.longitude);
-      await _maybeAutoSave(pos.latitude, pos.longitude, address);
+      await _maybeAutoSave(pos.latitude, pos.longitude, address,
+          accuracy: pos.accuracy);
       if (!mounted) return;
       setState(() {
         _lat = pos.latitude;
@@ -227,8 +254,8 @@ class _LocationScreenState extends State<LocationScreen>
         _mapController.move(LatLng(lat, lon), 15);
       } catch (_) {}
 
-      // 50m 이상 이동 시 서버 저장
-      await _maybeAutoSave(lat, lon, address);
+      // 50m 이상 이동 시 서버 저장 (accuracy 포함)
+      await _maybeAutoSave(lat, lon, address, accuracy: position.accuracy);
 
       // 오늘 선택된 경우 이력 갱신
       if (_selectedDate == _todayStr()) {
@@ -280,15 +307,18 @@ class _LocationScreenState extends State<LocationScreen>
     return '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
   }
 
-  // ── 위치 자동 저장 (50m 이동 시) ──────────────
-  Future<void> _maybeAutoSave(double lat, double lon, String address) async {
+  // ── 위치 자동 저장 (최초 or 50m 이동 시) ──────
+  Future<void> _maybeAutoSave(double lat, double lon, String address,
+      {double? accuracy}) async {
     final prevLat = _lastSavedLat;
     final prevLon = _lastSavedLon;
-    final moved = (prevLat == null || prevLon == null)
+    final isFirst = prevLat == null || prevLon == null;
+    final moved = isFirst
         ? double.infinity
         : _metersApart(prevLat, prevLon, lat, lon);
 
-    if (moved < 50) return;
+    // 최초 위치는 거리 무관하게 저장 (웹에서 바로 보이도록)
+    if (!isFirst && moved < 50) return;
 
     try {
       await _api.saveLocation(
@@ -296,6 +326,7 @@ class _LocationScreenState extends State<LocationScreen>
         lat: lat,
         lon: lon,
         address: address,
+        accuracy: accuracy,
       );
       _lastSavedLat = lat;
       _lastSavedLon = lon;

@@ -18,6 +18,7 @@ import {
   fetchActivityTrend,
   fetchFallEvents,
   fetchFallPattern,
+  fetchFallDetectionStatus,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
@@ -492,6 +493,7 @@ export default function UserPage() {
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
   const [deviceStatus, setDeviceStatus] = useState("checking");
+  const [sensorConnected, setSensorConnected] = useState(null);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -515,6 +517,9 @@ export default function UserPage() {
   const [medicineAlert, setMedicineAlert] = useState(null);
   const [infoUpdateRequestAlert, setInfoUpdateRequestAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+  const [guardianEditOpen, setGuardianEditOpen] = useState(false);
+  const [guardianEditForm, setGuardianEditForm] = useState({ name: "", relation: "" });
+  const [guardianSaving, setGuardianSaving] = useState(false);
   const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
   useEffect(() => {
@@ -550,6 +555,27 @@ export default function UserPage() {
     loadActivityCondition();
     const intervalId = window.setInterval(loadActivityCondition, 60 * 1000);
 
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const pollSensor = async () => {
+      try {
+        const status = await fetchFallDetectionStatus();
+        const s = status?.arduino_status ?? "";
+        if (isMounted) setSensorConnected(s === "NORMAL" || s === "FALL");
+      } catch {
+        if (isMounted) setSensorConnected(false);
+      }
+    };
+
+    pollSensor();
+    const intervalId = window.setInterval(pollSensor, 30 * 1000);
     return () => {
       isMounted = false;
       window.clearInterval(intervalId);
@@ -1191,6 +1217,50 @@ export default function UserPage() {
     }
   };
 
+  const openGuardianEdit = () => {
+    setGuardianEditForm({ name: careTeam.guardianName || "", relation: careTeam.guardianRelation || "" });
+    setGuardianEditOpen(true);
+  };
+
+  const saveGuardianEdit = async () => {
+    try {
+      setGuardianSaving(true);
+      const saved = sessionStorage.getItem("currentSenior");
+      if (!saved) return;
+      const profile = JSON.parse(saved);
+      const seniorId = profile?.senior?.id;
+      if (!seniorId) return;
+
+      const response = await fetch(`/api/seniors/${seniorId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...profile,
+          senior: {
+            ...profile.senior,
+            guardianName: guardianEditForm.name.trim(),
+            guardianRelation: guardianEditForm.relation.trim(),
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+        setCareTeam((prev) => ({
+          ...prev,
+          guardianName: guardianEditForm.name.trim(),
+          guardianRelation: guardianEditForm.relation.trim(),
+        }));
+        setGuardianEditOpen(false);
+      }
+    } catch (error) {
+      console.error("보호자 정보 수정 실패:", error);
+    } finally {
+      setGuardianSaving(false);
+    }
+  };
+
   const openAllSchedules = async () => {
     const seniorId = getCurrentSeniorId(initialSenior);
     const today = todayValue();
@@ -1275,27 +1345,25 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className={`up-dot ${deviceStatus === "failed" ? "danger" : deviceStatus === "checking" ? "pending" : ""}`} />
-              {deviceStatus === "connected"
-                ? "디바이스 연결됨"
-                : deviceStatus === "failed"
-                  ? "디바이스 연결 실패"
-                  : "디바이스 연결 시도중입니다"}
+              <div className={`up-dot ${
+                sensorConnected === null ? "pending"
+                : sensorConnected ? ""
+                : "danger"
+              }`} />
+              {sensorConnected === null
+                ? "센서 확인 중"
+                : sensorConnected
+                  ? "낙상 센서 연결됨"
+                  : "센서 신호 없음"}
             </div>
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                {careTeam.guardianName && toTelHref(careTeam.guardianPhone) ? (
-                  <a className="up-care-call" href={toTelHref(careTeam.guardianPhone)}>
-                    {`${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`}
-                  </a>
-                ) : (
-                  <strong>
-                    {careTeam.guardianName
-                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                      : "매칭 전"}
-                  </strong>
-                )}
+                <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
+                  {careTeam.guardianName
+                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                    : "입력하기"}
+                </button>
               </div>
               <div>
                 <span>복지사</span>
@@ -1674,6 +1742,40 @@ export default function UserPage() {
                 onClick={handleGoToInfoUpdateRequest}
               >
                 수정하러 가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guardianEditOpen && (
+        <div className="up-overlay" onClick={() => setGuardianEditOpen(false)}>
+          <div className="up-modal up-guardian-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="up-modal-title">보호자 정보 수정</div>
+            <div className="up-guardian-field">
+              <label className="up-guardian-label">보호자 이름</label>
+              <input
+                className="up-guardian-input"
+                value={guardianEditForm.name}
+                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="이름 입력"
+              />
+            </div>
+            <div className="up-guardian-field">
+              <label className="up-guardian-label">관계</label>
+              <input
+                className="up-guardian-input"
+                value={guardianEditForm.relation}
+                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, relation: e.target.value }))}
+                placeholder="예: 아들, 딸, 배우자"
+              />
+            </div>
+            <div className="up-modal-row" style={{ marginTop: "1.4rem" }}>
+              <button className="up-modal-cancel" type="button" onClick={() => setGuardianEditOpen(false)}>
+                취소
+              </button>
+              <button className="up-modal-ok up-modal-ok-green" type="button" onClick={saveGuardianEdit} disabled={guardianSaving}>
+                {guardianSaving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>

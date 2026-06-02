@@ -92,7 +92,7 @@ function UserPanel({
   onDeleteElder,
   activityReport,
 }) {
-  const [localBattery, setLocalBattery] = useState(null);
+  const [deviceBattery, setDeviceBattery] = useState(null);
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
@@ -102,19 +102,19 @@ function UserPanel({
     if (!navigator.getBattery) return undefined;
 
     let batteryRef = null;
-    const updateBattery = () => {
+    const update = () => {
       if (!batteryRef) return;
-      setLocalBattery(Math.round((batteryRef.level || 0) * 100));
+      setDeviceBattery(Math.round(batteryRef.level * 100));
     };
 
-    navigator.getBattery().then((battery) => {
-      batteryRef = battery;
-      updateBattery();
-      battery.addEventListener("levelchange", updateBattery);
+    navigator.getBattery().then((bat) => {
+      batteryRef = bat;
+      update();
+      bat.addEventListener("levelchange", update);
     }).catch(() => {});
 
     return () => {
-      batteryRef?.removeEventListener?.("levelchange", updateBattery);
+      batteryRef?.removeEventListener?.("levelchange", update);
     };
   }, []);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -383,12 +383,21 @@ function UserPanel({
 
           <div className="battery-box">
             <div className="battery-title-row">
-              <span>{localBattery == null ? "GPS 배터리" : "현재 기기 배터리"}</span>
-              <strong>{localBattery ?? selectedElder.battery}%</strong>
+              <span>기기 배터리</span>
+              <strong>{deviceBattery != null ? `${deviceBattery}%` : "--"}</strong>
             </div>
             <div className="battery-row">
               <div className="battery-bar">
-                <div style={{ width: `${localBattery ?? selectedElder.battery}%` }} />
+                <div
+                  style={{
+                    width: deviceBattery != null ? `${deviceBattery}%` : "0%",
+                    background:
+                      deviceBattery == null ? "transparent"
+                      : deviceBattery >= 80 ? "var(--main-color)"
+                      : deviceBattery >= 30 ? "#d89b2b"
+                      : "#e05252",
+                  }}
+                />
               </div>
             </div>
           </div>

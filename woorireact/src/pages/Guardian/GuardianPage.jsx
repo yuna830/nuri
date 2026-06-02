@@ -343,7 +343,6 @@ function GuardianPage() {
     lastNormalLocation: previousElder?.lastNormalLocation ?? freshElder.lastNormalLocation,
     routeHistory: previousElder?.routeHistory ?? freshElder.routeHistory,
     alerts: previousElder?.alerts ?? freshElder.alerts,
-    battery: previousElder?.battery ?? freshElder.battery,
     status: previousElder?.status ?? freshElder.status,
   });
 

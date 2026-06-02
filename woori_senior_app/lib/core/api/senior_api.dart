@@ -119,16 +119,28 @@ class SeniorApi {
         .toList();
   }
 
-  /// 위치 이���
+  /// 위치 이력
   Future<List<dynamic>> fetchLocationHistory(int seniorId, String date) =>
       _getJsonList('/api/locations/senior/$seniorId/date?date=$date');
 
-  /// 위치 저장
+  /// 최신 위치 (서버 저장 데이터)
+  Future<Map<String, dynamic>?> fetchLatestLocation(int seniorId) async {
+    final response = await http.get(
+      Uri.parse('$apiBaseUrl/api/locations/senior/$seniorId/latest'),
+    );
+    if (response.statusCode == 204 || response.statusCode == 404) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    return decoded is Map<String, dynamic> ? decoded : null;
+  }
+
+  /// 위치 저장 (accuracy 포함)
   Future<void> saveLocation({
     required int seniorId,
     required double lat,
     required double lon,
     String address = '',
+    double? accuracy,
   }) async {
     await http.post(
       Uri.parse('$apiBaseUrl/api/locations'),
@@ -138,6 +150,7 @@ class SeniorApi {
         'latitude': lat,
         'longitude': lon,
         'address': address,
+        if (accuracy != null) 'accuracy': accuracy,
       }),
     );
   }
