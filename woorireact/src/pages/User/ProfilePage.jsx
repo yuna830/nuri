@@ -31,7 +31,6 @@ import {
   calcBMI,
   createMedicine,
   defaultForm,
-  formToProfile,
   normalizeForm,
   profileToForm,
   syncMedicationsWithCount,
@@ -133,13 +132,19 @@ export default function ProfilePage() {
     const seniorId = profile?.senior?.id;
     if (!seniorId) throw new Error("사용자 ID를 찾을 수 없습니다.");
 
-    const base = formToProfile(profile, nextForm);
+    // PUT /api/seniors/{id} 는 flat SeniorCreateRequest를 기대함
+    // formToProfile(중첩구조)를 보내면 Jackson이 모든 필드를 null로 읽어서 데이터가 날아감
     const payload = {
-      ...base,
-      senior: {
-        ...base.senior,
-        profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
-      },
+      ...normalizeForm(nextForm),
+      profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
+      // 백엔드가 List<String>으로 받는 필드 — normalizeForm이 CSV로 변환하므로 배열로 덮어쓰기
+      currentBenefits: nextForm.currentBenefits || [],
+      careNeeds: nextForm.careNeeds || [],
+      disabledWork: nextForm.disabledWork || [],
+      avoidEnvironment: nextForm.avoidEnvironment || [],
+      hopeDays: nextForm.hopeDays || [],
+      hopeJobType: nextForm.hopeJobType || [],
+      hopeCondition: nextForm.hopeCondition || [],
     };
     const response = await fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`, {
       method: "PUT",
@@ -296,6 +301,14 @@ export default function ProfilePage() {
                   <InputField label="복용 간격(시간)" type="number" value={medicine.interval} onChange={(value) => setMedicine(index, "interval", value)} />
                   <InputField label="하루 복용 횟수" type="number" value={medicine.dailyCount} onChange={(value) => setMedicine(index, "dailyCount", value)} />
                 </div>
+                <label className="pr-inline-check">
+                  <input
+                    type="checkbox"
+                    checked={medicine.alertEnabled || false}
+                    onChange={(event) => setMedicine(index, "alertEnabled", event.target.checked)}
+                  />
+                  <span>이 약 복용 시간에 알림 받기</span>
+                </label>
               </div>
             ))}
             <button className="pr-add-line-btn" type="button" onClick={addMedicine}>+ 복용 약 추가</button>

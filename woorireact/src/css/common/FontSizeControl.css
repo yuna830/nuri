@@ -1,0 +1,51 @@
+/* 헤더 안에 있으므로 폰트 크기 변화에 영향받지 않도록 px 고정 */
+.fsc-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border: 1px solid #d4e8d6;
+  border-radius: 999px;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.fsc-label {
+  color: #7a9a7c;
+  font-size: 12px;
+  font-weight: 700;
+  padding-right: 2px;
+  user-select: none;
+  line-height: 1;
+}
+
+.fsc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #5f7d61;
+  font-family: "Noto Sans KR", sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+/* px 고정 — 헤더 높이(60px)에 맞게 유지 */
+.fsc-btn-0 { font-size: 12px; width: 24px; height: 24px; }
+.fsc-btn-1 { font-size: 15px; width: 28px; height: 28px; }
+.fsc-btn-2 { font-size: 18px; width: 32px; height: 32px; }
+
+.fsc-btn:hover {
+  background: #eef6ef;
+}
+
+.fsc-btn.active {
+  background: #86a788;
+  color: #ffffff;
+  border-color: #6a9470;
+}

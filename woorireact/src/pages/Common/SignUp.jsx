@@ -136,6 +136,7 @@ export default function SignUp() {
         profileImageUrl: resolveUploadUrl(form.profileImageUrl),
         // 백엔드 SeniorCreateRequest는 List<String>을 기대 — CSV 문자열 덮어쓰기
         currentBenefits: form.currentBenefits || [],
+        careNeeds: form.careNeeds || [],
         disabledWork: form.disabledWork || [],
         avoidEnvironment: form.avoidEnvironment || [],
         hopeDays: form.hopeDays || [],
@@ -325,6 +326,14 @@ export default function SignUp() {
                       <InputField label="복용 간격(시간)" type="number" value={medicine.interval} onChange={(value) => setMedicine(index, "interval", value)} placeholder="예: 8" />
                       <InputField label="하루 복용 횟수" type="number" value={medicine.dailyCount} onChange={(value) => setMedicine(index, "dailyCount", value)} placeholder="2" />
                     </div>
+                    <label className="su-inline-check">
+                      <input
+                        type="checkbox"
+                        checked={medicine.alertEnabled || false}
+                        onChange={(event) => setMedicine(index, "alertEnabled", event.target.checked)}
+                      />
+                      <span>이 약 복용 시간에 알림 받기</span>
+                    </label>
                   </div>
                 ))}
               </div>

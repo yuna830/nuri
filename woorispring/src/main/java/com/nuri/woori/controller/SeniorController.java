@@ -94,8 +94,12 @@ public class SeniorController {
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setLivingCostStatus(request.livingCostStatus());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setPensionStatus(request.pensionStatus());
+        healthInfo.setHousingType(request.housingType());
         healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setCareNeeds(join(request.careNeeds()));
         healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
@@ -346,8 +350,12 @@ public class SeniorController {
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setLivingCostStatus(request.livingCostStatus());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setPensionStatus(request.pensionStatus());
+        healthInfo.setHousingType(request.housingType());
         healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setCareNeeds(join(request.careNeeds()));
         healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
@@ -460,6 +468,14 @@ public class SeniorController {
 
         if (request.profileImageUrl() != null) {
             senior.setProfileImageUrl(request.profileImageUrl());
+        }
+
+        if (request.guardianName() != null) {
+            senior.setGuardianName(request.guardianName());
+        }
+
+        if (request.guardianRelation() != null) {
+            senior.setGuardianRelation(request.guardianRelation());
         }
 
         Senior savedSenior = seniorRepository.save(senior);
@@ -581,7 +597,9 @@ public class SeniorController {
             String hasSurgery,
             String surgeryDetail,
             String otherDisease,
-            String medicationsJson) {
+            String medicationsJson,
+            String guardianName,
+            String guardianRelation) {
     }
 
     @GetMapping("/welfare")
@@ -876,8 +894,12 @@ public class SeniorController {
             String drinking,
             String allergies,
             String incomeLevel,
+            String livingCostStatus,
             String householdType,
+            String pensionStatus,
+            String housingType,
             List<String> currentBenefits,
+            List<String> careNeeds,
             String welfareMemo,
             String medicineCount,
             String medicationsJson,

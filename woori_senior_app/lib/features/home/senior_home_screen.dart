@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/api/senior_api.dart';
+import '../../core/config/app_config.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 import '../fall/fall_history_screen.dart';
@@ -33,6 +34,36 @@ String scheduleTime(dynamic schedule) {
     if (t.isNotEmpty) return t.length >= 5 ? t.substring(0, 5) : t;
   }
   return '';
+}
+
+/// profileImageUrl 정규화
+/// - 상대경로 (/uploads/...) → apiBaseUrl 붙이기
+/// - localhost/127.0.0.1 URL → apiBaseUrl 호스트로 교체
+/// - 그 외 완전한 URL → 그대로 사용
+String _resolveImageUrl(String url) {
+  if (url.isEmpty) return url;
+
+  // 상대경로
+  if (url.startsWith('/')) return '$apiBaseUrl$url';
+
+  // localhost or 127.0.0.1 → 에뮬레이터에서 접근 불가, apiBaseUrl로 교체
+  try {
+    final uri = Uri.parse(url);
+    if (uri.host == 'localhost' || uri.host == '127.0.0.1' || uri.host == '::1') {
+      final base = Uri.parse(apiBaseUrl);
+      return uri.replace(host: base.host, port: base.port).toString();
+    }
+  } catch (_) {}
+
+  return url;
+}
+
+List<String> _parseList(dynamic v) {
+  if (v == null) return [];
+  if (v is List) return v.map((e) => '$e').toList();
+  final s = '$v'.trim();
+  if (s.isEmpty || s == '[]') return [];
+  return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 }
 
 String _textFrom(Map<String, dynamic> data, List<String> keys, String fallback) {
@@ -508,8 +539,29 @@ class _HomeBody extends StatelessWidget {
 
     final name = _textFrom(senior, ['name'], '어르신');
     final region = _textFrom(senior, ['region', 'address'], '현재 위치 확인 중');
-    final incomeLevel = _textFrom(healthInfo, ['incomeLevel'], '미입력');
-    final householdType = _textFrom(healthInfo, ['householdType'], '미입력');
+    final profileImageUrl = _textFrom(senior, ['profileImageUrl'], '');
+    // ignore: avoid_print
+    print('[DEBUG] profileImageUrl raw: $profileImageUrl → resolved: ${_resolveImageUrl(profileImageUrl)}');
+    final livingCostStatus = _textFrom(healthInfo, ['livingCostStatus'], '');
+    final householdType = _textFrom(healthInfo, ['householdType'], '');
+    final pensionStatus = _textFrom(healthInfo, ['pensionStatus'], '');
+    final housingType = _textFrom(healthInfo, ['housingType'], '');
+    final currentBenefitsList = _parseList(healthInfo['currentBenefits']);
+    final age = senior['age'] is int ? senior['age'] as int : int.tryParse('${senior['age'] ?? ''}');
+    // 건강 관련 텍스트 합치기 (매칭용)
+    final healthText = [
+      healthInfo['diabetes'], healthInfo['hypertension'], healthInfo['heartDisease'],
+      healthInfo['jointDisease'], healthInfo['stroke'], healthInfo['walkingAid'],
+      healthInfo['dementia'], healthInfo['recentFall'],
+    ].where((v) => v != null && v != '없음' && v != '').join(' ');
+    final welfarePrograms = _matchWelfarePrograms(
+      age: age,
+      householdType: householdType,
+      livingCostStatus: livingCostStatus,
+      pensionStatus: pensionStatus,
+      currentBenefits: currentBenefitsList,
+      healthText: healthText,
+    );
 
     final guardianSummary = _guardianSummary(profile);
     final workerSummary = _workerSummary(profile);
@@ -519,7 +571,7 @@ class _HomeBody extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 120),
         children: [
-          _ProfileHeader(name: name, region: region),
+          _ProfileHeader(name: name, region: region, profileImageUrl: profileImageUrl),
           const SizedBox(height: 16),
           _SosButton(onPressed: () {
             final state = context
@@ -527,28 +579,31 @@ class _HomeBody extends StatelessWidget {
             state?._showSosDialog();
           }),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.call,
-                  title: '보호자 전화',
-                  subtitle: guardianSummary,
-                  onTap: () => _showInfo(context, '보호자 전화',
-                      '전화 앱에서 보호자에게 연락해주세요.'),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.call,
+                    title: '보호자 전화',
+                    subtitle: guardianSummary,
+                    onTap: () => _showInfo(context, '보호자 전화',
+                        '전화 앱에서 보호자에게 연락해주세요.'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.support_agent,
-                  title: '복지사 전화',
-                  subtitle: workerSummary,
-                  onTap: () => _showInfo(context, '복지사 전화',
-                      '담당 복지사에게 상담을 요청할 수 있어요.'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.support_agent,
+                    title: '복지사 전화',
+                    subtitle: workerSummary,
+                    onTap: () => _showInfo(context, '복지사 전화',
+                        '담당 복지사에게 상담을 요청할 수 있어요.'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           _LocationCard(region: region),
@@ -579,10 +634,13 @@ class _HomeBody extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _WelfareCheckCard(
-            incomeLevel: incomeLevel,
+            livingCostStatus: livingCostStatus,
             householdType: householdType,
+            pensionStatus: pensionStatus,
+            housingType: housingType,
+            programs: welfarePrograms,
             onTap: () => _showInfo(context, '복지제도 확인',
-                '소득 정보와 가구 형태는 보호자와 복지사가 복지제도 확인에 함께 참고합니다.'),
+                '입력하신 복지 정보를 바탕으로 신청 가능한 제도를 안내합니다.'),
           ),
           const SizedBox(height: 14),
           _ScheduleCard(schedules: data.schedules),
@@ -620,11 +678,10 @@ class _HomeBody extends StatelessWidget {
   }
 
   String _workerSummary(Map<String, dynamic> profile) {
-    // Spring SeniorProfileResponse: flat 필드 socialWorkerName, socialWorkerCenter
     final name = _textFrom(profile, ['socialWorkerName'], '');
     if (name.isNotEmpty) {
       final center = _textFrom(profile, ['socialWorkerCenter'], '');
-      return center.isEmpty ? name : '$name · $center';
+      return center.isEmpty ? name : '$name\n$center';
     }
     return '복지사 매칭 전';
   }
@@ -883,14 +940,22 @@ class _CheckInOverlay extends StatelessWidget {
 // ─────────────────────────────────────────────
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.name, required this.region});
+  const _ProfileHeader({
+    required this.name,
+    required this.region,
+    this.profileImageUrl = '',
+  });
 
   final String name;
   final String region;
+  final String profileImageUrl;
 
   @override
   Widget build(BuildContext context) {
     final initial = name.isNotEmpty ? name.characters.first : '우';
+    final hasImage = profileImageUrl.isNotEmpty;
+
+    final imageUrl = _resolveImageUrl(profileImageUrl);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -908,11 +973,24 @@ class _ProfileHeader extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.24),
               shape: BoxShape.circle,
             ),
-            child: Text(initial,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900)),
+            clipBehavior: Clip.antiAlias,
+            child: hasImage
+                ? Image.network(
+                    imageUrl,
+                    width: 62,
+                    height: 62,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Text(initial,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900)),
+                  )
+                : Text(initial,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1095,33 +1173,98 @@ class _SmallStatusCard extends StatelessWidget {
 
 class _WelfareCheckCard extends StatelessWidget {
   const _WelfareCheckCard({
-    required this.incomeLevel,
+    required this.livingCostStatus,
     required this.householdType,
+    required this.pensionStatus,
+    required this.housingType,
+    required this.programs,
     required this.onTap,
   });
 
-  final String incomeLevel;
+  final String livingCostStatus;
   final String householdType;
+  final String pensionStatus;
+  final String housingType;
+  final List<_WelfareProgram> programs;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // 입력된 항목만 표시
+    final lines = <(String, String)>[
+      if (livingCostStatus.isNotEmpty && livingCostStatus != '잘 모르겠어요')
+        ('생활비 상황', livingCostStatus),
+      if (householdType.isNotEmpty && householdType != '잘 모르겠어요')
+        ('가구 형태', householdType),
+      if (pensionStatus.isNotEmpty && pensionStatus != '잘 모르겠어요')
+        ('연금 수급', pensionStatus),
+      if (housingType.isNotEmpty && housingType != '잘 모르겠어요')
+        ('주거 형태', housingType),
+    ];
+
     return _BaseCard(
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionTitle(title: '복지제도 확인'),
+          const SizedBox(height: 8),
+          const Text(
+            '소득과 가구 정보를 바탕으로 받을 수 있는 복지제도를 함께 확인해요.',
+            style: TextStyle(
+                color: Color(0xFF4A5F4B),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                height: 1.45),
+          ),
           const SizedBox(height: 12),
-          const Text('소득과 가구 정보를 바탕으로 받을 수 있는 복지제도를 함께 확인해요.',
-              style: TextStyle(
-                  color: Color(0xFF1F2A20),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1.45)),
-          const SizedBox(height: 12),
-          _InfoLine(label: '소득 정보', value: incomeLevel),
-          _InfoLine(label: '가구 형태', value: householdType),
+          if (lines.isEmpty)
+            const Text('복지정보를 입력하면 맞춤 정보를 확인할 수 있어요.',
+                style: TextStyle(color: Color(0xFF9AAF9B), fontSize: 14))
+          else
+            ...lines.map((e) => _InfoLine(label: e.$1, value: e.$2)),
+          if (programs.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: Color(0xFFE8F0E8)),
+            const SizedBox(height: 12),
+            const Text('신청 가능 제도',
+                style: TextStyle(
+                    color: Color(0xFF5F7D61),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            ...programs.map((p) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4FBF4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD4E8D6)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(p.name,
+                      style: const TextStyle(
+                          color: Color(0xFF1F2A20),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text(p.summary,
+                      style: const TextStyle(
+                          color: Color(0xFF4A5F4B),
+                          fontSize: 13,
+                          height: 1.4)),
+                  const SizedBox(height: 4),
+                  Text(p.reason,
+                      style: const TextStyle(
+                          color: Color(0xFF86A788),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            )),
+          ],
         ],
       ),
     );
@@ -1307,13 +1450,100 @@ class _ClimateAlertCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────
+//  복지 프로그램 매칭 (웹앱 welfareRag.js 포팅)
+// ─────────────────────────────────────────────
+
+class _WelfareProgram {
+  const _WelfareProgram({
+    required this.name,
+    required this.summary,
+    required this.reason,
+  });
+  final String name;
+  final String summary;
+  final String reason;
+}
+
+List<_WelfareProgram> _matchWelfarePrograms({
+  required int? age,
+  required String householdType,
+  required String livingCostStatus,
+  required String pensionStatus,
+  required List<String> currentBenefits,
+  required String healthText, // 질환 정보 합친 문자열
+}) {
+  final results = <_WelfareProgram>[];
+  final isAlone = householdType.contains('혼자') || householdType.contains('독거');
+  final isLowIncome = livingCostStatus.contains('없어요') || livingCostStatus.contains('기초연금') || livingCostStatus.contains('지원');
+  final alreadyBenefits = currentBenefits.join(' ');
+  final hasHealthIssue = RegExp(r'치매|낙상|보행|관절|뇌졸중|거동|인지|요양').hasMatch(healthText);
+
+  // 기초연금
+  if ((age == null || age >= 65) && !alreadyBenefits.contains('기초연금')) {
+    if (!pensionStatus.contains('기초연금을 받고')) {
+      results.add(const _WelfareProgram(
+        name: '기초연금',
+        summary: '만 65세 이상 소득인정액 기준을 충족하는 경우 신청 가능합니다.',
+        reason: '연령 기준 해당 · 주민센터 또는 복지로에서 확인',
+      ));
+    }
+  }
+
+  // 노인맞춤돌봄서비스
+  if (isAlone || isLowIncome) {
+    if (!alreadyBenefits.contains('노인맞춤돌봄')) {
+      results.add(const _WelfareProgram(
+        name: '노인맞춤돌봄서비스',
+        summary: '혼자 지내거나 돌봄 공백이 있는 어르신에게 안부 확인, 생활 지원을 제공합니다.',
+        reason: '가구 형태 및 생활 상황 해당 · 읍면동 주민센터 상담',
+      ));
+    }
+  }
+
+  // 응급안전안심서비스
+  if (isAlone) {
+    if (!alreadyBenefits.contains('응급안전')) {
+      results.add(const _WelfareProgram(
+        name: '응급안전안심서비스',
+        summary: '독거 어르신에게 응급 호출·화재 감지 등 안전 장비를 연계합니다.',
+        reason: '혼자 거주 해당 · 주민센터 또는 수행기관 문의',
+      ));
+    }
+  }
+
+  // 장기요양등급
+  if (hasHealthIssue && (age == null || age >= 65)) {
+    if (!alreadyBenefits.contains('장기요양')) {
+      results.add(const _WelfareProgram(
+        name: '장기요양등급',
+        summary: '일상생활 도움이 필요한 경우 등급 신청을 검토할 수 있습니다.',
+        reason: '건강 상태 해당 · 국민건강보험공단 확인',
+      ));
+    }
+  }
+
+  // 기초생활보장
+  if (isLowIncome && livingCostStatus.contains('없어요')) {
+    if (!alreadyBenefits.contains('기초생활')) {
+      results.add(const _WelfareProgram(
+        name: '기초생활보장',
+        summary: '소득·재산이 기준 이하인 가구에 생계·의료·주거 급여를 지원합니다.',
+        reason: '소득 상황 해당 · 복지로 모의계산 또는 주민센터 상담',
+      ));
+    }
+  }
+
+  return results.take(3).toList();
+}
+
 class _AppFeatureGrid extends StatelessWidget {
   const _AppFeatureGrid({required this.seniorId, this.onTabSwitch});
 
   final int seniorId;
   final ValueChanged<int>? onTabSwitch;
 
-  // tab indices: 홈0 위치1 기후2 일자리3 채팅4 알림5 내정보6
+  // tab indices: 홈0 위치1 기후2 일자리3 내정보4 (채팅·알림은 헤더 버튼으로 이동)
   VoidCallback _go(BuildContext ctx, int tab, Widget Function() fallback) {
     return onTabSwitch != null
         ? () => onTabSwitch!(tab)
@@ -1345,7 +1575,7 @@ class _AppFeatureGrid extends StatelessWidget {
       (
         Icons.person_outline,
         '내 정보',
-        _go(context, 6, () => ProfileScreen(seniorId: seniorId)),
+        _go(context, 4, () => ProfileScreen(seniorId: seniorId)),
       ),
       (
         Icons.work_outline,

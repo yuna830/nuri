@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Repeat2 } from "lucide-react";
 
@@ -159,7 +159,7 @@ function AdminSeniorDetail() {
                 disabled={!hasSelectionChanged || isSaving}
               >
                 <Repeat2 size={16} />
-                {isSaving ? "\uc800\uc7a5 \uc911" : actionLabel}
+                {isSaving ? "저장 중" : actionLabel}
               </button>
             </div>
             {saveMessage ? (
@@ -168,13 +168,13 @@ function AdminSeniorDetail() {
           </section>
 
           <section className="admin-panel">
-            <h2>\uce74\uba54\ub77c \uc5f0\ub3d9</h2>
-            <p className="admin-section-desc">\ub099\uc0c1 \uac10\uc9c0 \uce74\uba54\ub77c \uc11c\ubc84 \uc8fc\uc18c\ub97c \uc785\ub825\ud558\uba74 \ud65c\ub3d9 \ub370\uc774\ud130\uac00 \uc790\ub3d9\uc73c\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4.</p>
+            <h2>카메라 연동</h2>
+            <p className="admin-section-desc">낙상 감지 카메라 서버 주소를 입력하면 활동 데이터가 자동으로 저장됩니다.</p>
             <div className="admin-reassign-row">
               <input
                 className="admin-input"
                 type="url"
-                placeholder="\uc608: http://192.168.0.10:5000"
+                placeholder="예: http://192.168.0.10:5000"
                 value={fallApiUrl}
                 onChange={(event) => {
                   setFallApiUrl(event.target.value);
@@ -187,7 +187,7 @@ function AdminSeniorDetail() {
                 onClick={handleCameraSave}
                 disabled={isCameraSaving}
               >
-                {isCameraSaving ? "\uc800\uc7a5 \uc911" : "\uc800\uc7a5"}
+                {isCameraSaving ? "저장 중" : "저장"}
               </button>
             </div>
             {cameraSaveMessage && (

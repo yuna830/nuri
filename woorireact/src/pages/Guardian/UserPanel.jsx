@@ -157,7 +157,7 @@ function UserPanel({
     setProfileEditForm({
       relation: selectedElder.relation || "",
       phone: selectedElder.phone || "",
-      condition: selectedElder.condition || "",
+      condition: selectedElder.healthInfo?.otherDisease || "",
       medications: selectedElder.medications?.map((item) => item.name).join(", ") || "",
     });
 

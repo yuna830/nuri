@@ -166,6 +166,14 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
 
+const getActivityLabel = (score) => {
+  const val = Number(score);
+  if (!Number.isFinite(val)) return { text: "수집 중", level: "slot-empty" };
+  if (val >= 60) return { text: "양호", level: "slot-high" };
+  if (val >= 25) return { text: "보통", level: "slot-mid" };
+  return { text: "활동 적음", level: "slot-low" };
+};
+
 const DEFAULT_ACTIVITY_TODAY = {
   status: "pending",
   scores: null,
@@ -220,15 +228,20 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
             <div className="up-insight-title">시간대별 활동</div>
             {slotList.length ? (
               <div className="up-slot-list">
-                {slotList.map(([key, slot]) => (
-                  <div key={key} className={`up-slot-item ${slot.status}`}>
-                    <div>
-                      <strong>{slot.label}</strong>
-                      <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                {slotList.map(([key, slot]) => {
+                  const label = slot.status === "ok"
+                    ? getActivityLabel(slot.scores?.activity)
+                    : { text: "수집 중", level: "slot-empty" };
+                  return (
+                    <div key={key} className="up-slot-item">
+                      <div>
+                        <strong>{slot.label}</strong>
+                        <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                      </div>
+                      <b className={label.level}>{label.text}</b>
                     </div>
-                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "수집 중"}</b>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="up-insight-empty">시간대별 활동 데이터를 불러오는 중입니다.</p>
@@ -1247,16 +1260,13 @@ export default function UserPage() {
       const seniorId = profile?.senior?.id;
       if (!seniorId) return;
 
-      const response = await fetch(`/api/seniors/${seniorId}`, {
-        method: "PUT",
+      // PATCH로 guardianName/guardianRelation만 업데이트 (PUT은 전체 덮어써서 데이터 날아감)
+      const response = await fetch(`/api/seniors/${seniorId}/requested-info`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...profile,
-          senior: {
-            ...profile.senior,
-            guardianName: guardianEditForm.name.trim(),
-            guardianRelation: guardianEditForm.relation.trim(),
-          },
+          guardianName: guardianEditForm.name.trim(),
+          guardianRelation: guardianEditForm.relation.trim(),
         }),
       });
 

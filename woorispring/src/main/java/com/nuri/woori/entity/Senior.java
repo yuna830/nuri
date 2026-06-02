@@ -40,6 +40,8 @@ public class Senior {
     private String welfareDecisionReason;
 
     private String fallApiUrl;
+    private String guardianName;
+    private String guardianRelation;
 
     public LocalDateTime getLastLoginAt() {
         return lastLoginAt;
