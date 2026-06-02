@@ -16,6 +16,8 @@ public class Admin {
     private String name;
     private String phone;
     private String email;
+    @Column(name = "login_id")
+    private String loginId;
     private String password;
     private String status = "PENDING";
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -52,6 +54,14 @@ public class Admin {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getLoginId() {
+        return loginId;
+    }
+
+    public void setLoginId(String loginId) {
+        this.loginId = loginId;
     }
 
     public String getPassword() {

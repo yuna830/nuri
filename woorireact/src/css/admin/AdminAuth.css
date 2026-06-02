@@ -6,18 +6,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f6f8f6;
-  color: #243126;
+  background: #f4f6f8;
+  color: #1f2937;
   font-family: "Noto Sans KR", Arial, sans-serif;
 }
 
 .admin-auth-card {
   width: min(100%, 440px);
   padding: 42px 38px 34px;
-  border: 1px solid #dce7dd;
+  border: 1px solid #dde3ea;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 18px 45px rgba(55, 79, 58, 0.1);
+  box-shadow: 0 18px 45px rgba(31, 41, 55, 0.1);
 }
 
 .admin-auth-card-wide {
@@ -26,7 +26,7 @@
 
 .admin-auth-brand {
   margin-bottom: 10px;
-  color: #78997b;
+  color: #52647d;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -35,7 +35,7 @@
 
 .admin-auth-card h1 {
   margin: 0 0 30px;
-  color: #243126;
+  color: #1f2937;
   font-size: 30px;
   line-height: 1.25;
 }
@@ -43,7 +43,7 @@
 .admin-auth-label {
   display: block;
   margin-bottom: 7px;
-  color: #4f6254;
+  color: #52606f;
   font-size: 13px;
   font-weight: 700;
 }
@@ -53,18 +53,18 @@
   height: 48px;
   margin-bottom: 18px;
   padding: 0 14px;
-  border: 1px solid #d4e0d5;
+  border: 1px solid #d7dee7;
   border-radius: 8px;
   background: #ffffff;
-  color: #243126;
+  color: #1f2937;
   font-family: inherit;
   font-size: 14px;
   outline: none;
 }
 
 .admin-auth-input:focus {
-  border-color: #86a788;
-  box-shadow: 0 0 0 3px rgba(134, 167, 136, 0.16);
+  border-color: #667a96;
+  box-shadow: 0 0 0 3px rgba(102, 122, 150, 0.16);
 }
 
 .admin-auth-grid {
@@ -89,7 +89,7 @@
   min-height: 50px;
   border: 0;
   border-radius: 8px;
-  background: #78997b;
+  background: #3f536f;
   color: #ffffff;
   cursor: pointer;
   font-family: inherit;
@@ -98,7 +98,7 @@
 }
 
 .admin-auth-submit:hover {
-  background: #66866a;
+  background: #31445f;
 }
 
 .admin-auth-submit:disabled {
@@ -108,14 +108,14 @@
 
 .admin-auth-footer {
   margin: 22px 0 0;
-  color: #7b887d;
+  color: #768190;
   font-size: 13px;
   text-align: center;
 }
 
 .admin-auth-footer a {
   margin-left: 8px;
-  color: #5c7e60;
+  color: #465f82;
   font-weight: 700;
   text-decoration: none;
 }

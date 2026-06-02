@@ -55,6 +55,7 @@ function AdminAccounts() {
             <thead>
               <tr>
                 <th>이름</th>
+                <th>관리자 아이디</th>
                 <th>이메일</th>
                 <th>전화번호</th>
                 <th>상태</th>
@@ -65,6 +66,7 @@ function AdminAccounts() {
               {admins.map((admin) => (
                 <tr key={admin.id}>
                   <td className="admin-name-cell">{admin.name}</td>
+                  <td>{admin.loginId || "-"}</td>
                   <td>{admin.email}</td>
                   <td>{admin.phone}</td>
                   <td>

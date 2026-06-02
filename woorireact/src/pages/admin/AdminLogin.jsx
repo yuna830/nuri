@@ -6,7 +6,7 @@ import "../../css/admin/AdminAuth.css";
 
 function AdminLogin() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ loginId: "", password: "" });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -18,15 +18,15 @@ function AdminLogin() {
     event.preventDefault();
     setError("");
 
-    if (!form.email.trim() || !form.password) {
-      setError("이메일과 비밀번호를 입력해주세요.");
+    if (!form.loginId.trim() || !form.password) {
+      setError("관리자 아이디와 비밀번호를 입력해주세요.");
       return;
     }
 
     try {
       setIsSubmitting(true);
       const admin = await loginAdmin({
-        email: form.email.trim(),
+        loginId: form.loginId.trim(),
         password: form.password,
       });
       sessionStorage.setItem("currentAdmin", JSON.stringify(admin));
@@ -37,7 +37,7 @@ function AdminLogin() {
       } else if (requestError.status === 403) {
         setError("아직 승인되지 않은 관리자 계정입니다.");
       } else if (requestError.status === 401) {
-        setError("이메일 또는 비밀번호를 확인해주세요.");
+        setError("관리자 아이디 또는 비밀번호를 확인해주세요.");
       } else {
         setError("로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
@@ -53,15 +53,14 @@ function AdminLogin() {
         <h1 id="admin-login-title">관리자 로그인</h1>
 
         <form onSubmit={handleSubmit}>
-          <label className="admin-auth-label" htmlFor="admin-email">이메일</label>
+          <label className="admin-auth-label" htmlFor="admin-login-id">관리자 아이디</label>
           <input
-            id="admin-email"
+            id="admin-login-id"
             className="admin-auth-input"
-            type="email"
-            value={form.email}
-            onChange={(event) => updateForm("email", event.target.value)}
-            placeholder="admin@example.com"
-            autoComplete="email"
+            value={form.loginId}
+            onChange={(event) => updateForm("loginId", event.target.value)}
+            placeholder="admin"
+            autoComplete="username"
           />
 
           <label className="admin-auth-label" htmlFor="admin-password">비밀번호</label>
