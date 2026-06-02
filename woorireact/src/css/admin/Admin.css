@@ -1,83 +1,137 @@
 .admin-page {
   min-height: 100vh;
-  background: #fffdec;
+  background: #f6f8f6;
   color: #243126;
   font-family: "Noto Sans KR", Arial, sans-serif;
-}
-
-.admin-layout {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
 }
 
 .admin-sidebar {
-  position: sticky;
-  top: 84px;
-}
-
-.admin-sidebar-profile {
-  border-radius: 8px;
-  background: #86a788;
+  min-height: 100vh;
+  padding: 22px 14px;
+  background: #253249;
   color: #ffffff;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
-.admin-sidebar-profile strong {
-  display: block;
+.admin-sidebar-logo {
+  padding: 0 10px 24px;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-align: left;
+}
+
+.admin-sidebar-logo span {
+  color: #9ccfa1;
+}
+
+.admin-main {
+  min-width: 0;
+}
+
+.admin-topbar {
+  min-height: 68px;
+  padding: 0 30px;
+  border-bottom: 1px solid #dfe7e0;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-topbar strong {
+  color: #253249;
   font-size: 17px;
   font-weight: 900;
 }
 
-.admin-sidebar-profile span {
-  display: block;
-  margin-top: 5px;
+.admin-topbar span {
+  color: #7b857d;
   font-size: 13px;
   font-weight: 700;
-  opacity: 0.9;
-}
-
-.admin-sidebar-nav {
-  margin-top: 14px;
-  border: 1px solid #d4e8d6;
-  border-radius: 8px;
-  background: #ffffff;
-  overflow: hidden;
 }
 
 .admin-sidebar-item {
-  min-height: 52px;
-  padding: 0 18px;
-  border-bottom: 1px solid #d4e8d6;
-  background: #ffffff;
-  color: #26382b;
+  min-height: 48px;
+  margin-bottom: 4px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.7);
   display: flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.admin-sidebar-item:last-child {
-  border-bottom: 0;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .admin-sidebar-item:hover {
-  background: #f2f6f0;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 .admin-sidebar-item.active {
-  background: #edf5ee;
-  color: #4f6f52;
+  background: rgba(156, 207, 161, 0.18);
+  color: #b9e1bd;
+}
+
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding: 16px 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.admin-sidebar-footer strong,
+.admin-sidebar-footer span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-sidebar-footer strong {
+  font-size: 14px;
+}
+
+.admin-sidebar-footer span {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.admin-sidebar-footer button {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-sidebar-footer button:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .admin-content {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 30px;
   min-width: 0;
 }
 
@@ -309,6 +363,27 @@
   color: #6b5b12;
 }
 
+.admin-badge.admin-account-pending {
+  background: #fff3c4;
+  color: #6b5b12;
+}
+
+.admin-badge.admin-account-approved {
+  background: rgba(134, 167, 136, 0.22);
+  color: #48644b;
+}
+
+.admin-badge.admin-account-rejected {
+  background: #ffe3e3;
+  color: #b32626;
+}
+
+.admin-account-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
 .admin-button {
   min-height: 38px;
   border: 1px solid #86a788;
@@ -466,19 +541,44 @@
 }
 
 @media (max-width: 900px) {
-  .admin-layout {
-    width: calc(100% - 32px);
+  .admin-page {
     grid-template-columns: 1fr;
-    padding: 20px 0;
   }
 
   .admin-sidebar {
-    position: static;
+    min-height: auto;
+    padding: 14px;
+  }
+
+  .admin-sidebar-logo {
+    padding-bottom: 14px;
   }
 
   .admin-sidebar-nav {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .admin-sidebar-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 12px;
+  }
+
+  .admin-sidebar-footer span {
+    flex: 1;
+  }
+
+  .admin-sidebar-footer button {
+    width: auto;
+    margin: 0;
+    padding: 0 12px;
+  }
+
+  .admin-content {
+    padding: 20px;
   }
 }
 

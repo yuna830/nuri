@@ -26,6 +26,7 @@ export function useChatFlow({
 }) {
   const [input, setInput] = useState("");
   const [pendingSchedule, setPendingSchedule] = useState(null);
+  const [pendingSchedules, setPendingSchedules] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -58,6 +59,11 @@ export function useChatFlow({
         }
       }
 
+      if (pendingSchedules.length > 0 && isAffirmativeReply(text)) {
+        await savePendingSchedules(pendingSchedules, options);
+        return;
+      }
+
       if (pendingSchedule && isAffirmativeReply(text)) {
         await savePendingSchedule(pendingSchedule, options);
         return;
@@ -77,6 +83,21 @@ export function useChatFlow({
 
       const parsedSchedules = parseKoreanSchedules(text);
       let firstSchedule = parsedSchedules[0] || null;
+
+      if (parsedSchedules.length > 1) {
+        const validSchedules = parsedSchedules.filter((schedule) => !isPastSchedule(schedule));
+        if (validSchedules.length !== parsedSchedules.length) {
+          answer("지난 날짜나 이미 지난 시간은 일정으로 등록할 수 없어요. 앞으로의 날짜와 시간으로 다시 말해주세요.", options);
+          return;
+        }
+        if (validSchedules.some((schedule) => schedule.ambiguousTime)) {
+          answer("여러 일정을 한 번에 등록할 때는 오전 또는 오후를 함께 말해주세요.", options);
+          return;
+        }
+        setPendingSchedules(validSchedules);
+        answer(`${validSchedules.length}개의 일정으로 이해했어요. 한 번에 등록할까요?`, options);
+        return;
+      }
 
       if (!firstSchedule && shouldUseScheduleExtraction(text)) {
         const extracted = await extractScheduleIntent(text);
@@ -168,7 +189,25 @@ export function useChatFlow({
     }
   }
 
+  async function savePendingSchedules(schedules, options = {}) {
+    for (const schedule of schedules) {
+      await onScheduleSave({
+        ...schedule,
+        text: scheduleToText(schedule),
+      });
+    }
+    setPendingSchedules([]);
+
+    if (options.speak) {
+      speak(`${schedules.length}개의 일정이 등록됐어요.`);
+    }
+  }
+
   function confirmPendingSchedule() {
+    if (pendingSchedules.length > 0) {
+      savePendingSchedules(pendingSchedules);
+      return;
+    }
     if (!pendingSchedule) return;
     savePendingSchedule(pendingSchedule);
   }
@@ -181,6 +220,7 @@ export function useChatFlow({
   function cancelPendingSchedule() {
     answer("알겠어요. 일정 등록을 취소했어요.");
     setPendingSchedule(null);
+    setPendingSchedules([]);
   }
 
   async function deletePendingSchedule(scheduleId) {
@@ -220,6 +260,7 @@ export function useChatFlow({
     input,
     setInput,
     pendingSchedule,
+    pendingSchedules,
     pendingDelete,
     isLoading,
     sendMessage,
@@ -233,7 +274,7 @@ export function useChatFlow({
   };
 }
 
-function getCurrentUserHealthContext() {
+export function getCurrentUserHealthContext() {
   try {
     const saved = sessionStorage.getItem("currentSenior");
     if (!saved) return null;

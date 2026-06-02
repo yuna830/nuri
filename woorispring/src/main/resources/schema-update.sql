@@ -76,6 +76,19 @@ alter table guardians
 alter table welfare_workers
     add column if not exists active boolean default true;
 
+create table if not exists admins (
+    admin_id bigserial primary key,
+    name varchar(50) not null,
+    phone varchar(20) not null,
+    email varchar(255) not null unique,
+    password varchar(255) not null,
+    status varchar(20) not null default 'PENDING',
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint admins_status_check
+        check (status in ('PENDING', 'APPROVED', 'REJECTED'))
+);
+
 create table if not exists rag_documents (
     document_id varchar(64) primary key,
     filename varchar(500) not null,
