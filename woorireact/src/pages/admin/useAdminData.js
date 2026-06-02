@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { buildAdminLookups, fetchAdminData } from "../../api/adminApi";
+import { buildAdminLookups, fetchAdminData, getCachedAdminData } from "../../api/adminApi";
 
 export function useAdminData() {
-  const [data, setData] = useState({
+  const cachedData = getCachedAdminData();
+  const [data, setData] = useState(cachedData || {
     seniors: [],
     welfareWorkers: [],
     guardians: [],
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!cachedData);
   const [loadError, setLoadError] = useState("");
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  const load = useCallback(async ({ force = false } = {}) => {
+    setIsLoading((current) => force || !getCachedAdminData() || current);
     setLoadError("");
 
     try {
-      const nextData = await fetchAdminData();
+      const nextData = await fetchAdminData({ force });
       setData(nextData);
     } catch (error) {
       setLoadError(error.message || "Failed to load admin data.");
-      setData({
+      setData(getCachedAdminData() || {
         seniors: [],
         welfareWorkers: [],
         guardians: [],
@@ -36,5 +37,7 @@ export function useAdminData() {
 
   const lookups = useMemo(() => buildAdminLookups(data), [data]);
 
-  return { ...data, ...lookups, isLoading, loadError, reload: load };
+  const reload = useCallback(() => load({ force: true }), [load]);
+
+  return { ...data, ...lookups, isLoading, loadError, reload };
 }

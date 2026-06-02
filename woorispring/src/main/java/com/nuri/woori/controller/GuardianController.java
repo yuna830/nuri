@@ -6,8 +6,10 @@ import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.GuardianRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -67,13 +69,20 @@ public class GuardianController {
         if (guardianOpt.isEmpty()) {
             return ResponseEntity.status(404).body(Map.of("message", "EMAIL_NOT_FOUND"));
         }
+
         Guardian guardian = guardianOpt.get();
+
         if (!guardian.getPassword().equals(hashPassword(request.password()))) {
             return ResponseEntity.status(401).body(Map.of("message", "PASSWORD_MISMATCH"));
         }
+
+        if (Boolean.FALSE.equals(guardian.getActive())) {
+            return ResponseEntity.status(403).body(Map.of("message", "INACTIVE_ACCOUNT"));
+        }
+
         return ResponseEntity.ok(toResponse(guardian));
     }
-
+    
     @PostMapping("/find-email")
     public ResponseEntity<FindEmailResponse> findEmail(@RequestBody FindEmailRequest request) {
         String name = request.name() == null ? "" : request.name().trim();

@@ -7,6 +7,7 @@ export function useVoiceInput({ onRecognized, onError }) {
   const streamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const recordingStartedAtRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -23,6 +24,7 @@ export function useVoiceInput({ onRecognized, onError }) {
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
+      recordingStartedAtRef.current = Date.now();
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
@@ -47,16 +49,38 @@ export function useVoiceInput({ onRecognized, onError }) {
   async function handleRecordingStop() {
     const recordedMimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
     const blob = new Blob(chunksRef.current, { type: recordedMimeType });
+    const recordingDuration = Date.now() - recordingStartedAtRef.current;
     chunksRef.current = [];
+
+    console.log("녹음 종료:", {
+      durationMs: recordingDuration,
+      mimeType: recordedMimeType,
+      size: blob.size,
+    });
+
+    if (!blob.size || recordingDuration < 400) {
+      onError?.("음성을 잘 듣지 못했어요. 다시 한 번 말씀해주세요.");
+      return;
+    }
 
     const formData = new FormData();
     const extension = recordedMimeType.includes("wav") ? "wav" : "webm";
     formData.append("file", blob, `record.${extension}`);
 
     try {
-      const response = await axios.post(STT_API_URL, formData);
+      const response = await axios.post(STT_API_URL, formData, {
+        timeout: 15000,
+      });
+      console.log("STT 응답:", response.data);
+
       const recognizedText = response.data.text?.trim();
-      if (recognizedText) await onRecognized(recognizedText);
+
+      if (recognizedText) {
+        await onRecognized(recognizedText);
+      } else {
+        console.log("STT 빈 결과");
+        onError?.("음성을 잘 듣지 못했어요. 다시 한 번 말씀해주세요.");
+      }
     } catch (error) {
       console.error("STT 오류:", error);
       onError?.("음성을 인식하지 못했어요. 다시 한 번 말씀해주세요.");
