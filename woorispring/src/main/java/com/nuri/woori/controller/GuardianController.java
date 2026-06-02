@@ -82,7 +82,7 @@ public class GuardianController {
 
         return ResponseEntity.ok(toResponse(guardian));
     }
-    
+
     @PostMapping("/find-email")
     public ResponseEntity<FindEmailResponse> findEmail(@RequestBody FindEmailRequest request) {
         String name = request.name() == null ? "" : request.name().trim();
