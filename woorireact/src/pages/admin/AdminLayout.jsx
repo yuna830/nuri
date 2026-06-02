@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, LogOut, ShieldCheck, UserCog, UserRound, UsersRound } from "lucide-react";
 
+import { deleteCurrentAdmin } from "../../api/adminAuthApi";
 import "../../css/admin/Admin.css";
 
 const text = {
@@ -23,6 +24,24 @@ function AdminLayout({ children }) {
   const handleLogout = () => {
     sessionStorage.removeItem("currentAdmin");
     navigate("/admin/login");
+  };
+
+  const handleWithdraw = async () => {
+    const confirmed = window.confirm("\uad00\ub9ac\uc790 \uacc4\uc815\uc744 \ud0c8\ud1f4\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c? \uc0ad\uc81c\ud55c \uacc4\uc815\uc740 \ubcf5\uad6c\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+    if (!confirmed) return;
+
+    try {
+      await deleteCurrentAdmin();
+      sessionStorage.removeItem("currentAdmin");
+      alert("\uad00\ub9ac\uc790 \uacc4\uc815\uc774 \uc0ad\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4.");
+      navigate("/admin/login");
+    } catch (requestError) {
+      if (requestError.status === 409) {
+        alert("\ub9c8\uc9c0\ub9c9 \uc2b9\uc778 \uad00\ub9ac\uc790\ub294 \ud0c8\ud1f4\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \uad00\ub9ac\uc790\ub97c \uba3c\uc800 \uc2b9\uc778\ud574\uc8fc\uc138\uc694.");
+      } else {
+        alert("\uad00\ub9ac\uc790 \ud0c8\ud1f4\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.");
+      }
+    }
   };
 
   return (
@@ -61,6 +80,9 @@ function AdminLayout({ children }) {
           <button type="button" onClick={handleLogout}>
             <LogOut size={16} />
             {text.logout}
+          </button>
+          <button className="admin-withdraw-button" type="button" onClick={handleWithdraw}>
+            관리자 탈퇴
           </button>
         </div>
       </aside>

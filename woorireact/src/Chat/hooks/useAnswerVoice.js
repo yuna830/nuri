@@ -1,29 +1,94 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+
+const TTS_API_URL = import.meta.env.VITE_CHAT_TTS_API_URL || "http://127.0.0.1:8002/tts";
+const TTS_VOICE = import.meta.env.VITE_CHAT_TTS_VOICE || "F1";
 
 export function useAnswerVoice() {
-  useEffect(() => {
-    if (!("speechSynthesis" in window)) return undefined;
+  const audioRef = useRef(null);
+  const audioUrlRef = useRef("");
+  const requestIdRef = useRef(0);
 
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.getVoices();
-    };
-
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-      window.speechSynthesis.cancel();
-    };
+  const releaseAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = "";
+    }
   }, []);
 
-  function speak(text) {
-    if (!("speechSynthesis" in window) || !text) return;
+  const stopSpeaking = useCallback(() => {
+    requestIdRef.current += 1;
+    releaseAudio();
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, [releaseAudio]);
 
-    window.speechSynthesis.cancel();
+  useEffect(() => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+    return () => {
+      stopSpeaking();
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, [stopSpeaking]);
+
+  async function speak(text) {
+    if (!text) return;
+
+    stopSpeaking();
+    const requestId = ++requestIdRef.current;
+
+    try {
+      const response = await fetch(`${TTS_API_URL}/synthesize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          voice: TTS_VOICE,
+          speed: 1,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Local TTS failed: ${response.status}`);
+
+      const audioBlob = await response.blob();
+      if (requestId !== requestIdRef.current) return;
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audioUrlRef.current = audioUrl;
+      audio.onended = releaseAudio;
+      audio.onerror = releaseAudio;
+      await audio.play();
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+      releaseAudio();
+      console.warn("로컬 음성 재생 실패. 브라우저 음성으로 대체합니다.", error);
+      speakWithBrowser(text);
+    }
+  }
+
+  function speakWithBrowser(text) {
+    if (!("speechSynthesis" in window)) return;
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ko-KR";
     utterance.voice = getCuteKoreanVoice();
-    utterance.pitch = 1.25;
-    utterance.rate = 1.06;
+    utterance.pitch = 1;
+    utterance.rate = 0.95;
     utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   }

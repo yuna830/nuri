@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Menu } from "lucide-react";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { createCareResponse } from "../services/aiCareService";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
@@ -11,6 +11,7 @@ import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import ScheduleConfirmBox from "./ScheduleConfirmBox";
 import TodaySchedulePanel from "./TodaySchedulePanel";
+import ConversationSidebar from "./ConversationSidebar";
 
 const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8001/food";
 
@@ -26,8 +27,17 @@ export default function ChatView({
   onScheduleUpdate,
   onScheduleEdit,
   onScheduleDelete,
+  conversations,
+  activeConversationId,
+  isConversationPanelOpen,
+  isConversationLoading,
+  onConversationPanelToggle,
+  onConversationPanelClose,
+  onConversationCreate,
+  onConversationSelect,
+  onConversationDelete,
+  onConversationRename,
 }) {
-  const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
   const [pendingImageUrl, setPendingImageUrl] = useState("");
@@ -60,7 +70,7 @@ export default function ChatView({
     onScheduleDelete,
     speak,
   });
-  const isChatLoading = isLoading || isImageLoading;
+  const isChatLoading = isLoading || isImageLoading || isConversationLoading;
   const { recording, startRecording, stopRecording } = useVoiceInput({
     onRecognized: async (recognizedText) => {
       const correctedText = await correctSttText(recognizedText);
@@ -124,15 +134,6 @@ export default function ChatView({
   useEffect(() => () => {
     if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
   }, [pendingImageUrl]);
-
-  const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate("/user");
-  };
 
   const splitAllergyText = (value) => {
     if (Array.isArray(value)) {
@@ -262,15 +263,12 @@ export default function ChatView({
     );
     const warningText = visibleWarnings.length
       ? visibleWarnings.map((warning) => `- [${warning.level}] ${warning.reason}`).join("\n")
-      : allergyConflicts.length
-        ? "- 개인 알레르기와 관련된 성분이 확인되어 섭취하지 않는 것이 안전해요."
-        : "- 특별한 주의 항목은 발견되지 않았어요.";
+      : "";
     const personalAllergyText = allergyConflicts.length
       ? [
-          "개인 알레르기 경고",
-          ...allergyConflicts.map(
-            (item) => `- 등록된 알레르기(${item.allergy})와 관련된 성분이 보여요: ${item.matched.join(", ")}. 섭취하지 않는 것이 안전해요.`
-          ),
+          "개인 알레르기 주의",
+          `- 주의 성분: ${[...new Set(allergyConflicts.flatMap((item) => item.matched))].join(", ")}`,
+          "- 등록된 알레르기와 관련된 성분이에요. 섭취하지 않는 것이 안전해요.",
           "",
         ].join("\n")
       : "";
@@ -454,7 +452,6 @@ export default function ChatView({
           { role: "assistant", content: answer },
           { role: "assistant", content: memory, hidden: true },
         ]);
-        speak(answer);
         return;
       }
 
@@ -477,7 +474,6 @@ export default function ChatView({
       foodAnalysisSpeechRef.current = buildFoodNutritionSpeech(answer);
       foodWarningSpeechRef.current = buildFoodWarningSpeech(answer);
       isWaitingForFoodAnalysisReadRef.current = true;
-      speak(prompt ? visibleAnswer : "성분표 분석이 끝났어요. 영양성분을 읽어드릴까요?");
     } catch (error) {
       console.error("Food OCR analysis failed:", error);
       const answer = "성분표 분석 중 문제가 생겼어요. chat_server가 켜져 있는지 확인해 주세요.";
@@ -497,9 +493,27 @@ export default function ChatView({
   return (
     <section className="chatbot-page">
       <UserCommonHeader />
-      <button className="chatbot-back-button" type="button" onClick={goBack} aria-label="뒤로가기">
-        &lt;
+      <button
+        className="chatbot-back-button"
+        type="button"
+        onClick={onConversationPanelToggle}
+        aria-label="최근 대화 열기"
+        aria-expanded={isConversationPanelOpen}
+      >
+        <Menu size={25} />
       </button>
+
+      <ConversationSidebar
+        open={isConversationPanelOpen}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        loading={isConversationLoading}
+        onClose={onConversationPanelClose}
+        onCreate={onConversationCreate}
+        onSelect={onConversationSelect}
+        onDelete={onConversationDelete}
+        onRename={onConversationRename}
+      />
 
       <main className="chatbot-layout">
         <section className="chatbot-panel">

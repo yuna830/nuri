@@ -153,6 +153,17 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+.admin-sidebar-footer .admin-withdraw-button {
+  margin-top: 7px;
+  border-color: rgba(255, 180, 180, 0.28);
+  background: transparent;
+  color: rgba(255, 205, 205, 0.82);
+}
+
+.admin-sidebar-footer .admin-withdraw-button:hover {
+  background: rgba(185, 60, 60, 0.18);
+}
+
 .admin-content {
   width: 100%;
   max-width: 1440px;

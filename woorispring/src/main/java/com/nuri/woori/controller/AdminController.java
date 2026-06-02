@@ -112,13 +112,27 @@ public class AdminController {
         return toResponse(adminRepository.save(admin));
     }
 
-    private void requireApprovedAdmin(Long id) {
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMyAccount(@RequestHeader("X-Admin-Id") Long requesterId) {
+        Admin admin = requireApprovedAdmin(requesterId);
+
+        if (adminRepository.countByStatus("APPROVED") <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The last approved admin cannot withdraw");
+        }
+
+        adminRepository.delete(admin);
+    }
+
+    private Admin requireApprovedAdmin(Long id) {
         Admin admin = adminRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Approved admin required"));
 
         if (!"APPROVED".equals(admin.getStatus())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Approved admin required");
         }
+
+        return admin;
     }
 
     private AdminResponse toResponse(Admin admin) {
