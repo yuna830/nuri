@@ -39,6 +39,8 @@ public class Senior {
     @Column(length = 1000)
     private String welfareDecisionReason;
 
+    private String fallApiUrl;
+
     public LocalDateTime getLastLoginAt() {
         return lastLoginAt;
     }

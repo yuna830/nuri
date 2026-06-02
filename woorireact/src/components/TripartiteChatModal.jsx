@@ -314,36 +314,36 @@ export default function TripartiteChatModal({
 
         {error && <p className="tcm-error">{error}</p>}
 
-        {!noTabSelected && <footer className="tcm-compose">
-          <div className="tcm-compose-input-wrap">
+        {!noTabSelected && (
+          <div className="tcm-compose-wrap">
             {attachment && (
               <div className="tcm-compose-attachment">
                 {attachmentPreviewUrl && (
                   <img src={attachmentPreviewUrl} alt="첨부 미리보기" />
                 )}
                 <span>{attachment.name}</span>
-                <button type="button" onClick={() => setAttachment(null)} aria-label="첨부 제거">
-                  ×
-                </button>
+                <button type="button" onClick={() => setAttachment(null)} aria-label="첨부 제거">×</button>
               </div>
             )}
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="메시지를 입력하세요."
-            />
+            <footer className="tcm-compose">
+              <textarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="메시지를 입력하세요."
+              />
+              <label className="tcm-file-button">
+                첨부
+                <input
+                  type="file"
+                  onChange={(event) => setAttachment(event.target.files?.[0] || null)}
+                />
+              </label>
+              <button type="button" onClick={handleSend} disabled={isSending}>
+                {isSending ? "전송 중" : "보내기"}
+              </button>
+            </footer>
           </div>
-          <label className="tcm-file-button">
-            첨부
-            <input
-              type="file"
-              onChange={(event) => setAttachment(event.target.files?.[0] || null)}
-            />
-          </label>
-          <button type="button" onClick={handleSend} disabled={isSending}>
-            {isSending ? "전송 중" : "보내기"}
-          </button>
-        </footer>}
+        )}
       </section>
     </div>
   );

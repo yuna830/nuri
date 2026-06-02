@@ -329,6 +329,9 @@ public class SeniorController {
         senior.setDisabilityGrade(request.disabilityGrade());
         senior.setDisabilityType(request.disabilityType());
         senior.setProfileImageUrl(request.profileImageUrl());
+        if (request.fallApiUrl() != null) {
+            senior.setFallApiUrl(request.fallApiUrl().isBlank() ? null : request.fallApiUrl().trim());
+        }
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -416,6 +419,18 @@ public class SeniorController {
         Senior savedSenior = seniorRepository.save(senior);
 
         return toProfileResponse(savedSenior);
+    }
+
+    @PatchMapping("/{id}/fall-api-url")
+    public ResponseEntity<Void> updateFallApiUrl(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+        String url = body.get("fallApiUrl");
+        senior.setFallApiUrl(url == null || url.isBlank() ? null : url.trim());
+        seniorRepository.save(senior);
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping("/{id}/requested-info")
@@ -892,7 +907,8 @@ public class SeniorController {
             List<String> hopeDays,
             List<String> hopeJobType,
             List<String> hopeCondition,
-            String memo) {
+            String memo,
+            String fallApiUrl) {
     }
 
     public record SeniorLoginRequest(

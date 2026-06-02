@@ -31,6 +31,7 @@ import {
   calcBMI,
   createMedicine,
   defaultForm,
+  formToProfile,
   normalizeForm,
   profileToForm,
   syncMedicationsWithCount,
@@ -132,9 +133,13 @@ export default function ProfilePage() {
     const seniorId = profile?.senior?.id;
     if (!seniorId) throw new Error("사용자 ID를 찾을 수 없습니다.");
 
+    const base = formToProfile(profile, nextForm);
     const payload = {
-      ...normalizeForm(nextForm),
-      profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
+      ...base,
+      senior: {
+        ...base.senior,
+        profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
+      },
     };
     const response = await fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`, {
       method: "PUT",
@@ -142,7 +147,10 @@ export default function ProfilePage() {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) throw new Error("프로필 수정 실패");
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`프로필 수정 실패 (${response.status})${text ? `: ${text}` : ""}`);
+    }
     const updatedProfile = await response.json();
     sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
     setForm(profileToForm(updatedProfile));

@@ -537,12 +537,24 @@ export const fetchSensorBattery = async (seniorId) => {
   return null;
 };
 
-export const fetchActivityToday = async () => {
+export const fetchActivityToday = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/today`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/today");
   return response.json();
 };
 
-export const fetchActivityTrend = async (days = 7) => {
+export const fetchActivityTrend = async (days = 7, seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/trend?days=${encodeURIComponent(days)}`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi(`/health/activity/trend?days=${encodeURIComponent(days)}`);
   return response.json();
 };
@@ -553,17 +565,35 @@ export const fetchFallEvents = async (days = 1) => {
   return Array.isArray(data?.events) ? data.events : [];
 };
 
-export const fetchActivitySlots = async () => {
+export const fetchActivitySlots = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/slots`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/slots");
   return response.json();
 };
 
-export const fetchActivityBaseline = async (days = 14) => {
+export const fetchActivityBaseline = async (days = 14, seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/baseline?days=${encodeURIComponent(days)}`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi(`/health/activity/baseline?days=${encodeURIComponent(days)}`);
   return response.json();
 };
 
-export const fetchFallPattern = async () => {
+export const fetchFallPattern = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/fall-pattern`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/fall-pattern");
   return response.json();
 };

@@ -105,6 +105,7 @@ const normalizeSenior = (profile) => {
     guardianIds: [...new Set(guardianIds.map(String))],
     guardians,
     welfareWorker: welfareWorker ? normalizeWelfareWorker(welfareWorker) : null,
+    fallApiUrl: senior.fallApiUrl || null,
   };
 };
 

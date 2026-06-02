@@ -14,6 +14,9 @@ function AdminSeniorDetail() {
   const [localWorkerId, setLocalWorkerId] = useState(undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [fallApiUrl, setFallApiUrl] = useState("");
+  const [isCameraSaving, setIsCameraSaving] = useState(false);
+  const [cameraSaveMessage, setCameraSaveMessage] = useState(null);
 
   const displayedSenior = senior
     ? {
@@ -31,10 +34,28 @@ function AdminSeniorDetail() {
 
   useEffect(() => {
     if (!displayedSenior) return;
-
-     
     setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
-  }, [displayedSenior?.id, displayedSenior?.welfareId]);
+    setFallApiUrl(displayedSenior.fallApiUrl || "");
+  }, [displayedSenior?.id, displayedSenior?.welfareId, displayedSenior?.fallApiUrl]);
+
+  const handleCameraSave = async () => {
+    if (!displayedSenior) return;
+    setIsCameraSaving(true);
+    setCameraSaveMessage(null);
+    try {
+      const response = await fetch(`/api/seniors/${displayedSenior.id}/fall-api-url`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fallApiUrl: fallApiUrl.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      setCameraSaveMessage({ type: "success", text: "카메라 주소가 저장되었습니다." });
+    } catch {
+      setCameraSaveMessage({ type: "error", text: "저장에 실패했습니다." });
+    } finally {
+      setIsCameraSaving(false);
+    }
+  };
 
   const handleReassign = async () => {
     if (!displayedSenior || !hasSelectionChanged) return;
@@ -144,6 +165,34 @@ function AdminSeniorDetail() {
             {saveMessage ? (
               <p className={`admin-action-message ${saveMessage.type}`}>{saveMessage.text}</p>
             ) : null}
+          </section>
+
+          <section className="admin-panel">
+            <h2>\uce74\uba54\ub77c \uc5f0\ub3d9</h2>
+            <p className="admin-section-desc">\ub099\uc0c1 \uac10\uc9c0 \uce74\uba54\ub77c \uc11c\ubc84 \uc8fc\uc18c\ub97c \uc785\ub825\ud558\uba74 \ud65c\ub3d9 \ub370\uc774\ud130\uac00 \uc790\ub3d9\uc73c\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4.</p>
+            <div className="admin-reassign-row">
+              <input
+                className="admin-input"
+                type="url"
+                placeholder="\uc608: http://192.168.0.10:5000"
+                value={fallApiUrl}
+                onChange={(event) => {
+                  setFallApiUrl(event.target.value);
+                  setCameraSaveMessage(null);
+                }}
+              />
+              <button
+                type="button"
+                className="admin-button primary"
+                onClick={handleCameraSave}
+                disabled={isCameraSaving}
+              >
+                {isCameraSaving ? "\uc800\uc7a5 \uc911" : "\uc800\uc7a5"}
+              </button>
+            </div>
+            {cameraSaveMessage && (
+              <p className={`admin-action-message ${cameraSaveMessage.type}`}>{cameraSaveMessage.text}</p>
+            )}
           </section>
 
           <section className="admin-panel">

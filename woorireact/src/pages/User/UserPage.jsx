@@ -143,7 +143,7 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
         <div className="up-radar-unit">/ 100점</div>
         {quality && (
           <div className={`up-radar-quality ${quality.level || ""}`}>
-            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : "참고용"}
+            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : null}
           </div>
         )}
         {note && <div className="up-radar-note">{note}</div>}
@@ -185,7 +185,7 @@ const DEFAULT_ACTIVITY_SLOTS = {
 
 const DEFAULT_ACTIVITY_BASELINE = {
   status: "pending",
-  message: "데이터를 수집하고 있습니다. 하루치 활동이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+  message: "정보를 모으는 중이에요. 며칠 지나면 평소 움직임과 비교해 보여드려요.",
 };
 
 const DEFAULT_FALL_PATTERN = {
@@ -213,9 +213,6 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
       <div className="up-card full up-activity-insights">
         <div className="up-card-head">
           <div className="up-card-title">활동 변화 분석</div>
-          <button className="up-card-more up-info-chip" type="button" onClick={() => onInfoClick?.("reference")}>
-            참고 지표
-          </button>
         </div>
 
         <div className="up-insight-grid">
@@ -239,7 +236,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
           </section>
 
           <section className="up-insight-panel">
-            <div className="up-insight-title">개인 기준선</div>
+            <div className="up-insight-title">평소 움직임 비교</div>
             {baseline?.status === "ok" ? (
               <div className="up-baseline-list">
                 {baselineItems.map(([key, item]) => (
@@ -251,7 +248,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
                 ))}
               </div>
             ) : (
-              <p className="up-insight-empty">{baseline?.message || "개인 기준선을 만드는 중입니다."}</p>
+              <p className="up-insight-empty">{"정보를 모으는 중이에요. 며칠 지나면 평소 움직임과 비교해 보여드려요."}</p>
             )}
           </section>
 
@@ -492,13 +489,14 @@ export default function UserPage() {
     let isMounted = true;
 
     const loadActivityCondition = async () => {
+      const seniorId = getCurrentSeniorId(initialSenior);
       try {
-        const today = await fetchActivityToday();
+        const today = await fetchActivityToday(seniorId);
         const [trend, slots, baseline, fallPattern] = await Promise.all([
-          fetchActivityTrend(1),
-          fetchActivitySlots(),
-          fetchActivityBaseline(14),
-          fetchFallPattern(),
+          fetchActivityTrend(1, seniorId),
+          fetchActivitySlots(seniorId),
+          fetchActivityBaseline(14, seniorId),
+          fetchFallPattern(seniorId),
         ]);
         if (!isMounted) return;
         setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
@@ -1591,9 +1589,11 @@ export default function UserPage() {
               <div className="up-card full">
                 <div className="up-card-head">
                   <div className="up-card-title">오늘의 활동 컨디션</div>
-                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
-                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
-                  </button>
+                  {activityToday.data_quality?.level === "good" && (
+                    <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}>
+                      실측 데이터
+                    </button>
+                  )}
                 </div>
                 {activityToday.scores ? (
                   <RadarChart

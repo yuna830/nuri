@@ -134,6 +134,13 @@ export default function SignUp() {
       const payload = {
         ...normalizeForm(form),
         profileImageUrl: resolveUploadUrl(form.profileImageUrl),
+        // 백엔드 SeniorCreateRequest는 List<String>을 기대 — CSV 문자열 덮어쓰기
+        currentBenefits: form.currentBenefits || [],
+        disabledWork: form.disabledWork || [],
+        avoidEnvironment: form.avoidEnvironment || [],
+        hopeDays: form.hopeDays || [],
+        hopeJobType: form.hopeJobType || [],
+        hopeCondition: form.hopeCondition || [],
       };
       const response = await fetch(`${SPRING_API_BASE}/api/seniors`, {
         method: "POST",
@@ -141,7 +148,10 @@ export default function SignUp() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("signup failed");
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`signup failed (${response.status})${text ? `: ${text}` : ""}`);
+      }
 
       const profile = await response.json();
       sessionStorage.setItem("currentSenior", JSON.stringify(profile));
