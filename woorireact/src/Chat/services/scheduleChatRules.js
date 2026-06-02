@@ -100,6 +100,13 @@ export function getScheduleCommandAction({ text, pendingSchedule, savedSchedules
     return getLookupAction(normalizedText, savedSchedules);
   }
 
+  if (isUnsupportedBookingRequest(normalizedText)) {
+    return {
+      type: "answer",
+      answer: "제가 시설 예약을 직접 진행할 수는 없어요. 예약한 날짜와 시간을 말씀해 주시면 일정으로 등록해 드릴게요.",
+    };
+  }
+
   return null;
 }
 
@@ -166,7 +173,7 @@ function getCurrentDateTimeAnswer(text) {
 
 function getDateDeleteAction(text, savedSchedules) {
   const date = parseDateFromText(text);
-  if (!date || !/(일정|거|것)/.test(text)) return null;
+  if (!date || !/(일정|예약|거|것)/.test(text)) return null;
 
   const matches = schedulesByDate(savedSchedules, date);
   if (matches.length === 0) {
@@ -213,6 +220,14 @@ function isScheduleUpdateRequest(text) {
   return /(수정|변경|바꿔|말고|앞당겨|미뤄)/.test(text);
 }
 
+function isUnsupportedBookingRequest(text) {
+  return (
+    /예약\s*(?:해\s*줘|해\s*주세요|잡아\s*줘|잡아\s*주세요)/.test(text) &&
+    !parseDateFromText(text) &&
+    !parseTimeFromText(text)
+  );
+}
+
 function findScheduleByText(schedules, text) {
   const keywords = extractScheduleKeywords(text);
   if (keywords.length === 0) return null;
@@ -252,6 +267,8 @@ function parseScheduleTimeUpdate(text, schedules) {
 function extractScheduleKeywords(text) {
   return text
     .replace(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE, "g"), " ")
+    .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, " ")
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?에?/g, " ")
     .replace(/오늘|내일|모레|다음\s*주|이번\s*주|[일월화수목금토]요일/g, " ")
     .replace(/일정|예약|취소|삭제|지워|빼줘|없애|수정|변경|바꿔|말고|으로|로|해줘|줘|요약/g, " ")
     .replace(/[,.!?]/g, " ")
