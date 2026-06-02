@@ -197,6 +197,150 @@ const formatBmi = (height, weight) => {
     return bmi.toFixed(1);
 };
 
+const HEALTH_EVALUATION_CATEGORY = "건강 판정 근거";
+const HEALTH_STATUS_ORDER = ["양호", "주의", "위험"];
+
+const normalizeHealthStatus = (value) => {
+    const text = String(value || "");
+    if (text.includes("위험")) return "위험";
+    if (text.includes("주의")) return "주의";
+    if (text.includes("양호")) return "양호";
+    return "양호";
+};
+
+const maxNumberFromText = (value) => {
+    const numbers = String(value || "").match(/\d+/g);
+    return numbers ? Math.max(...numbers.map(Number)) : 0;
+};
+
+const getGradeFromRiskScore = (score) => {
+    const riskScore = Number(score) || 0;
+    if (riskScore >= 60) return "위험";
+    if (riskScore >= 25) return "주의";
+    return "양호";
+};
+
+const buildRiskGradeBasis = (score) => {
+    const riskScore = Number(score) || 0;
+    return `${riskScore}점은 ${getGradeFromRiskScore(riskScore)} 기준입니다. 0~24점은 양호, 25~59점은 주의, 60점 이상은 위험으로 설명합니다.`;
+};
+
+const hasHealthProblemValue = (value) => {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) return false;
+    if (["없음", "없다", "정상", "양호", "아니오", "no", "none", "false", "0"].includes(text)) return false;
+    return ["있음", "있다", "주의", "위험", "질환", "진단", "치료", "관리", "제한", "중증", "경증", "yes", "true", "1"]
+        .some((keyword) => text.includes(keyword));
+};
+
+const hasLimitedHealthValue = (value) => {
+    const text = String(value || "").trim().toLowerCase();
+    if (!text) return false;
+    if (["없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0"].includes(text)) return false;
+    return ["불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "힘듦", "장시간", "계단", "무거운", "운반"]
+        .some((keyword) => text.includes(keyword));
+};
+
+const buildFallbackHealthEvaluation = (senior = {}, healthInfo = {}) => {
+    const reasons = [];
+    let riskScore = 0;
+    const addReason = (label, value, level, score, description, condition) => {
+        if (condition) {
+            const point = Number(score) || 0;
+            riskScore += point;
+            reasons.push({
+                label,
+                value: valueOrMissing(value, "입력값 있음"),
+                level,
+                score: point,
+                description,
+            });
+        }
+    };
+
+    addReason("최근 낙상", healthInfo.recentFall, "위험", 40, "최근 낙상 이력이 있어 이동이 많은 업무는 주의가 필요합니다.", hasHealthProblemValue(healthInfo.recentFall));
+
+    [
+        ["심장질환", healthInfo.heartDisease],
+        ["뇌졸중", healthInfo.stroke],
+        ["신장질환", healthInfo.kidneyDisease],
+        ["호흡기질환", healthInfo.lungDisease],
+        ["암", healthInfo.cancer],
+        ["치매", healthInfo.dementia],
+    ].forEach(([label, value]) => {
+        addReason(label, value, "주의", 30, "주요 질환 항목이 확인되어 고강도 업무 배치를 피하는 것이 좋습니다.", hasHealthProblemValue(value));
+    });
+
+    [
+        ["고혈압", healthInfo.hypertension],
+        ["당뇨", healthInfo.diabetes],
+        ["관절질환", healthInfo.jointDisease],
+        ["간질환", healthInfo.liverDisease],
+        ["기타 질환", healthInfo.otherDisease],
+    ].forEach(([label, value]) => {
+        addReason(label, value, "주의", 15, "질환 항목이 확인되어 업무 강도와 근무 시간 조정이 필요할 수 있습니다.", hasHealthProblemValue(value));
+    });
+
+    const medicineCount = maxNumberFromText(healthInfo.medicineCount);
+    addReason("복약 수", healthInfo.medicineCount, medicineCount >= 6 ? "위험" : "주의", medicineCount >= 6 ? 20 : 10, "복약 수가 많아 근무 전 건강 상태 확인과 복약 일정 조정이 필요합니다.", medicineCount >= 3);
+    addReason("보행 보조", healthInfo.walkingAid, "주의", 20, "이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.", hasLimitedHealthValue(healthInfo.walkingAid));
+    addReason("시각", healthInfo.vision, "주의", 10, "시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.vision));
+    addReason("청각", healthInfo.hearing, "주의", 10, "안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.hearing));
+    addReason("어려운 업무", healthInfo.disabledWork, "주의", 15, "입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.", hasLimitedHealthValue(healthInfo.disabledWork));
+
+    const maxHours = maxNumberFromText(healthInfo.maxHours);
+    addReason("하루 활동 가능 시간", healthInfo.maxHours, maxHours <= 2 ? "위험" : "주의", maxHours <= 2 ? 25 : 15, "하루 활동 가능 시간이 짧아 짧은 근무 시간의 공고가 우선입니다.", maxHours > 0 && maxHours <= 3);
+
+    riskScore = Math.min(100, Math.max(0, riskScore));
+    const status = normalizeHealthStatus(senior.healthStatus || healthInfo.healthStatus || getGradeFromRiskScore(riskScore));
+    if (reasons.length === 0) {
+        reasons.push({
+            label: "주의/위험 조건",
+            value: "감지되지 않음",
+            level: "양호",
+            score: 0,
+            description: "현재 입력된 건강 정보에서는 주요 위험 요인이 확인되지 않았습니다.",
+        });
+    }
+
+    return {
+        status,
+        source: "CLIENT_FALLBACK",
+        probabilities: {
+            양호: status === "양호" ? 1 : 0,
+            주의: status === "주의" ? 1 : 0,
+            위험: status === "위험" ? 1 : 0,
+        },
+        riskScore,
+        maxRiskScore: 100,
+        gradeBasis: buildRiskGradeBasis(riskScore),
+        summary: status === "양호"
+            ? `위험 점수 ${riskScore}점으로 주의 또는 위험으로 볼 만한 건강 조건이 감지되지 않아 양호로 판정되었습니다.`
+            : `위험 점수 ${riskScore}점입니다. ${reasons[0]?.label || "건강 정보"} 항목이 판정에 영향을 주어 ${status}로 판정되었습니다.`,
+        reasons,
+    };
+};
+
+const formatProbability = (value) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "0%";
+    return `${Math.round(number * 100)}%`;
+};
+
+const getEvaluationSourceLabel = (source) => {
+    if (source === "ML") return "ML 모델 판정";
+    if (source === "RULE_FALLBACK") return "규칙 기반 보조 판정";
+    if (source === "NO_HEALTH_INFO") return "건강 정보 미등록";
+    return "화면 보조 판정";
+};
+
+const getHealthTone = (status) => {
+    const normalized = normalizeHealthStatus(status);
+    if (normalized === "위험") return "danger";
+    if (normalized === "주의") return "caution";
+    return "good";
+};
+
 function WelfareSeniorDetail() {
     const { id } = useParams();
     const location = useLocation();
@@ -218,11 +362,14 @@ function WelfareSeniorDetail() {
     const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
     const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
     
-    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "전화 및 상담기록"];
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", HEALTH_EVALUATION_CATEGORY];
     const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
     
-    const initialCategory = CATEGORY_LIST.includes(location.state?.category)
-        ? location.state.category
+    const requestedCategory = location.state?.category === "전화 및 상담기록"
+        ? HEALTH_EVALUATION_CATEGORY
+        : location.state?.category;
+    const initialCategory = CATEGORY_LIST.includes(requestedCategory)
+        ? requestedCategory
         : "기본 정보";
     const [activeCategory, setActiveCategory] = useState(initialCategory);
     const [activeHealthCategory, setActiveHealthCategory] = useState("신체 정보");
@@ -274,7 +421,8 @@ function WelfareSeniorDetail() {
             guardianPhone: data?.guardianPhone || "",
             guardianRelation: data?.relation || "보호 대상자",
             healthInfo,
-            healthStatus: healthInfo.healthStatus || "양호",
+            healthEvaluation: data?.healthEvaluation || null,
+            healthStatus: data?.healthEvaluation?.status || healthInfo.healthStatus || "양호",
             disabilityGrade: seniorData.disabilityGrade,
             disabilityType: seniorData.disabilityType,
             preferredWorkTime: healthInfo.maxHours ? `하루 ${healthInfo.maxHours}시간` : "미등록",
@@ -409,6 +557,17 @@ function WelfareSeniorDetail() {
     const detail = getDetail(senior);
     const lastAccessDisplay = formatLastAccessForDetail(senior?.lastAccess);
     const healthInfo = senior?.healthInfo || {};
+    const fallbackHealthEvaluation = senior ? buildFallbackHealthEvaluation(senior, healthInfo) : null;
+    const healthEvaluation = senior
+        ? {
+            ...fallbackHealthEvaluation,
+            ...(senior.healthEvaluation || {}),
+            status: normalizeHealthStatus(senior.healthEvaluation?.status || senior.healthStatus || healthInfo.healthStatus),
+            reasons: senior.healthEvaluation?.reasons?.length
+                ? senior.healthEvaluation.reasons
+                : fallbackHealthEvaluation.reasons,
+        }
+        : null;
     const medications = readMedications(healthInfo);
     const jobPreference = senior?.jobPreference || {};
     const safeZone = senior?.safeZone || {};
@@ -860,6 +1019,172 @@ function WelfareSeniorDetail() {
         );
     };
 
+    const renderHealthEvaluation = () => {
+        const status = normalizeHealthStatus(healthEvaluation?.status);
+        const tone = getHealthTone(status);
+        const probabilities = healthEvaluation?.probabilities || {};
+        const reasons = healthEvaluation?.reasons || [];
+        const maxRiskScore = Math.max(1, Number(healthEvaluation?.maxRiskScore) || 100);
+        const riskScore = Math.min(maxRiskScore, Math.max(0, Number(healthEvaluation?.riskScore) || 0));
+        const riskPercent = `${Math.round((riskScore / maxRiskScore) * 100)}%`;
+        const gradeBasis = healthEvaluation?.gradeBasis || buildRiskGradeBasis(riskScore);
+        const criteria = [
+            {
+                status: "양호",
+                title: "양호 기준",
+                range: "0~24점",
+                text: "최근 낙상, 주요 질환, 복약 과다, 보행/시각/청각 제한, 짧은 활동 시간 조건이 감지되지 않은 경우입니다.",
+            },
+            {
+                status: "주의",
+                title: "주의 기준",
+                range: "25~59점",
+                text: "질환이 하나 이상 있거나, 복약 수가 3개 이상이거나, 보행/감각 제한 또는 짧은 활동 시간이 확인된 경우입니다.",
+            },
+            {
+                status: "위험",
+                title: "위험 기준",
+                range: "60점 이상",
+                text: "최근 낙상 이력, 주요 질환 복수 확인, 여러 신체 제한, 주요 질환과 매우 짧은 활동 시간이 함께 확인된 경우입니다.",
+            },
+        ];
+        const scoreRules = [
+            ["최근 낙상", "+40점", "낙상 이력이 있으면 이동/계단 업무 위험이 커집니다."],
+            ["주요 질환", "+30점", "심장질환, 뇌졸중, 신장질환, 호흡기질환, 암, 치매 등입니다."],
+            ["일반 질환", "+15점", "고혈압, 당뇨, 관절질환, 간질환, 기타 질환입니다."],
+            ["복약 수", "+10~20점", "3개 이상은 +10점, 6개 이상은 +20점입니다."],
+            ["보행 제한", "+20점", "보행 보조나 이동 제한이 있으면 반영합니다."],
+            ["시각/청각 제한", "+10점", "시야 확인이나 안내 청취가 필요한 업무를 조정합니다."],
+            ["활동 가능 시간", "+15~25점", "3시간 이하는 +15점, 2시간 이하는 +25점입니다."],
+        ];
+
+        return (
+            <section className="wsd-detail-section">
+                <div className="wsd-health-eval-heading">
+                    <div>
+                        <h2 className="wsd-section-title">건강 판정 근거</h2>
+                        <p>건강 상태 모델 결과와 입력 건강 항목을 함께 보여주는 참고용 설명입니다.</p>
+                    </div>
+                    <div className={`wsd-health-eval-status wsd-health-eval-status-${tone}`}>
+                        <span>현재 건강 등급</span>
+                        <strong>{status}</strong>
+                    </div>
+                </div>
+
+                <div className="wsd-health-eval-summary">
+                    <div>
+                        <span>판정 방식</span>
+                        <strong>{getEvaluationSourceLabel(healthEvaluation?.source)}</strong>
+                    </div>
+                    <p>{healthEvaluation?.summary || "건강 정보 기준으로 판정 근거를 계산했습니다."}</p>
+                    <small>이 결과는 의료 진단이 아니라 돌봄과 일자리 추천을 위한 참고 정보입니다.</small>
+                </div>
+
+                <div className="wsd-health-score-panel">
+                    <div className="wsd-health-score-header">
+                        <div>
+                            <span>설명용 위험 점수</span>
+                            <strong>{riskScore} / {maxRiskScore}점</strong>
+                        </div>
+                        <em>{getGradeFromRiskScore(riskScore)} 기준</em>
+                    </div>
+                    <div className="wsd-health-score-track">
+                        <div
+                            className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
+                            style={{ width: riskPercent }}
+                        />
+                    </div>
+                    <p>{gradeBasis}</p>
+                </div>
+
+                <div className="wsd-health-probability-panel">
+                    <h3>예측 확률</h3>
+                    <div className="wsd-health-probability-list">
+                        {HEALTH_STATUS_ORDER.map((label) => (
+                            <div className="wsd-health-probability-row" key={label}>
+                                <span>{label}</span>
+                                <div className="wsd-health-probability-track">
+                                    <div
+                                        className={`wsd-health-probability-fill wsd-health-probability-fill-${getHealthTone(label)}`}
+                                        style={{ width: formatProbability(probabilities[label]) }}
+                                    />
+                                </div>
+                                <strong>{formatProbability(probabilities[label])}</strong>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="wsd-health-reason-section">
+                    <h3>판정에 영향을 준 항목</h3>
+                    <div className="wsd-health-reason-grid">
+                        {reasons.map((reason, index) => (
+                            <article
+                                className={`wsd-health-reason-card wsd-health-reason-card-${getHealthTone(reason.level)}`}
+                                key={`${reason.label}-${index}`}
+                            >
+                                <div>
+                                    <strong>{reason.label}</strong>
+                                    <span>
+                                        {normalizeHealthStatus(reason.level)}
+                                        {Number(reason.score) > 0 ? ` +${reason.score}점` : ""}
+                                    </span>
+                                </div>
+                                <p>{valueOrMissing(reason.value)}</p>
+                                <small>{reason.description}</small>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="wsd-health-criteria-section">
+                    <h3>등급별 판정 기준</h3>
+                    <div className="wsd-health-grade-scale" aria-label="등급별 위험 점수 구간">
+                        {criteria.map((item) => (
+                            <div
+                                className={`wsd-health-grade-segment wsd-health-grade-segment-${getHealthTone(item.status)}${item.status === status ? " wsd-health-grade-segment-active" : ""}`}
+                                key={item.status}
+                            >
+                                <span>{item.status}</span>
+                                <strong>{item.range}</strong>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="wsd-health-criteria-list">
+                        {criteria.map((item) => (
+                            <article
+                                className={`wsd-health-criteria-row${item.status === status ? " wsd-health-criteria-row-active" : ""}`}
+                                key={`${item.status}-description`}
+                            >
+                                <div>
+                                    <span>{item.status}</span>
+                                    <strong>{item.title}</strong>
+                                </div>
+                                <p>{item.text}</p>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="wsd-health-score-rule-section">
+                    <h3>항목별 점수 기준</h3>
+                    <div className="wsd-health-score-rule-list">
+                        {scoreRules.map(([label, score, description]) => (
+                            <article className="wsd-health-score-rule-card" key={label}>
+                                <div>
+                                    <strong>{label}</strong>
+                                    <span>{score}</span>
+                                </div>
+                                <p>{description}</p>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        );
+    };
+
     const renderSafeZoneInfo = () => (
         <section className="wsd-detail-section">
             <h2 className="wsd-section-title">안심구역 관리</h2>
@@ -897,6 +1222,7 @@ function WelfareSeniorDetail() {
         if (activeCategory === "보호자 정보") return renderGuardianInfo();
         if (activeCategory === "건강 정보") return renderHealthInfo();
         if (activeCategory === "안심구역 관리") return renderSafeZoneInfo();
+        if (activeCategory === HEALTH_EVALUATION_CATEGORY) return renderHealthEvaluation();
 
         return null;
     };

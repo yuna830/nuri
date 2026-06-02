@@ -19,6 +19,7 @@ import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
+import com.nuri.woori.service.HealthStatusMlService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -48,6 +49,7 @@ public class SeniorController {
     private final LocationStatusRepository locationStatusRepository;
     private final AlertRepository alertRepository;
     private final WelfareWorkerRepository welfareWorkerRepository;
+    private final HealthStatusMlService healthStatusMlService;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -58,7 +60,8 @@ public class SeniorController {
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
             AlertRepository alertRepository,
-            WelfareWorkerRepository welfareWorkerRepository) {
+            WelfareWorkerRepository welfareWorkerRepository,
+            HealthStatusMlService healthStatusMlService) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -68,6 +71,7 @@ public class SeniorController {
         this.locationStatusRepository = locationStatusRepository;
         this.alertRepository = alertRepository;
         this.welfareWorkerRepository = welfareWorkerRepository;
+        this.healthStatusMlService = healthStatusMlService;
     }
 
     @PostMapping
@@ -121,6 +125,9 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        HealthStatusMlService.HealthEvaluation healthEvaluation =
+                healthStatusMlService.evaluateWithDetails(savedSenior, healthInfo);
+        healthInfo.setHealthStatus(healthEvaluation.status());
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -147,7 +154,8 @@ public class SeniorController {
                 null,
                 "",
                 "",
-                "");
+                "",
+                healthEvaluation);
     }
 
     @GetMapping
@@ -202,7 +210,7 @@ public class SeniorController {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
-        return toProfileResponse(senior);
+        return toProfileResponseWithHealthEvaluation(senior);
     }
 
 //    @PatchMapping("/{id}/welfare-worker")
@@ -370,6 +378,9 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        HealthStatusMlService.HealthEvaluation healthEvaluation =
+                healthStatusMlService.evaluateWithDetails(savedSenior, healthInfo);
+        healthInfo.setHealthStatus(healthEvaluation.status());
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -399,7 +410,8 @@ public class SeniorController {
                 null,
                 "",
                 "",
-                "");
+                "",
+                healthEvaluation);
     }
 
     @PatchMapping("/{id}/decision")
@@ -536,6 +548,7 @@ public class SeniorController {
             healthInfo.setMedicineCount(request.medicationsJson().isBlank() ? "없음" : "1개 이상");
         }
 
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
         healthInfoRepository.save(healthInfo);
 
         return toProfileResponse(savedSenior);
@@ -745,7 +758,8 @@ public class SeniorController {
                 welfareWorker == null ? null : welfareWorker.getId(),
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
-                welfareWorker == null ? "" : welfareWorker.getCenter());
+                welfareWorker == null ? "" : welfareWorker.getCenter(),
+                null);
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -789,7 +803,27 @@ public class SeniorController {
                 welfareWorker == null ? null : welfareWorker.getId(),
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
-                welfareWorker == null ? "" : welfareWorker.getCenter());
+                welfareWorker == null ? "" : welfareWorker.getCenter(),
+                null);
+    }
+
+    private SeniorProfileResponse toProfileResponseWithHealthEvaluation(Senior senior) {
+        SeniorProfileResponse response = toProfileResponse(senior);
+        return new SeniorProfileResponse(
+                response.senior(),
+                response.healthInfo(),
+                response.jobPreference(),
+                response.relation(),
+                response.guardianId(),
+                response.guardianName(),
+                response.guardianPhone(),
+                response.safeZone(),
+                response.lastGps(),
+                response.welfareWorkerId(),
+                response.socialWorkerName(),
+                response.socialWorkerPhone(),
+                response.socialWorkerCenter(),
+                healthStatusMlService.evaluateWithDetails(response.senior(), response.healthInfo()));
     }
 
     private WelfareWorker findWelfareWorker(Senior senior) {
@@ -913,6 +947,7 @@ public class SeniorController {
             Long welfareWorkerId,
             String socialWorkerName,
             String socialWorkerPhone,
-            String socialWorkerCenter) {
+            String socialWorkerCenter,
+            HealthStatusMlService.HealthEvaluation healthEvaluation) {
     }
 }
