@@ -35,6 +35,7 @@ export const makeConditionText = (healthInfo) => {
     isMeaningfulValue(healthInfo.stroke) && `뇌졸중: ${healthInfo.stroke}`,
     isMeaningfulValue(healthInfo.kidneyDisease) && `신장질환: ${healthInfo.kidneyDisease}`,
     isMeaningfulValue(healthInfo.lungDisease) && `호흡기질환: ${healthInfo.lungDisease}`,
+    isMeaningfulValue(healthInfo.otherDisease) && healthInfo.otherDisease,
   ].filter(Boolean);
 
   return conditions.length > 0 ? conditions.join(", ") : "특이 질환 없음";

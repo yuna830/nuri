@@ -1,9 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import WelfareDashboard from "../pages/Welfare/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
 import WelfareJobApplications from "../pages/Welfare/WelfareJobApplications";
 import WelfareMyPage from "../pages/Welfare/WelfareMyPage";
+import WelfarePolicyChatPage from "../pages/Welfare/WelfarePolicyChatPage";
 import WelfareLogin from "../pages/Common/WelfareLogin";
 import WelfareSignup from "../pages/Common/WelfareSignup";
 import Login from "../pages/Common/Login";
@@ -24,6 +25,15 @@ import AdminSeniors from "../pages/admin/AdminSeniors";
 import AdminSeniorDetail from "../pages/admin/AdminSeniorDetail";
 import AdminWelfare from "../pages/admin/AdminWelfare";
 import AdminGuardians from "../pages/admin/AdminGuardians";
+import AdminLogin from "../pages/admin/AdminLogin";
+import AdminSignup from "../pages/admin/AdminSignup";
+import AdminAccounts from "../pages/admin/AdminAccounts";
+
+function RequireAdmin({ children }) {
+  return sessionStorage.getItem("currentAdmin")
+    ? children
+    : <Navigate to="/admin/login" replace />;
+}
 
 function AppRoutes() {
   return (
@@ -46,6 +56,7 @@ function AppRoutes() {
         <Route path="/welfare/jobs" element={<WelfareJobPostings />} />
         <Route path="/welfare/job-applications" element={<WelfareJobApplications />} />
         <Route path="/welfare/mypage" element={<WelfareMyPage />} />
+        <Route path="/welfare/policy-chat" element={<WelfarePolicyChatPage />} />
         <Route path="/welfare/seniors/:id/jobs" element={<WelfareJobPostings />} />
 
         {/* Chat */}
@@ -64,11 +75,14 @@ function AppRoutes() {
         <Route path="/weather-graph" element={<WeatherGraph />} />
 
         {/* Admin */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/seniors" element={<AdminSeniors />} />
-        <Route path="/admin/seniors/:id" element={<AdminSeniorDetail />} />
-        <Route path="/admin/welfare" element={<AdminWelfare />} />
-        <Route path="/admin/guardians" element={<AdminGuardians />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/signup" element={<AdminSignup />} />
+        <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+        <Route path="/admin/seniors" element={<RequireAdmin><AdminSeniors /></RequireAdmin>} />
+        <Route path="/admin/seniors/:id" element={<RequireAdmin><AdminSeniorDetail /></RequireAdmin>} />
+        <Route path="/admin/welfare" element={<RequireAdmin><AdminWelfare /></RequireAdmin>} />
+        <Route path="/admin/guardians" element={<RequireAdmin><AdminGuardians /></RequireAdmin>} />
+        <Route path="/admin/accounts" element={<RequireAdmin><AdminAccounts /></RequireAdmin>} />
       </Routes>
     </BrowserRouter>
   );

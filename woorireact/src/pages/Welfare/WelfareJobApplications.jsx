@@ -214,7 +214,6 @@ function WelfareJobApplications() {
                 </main>
             </div>
 
-            <WelfarePolicyChatButton />
         </div>
     );
 }

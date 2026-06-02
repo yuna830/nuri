@@ -31,6 +31,7 @@ import {
     mapWelfareSenior,
 } from "../../utils/welfare/welfareDashboardData";
 import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
+import { formatPhoneNumber } from "../../utils/common/phone.js";
 
 import "../../css/welfare/WelfareDashboard.css";
 
@@ -610,7 +611,16 @@ function WelfareDashboard() {
             />
 
             <div className="wd-layout">
-                <WelfareSidebar active="seniors" onAddSenior={openAddSeniorModal} />
+                <WelfareSidebar
+                    active="seniors"
+                    onAddSenior={openAddSeniorModal}
+                    policyChatSlot={
+                        <WelfarePolicyChatButton
+                            variant="sidebar"
+                            seniorOptions={currentSeniors}
+                        />
+                    }
+                />
 
                 <main className="wd-content">
                     <WelfareSummaryCards
@@ -780,7 +790,12 @@ function WelfareDashboard() {
                                 <input
                                     type="tel"
                                     value={addSeniorForm.phone}
-                                    onChange={(event) => setAddSeniorForm((form) => ({ ...form, phone: event.target.value }))}
+                                    onChange={(event) =>
+                                        setAddSeniorForm((form) => ({
+                                            ...form,
+                                            phone: formatPhoneNumber(event.target.value),
+                                        }))
+                                    }
                                     placeholder="예: 010-1234-5678"
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
@@ -892,7 +907,6 @@ function WelfareDashboard() {
                 </div>
             )}
 
-            <WelfarePolicyChatButton seniorOptions={currentSeniors} />
         </div>
     );
 }

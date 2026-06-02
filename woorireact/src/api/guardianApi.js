@@ -1,5 +1,11 @@
 const API_BASE_URL = "";
-const POLICE_API_BASE_URL = "http://localhost:8181";
+const POLICE_API_BASE_URL =
+  import.meta.env.VITE_POLICE_API_BASE_URL?.trim() || "http://localhost:8181";
+
+export function getPolicePhotoUrl(alertId) {
+  if (!alertId) return "";
+  return `${POLICE_API_BASE_URL}/api/police-missing-alerts/${alertId}/photo`;
+}
 
 async function request(baseUrl, path, options = {}) {
   const isFormData = options.body instanceof FormData;
@@ -132,6 +138,13 @@ export function createAndConnectSenior(guardianId, seniorForm) {
 export function deleteGuardianSenior(guardianId, seniorId) {
   return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors/${seniorId}`, {
     method: "DELETE",
+  });
+}
+
+export function updateGuardianSeniorRelation(guardianId, seniorId, relation) {
+  return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors/${seniorId}/relation`, {
+    method: "PATCH",
+    body: JSON.stringify({ relation }),
   });
 }
 

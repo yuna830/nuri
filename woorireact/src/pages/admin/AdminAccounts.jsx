@@ -1,0 +1,113 @@
+import { useEffect, useState } from "react";
+import { Check, X } from "lucide-react";
+
+import { fetchAdmins, updateAdminStatus } from "../../api/adminAuthApi";
+import AdminLayout from "./AdminLayout";
+
+const statusLabel = {
+  PENDING: "승인 대기",
+  APPROVED: "승인",
+  REJECTED: "거절",
+};
+
+function AdminAccounts() {
+  const currentAdmin = JSON.parse(sessionStorage.getItem("currentAdmin") || "null");
+  const [admins, setAdmins] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [savingId, setSavingId] = useState(null);
+
+  useEffect(() => {
+    fetchAdmins()
+      .then(setAdmins)
+      .catch(() => setLoadError("관리자 계정 목록을 불러오지 못했습니다."))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const handleStatusChange = async (adminId, status) => {
+    try {
+      setSavingId(adminId);
+      const updatedAdmin = await updateAdminStatus(adminId, status);
+      setAdmins((current) =>
+        current.map((admin) => (admin.id === updatedAdmin.id ? updatedAdmin : admin))
+      );
+    } catch {
+      alert("관리자 계정 상태 변경에 실패했습니다.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <AdminLayout>
+      <header className="admin-page-header">
+        <h1>관리자 승인 관리</h1>
+        <p>신규 관리자 가입 신청을 확인하고 승인 또는 거절합니다.</p>
+      </header>
+
+      {loadError ? (
+        <p className="admin-error-note">{loadError}</p>
+      ) : isLoading ? (
+        <p className="admin-empty">관리자 계정을 불러오는 중입니다.</p>
+      ) : (
+        <div className="admin-table-box">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>관리자 아이디</th>
+                <th>이메일</th>
+                <th>전화번호</th>
+                <th>상태</th>
+                <th>처리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {admins.map((admin) => (
+                <tr key={admin.id}>
+                  <td className="admin-name-cell">{admin.name}</td>
+                  <td>{admin.loginId || "-"}</td>
+                  <td>{admin.email}</td>
+                  <td>{admin.phone}</td>
+                  <td>
+                    <span className={`admin-badge admin-account-${admin.status.toLowerCase()}`}>
+                      {statusLabel[admin.status] || admin.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-account-actions">
+                      {admin.status !== "APPROVED" && (
+                        <button
+                          className="admin-button primary"
+                          type="button"
+                          disabled={savingId === admin.id}
+                          onClick={() => handleStatusChange(admin.id, "APPROVED")}
+                        >
+                          <Check size={15} />
+                          승인
+                        </button>
+                      )}
+                      {admin.status !== "REJECTED" && (
+                        <button
+                          className="admin-button"
+                          type="button"
+                          disabled={savingId === admin.id || currentAdmin?.id === admin.id}
+                          onClick={() => handleStatusChange(admin.id, "REJECTED")}
+                        >
+                          <X size={15} />
+                          거절
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AdminLayout>
+  );
+}
+
+export default AdminAccounts;
