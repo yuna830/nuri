@@ -38,8 +38,37 @@ function normalizeElderForWelfare(elder) {
 
 function cleanKoreanAnswer(value) {
   return String(value || "")
+    .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function formatWelfareAnswer(value) {
+  return cleanKoreanAnswer(value)
+    .replace(/\s+(\d+\.\s)/g, "\n\n$1")
+    .replace(/\s+-\s*(추천 이유|지원 내용|신청 방법|확인 필요|근거):/g, "\n- $1:")
+    .trim();
+}
+
+function summarizeWelfareAnswer(value) {
+  const text = cleanKoreanAnswer(value);
+
+  if (!text) {
+    return "";
+  }
+
+  const matches = [...text.matchAll(/\d+\.\s*([^-:\n]+)/g)]
+    .map((match) => match[1].trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (matches.length > 0) {
+    return `${matches.join(", ")} 등 신청 가능성이 있습니다.`;
+  }
+
+  return text.length > 80 ? `${text.slice(0, 80)}...` : text;
 }
 
 function formatConsultationTime(value) {
@@ -75,6 +104,8 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
   const [consultationResponseType, setConsultationResponseType] = useState("now");
   const [consultationScheduleAt, setConsultationScheduleAt] = useState("");
   const [jobPage, setJobPage] = useState(0);
+  const [welfareMessages, setWelfareMessages] = useState([]);
+  const [isWelfareModalOpen, setIsWelfareModalOpen] = useState(false);
 
   const senior = useMemo(
     () => normalizeElderForWelfare(selectedElder),
@@ -144,7 +175,7 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
   const latestConsultationItem = consultationItems
     .slice()
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
-  const jobPageSize = 3;
+  const jobPageSize = 2;
   const totalJobPages = Math.max(1, Math.ceil(jobApplications.length / jobPageSize));
   const pagedJobApplications = jobApplications.slice(
     jobPage * jobPageSize,
@@ -159,6 +190,14 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
       return;
     }
 
+    const userMessage = {
+      role: "user",
+      text: trimmedQuestion,
+    };
+
+    setWelfareMessages((prev) => [...prev, userMessage]);
+    setQuestion("");
+
     try {
       setIsLoading(true);
       setErrorMessage("");
@@ -167,18 +206,21 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
         question: trimmedQuestion,
         senior,
         audience: "guardian",
-        history: latestSharedGuide
-          ? [
-              {
-                role: "assistant",
-                text: cleanKoreanAnswer(latestSharedGuide.answer),
-              },
-            ]
-          : [],
+        history: welfareMessages.slice(-6),
       });
 
-      setAnswer(cleanKoreanAnswer(data.answer));
+      const cleanedAnswer = cleanKoreanAnswer(data.answer);
+
+      setAnswer(cleanedAnswer);
       setEvidence(Array.isArray(data.evidence) ? data.evidence : []);
+
+      setWelfareMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: cleanedAnswer || "확인된 답변이 없습니다.",
+        },
+      ]);
     } catch (error) {
       setErrorMessage(error.message || "복지 정보를 불러오지 못했습니다.");
     } finally {
@@ -238,14 +280,16 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
               {pagedJobApplications.map((job) => (
                 <article key={job.id} className="guardian-job-item">
                   <div>
-                    <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
-                    <span>{job.organization || "기관 정보 없음"}</span>
+                      <div className="guardian-job-title-row">
+                          <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
+                          <em>{job.status || "확인 대기"}</em>
+                      </div>
+
+                      <span>{job.organization || "기관 정보 없음"}</span>
                   </div>
 
-                  <em>{job.status || "확인 대기"}</em>
-
                   <small>
-                    {[job.location, job.requestedAt].filter(Boolean).join(" · ")}
+                      {[job.location, job.requestedAt].filter(Boolean).join(" · ")}
                   </small>
                 </article>
               ))}
@@ -265,66 +309,115 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
         </section>
 
         <section className="guardian-welfare-section">
-          <strong>복지사 상담</strong>
-
           {isLoadingConsultations ? (
             <p>복지사 상담 요청을 불러오는 중입니다.</p>
           ) : !latestConsultationItem ? (
             <p>복지사가 보낸 상담 요청이나 상담 내역이 없습니다.</p>
           ) : (
-            <div className="guardian-consult-list">
-              <article key={latestConsultationItem.id} className="guardian-consult-item">
-                <div>
-                  <strong>{latestConsultationItem.title || "상담 요청"}</strong>
-                  <span>{formatConsultationTime(latestConsultationItem.createdAt)}</span>
-                </div>
+            <>
+              <div className="guardian-consult-section-head">
+                <strong>복지사 상담 요청</strong>
+                <span>{formatConsultationTime(latestConsultationItem.createdAt)}</span>
+              </div>
 
-                <p>{latestConsultationItem.message || "복지사가 상담 확인을 요청했습니다."}</p>
+              <div className="guardian-consult-list">
+                <article key={latestConsultationItem.id} className="guardian-consult-item">
+                  <p>{latestConsultationItem.message || "복지사와 상담이 필요합니다."}</p>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedConsultation(latestConsultationItem);
-                    setConsultationResponseType(latestConsultationItem.guardianResponseType || "now");
-                    setConsultationScheduleAt(latestConsultationItem.guardianScheduleAt || "");
-                  }}
-                >
-                  상담 선택
-                </button>
-              </article>
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedConsultation(latestConsultationItem);
+                      setConsultationResponseType(latestConsultationItem.guardianResponseType || "now");
+                      setConsultationScheduleAt(latestConsultationItem.guardianScheduleAt || "");
+                    }}
+                  >
+                    상담 선택
+                  </button>
+                </article>
+              </div>
+            </>
           )}
         </section>
 
-        <div className="guardian-welfare-question">
-          <textarea
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder={`${selectedElder?.name || "보호 대상자"}님이 받을 수 있는 복지를 물어보세요.`}
-          />
+        <div className="guardian-welfare-summary-box">
+          <strong>최근 AI 확인 결과</strong>
 
-          {answer && (
-            <article className="guardian-welfare-answer">
-              <strong>AI 확인 결과</strong>
-              <p>{answer}</p>
-
-              {evidence.length > 0 && (
-                <span>
-                  복지 문서와 공공 데이터 근거를 참고했습니다. 실제 신청 전 주민센터 또는 복지로에서 최종 확인이 필요합니다.
-                </span>
-              )}
-            </article>
+          {answer ? (
+            <p>{summarizeWelfareAnswer(answer)}</p>
+          ) : latestSharedGuide?.answer ? (
+            <p>{summarizeWelfareAnswer(latestSharedGuide.answer)}</p>
+          ) : (
+            <p>아직 확인한 복지 추천 결과가 없습니다.</p>
           )}
 
-          {errorMessage && (
-            <p className="guardian-welfare-error">{errorMessage}</p>
-          )}
-
-          <button type="button" onClick={handleAsk} disabled={isLoading}>
-            {isLoading ? "확인 중..." : "AI로 확인"}
+          <button type="button" onClick={() => setIsWelfareModalOpen(true)}>
+            받을 수 있는 복지 확인
           </button>
         </div>
       </div>
+
+      {isWelfareModalOpen && (
+        <div className="guardian-welfare-modal-backdrop" onClick={() => setIsWelfareModalOpen(false)}>
+          <section className="guardian-welfare-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="guardian-welfare-modal-header">
+              <div>
+                <h3>AI 복지 확인</h3>
+                <p>{selectedElder?.name || "보호 대상자"}님 기준으로 받을 수 있는 복지를 확인합니다.</p>
+              </div>
+
+              <button type="button" onClick={() => setIsWelfareModalOpen(false)}>
+                닫기
+              </button>
+            </div>
+
+            <div className="guardian-welfare-modal-body">
+              <div className="guardian-welfare-chat-list">
+                {welfareMessages.length === 0 && latestSharedGuide?.answer && (
+                  <article className="guardian-welfare-chat-message assistant">
+                    <p>{formatWelfareAnswer(latestSharedGuide.answer)}</p>
+                  </article>
+                )}
+
+                {welfareMessages.map((message, index) => (
+                  <article
+                    key={`${message.role}-${index}`}
+                    className={`guardian-welfare-chat-message ${message.role}`}
+                  >
+                    <p>
+                      {message.role === "assistant"
+                        ? formatWelfareAnswer(message.text)
+                        : message.text}
+                    </p>
+                  </article>
+                ))}
+
+                {isLoading && (
+                  <article className="guardian-welfare-chat-message assistant">
+                    <p>확인 중입니다...</p>
+                  </article>
+                )}
+              </div>
+
+              {errorMessage && (
+                <p className="guardian-welfare-error">{errorMessage}</p>
+              )}
+
+              <div className="guardian-welfare-modal-compose">
+                <textarea
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder={`${selectedElder?.name || "보호 대상자"}님이 받을 수 있는 복지 제도를 알려줘`}
+                />
+
+                <button type="button" onClick={handleAsk} disabled={isLoading}>
+                  {isLoading ? "확인 중" : "질문"}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {selectedConsultation && (
         <div className="guardian-consult-modal-backdrop">

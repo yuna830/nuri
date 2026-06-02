@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, ClipboardList, UserPlus, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BriefcaseBusiness, ClipboardList, HelpCircle, UserPlus, UserRound } from "lucide-react";
 import { fetchWelfareJobApplications } from "../../api/welfareJobApi";
 import { fetchWelfareAlerts, fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import {
@@ -95,7 +95,13 @@ const fetchCachedJobCount = async () => {
     return Array.isArray(data) ? data.length : 0;
 };
 
-function WelfareSidebar({ active, onAddSenior, children }) {
+function WelfareSidebar({
+    active,
+    onAddSenior,
+    children,
+    profileSlot,
+    policyChatSlot,
+}) {
     const worker = getWorkerFromSession();
     const workerId = worker?.id || worker?.worker?.id || worker?.welfareWorker?.id || null;
     const [hasSeniorAlerts, setHasSeniorAlerts] = useState(false);
@@ -150,52 +156,53 @@ function WelfareSidebar({ active, onAddSenior, children }) {
 
     return (
         <aside className="wd-sidebar">
-            <div className="wd-sidebar-profile">
-                <div className="wd-sidebar-avatar">
-                    <UserRound size={26} />
-                </div>
-                <div>
-                    <strong>{worker?.name || "복지사"} 복지사</strong>
-                    <span>{worker?.center || "소속 기관 미등록"}</span>
-                </div>
-            </div>
+            {profileSlot}
+            {active !== "mypage" && (
+                <nav className="wd-sidebar-nav">
+                    <Link
+                        to="/welfare"
+                        className={`wd-sidebar-item${active === "seniors" ? " wd-sidebar-item-active" : ""}`}
+                    >
+                        <ClipboardList size={17} />
+                        대상자 목록
+                        {showSeniorBadge && <span className="wd-sidebar-new-badge">new</span>}
+                    </Link>
 
-            <nav className="wd-sidebar-nav">
-                <Link
-                    to="/welfare"
-                    className={`wd-sidebar-item${active === "seniors" ? " wd-sidebar-item-active" : ""}`}
-                >
-                    <ClipboardList size={17} />
-                    대상자 목록
-                    {showSeniorBadge && <span className="wd-sidebar-new-badge">new</span>}
-                </Link>
+                    <Link
+                        to="/welfare/policy-chat"
+                        className={`wd-sidebar-item${active === "policy-chat" ? " wd-sidebar-item-active" : ""}`}
+                    >
+                        <HelpCircle size={17} />
+                        AI 복지 확인
+                    </Link>
 
-                <Link
-                    to="/welfare/job-applications"
-                    className={`wd-sidebar-item${active === "job-applications" ? " wd-sidebar-item-active" : ""}`}
-                >
-                    <UserPlus size={17} />
-                    일자리 신청
-                    {showApplicationBadge && <span className="wd-sidebar-new-badge">new</span>}
-                </Link>
+                    <Link
+                        to="/welfare/job-applications"
+                        className={`wd-sidebar-item${active === "job-applications" ? " wd-sidebar-item-active" : ""}`}
+                    >
+                        <UserPlus size={17} />
+                        일자리 신청
+                        {showApplicationBadge && <span className="wd-sidebar-new-badge">new</span>}
+                    </Link>
 
-                <Link
-                    to="/welfare/jobs"
-                    className={`wd-sidebar-item${active === "jobs" ? " wd-sidebar-item-active" : ""}`}
-                >
-                    <BriefcaseBusiness size={17} />
-                    일자리 공고
-                    {showJobPostingBadge && <span className="wd-sidebar-new-badge">new</span>}
-                </Link>
+                    <Link
+                        to="/welfare/jobs"
+                        className={`wd-sidebar-item${active === "jobs" ? " wd-sidebar-item-active" : ""}`}
+                    >
+                        <BriefcaseBusiness size={17} />
+                        일자리 공고
+                        {showJobPostingBadge && <span className="wd-sidebar-new-badge">new</span>}
+                    </Link>
 
-                <Link
-                    to="/welfare/mypage"
-                    className={`wd-sidebar-item${active === "mypage" ? " wd-sidebar-item-active" : ""}`}
-                >
-                    <UserRound size={17} />
-                    마이페이지
-                </Link>
-            </nav>
+                    <Link
+                        to="/welfare/mypage"
+                        className={`wd-sidebar-item${active === "mypage" ? " wd-sidebar-item-active" : ""}`}
+                    >
+                        <UserRound size={17} />
+                        마이페이지
+                    </Link>
+                </nav>
+            )}
 
             {onAddSenior && (
                 <button

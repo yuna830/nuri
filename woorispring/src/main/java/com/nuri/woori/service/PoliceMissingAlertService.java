@@ -2,6 +2,7 @@ package com.nuri.woori.service;
 
 import com.nuri.woori.entity.PoliceMissingAlert;
 import com.nuri.woori.repository.PoliceMissingAlertRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,9 @@ public class PoliceMissingAlertService {
     private static final String FIND_CHILD_API_URL = "https://www.safe182.go.kr/api/lcm/findChildList.do";
     private static final int ROW_SIZE = 100;
     private static final int MAX_PAGES = 4;
+
+    @Value("${app.upload-root:uploads}")
+    private String uploadRoot;
 
     private final PoliceMissingAlertRepository policeMissingAlertRepository;
     private final Environment environment;
@@ -307,7 +311,10 @@ public class PoliceMissingAlertService {
         try {
             byte[] imageBytes = Base64.getMimeDecoder().decode(photoBase64);
 
-            Path directory = Paths.get("uploads", "police-missing");
+            Path directory = Paths.get(uploadRoot)
+                    .resolve("police-missing")
+                    .toAbsolutePath()
+                    .normalize();
             Files.createDirectories(directory);
 
             String fileName = Integer.toHexString(externalKey.hashCode()) + ".jpg";

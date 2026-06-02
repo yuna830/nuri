@@ -663,7 +663,6 @@ function WelfareJobPostings() {
                 </div>
             )}
             
-            <WelfarePolicyChatButton />
         </div>
     );
 }

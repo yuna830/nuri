@@ -67,7 +67,7 @@
 }
 
 .wd-sidebar-nav {
-    margin-top: 14px;
+    margin-top: 0;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background: #ffffff;
@@ -1116,6 +1116,15 @@
     justify-content: flex-end;
     gap: 8px;
     margin-top: 20px;
+}
+
+.wm-page .wd-layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+}
+
+.wm-profile-panel-sidebar {
+    margin-bottom: 0;
+    padding: 30px 22px;
 }
 
 /* 반응형 */

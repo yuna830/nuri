@@ -1,4 +1,4 @@
-﻿from typing import Literal
+﻿from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -8,25 +8,44 @@ from app.services.rag_service import RagService
 router = APIRouter()
 
 
-class WelfareProfile(BaseModel):
-    name: str | None = None
-    age: int | None = None
-    gender: str | None = None
-    region: str | None = None
-    address: str | None = None
-    incomeLevel: str | None = None
-    householdType: str | None = None
-    livingAlone: str | None = None
-    diseases: list[str] = []
-    medicationInfo: str | None = None
-    basicLivelihoodStatus: str | None = None
-    nearPovertyStatus: str | None = None
-    disabilityStatus: str | None = None
-    longTermCareGrade: str | None = None
-    jobRequestStatus: str | None = None
-    currentBenefits: list[str] = []
-    welfareMemo: str | None = None
+class JobApplicationProfile(BaseModel):
+    jobTitle: Any = None
+    organization: Any = None
+    status: Any = None
+    location: Any = None
+    requestedAt: Any = None
+    applicationType: Any = None
 
+
+class WelfareProfile(BaseModel):
+    name: Any = None
+    age: Any = None
+    gender: Any = None
+    height: Any = None
+    weight: Any = None
+    smoking: Any = None
+    drinking: Any = None
+    allergies: Any = None
+    medicineCount: Any = None
+    medications: list[Any] = []
+    mobilityInfo: list[Any] = []
+    workLimitations: list[Any] = []
+    jobPreference: dict[str, Any] = {}
+    region: Any = None
+    address: Any = None
+    incomeLevel: Any = None
+    householdType: Any = None
+    livingAlone: Any = None
+    diseases: list[Any] = []
+    medicationInfo: Any = None
+    basicLivelihoodStatus: Any = None
+    nearPovertyStatus: Any = None
+    disabilityStatus: Any = None
+    longTermCareGrade: Any = None
+    jobRequestStatus: Any = None
+    currentBenefits: list[Any] = []
+    welfareMemo: Any = None
+    jobApplications: list[JobApplicationProfile] = []
 
 class ChatHistoryMessage(BaseModel):
     role: Literal["user", "assistant"]

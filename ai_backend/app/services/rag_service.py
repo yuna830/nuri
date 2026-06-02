@@ -90,6 +90,27 @@ class RagService:
             self._join_list(profile.get("currentBenefits")),
         ]
 
+        for job in profile.get("jobApplications") or []:
+            if not isinstance(job, dict):
+                continue
+
+            keywords.extend([
+                self._value(job, "jobTitle"),
+                self._value(job, "organization"),
+                self._value(job, "status"),
+                self._value(job, "location"),
+                self._value(job, "requestedAt"),
+                self._value(job, "applicationType"),
+            ])
+
+            status = self._value(job, "status")
+            if status:
+                keywords.append(f"일자리 신청 상태 {status}")
+
+            title = self._value(job, "jobTitle")
+            if title:
+                keywords.append(f"신청 일자리 {title}")
+
         age = self._to_int(profile.get("age"))
         profile_text = " ".join(str(value) for value in keywords if value)
 
@@ -147,11 +168,13 @@ class RagService:
                 "장애인활동지원",
             ])
 
-        if "일자리" in question or "취업" in question or "일" in question:
+        if "일자리" in question or "취업" in question or "근무" in question:
             keywords.extend([
                 "노인일자리",
                 "공공근로",
                 "취업지원",
+                "사회활동 지원",
+                "일자리 신청",
             ])
 
         return " ".join(str(value) for value in keywords if value)

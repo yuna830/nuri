@@ -780,6 +780,23 @@ export default function UserPage() {
     }, 10 * 60 * 1000);
   };
 
+  const isSameSafeZones = (prevZones, nextZones) => {
+    if (prevZones.length !== nextZones.length) {
+      return false;
+    }
+
+    return prevZones.every((prevZone, index) => {
+      const nextZone = nextZones[index];
+
+      return String(prevZone.id) === String(nextZone.id)
+        && prevZone.name === nextZone.name
+        && Number(prevZone.centerLatitude) === Number(nextZone.centerLatitude)
+        && Number(prevZone.centerLongitude) === Number(nextZone.centerLongitude)
+        && Number(prevZone.radiusMeters) === Number(nextZone.radiusMeters)
+        && prevZone.address === nextZone.address;
+    });
+  };
+
   useEffect(() => {
     fetchWeatherAlerts();
     startLocationTracking();
@@ -800,8 +817,37 @@ export default function UserPage() {
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           const zones = Array.isArray(data) ? data : data ? [data] : [];
-          setSafeZones(zones);
-          if (zones.length > 0) setSafeZone(zones[0]);
+          
+
+          setSafeZones((prevZones) => {
+            if (isSameSafeZones(prevZones, zones)) {
+              return prevZones;
+            }
+
+            return zones;
+          });
+
+          setSafeZone((prevZone) => {
+            const nextZone = zones[0] || null;
+
+            if (!prevZone && !nextZone) {
+              return prevZone;
+            }
+
+            if (!prevZone || !nextZone) {
+              return nextZone;
+            }
+
+            const isSameZone =
+              String(prevZone.id) === String(nextZone.id)
+              && prevZone.name === nextZone.name
+              && Number(prevZone.centerLatitude) === Number(nextZone.centerLatitude)
+              && Number(prevZone.centerLongitude) === Number(nextZone.centerLongitude)
+              && Number(prevZone.radiusMeters) === Number(nextZone.radiusMeters)
+              && prevZone.address === nextZone.address;
+
+            return isSameZone ? prevZone : nextZone;
+          });
         })
         .catch(() => {});
     };
@@ -1327,7 +1373,6 @@ export default function UserPage() {
                 borderRadius: "50%",
                 background: isInRange ? COLORS.green : COLORS.danger,
                 flexShrink: 0,
-                animation: "up-blink 2s ease-in-out infinite",
               }} />
               <span style={{
                 fontSize: "0.82rem",

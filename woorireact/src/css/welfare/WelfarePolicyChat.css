@@ -1,0 +1,104 @@
+.wpc-panel {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 28px 32px;
+}
+
+.wpc-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--main-color);
+}
+
+.wpc-head h1 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 22px;
+    font-weight: 900;
+}
+
+.wpc-head p {
+    margin: 8px 0 0;
+    color: #718076;
+    font-weight: 700;
+}
+
+.wpc-select {
+    width: 100%;
+    height: 46px;
+    margin-top: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 14px;
+    font: inherit;
+}
+
+.wpc-history {
+    height: 430px;
+    margin-top: 18px;
+    padding: 18px;
+    border-radius: 8px;
+    background: #f7faf4;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.wpc-message {
+    max-width: 78%;
+    padding: 12px 15px;
+    border-radius: 8px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+}
+
+.wpc-message.user {
+    align-self: flex-end;
+    max-width: 68%;
+    margin-right: 18px;
+    background: #8faa91;
+    color: #fff;
+}
+
+.wpc-message.assistant {
+    align-self: flex-start;
+    max-width: 72%;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.wpc-input-row {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 10px;
+}
+
+.wpc-input-row textarea {
+    height: 48px;
+    min-height: 48px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font: inherit;
+    resize: none;
+}
+
+.wpc-input-row button {
+    border: none;
+    border-radius: 8px;
+    background: var(--main-color);
+    color: white;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}

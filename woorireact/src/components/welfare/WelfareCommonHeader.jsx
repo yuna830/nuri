@@ -9,6 +9,8 @@ import { fetchUnreadChatCount } from "../../api/chatApi";
 import { mapWelfareSenior, getSeniorReviewStatus } from "../../utils/welfare/welfareDashboardData";
 import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
+import { formatPhoneNumber } from "../../utils/common/phone.js";
+
 function WelfareCommonHeader({ rightText }) {
     const navigate = useNavigate();
     const currentWorker = useMemo(() => {
@@ -258,7 +260,7 @@ function WelfareCommonHeader({ rightText }) {
                                 <input
                                     type="tel"
                                     value={addSeniorForm.phone}
-                                    onChange={(e) => setAddSeniorForm((f) => ({ ...f, phone: e.target.value }))}
+                                    onChange={(e) => setAddSeniorForm((f) => ({ ...f, phone: formatPhoneNumber(e.target.value) }))}
                                     placeholder="예: 010-1234-5678"
                                     onKeyDown={(e) => { if (e.key === "Enter") handleAddSenior(); }}
                                 />

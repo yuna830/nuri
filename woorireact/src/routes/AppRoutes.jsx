@@ -4,6 +4,7 @@ import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
 import WelfareJobApplications from "../pages/Welfare/WelfareJobApplications";
 import WelfareMyPage from "../pages/Welfare/WelfareMyPage";
+import WelfarePolicyChatPage from "../pages/Welfare/WelfarePolicyChatPage";
 import WelfareLogin from "../pages/Common/WelfareLogin";
 import WelfareSignup from "../pages/Common/WelfareSignup";
 import Login from "../pages/Common/Login";
@@ -55,6 +56,7 @@ function AppRoutes() {
         <Route path="/welfare/jobs" element={<WelfareJobPostings />} />
         <Route path="/welfare/job-applications" element={<WelfareJobApplications />} />
         <Route path="/welfare/mypage" element={<WelfareMyPage />} />
+        <Route path="/welfare/policy-chat" element={<WelfarePolicyChatPage />} />
         <Route path="/welfare/seniors/:id/jobs" element={<WelfareJobPostings />} />
 
         {/* Chat */}
