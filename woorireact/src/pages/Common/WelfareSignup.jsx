@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 
 import "../../css/common/SignUp.css";
 
-const AUTH_API_BASE = "http://localhost:8080";
-const WELFARE_API_BASE = "http://localhost:8181";
+import { SPRING_API_BASE, WELFARE_API_BASE } from "../../config/api.js";
+
+const AUTH_API_BASE = SPRING_API_BASE;
 
 export default function WelfareSignup() {
   const navigate = useNavigate();

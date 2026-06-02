@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
@@ -6,10 +6,8 @@ import {
   COLORS,
   calcHealthScore,
   menus,
-  schedules,
 } from "../../utils/user/userPageData";
 import {
-  createSafeZoneAlert,
   createSosAlert,
   createSosCancelAlert,
   fetchActivityBaseline,
@@ -18,6 +16,7 @@ import {
   fetchActivityTrend,
   fetchFallEvents,
   fetchFallPattern,
+  fetchFallDetectionStatus,
   fetchSeniorAlerts,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
@@ -31,33 +30,6 @@ import { fetchJobList } from "../../utils/user/jobApi";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
-
-const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
-
-const toGrid = (lat, lon) => {
-  const RE = 6371.00877, GRID = 5.0, SLAT1 = 30.0, SLAT2 = 60.0;
-  const OLON = 126.0, OLAT = 38.0, XO = 43, YO = 136;
-  const DEGRAD = Math.PI / 180.0;
-  const re = RE / GRID;
-  const slat1 = SLAT1 * DEGRAD, slat2 = SLAT2 * DEGRAD;
-  const olon = OLON * DEGRAD, olat = OLAT * DEGRAD;
-  let sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5);
-  sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
-  let sf = Math.tan(Math.PI * 0.25 + slat1 * 0.5);
-  sf = Math.pow(sf, sn) * Math.cos(slat1) / sn;
-  let ro = Math.tan(Math.PI * 0.25 + olat * 0.5);
-  ro = re * sf / Math.pow(ro, sn);
-  let ra = Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5);
-  ra = re * sf / Math.pow(ra, sn);
-  let theta = lon * DEGRAD - olon;
-  if (theta > Math.PI) theta -= 2.0 * Math.PI;
-  if (theta < -Math.PI) theta += 2.0 * Math.PI;
-  theta *= sn;
-  return {
-    nx: Math.floor(ra * Math.sin(theta) + XO + 0.5),
-    ny: Math.floor(ro - ra * Math.cos(theta) + YO + 0.5),
-  };
-};
 
 const getInitialSeniorProfile = () => {
   try {
@@ -219,6 +191,14 @@ const DEFAULT_ACTIVITY_BASELINE = {
 const DEFAULT_FALL_PATTERN = {
   status: "pending",
   message: "데이터를 수집하고 있습니다. 낙상 전후 변화는 기록이 쌓이면 보여드립니다.",
+};
+
+const getSafeZoneAlertRadius = (zone, accuracy) => {
+  const radius = Number(zone?.radiusMeters ?? 500);
+  const gpsTolerance = accuracy == null
+    ? 75
+    : Math.min(Math.max(Number(accuracy) || 75, 50), 150);
+  return radius + gpsTolerance + 30;
 };
 
 function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
@@ -439,24 +419,6 @@ const isCallAlertHandled = (alert) => {
   return getHandledCallAlertIds().has(String(alert.id));
 };
 
-const SAFE_ZONE_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
-
-const shouldSendSafeZoneAlert = (seniorId, safeZone, lat, lon) => {
-  if (!seniorId || !safeZone) return false;
-
-  const roundedLat = Math.round(lat * 1000);
-  const roundedLon = Math.round(lon * 1000);
-  const key = `safe-zone-alert:${seniorId}:${safeZone.radiusMeters}:${roundedLat}:${roundedLon}`;
-  const lastSentAt = Number(localStorage.getItem(key) || 0);
-
-  if (Date.now() - lastSentAt < SAFE_ZONE_ALERT_COOLDOWN_MS) {
-    return false;
-  }
-
-  localStorage.setItem(key, String(Date.now()));
-  return true;
-};
-
 export default function UserPage() {
   const navigate = useNavigate();
   const initialProfile = getInitialSeniorProfile();
@@ -465,6 +427,7 @@ export default function UserPage() {
   const locationIntervalRef = useRef(null);
   const weatherIntervalRef = useRef(null);
   const weatherAlertIntervalRef = useRef(null);
+  const locationWatchRef = useRef(null);
   // 보호자 페이지 이동 경로에서 위치가 너무 자주 저장되는 것을 방지
   const lastSavedLocationRef = useRef(null);
 
@@ -473,6 +436,7 @@ export default function UserPage() {
   const [showSOS, setShowSOS] = useState(false);
   const [activityInfoModal, setActivityInfoModal] = useState(null);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
+  // eslint-disable-next-line no-unused-vars
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
@@ -485,13 +449,16 @@ export default function UserPage() {
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
   });
+  // eslint-disable-next-line no-unused-vars
   const [healthScores, setHealthScores] = useState(() => getHealthScoresFromProfile(initialProfile));
   const [activityToday, setActivityToday] = useState(DEFAULT_ACTIVITY_TODAY);
   const [activityTrend, setActivityTrend] = useState(null);
   const [activitySlots, setActivitySlots] = useState(DEFAULT_ACTIVITY_SLOTS);
   const [activityBaseline, setActivityBaseline] = useState(DEFAULT_ACTIVITY_BASELINE);
   const [activityFallPattern, setActivityFallPattern] = useState(DEFAULT_FALL_PATTERN);
+  // eslint-disable-next-line no-unused-vars
   const [deviceStatus, setDeviceStatus] = useState("checking");
+  const [sensorConnected, setSensorConnected] = useState(null);
   const [scheduleList, setScheduleList] = useState([]);
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
@@ -503,6 +470,7 @@ export default function UserPage() {
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
+  const dismissedMedicineAlertIdsRef = useRef(new Set());
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -515,6 +483,9 @@ export default function UserPage() {
   const [medicineAlert, setMedicineAlert] = useState(null);
   const [infoUpdateRequestAlert, setInfoUpdateRequestAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
+  const [guardianEditOpen, setGuardianEditOpen] = useState(false);
+  const [guardianEditForm, setGuardianEditForm] = useState({ name: "", relation: "" });
+  const [guardianSaving, setGuardianSaving] = useState(false);
   const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
   useEffect(() => {
@@ -556,6 +527,27 @@ export default function UserPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const pollSensor = async () => {
+      try {
+        const status = await fetchFallDetectionStatus();
+        const s = status?.arduino_status ?? "";
+        if (isMounted) setSensorConnected(s === "NORMAL" || s === "FALL");
+      } catch {
+        if (isMounted) setSensorConnected(false);
+      }
+    };
+
+    pollSensor();
+    const intervalId = window.setInterval(pollSensor, 30 * 1000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const fetchWeather = async (lat, lon) => {
     try {
       const forecast = await fetchTodayForecast(lat, lon);
@@ -578,21 +570,6 @@ export default function UserPage() {
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const currentTime = pad(now.getHours()) + ":" + pad(now.getMinutes());
     const currentDateTime = `${today} ${currentTime}`;
-
-    const getPositionForAlert = () => new Promise((resolve) => {
-      if (currentPos) {
-        resolve({ lat: currentPos.lat, lon: currentPos.lon });
-        return;
-      }
-      if (!navigator.geolocation) {
-        resolve({ lat: 37.5665, lon: 126.9780 });
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => resolve({ lat: 37.5665, lon: 126.9780 })
-      );
-    });
 
     try {
       const seniorId = getSavedSeniorId();
@@ -690,10 +667,11 @@ export default function UserPage() {
       : Infinity;
 
     if (lastSavedLocation && movedMeters < 35) {
+      setChanged(setCurrentPos, { lat, lon, accuracy });
       return;
     }
 
-    setChanged(setCurrentPos, { lat, lon });
+    setChanged(setCurrentPos, { lat, lon, accuracy });
 
     const shouldResolveAddress =
       movedMeters >= 50 ||
@@ -744,7 +722,7 @@ export default function UserPage() {
             )
         );
 
-        return dist <= zone.radiusMeters;
+        return dist <= getSafeZoneAlertRadius(zone, accuracy);
       }));
     }
   };
@@ -752,30 +730,36 @@ export default function UserPage() {
   const startLocationTracking = () => {
     if (!navigator.geolocation) return;
 
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    };
+
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetchWeather(pos.coords.latitude, pos.coords.longitude);
         updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
-      () => fetchWeather(37.5665, 126.9780)
+      () => fetchWeather(37.5665, 126.9780),
+      options
     );
 
-    // 30초마다 위치 자동 갱신
-    locationIntervalRef.current = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        pos => updateLocation(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          pos.coords.accuracy
-        ),
-        () => {}
-      );
-    }, 30000);
+    locationWatchRef.current = navigator.geolocation.watchPosition(
+      pos => updateLocation(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy
+      ),
+      () => {},
+      options
+    );
 
     weatherIntervalRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-        () => fetchWeather(37.5665, 126.9780)
+        () => fetchWeather(37.5665, 126.9780),
+        options
       );
     }, 10 * 60 * 1000);
   };
@@ -939,7 +923,7 @@ export default function UserPage() {
           }
         }
 
-        const response = await fetch("http://localhost:8080/api/seniors");
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors`);
         if (!response.ok) return;
 
         const profiles = await response.json();
@@ -965,12 +949,14 @@ export default function UserPage() {
 
     const currentDate = new Date();
     const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+     
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
 
     return () => {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+      if (locationWatchRef.current != null) navigator.geolocation.clearWatch(locationWatchRef.current);
       if (weatherIntervalRef.current) clearInterval(weatherIntervalRef.current);
       if (weatherAlertIntervalRef.current) clearInterval(weatherAlertIntervalRef.current);
       if (safeZoneIntervalId) clearInterval(safeZoneIntervalId);
@@ -1027,10 +1013,14 @@ export default function UserPage() {
     })).sort((first, second) => first.distance - second.distance);
 
     if (distances[0]?.zone) {
+       
       setSafeZone(distances[0].zone);
     }
 
-    setChanged(setIsInRange, distances.some(({ zone, distance }) => distance <= zone.radiusMeters));
+    setChanged(
+      setIsInRange,
+      distances.some(({ zone, distance }) => distance <= getSafeZoneAlertRadius(zone, currentPos.accuracy))
+    );
   }, [currentPos, safeZone, safeZones]);
 
   useEffect(() => {
@@ -1055,7 +1045,11 @@ export default function UserPage() {
       const callAlert = rawCallAlerts.find((alert) => !isCallAlertHandled(alert));
       setIncomingCallAlert(callAlert || null);
 
-      const medicineAlert = alerts.find((alert) => alert.type === "MEDICINE" && !alert.isRead);
+      const medicineAlert = alerts.find((alert) => (
+        alert.type === "MEDICINE"
+        && !alert.isRead
+        && !dismissedMedicineAlertIdsRef.current.has(String(alert.id))
+      ));
       setMedicineAlert(medicineAlert || null);
 
       const infoRequestAlert = alerts.find((alert) => alert.type === "INFO_UPDATE_REQUEST" && !alert.isRead);
@@ -1173,10 +1167,14 @@ export default function UserPage() {
 
   const handleReadMedicineAlert = async () => {
     if (medicineAlert?.id) {
-      await readAlert(medicineAlert.id).catch(() => {});
+      dismissedMedicineAlertIdsRef.current.add(String(medicineAlert.id));
     }
 
     setMedicineAlert(null);
+
+    if (medicineAlert?.id) {
+      await readAlert(medicineAlert.id).catch(() => {});
+    }
   };
 
   const handleGoToInfoUpdateRequest = async () => {
@@ -1234,6 +1232,50 @@ export default function UserPage() {
     } catch (error) {
       console.error("안부 답장 전송 실패:", error);
       alert("답장 전송에 실패했습니다.");
+    }
+  };
+
+  const openGuardianEdit = () => {
+    setGuardianEditForm({ name: careTeam.guardianName || "", relation: careTeam.guardianRelation || "" });
+    setGuardianEditOpen(true);
+  };
+
+  const saveGuardianEdit = async () => {
+    try {
+      setGuardianSaving(true);
+      const saved = sessionStorage.getItem("currentSenior");
+      if (!saved) return;
+      const profile = JSON.parse(saved);
+      const seniorId = profile?.senior?.id;
+      if (!seniorId) return;
+
+      const response = await fetch(`/api/seniors/${seniorId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...profile,
+          senior: {
+            ...profile.senior,
+            guardianName: guardianEditForm.name.trim(),
+            guardianRelation: guardianEditForm.relation.trim(),
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+        setCareTeam((prev) => ({
+          ...prev,
+          guardianName: guardianEditForm.name.trim(),
+          guardianRelation: guardianEditForm.relation.trim(),
+        }));
+        setGuardianEditOpen(false);
+      }
+    } catch (error) {
+      console.error("보호자 정보 수정 실패:", error);
+    } finally {
+      setGuardianSaving(false);
     }
   };
 
@@ -1321,27 +1363,25 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className={`up-dot ${deviceStatus === "failed" ? "danger" : deviceStatus === "checking" ? "pending" : ""}`} />
-              {deviceStatus === "connected"
-                ? "디바이스 연결됨"
-                : deviceStatus === "failed"
-                  ? "디바이스 연결 실패"
-                  : "디바이스 연결 시도중입니다"}
+              <div className={`up-dot ${
+                sensorConnected === null ? "pending"
+                : sensorConnected ? ""
+                : "danger"
+              }`} />
+              {sensorConnected === null
+                ? "센서 확인 중"
+                : sensorConnected
+                  ? "낙상 센서 연결됨"
+                  : "센서 신호 없음"}
             </div>
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                {careTeam.guardianName && toTelHref(careTeam.guardianPhone) ? (
-                  <a className="up-care-call" href={toTelHref(careTeam.guardianPhone)}>
-                    {`${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`}
-                  </a>
-                ) : (
-                  <strong>
-                    {careTeam.guardianName
-                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                      : "매칭 전"}
-                  </strong>
-                )}
+                <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
+                  {careTeam.guardianName
+                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                    : "입력하기"}
+                </button>
               </div>
               <div>
                 <span>복지사</span>
@@ -1719,6 +1759,40 @@ export default function UserPage() {
                 onClick={handleGoToInfoUpdateRequest}
               >
                 수정하러 가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guardianEditOpen && (
+        <div className="up-overlay" onClick={() => setGuardianEditOpen(false)}>
+          <div className="up-modal up-guardian-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="up-modal-title">보호자 정보 수정</div>
+            <div className="up-guardian-field">
+              <label className="up-guardian-label">보호자 이름</label>
+              <input
+                className="up-guardian-input"
+                value={guardianEditForm.name}
+                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="이름 입력"
+              />
+            </div>
+            <div className="up-guardian-field">
+              <label className="up-guardian-label">관계</label>
+              <input
+                className="up-guardian-input"
+                value={guardianEditForm.relation}
+                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, relation: e.target.value }))}
+                placeholder="예: 아들, 딸, 배우자"
+              />
+            </div>
+            <div className="up-modal-row" style={{ marginTop: "1.4rem" }}>
+              <button className="up-modal-cancel" type="button" onClick={() => setGuardianEditOpen(false)}>
+                취소
+              </button>
+              <button className="up-modal-ok up-modal-ok-green" type="button" onClick={saveGuardianEdit} disabled={guardianSaving}>
+                {guardianSaving ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>

@@ -56,7 +56,12 @@ public class LocationController {
                 request.latitude(),
                 request.longitude()
         ) < 50) {
-            return latestLocation;
+            latestLocation.setLatitude(request.latitude());
+            latestLocation.setLongitude(request.longitude());
+            latestLocation.setAddress(request.address());
+            latestLocation.setAccuracy(request.accuracy());
+            latestLocation.setReceivedAt(LocalDateTime.now());
+            return locationStatusRepository.save(latestLocation);
         }
 
         LocationStatus locationStatus = new LocationStatus();
@@ -67,12 +72,12 @@ public class LocationController {
         locationStatus.setAccuracy(request.accuracy());
 
         LocationStatus savedLocation = locationStatusRepository.save(locationStatus);
-        createSafeZoneExitAlertsIfNeeded(request);
+        createSafeZoneExitAlertsIfNeeded(request, latestLocation);
 
         return savedLocation;
     }
 
-    private void createSafeZoneExitAlertsIfNeeded(LocationSaveRequest request) {
+    private void createSafeZoneExitAlertsIfNeeded(LocationSaveRequest request, LocationStatus previousLocation) {
         List<SafeZones> safeZones = safeZonesRepository.findBySeniorIdOrderByIdAsc(request.seniorId());
 
         if (safeZones.isEmpty()) {
@@ -119,6 +124,13 @@ public class LocationController {
             return;
         }
 
+        if (previousLocation == null
+                || previousLocation.getLatitude() == null
+                || previousLocation.getLongitude() == null
+                || !isOutsideAllSafeZones(previousLocation, safeZones)) {
+            return;
+        }
+
         boolean recentlyAlerted = alertRepository
                 .findTopBySeniorIdAndTypeOrderByCreatedAtDesc(request.seniorId(), "SAFE_ZONE_EXIT")
                 .map(alert -> alert.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(10)))
@@ -153,6 +165,32 @@ public class LocationController {
 
             alertRepository.save(alert);
         }
+    }
+
+    private boolean isOutsideAllSafeZones(LocationStatus location, List<SafeZones> safeZones) {
+        for (SafeZones safeZone : safeZones) {
+            if (safeZone.getCenterLatitude() == null || safeZone.getCenterLongitude() == null) {
+                continue;
+            }
+
+            int radiusMeters = safeZone.getRadiusMeters() == null ? 500 : safeZone.getRadiusMeters();
+            double distanceMeters = calculateDistanceMeters(
+                    safeZone.getCenterLatitude(),
+                    safeZone.getCenterLongitude(),
+                    location.getLatitude(),
+                    location.getLongitude()
+            );
+            double gpsToleranceMeters = location.getAccuracy() == null
+                    ? 75
+                    : Math.min(Math.max(location.getAccuracy(), 50), 150);
+            double alertRadiusMeters = radiusMeters + gpsToleranceMeters + 30;
+
+            if (distanceMeters <= alertRadiusMeters) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private double calculateDistanceMeters(double lat1, double lng1, double lat2, double lng2) {

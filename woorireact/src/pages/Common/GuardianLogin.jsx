@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 import "../../css/common/Login.css";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 
-const API_BASE = "http://localhost:8080";
+import { SPRING_API_BASE } from "../../config/api.js";
+
+const API_BASE = SPRING_API_BASE;
 
 const FEATURES = [
   { icon: "📍", title: "실시간 위치 확인", desc: "보호 대상자의 현재 위치와 이동 경로 확인" },
@@ -184,60 +186,6 @@ export default function GuardianLogin() {
     } finally {
       setHelpLoading(false);
     }
-  };
-
-  // Legacy prompt flow kept temporarily while the modal-based recovery UI is in use.
-  // eslint-disable-next-line no-unused-vars
-  const handleFindEmail = async () => {
-    const name = window.prompt("가입한 보호자 이름을 입력하세요.");
-    if (!name) return;
-
-    const phone = window.prompt("가입한 전화번호를 입력하세요.");
-    if (!phone) return;
-
-    const response = await fetch(`${API_BASE}/api/guardians/find-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone }),
-    });
-
-    if (!response.ok) {
-      alert("일치하는 보호자 계정을 찾을 수 없습니다.");
-      return;
-    }
-
-    const result = await response.json();
-    alert(`가입된 이메일: ${result.email}`);
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const handleResetPassword = async () => {
-    const email = window.prompt("가입한 이메일을 입력하세요.");
-    if (!email) return;
-
-    const phone = window.prompt("가입한 전화번호를 입력하세요.");
-    if (!phone) return;
-
-    const newPassword = window.prompt("새 비밀번호를 입력하세요.");
-    if (!newPassword) return;
-
-    const response = await fetch(`${API_BASE}/api/guardians/reset-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, phone, newPassword }),
-    });
-
-    if (!response.ok) {
-      alert("입력한 정보가 일치하지 않거나 비밀번호가 너무 짧습니다.");
-      return;
-    }
-
-    if (!passwordPattern.test(newPassword.trim())) {
-      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
-      return;
-    }
-
-    alert("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.");
   };
 
   return (

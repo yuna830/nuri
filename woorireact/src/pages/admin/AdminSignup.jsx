@@ -9,6 +9,7 @@ const initialForm = {
   name: "",
   phone: "",
   email: "",
+  loginId: "",
   password: "",
   passwordConfirm: "",
 };
@@ -27,7 +28,12 @@ function AdminSignup() {
     if (!form.name.trim()) return "이름을 입력해주세요.";
     if (!form.phone.trim()) return "전화번호를 입력해주세요.";
     if (!form.email.trim()) return "이메일을 입력해주세요.";
-    if (form.password.length < 8) return "비밀번호는 8자 이상 입력해주세요.";
+    if (!/^[A-Za-z0-9_]{4,20}$/.test(form.loginId.trim())) {
+      return "관리자 아이디는 영문, 숫자, 밑줄을 사용해 4~20자로 입력해주세요.";
+    }
+    if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/.test(form.password)) {
+      return "비밀번호는 영문, 숫자, 특수문자를 포함해 8자 이상 입력해주세요.";
+    }
     if (form.password !== form.passwordConfirm) return "비밀번호가 일치하지 않습니다.";
     return "";
   };
@@ -45,13 +51,16 @@ function AdminSignup() {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        loginId: form.loginId.trim(),
         password: form.password,
       });
       alert("회원가입 신청이 완료되었습니다. 승인 후 로그인할 수 있습니다.");
       navigate("/admin/login");
     } catch (requestError) {
       if (requestError.status === 409) {
-        setError("이미 가입된 이메일입니다.");
+        setError("이미 가입된 이메일 또는 관리자 아이디입니다.");
+      } else if (requestError.status === 404) {
+        setError("관리자 회원가입 API를 찾을 수 없습니다. Spring 서버를 재시작해주세요.");
       } else {
         setError("회원가입에 실패했습니다. 입력 내용을 확인해주세요.");
       }
@@ -98,6 +107,16 @@ function AdminSignup() {
             autoComplete="email"
           />
 
+          <label className="admin-auth-label" htmlFor="admin-signup-login-id">관리자 아이디</label>
+          <input
+            id="admin-signup-login-id"
+            className="admin-auth-input"
+            value={form.loginId}
+            onChange={(event) => updateForm("loginId", event.target.value)}
+            placeholder="영문, 숫자, 밑줄 4~20자"
+            autoComplete="username"
+          />
+
           <div className="admin-auth-grid">
             <div>
               <label className="admin-auth-label" htmlFor="admin-signup-password">비밀번호</label>
@@ -107,7 +126,7 @@ function AdminSignup() {
                 type="password"
                 value={form.password}
                 onChange={(event) => updateForm("password", event.target.value)}
-                placeholder="8자 이상"
+                placeholder="영문, 숫자, 특수문자 포함 8자 이상"
                 autoComplete="new-password"
               />
             </div>

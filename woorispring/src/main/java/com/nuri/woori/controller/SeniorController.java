@@ -229,7 +229,7 @@ public class SeniorController {
         String phone = request.phone() == null ? "" : request.phone().replaceAll("[^0-9]", "");
 
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Senior not found"));
 
         if (Boolean.FALSE.equals(senior.getActive())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");

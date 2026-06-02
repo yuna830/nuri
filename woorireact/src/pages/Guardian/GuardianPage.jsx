@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import {
   getGuardianAlerts,
   readAlert,
@@ -19,7 +19,7 @@ import {
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
-import { getDistanceMeters, formatShortAddress, formatSafeZoneAddress } from "../../utils/guardian/location";
+import { getDistanceMeters, formatShortAddress } from "../../utils/guardian/location";
 import {
   getDateValue,
   fetchLatestLocation,
@@ -177,7 +177,6 @@ function GuardianPage() {
   const [isRouteVisible, setIsRouteVisible] = useState(true);
 
   const [apiAlerts, setApiAlerts] = useState([]);
-  const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
   const knownAlertIdsRef = useRef(new Set());
   const didLoadAlertsRef = useRef(false);
   const [guardianToast, setGuardianToast] = useState(null);
@@ -198,6 +197,7 @@ function GuardianPage() {
   const [missingDescription, setMissingDescription] = useState("");
   const [missingImageFile, setMissingImageFile] = useState(null);
   const [missingImagePreview, setMissingImagePreview] = useState("");
+  const [missingFallbackImageUrl, setMissingFallbackImageUrl] = useState("");
   const [isSubmittingMissingReport, setIsSubmittingMissingReport] = useState(false);
 
   const [isLoadingElders, setIsLoadingElders] = useState(true);
@@ -334,8 +334,6 @@ function GuardianPage() {
     [apiAlerts, reportedAlertIds]
   );
 
-  const unreadAlertCount = displayedAlerts.filter((alert) => alert.status === "미확인").length;
-
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
     relation: previousElder?.relation || freshElder.relation,
@@ -343,7 +341,6 @@ function GuardianPage() {
     lastNormalLocation: previousElder?.lastNormalLocation ?? freshElder.lastNormalLocation,
     routeHistory: previousElder?.routeHistory ?? freshElder.routeHistory,
     alerts: previousElder?.alerts ?? freshElder.alerts,
-    battery: previousElder?.battery ?? freshElder.battery,
     status: previousElder?.status ?? freshElder.status,
   });
 
@@ -635,7 +632,7 @@ function GuardianPage() {
   const isOutsideSafeZone = hasCurrentLocation && distance > safeZoneForm.radiusMeters;
 
   const getElderStatus = (elder) => {
-    const form = safeZoneForms[elder.id] ?? getDefaultSafeZone(elder);
+    const form = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
 
     if (!elder.currentLocation) return "unknown";
 
@@ -1138,19 +1135,26 @@ function GuardianPage() {
 
   const handleOpenEmergencyReport = (alert = null) => {
     const targetElder = alert?.seniorId
-      ? elders.find((elder) => elder.id === alert.seniorId) ?? selectedElder
+      ? elders.find((elder) => String(elder.id) === String(alert.seniorId)) ?? selectedElder
       : selectedElder;
 
     if (targetElder?.id) {
       setSelectedElderId(targetElder.id);
     }
 
-    setMissingDescription(
-      `${targetElder?.name ?? selectedElder.name}의 SOS 요청 후 연락이 되지 않아 실종 신고합니다.`
-    );
+    if (alert?.isFall) {
+      setMissingDescription(
+        `${targetElder?.name ?? selectedElder.name}님의 낙상 감지 후 보호자 확인 또는 대처가 없어 신고합니다. ${alert.message || ""}`
+      );
+    } else {
+      setMissingDescription(
+        `${targetElder?.name ?? selectedElder.name}의 SOS 요청 후 연락이 되지 않아 실종 신고합니다.`
+      );
+    }
 
-    setIsAlertPanelOpen(false);
     setReportingAlertId(alert?.id ?? null);
+    setMissingFallbackImageUrl(alert?.imageUrl || "");
+    setMissingImagePreview(alert?.imageUrl || "");
     setIsMissingReportOpen(true);
   };
 
@@ -1186,7 +1190,7 @@ function GuardianPage() {
         return;
       }
 
-      let imageUrl = "";
+      let imageUrl = missingFallbackImageUrl;
 
       if (missingImageFile) {
         const uploadResult = await uploadImage("missing-reports", missingImageFile);
@@ -1215,6 +1219,7 @@ function GuardianPage() {
       setMissingDescription("");
       setMissingImageFile(null);
       setMissingImagePreview("");
+      setMissingFallbackImageUrl("");
       setIsMissingReportOpen(false);
     } catch (error) {
       console.error("실종 신고 등록 실패:", error);
@@ -1312,7 +1317,8 @@ function GuardianPage() {
       <GuardianHeader
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
-        onOpenEmergencyReport={() => handleOpenEmergencyReport()}
+        onCallAlert={handleCallAlert}
+        onOpenEmergencyReport={handleOpenEmergencyReport}
         onOpenChat={() => {
           setChatInitialRoomType("");
           setIsChatOpen(true);
@@ -1738,29 +1744,67 @@ function GuardianPage() {
   );
 }
 
-function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyReport, onOpenChat, unreadChatCount = 0 }) {
+function GuardianHeader({
+  displayedAlerts = [],
+  onReadAlert,
+  onCallAlert,
+  onOpenEmergencyReport,
+  onOpenChat,
+  unreadChatCount = 0,
+}) {
   const guardianNotifications = displayedAlerts.map((alert) => ({
     id: alert.id,
-    title: alert.message || "보호 대상자 알림",
-    message: "",
-    category: alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
+    title: alert.isFall ? "낙상 감지 알림" : alert.message || "보호 대상자 알림",
+    message: alert.isFall ? [alert.message, alert.detailMessage].filter(Boolean).join(" ") : alert.detailMessage || "",
+    category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
     time: alert.time,
     isRead: alert.status !== "미확인",
-    danger: alert.isSos || alert.isSafeZone,
+    danger: alert.isSos || alert.isSafeZone || alert.isFall,
     raw: alert,
   }));
+
+  const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
+    if (!alert?.isFall && !alert?.isSos && !alert?.isSafeZone) {
+      return defaultAction;
+    }
+
+    return (
+      <div className="guardian-alert-actions">
+        {!isRead && (
+          <button type="button" onClick={onRead}>
+            확인
+          </button>
+        )}
+        <button type="button" onClick={(event) => {
+          event.stopPropagation();
+          onCallAlert?.(alert);
+        }}>
+          전화
+        </button>
+        {(alert.isFall || alert.isSos) && (
+          <button className="danger" type="button" onClick={(event) => {
+            event.stopPropagation();
+            onOpenEmergencyReport?.(alert);
+          }}>
+            신고
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <CommonHeader
       homePath="/guardian"
       showNotificationButton
       notifications={guardianNotifications}
-      notificationTabs={["전체", "긴급", "정보", "읽지 않음"]}
+      notificationTabs={["전체", "긴급", "낙상", "정보", "읽지 않음"]}
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);
         }
       }}
+      renderNotificationActions={renderGuardianNotificationActions}
       actions={
         <button className="common-app-icon-button" type="button" onClick={onOpenChat} aria-label="메시지">
           <MessageCircle size={19} />
@@ -1768,7 +1812,7 @@ function GuardianHeader({ displayedAlerts = [], onReadAlert, onOpenEmergencyRepo
         </button>
       }
       afterActions={
-        <button className="common-app-danger-button" type="button" onClick={onOpenEmergencyReport}>
+        <button className="common-app-danger-button" type="button" onClick={() => onOpenEmergencyReport?.()}>
           긴급 신고
         </button>
       }

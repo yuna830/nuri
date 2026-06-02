@@ -1,6 +1,7 @@
-const API_BASE_URL = "";
-const POLICE_API_BASE_URL =
-  import.meta.env.VITE_POLICE_API_BASE_URL?.trim() || "http://localhost:8181";
+import { POLICE_API_BASE, SPRING_API_BASE } from "../config/api.js";
+
+const API_BASE_URL = SPRING_API_BASE;
+const POLICE_API_BASE_URL = POLICE_API_BASE;
 
 export function getPolicePhotoUrl(alertId) {
   if (!alertId) return "";

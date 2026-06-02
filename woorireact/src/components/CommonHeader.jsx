@@ -31,6 +31,7 @@ function CommonHeader({
 
   useEffect(() => {
     if (!notificationTabs.includes(activeNotificationTab)) {
+       
       setActiveNotificationTab(notificationTabs[0] || "전체");
     }
   }, [activeNotificationTab, notificationTabs]);
@@ -102,6 +103,7 @@ function CommonHeader({
   useEffect(() => {
     const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+     
     setSelectedNotificationKeys([]);
   }, [activeNotificationTab]);
 
@@ -345,6 +347,13 @@ function CommonHeader({
                       </div>
                       <strong>{notification.title}</strong>
                       <p>{notification.message}</p>
+                      {notification.raw?.imageUrl && (
+                        <img
+                          className="uch-alert-thumbnail"
+                          src={notification.raw.imageUrl}
+                          alt={`${notification.title} 사진`}
+                        />
+                      )}
                       {notification.time && <span>{notification.time}</span>}
                     </div>
 

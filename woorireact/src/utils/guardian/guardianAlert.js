@@ -1,26 +1,52 @@
+import { getFallCaptureUrl } from "../../api/userPageApi.js";
+
+const FALL_ALERT_TYPES = new Set(["FALL_DETECTED", "FALL_RISK"]);
+
 export const isSameDate = (left, right) => (
   left.getFullYear() === right.getFullYear()
   && left.getMonth() === right.getMonth()
   && left.getDate() === right.getDate()
 );
 
+const getSeniorName = (alert) => alert.seniorName || alert.name || "보호 대상자";
+
+const normalizeCaptureName = (value) => {
+  if (!value) return "";
+  return String(value).replace(/^captures[\\/]/, "");
+};
+
+export const getFallAlertImageUrl = (alert) => {
+  const directUrl = alert.imageAccessUrl || alert.fallDetails?.captureUrl || "";
+  if (directUrl) return directUrl;
+
+  const imageUrl = alert.imageUrl || alert.captureImage || alert.capture || alert.fallDetails?.captureName || "";
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
+
+  return getFallCaptureUrl(normalizeCaptureName(imageUrl));
+};
+
+const formatLocation = (alert) =>
+  alert.address || alert.locationText || alert.fallDetails?.locationText || "위치 확인 필요";
+
 export const formatAlertMessage = (alert) => {
   const originalMessage = alert.message ?? alert.title ?? "";
-
-  if (!originalMessage) {
-    return "알림 내용이 없습니다.";
-  }
-
-  const seniorName = alert.seniorName || alert.name || "보호 대상자";
+  const seniorName = getSeniorName(alert);
 
   if (alert.type === "INFO_UPDATE_REQUEST") {
     return originalMessage || `${seniorName}님의 미입력 정보 확인이 필요합니다.`;
   }
 
+  if (FALL_ALERT_TYPES.has(alert.type)) {
+    const score = alert.score ?? alert.fallDetails?.score;
+    const scoreText = score != null ? ` 감지 점수 ${score}점.` : "";
+    return `${seniorName}님 낙상이 감지되었습니다. 현재 위치: ${formatLocation(alert)}.${scoreText}`;
+  }
+
   const isSosCancel =
     originalMessage.includes("취소")
     || originalMessage.includes("해제")
-    || originalMessage.includes("잘못");
+    || originalMessage.includes("종료");
 
   if (isSosCancel) {
     return `${seniorName}님 SOS 해제 알림`;
@@ -36,7 +62,7 @@ export const formatAlertMessage = (alert) => {
     return `${seniorName}님 SOS 요청`;
   }
 
-  return originalMessage;
+  return originalMessage || "알림 내용이 없습니다.";
 };
 
 const isWithinDays = (value, days) => {
@@ -77,6 +103,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
     .map((alert) => {
       const isReported = reportedAlertIds.includes(String(alert.id));
       const isSafeZone = alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT";
+      const isFall = FALL_ALERT_TYPES.has(alert.type);
 
       return {
         id: alert.id,
@@ -84,6 +111,10 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
         type: alert.type,
         latitude: alert.latitude,
         longitude: alert.longitude,
+        address: alert.address,
+        score: alert.score ?? alert.fallDetails?.score,
+        imageUrl: isFall ? getFallAlertImageUrl(alert) : "",
+        rawAlert: alert,
         time: alert.createdAt
           ? new Date(alert.createdAt).toLocaleString("ko-KR", {
               month: "2-digit",
@@ -93,6 +124,9 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
             })
           : "",
         message: formatAlertMessage(alert),
+        detailMessage: isFall
+          ? "낙상 사진과 위치 정보가 보호자와 복지사에게 함께 공유되었습니다. 연락이 닿지 않거나 대처가 없으면 신고를 진행해주세요."
+          : "",
         status: isReported
           ? "신고 완료"
           : alert.isRead
@@ -100,6 +134,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
             : "미확인",
         isSos: alert.type === "SOS",
         isSafeZone,
+        isFall,
       };
     });
 };

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
+import { AI_API_BASE } from "../../config/api.js";
 import { createCareResponse } from "../services/aiCareService";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { getCurrentUserHealthContext, useChatFlow } from "../hooks/useChatFlow";
@@ -12,7 +13,7 @@ import MessageList from "./MessageList";
 import ScheduleConfirmBox from "./ScheduleConfirmBox";
 import TodaySchedulePanel from "./TodaySchedulePanel";
 
-const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8001/food";
+const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || `${AI_API_BASE}/food`;
 
 export default function ChatView({
   messages,

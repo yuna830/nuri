@@ -90,7 +90,6 @@ export const mapSeniorProfileToElder = (profile) => {
     householdType: healthInfo?.householdType || senior.householdType || "",
     healthInfo,
     jobPreference,
-    battery: 75,
     center: {
       lat: DEFAULT_CENTER.lat,
       lng: DEFAULT_CENTER.lng,

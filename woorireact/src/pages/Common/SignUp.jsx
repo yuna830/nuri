@@ -2,21 +2,25 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
-import { uploadProfileImage } from "../../api/userPageApi.js";
+import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
+  CARE_NEEDS,
   CURRENT_BENEFITS,
   DAYS,
   DISABILITY_GRADES,
   DISABILITY_TYPES,
   HOUSEHOLD_TYPES,
-  INCOME_LEVELS,
+  HOUSING_TYPES,
   JOB_CONDITIONS,
   JOB_TYPES,
+  LIVING_COST_STATUSES,
   MEDICINE_COUNTS,
   NONE,
+  PENSION_STATUSES,
   REST_NEEDS,
   VISION_LEVELS,
   HEARING_LEVELS,
@@ -90,7 +94,7 @@ export default function SignUp() {
       setUploadingPhoto(true);
       setError("");
       const { imageUrl } = await uploadProfileImage(file);
-      set("profileImageUrl", imageUrl);
+      set("profileImageUrl", resolveUploadUrl(imageUrl));
     } catch (uploadError) {
       console.error("회원가입 사진 업로드 실패:", uploadError);
       setError("사진 업로드에 실패했습니다. 다시 시도해주세요.");
@@ -127,8 +131,11 @@ export default function SignUp() {
     try {
       setSaving(true);
       setError("");
-      const payload = normalizeForm(form);
-      const response = await fetch("http://localhost:8080/api/seniors", {
+      const payload = {
+        ...normalizeForm(form),
+        profileImageUrl: resolveUploadUrl(form.profileImageUrl),
+      };
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -336,19 +343,38 @@ export default function SignUp() {
             </section>
         )}
 
-        {step === 5 && (
-          <section className="su-section">
-            <SectionTitle step={step}>복지 정보</SectionTitle>
-            <div className="su-hint">복지 제도 추천과 상담에 필요한 기본 정보입니다.</div>
-            <ChipField label="소득 구분" value={form.incomeLevel} options={INCOME_LEVELS} onSelect={(value) => set("incomeLevel", value)} />
-            <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
-            <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
-            <div className="su-field">
-              <label className="su-label">그 밖에 받고 있는 혜택이나 참고사항</label>
-              <textarea className="su-input su-textarea" value={form.welfareMemo} onChange={(event) => set("welfareMemo", event.target.value)} rows={4} placeholder="예: 구청 지원, 병원비 지원, 식사 지원 등" />
-            </div>
-          </section>
-        )}
+        {step === 5 && (() => {
+          const needsCheck = [
+            form.livingCostStatus,
+            form.householdType,
+            form.pensionStatus,
+            form.housingType,
+            ...(form.currentBenefits || []),
+            ...(form.careNeeds || []),
+          ].includes("잘 모르겠어요");
+          return (
+            <section className="su-section">
+              <SectionTitle step={step}>복지 정보</SectionTitle>
+              <div className="su-hint">복지 제도 추천과 상담에 필요한 기본 정보입니다. 잘 모르는 항목은 나중에 보호자나 복지사가 도와드릴 수 있어요.</div>
+              <ChipField label="생활비 상황" value={form.livingCostStatus} options={LIVING_COST_STATUSES} onSelect={(value) => set("livingCostStatus", value)} />
+              <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
+              <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
+              <ChipField label="연금 수급 상태" value={form.pensionStatus} options={PENSION_STATUSES} onSelect={(value) => set("pensionStatus", value)} />
+              <ChipField label="주거 형태" value={form.housingType} options={HOUSING_TYPES} onSelect={(value) => set("housingType", value)} />
+              <MultiChipField label="도움이 필요한 일" values={form.careNeeds} options={CARE_NEEDS} onToggle={(value) => toggleArr("careNeeds", value)} />
+              <div className="su-field">
+                <label className="su-label">그 밖에 참고사항</label>
+                <textarea className="su-input su-textarea" value={form.welfareMemo} onChange={(event) => set("welfareMemo", event.target.value)} rows={4} placeholder="예: 구청 지원, 병원비 지원, 식사 지원 등" />
+              </div>
+              {needsCheck && (
+                <div className="su-guardian-notice">
+                  <strong>잘 모르는 항목이 있어요</strong>
+                  <p>보호자나 복지사가 나중에 확인 후 입력해 드릴 수 있어요. 일단 그대로 진행하셔도 됩니다.</p>
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         {step === 6 && (
           <section className="su-section">

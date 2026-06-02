@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/storage/senior_session_storage.dart';
 import 'features/auth/login_screen.dart';
-import 'features/home/senior_home_screen.dart';
+import 'features/shell/app_shell.dart';
 
 void main() {
   runApp(const WooriSeniorApp());
@@ -14,7 +14,7 @@ class WooriSeniorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '?? woori',
+      title: '우리 woori',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -50,7 +50,7 @@ class LoginGate extends StatelessWidget {
           return const SeniorLoginScreen();
         }
 
-        return SeniorHomeScreen(seniorId: seniorId);
+        return AppShell(seniorId: seniorId);
       },
     );
   }

@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/admins")
@@ -23,6 +24,9 @@ public class AdminController {
     private static final int KEY_LENGTH = 256;
     private static final int SALT_LENGTH = 16;
     private static final String HASH_PREFIX = "pbkdf2";
+    private static final Pattern LOGIN_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_]{4,20}$");
+    private static final Pattern PASSWORD_PATTERN =
+            Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s]).{8,}$");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final AdminRepository adminRepository;
@@ -37,16 +41,21 @@ public class AdminController {
         String name = requireText(request.name(), "Name");
         String phone = requireText(request.phone(), "Phone");
         String email = normalizeEmail(request.email());
+        String loginId = requireLoginId(request.loginId());
         String password = requirePassword(request.password());
 
         if (adminRepository.findByEmailIgnoreCase(email).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
+        }
+        if (adminRepository.findByLoginIdIgnoreCase(loginId).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Login ID already exists");
         }
 
         Admin admin = new Admin();
         admin.setName(name);
         admin.setPhone(phone);
         admin.setEmail(email);
+        admin.setLoginId(loginId);
         admin.setPassword(hashPassword(password));
         admin.setStatus("PENDING");
 
@@ -55,14 +64,14 @@ public class AdminController {
 
     @PostMapping("/login")
     public AdminResponse login(@RequestBody AdminLoginRequest request) {
-        String email = normalizeEmail(request.email());
+        String loginId = requireLoginId(request.loginId());
         String password = requireText(request.password(), "Password");
 
-        Admin admin = adminRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+        Admin admin = adminRepository.findByLoginIdIgnoreCase(loginId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid login ID or password"));
 
         if (!matchesPassword(password, admin.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid login ID or password");
         }
 
         if ("REJECTED".equals(admin.getStatus())) {
@@ -113,7 +122,7 @@ public class AdminController {
     }
 
     private AdminResponse toResponse(Admin admin) {
-        return new AdminResponse(admin.getId(), admin.getName(), admin.getPhone(), admin.getEmail(), admin.getStatus());
+        return new AdminResponse(admin.getId(), admin.getLoginId(), admin.getName(), admin.getPhone(), admin.getEmail(), admin.getStatus());
     }
 
     private String normalizeEmail(String email) {
@@ -126,8 +135,18 @@ public class AdminController {
 
     private String requirePassword(String password) {
         String value = requireText(password, "Password");
-        if (value.length() < 8) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must contain at least 8 characters");
+        if (!PASSWORD_PATTERN.matcher(value).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Password must contain letters, numbers, special characters and at least 8 characters");
+        }
+        return value;
+    }
+
+    private String requireLoginId(String loginId) {
+        String value = requireText(loginId, "Login ID");
+        if (!LOGIN_ID_PATTERN.matcher(value).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Login ID must contain 4 to 20 letters, numbers or underscores");
         }
         return value;
     }
@@ -174,8 +193,8 @@ public class AdminController {
         }
     }
 
-    public record AdminSignupRequest(String name, String phone, String email, String password) {}
-    public record AdminLoginRequest(String email, String password) {}
+    public record AdminSignupRequest(String name, String phone, String email, String loginId, String password) {}
+    public record AdminLoginRequest(String loginId, String password) {}
     public record AdminStatusRequest(String status) {}
-    public record AdminResponse(Long id, String name, String phone, String email, String status) {}
+    public record AdminResponse(Long id, String loginId, String name, String phone, String email, String status) {}
 }

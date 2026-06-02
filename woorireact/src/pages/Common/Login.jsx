@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import "../../css/common/Login.css";
 
 const FEATURES = [
@@ -46,7 +47,7 @@ export default function Login() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:8080/api/seniors/login", {
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmedName, phone: trimmedPhone }),
@@ -68,8 +69,13 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
-      navigate("/signup");
+      if (response.status === 404) {
+        localStorage.setItem("login_temp", JSON.stringify({ name: trimmedName, phone: trimmedPhone }));
+        navigate("/signup");
+        return;
+      }
+
+      setError("로그인 확인 중 문제가 발생했습니다. 서버와 DB 연결 상태를 확인해주세요.");
     } catch (loginError) {
       console.error("사용자 로그인 실패:", loginError);
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
@@ -109,7 +115,7 @@ export default function Login() {
           return;
         }
 
-        const response = await fetch("http://localhost:8080/api/seniors/find-name", {
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors/find-name`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: helpForm.phone }),
@@ -135,7 +141,7 @@ export default function Login() {
         return;
       }
 
-      const response = await fetch("http://localhost:8080/api/seniors/find-phone", {
+      const response = await fetch(`${SPRING_API_BASE}/api/seniors/find-phone`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

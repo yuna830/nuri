@@ -105,33 +105,6 @@ function WelfareJobPostings() {
     const visibleJobs = filteredJobs.slice(0, visibleCount);
     const hasMoreVisible = filteredJobs.length > visibleCount || hasMoreSource;
 
-    const categoryCounts = useMemo(() => {
-        return JOB_CATEGORY_FILTERS.reduce((counts, category) => {
-            counts[category.value] = filterJobs(jobs.filter((job) => {
-                if (!category.value) return true;
-
-                const selectedCategory = JOB_CATEGORY_FILTERS.find(
-                    (item) => item.value === category.value
-                );
-
-                if (!selectedCategory?.keywords?.length) {
-                    return categorizeJob(job) === "기타";
-                }
-
-                return (
-                    categorizeJob(job) === selectedCategory.label ||
-                    selectedCategory.keywords.some((keyword) =>
-                        job.recrtTitle?.includes(keyword) ||
-                        job.jobclsNm?.includes(keyword) ||
-                        job.detCnts?.includes(keyword)
-                    )
-                );
-            })).length;
-
-            return counts;
-        }, {});
-    }, [filterJobs, jobs]);
-
     const loadUntilEnough = useCallback(async ({
         startPage = 1,
         targetCount = PAGE_SIZE,
@@ -196,6 +169,7 @@ function WelfareJobPostings() {
 
     useEffect(() => {
         localStorage.setItem("woori-jobs-last-visited", Date.now().toString());
+         
         loadUntilEnough({
             startPage: 1,
             targetCount: PAGE_SIZE,
@@ -204,6 +178,7 @@ function WelfareJobPostings() {
     }, []);
 
     useEffect(() => {
+         
         setVisibleCount(PAGE_SIZE);
     }, [activeCategory, searchKeyword, hideClosedJobs]);
 
@@ -223,6 +198,7 @@ function WelfareJobPostings() {
             return;
         }
 
+         
         loadUntilEnough({
             startPage: loadedPage + 1,
             targetCount: PAGE_SIZE,

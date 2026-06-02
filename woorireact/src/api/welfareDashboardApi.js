@@ -1,4 +1,4 @@
-const WELFARE_API_BASE = "http://localhost:8181";
+import { WELFARE_API_BASE } from "../config/api.js";
 const WELFARE_SENIORS_CACHE_KEY = "welfare:seniors";
 const welfareSeniorsCache = new Map();
 

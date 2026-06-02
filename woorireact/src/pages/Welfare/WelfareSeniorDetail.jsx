@@ -21,11 +21,6 @@ import KakaoMap from "../../components/KakaoMap";
 import { resolveUploadUrl } from "../../api/userPageApi.js";
 import "../../css/welfare/WelfareSeniorDetail.css";
 
-const getSavedAddedSeniors = () => [];
-
-const findSavedSenior = (seniorId) =>
-    getSavedAddedSeniors().find((senior) => String(senior.id) === String(seniorId));
-
 const COUNSELING_RECORDS_STORAGE_KEY = "welfareCounselingRecords";
 
 const getSavedCounselingRecords = () => {
@@ -80,21 +75,6 @@ const INFO_UPDATE_REQUEST_GROUPS = [
         fields: ["희망 급여", "희망 요일", "희망 직종", "희망 근무 형태"],
     },
 ];
-
-const saveWelfareDecision = (seniorId, decision, reason) => {
-    const savedDecisionDetails = JSON.parse(localStorage.getItem("welfareDecisionDetails") || "{}");
-
-    localStorage.setItem(
-        "welfareDecisionDetails",
-        JSON.stringify({
-            ...savedDecisionDetails,
-            [seniorId]: {
-                decision,
-                reason,
-            },
-        })
-    );
-};
 
 const formatPhoneForDetail = (value) => {
     const digits = String(value || "").replace(/\D/g, "");
@@ -381,15 +361,8 @@ function WelfareSeniorDetail() {
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
 
     const latestConsultResponseType = latestConsultRequest?.guardianResponseType || "";
-    const latestConsultScheduleAt = latestConsultRequest?.guardianScheduleAt || "";
     const hasImmediateConsultResponse = latestConsultResponseType === "now";
     const hasScheduledConsultResponse = latestConsultResponseType === "schedule";
-
-    const consultResponseStatus = hasImmediateConsultResponse
-        ? "보호자가 지금 바로 상담 가능하다고 응답했습니다."
-        : hasScheduledConsultResponse
-            ? `보호자가 ${latestConsultScheduleAt} 상담을 희망했습니다.`
-            : "";
 
     const consultRequestStatus = !latestConsultRequest
         ? "상담 요청 전"
@@ -410,7 +383,6 @@ function WelfareSeniorDetail() {
     const lastAccessDisplay = formatLastAccessForDetail(senior?.lastAccess);
     const healthInfo = senior?.healthInfo || {};
     const medications = readMedications(healthInfo);
-    const jobPreference = senior?.jobPreference || {};
     const safeZone = senior?.safeZone || {};
     const safeZoneRadius = safeZone.radiusMeters || safeZone.radiusMeter || 500;
     const safeZoneCenter = {
@@ -430,9 +402,6 @@ function WelfareSeniorDetail() {
         ? { lat: senior.lastGps.latitude, lng: senior.lastGps.longitude }
         : null;
     const disabledWork = splitCsv(healthInfo.disabledWork);
-    const hopeDays = splitCsv(jobPreference.hopeDays);
-    const hopeJobType = splitCsv(jobPreference.hopeJobType);
-    const hopeCondition = splitCsv(jobPreference.hopeCondition);
 
     const handleCounselingDateChange = (date) => {
         const nextRecord = counselingRecords.find((record) => record.date === date);
@@ -520,9 +489,6 @@ function WelfareSeniorDetail() {
         return `wsd-badge ${classMap[type]?.[value] || "wsd-badge-alert-none"}`;
     };
 
-    const getDecisionButtonClass = (decision) =>
-        `wsd-decision-option-button wsd-decision-${decision === "적합" ? "fit" : decision === "보류" ? "hold" : "reject"}${draftDecision === decision ? " wsd-decision-active" : ""}`;
-
     const renderField = ({ label, value, description, wide }) => (
         <div className={`wsd-info-field${wide ? " wsd-info-field-wide" : ""}`} key={label}>
             <span>{label}</span>
@@ -603,23 +569,6 @@ function WelfareSeniorDetail() {
         } finally {
             setIsSendingInfoRequest(false);
         }
-    };
-
-    const renderChipGroup = (label, values) => {
-        const list = splitCsv(values);
-
-        return (
-            <div className="wsd-chip-group" key={label}>
-                <span>{label}</span>
-                <div>
-                    {list.length > 0 ? (
-                        list.map((value) => <strong key={`${label}-${value}`}>{value}</strong>)
-                    ) : (
-                        <strong className="wsd-chip-muted">미입력</strong>
-                    )}
-                </div>
-            </div>
-        );
     };
 
     const isVisibleHealthItem = (value) => {

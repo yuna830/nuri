@@ -68,6 +68,13 @@ function AdminLayout({ children }) {
       <section className="admin-main">
         <header className="admin-topbar">
           <strong>{text.console}</strong>
+          <div className="admin-topbar-actions">
+            <span>{currentAdmin?.name || text.admin}</span>
+            <button type="button" onClick={handleLogout}>
+              <LogOut size={15} />
+              {text.logout}
+            </button>
+          </div>
         </header>
         <main className="admin-content">{children}</main>
       </section>

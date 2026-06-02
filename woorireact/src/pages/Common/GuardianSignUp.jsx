@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { SPRING_API_BASE } from "../../config/api.js";
 import "../../css/common/SignUp.css";
 
 const defaultForm = {
@@ -58,7 +59,7 @@ export default function GuardianSignUp() {
       setIsSearching(true);
 
       const response = await fetch(
-        `http://localhost:8080/api/seniors/search?keyword=${encodeURIComponent(searchKeyword)}`
+        `${SPRING_API_BASE}/api/seniors/search?keyword=${encodeURIComponent(searchKeyword)}`
       );
 
       const data = response.ok ? await response.json() : [];
@@ -93,7 +94,7 @@ export default function GuardianSignUp() {
     try {
       setSaving(true);
 
-      const response = await fetch("http://localhost:8080/api/guardians/signup", {
+      const response = await fetch(`${SPRING_API_BASE}/api/guardians/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
