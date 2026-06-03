@@ -63,15 +63,20 @@ export default function MessageInput({
 
         <button
           type="button"
+          className="chat-send-button"
+          onClick={onSend}
+          disabled={isLoading}
+        >
+          전송
+        </button>
+
+        <button
+          type="button"
           className={`voice-record-button ${recording ? "recording" : "idle"}`}
           onClick={recording ? onStopRecording : onStartRecording}
           disabled={isLoading}
         >
           {recording ? "녹음 종료" : "음성 입력"}
-        </button>
-
-        <button type="button" onClick={onSend} disabled={isLoading}>
-          전송
         </button>
       </div>
     </div>

@@ -1,4 +1,6 @@
-import { forwardRef, Fragment, useRef } from "react";
+import { forwardRef, Fragment } from "react";
+
+const FALLBACK_MESSAGE_TIME = Date.now();
 
 function formatMessageTime(value) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -8,21 +10,94 @@ function formatMessageTime(value) {
   }).format(new Date(value));
 }
 
+function parseFoodAnalysis(content) {
+  if (!content?.startsWith("성분표 분석이 끝났어요.")) return null;
+
+  const lines = content.split("\n").map((line) => line.trim());
+  const nutrientsStart = lines.indexOf("영양성분");
+  const warningsStart = lines.indexOf("주의사항");
+  if (nutrientsStart < 0 || warningsStart < 0) return null;
+
+  const product = lines.find((line) => line.startsWith("제품명:"))?.replace("제품명:", "").trim();
+  const nutrients = lines
+    .slice(nutrientsStart + 1, warningsStart)
+    .filter((line) => line.startsWith("- "))
+    .map((line) => {
+      const [label, ...valueParts] = line.slice(2).split(":");
+      return { label: label.trim(), value: valueParts.join(":").trim() };
+    });
+  const warnings = lines.slice(warningsStart + 1).filter((line) => line.startsWith("- "));
+  const allergyStart = Math.max(
+    lines.indexOf("개인 알레르기 주의"),
+    lines.indexOf("개인 알레르기 경고")
+  );
+  const noticeStart = lines.indexOf("알레르기 확인 안내");
+  const notices = [];
+
+  if (allergyStart >= 0) {
+    notices.push({
+      type: "danger",
+      title: "개인 알레르기 주의",
+      lines: lines.slice(allergyStart + 1, noticeStart >= 0 ? noticeStart : nutrientsStart).filter((line) => line.startsWith("- ")),
+    });
+  }
+  if (noticeStart >= 0) {
+    notices.push({
+      type: "notice",
+      title: "알레르기 확인 안내",
+      lines: lines.slice(noticeStart + 1, nutrientsStart).filter((line) => line.startsWith("- ")),
+    });
+  }
+
+  return { product, nutrients, warnings, notices };
+}
+
+function FoodAnalysisMessage({ analysis }) {
+  return (
+    <div className="food-analysis-card">
+      <strong className="food-analysis-title">성분표 분석 결과</strong>
+      <p className="food-analysis-product">제품명: {analysis.product || "확인 필요"}</p>
+
+      <table className="food-nutrient-table">
+        <caption>영양성분</caption>
+        <tbody>
+          {analysis.nutrients.map((nutrient) => (
+            <tr key={nutrient.label}>
+              <th scope="row">{nutrient.label}</th>
+              <td>{nutrient.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {analysis.notices.map((notice) => (
+        <div className={`food-analysis-notice ${notice.type}`} key={notice.title}>
+          <strong>{notice.title}</strong>
+          {notice.lines.map((line) => <p key={line}>{line.slice(2)}</p>)}
+        </div>
+      ))}
+
+      {analysis.warnings.length > 0 && (
+        <div className="food-warning-box">
+          <strong>주의사항</strong>
+          {analysis.warnings.map((warning) => <p key={warning}>{warning.slice(2)}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MessageList = forwardRef(function MessageList(
   { messages, isLoading },
   messagesEndRef
 ) {
-  const displayedAtRef = useRef(new Map());
-
   return (
     <div className="chatbot-messages" aria-live="polite">
       {messages.filter((message) => !message.hidden).map((message, index) => {
         const messageKey = `${message.role}-${index}`;
-        if (!displayedAtRef.current.has(messageKey)) {
-          displayedAtRef.current.set(messageKey, message.createdAt || Date.now());
-        }
-        const formattedTime = formatMessageTime(displayedAtRef.current.get(messageKey));
+        const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
+        const foodAnalysis = parseFoodAnalysis(message.content);
 
         return (
           <Fragment key={messageKey}>
@@ -38,7 +113,9 @@ const MessageList = forwardRef(function MessageList(
             )}
             {hasVisibleContent && (
               <div className={`chat-message-row ${message.role}`}>
-                <div className={`chat-message ${message.role}`}>{message.content}</div>
+                <div className={`chat-message ${message.role} ${foodAnalysis ? "food-analysis" : ""}`}>
+                  {foodAnalysis ? <FoodAnalysisMessage analysis={foodAnalysis} /> : message.content}
+                </div>
                 <time className="chat-message-time">{formattedTime}</time>
               </div>
             )}

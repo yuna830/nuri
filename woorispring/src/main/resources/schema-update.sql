@@ -62,6 +62,34 @@ alter table health_info
 alter table alerts
     add column if not exists image_url varchar(255);
 
+create table if not exists assistant_conversations (
+    id bigserial primary key,
+    senior_id bigint not null,
+    title varchar(100) not null default '새 대화',
+    created_at timestamp not null default current_timestamp,
+    last_message_at timestamp not null default current_timestamp
+);
+
+create index if not exists idx_assistant_conversations_senior_last_message
+    on assistant_conversations (senior_id, last_message_at desc);
+
+create table if not exists assistant_messages (
+    id bigserial primary key,
+    conversation_id bigint not null,
+    role varchar(20) not null,
+    content text not null,
+    created_at timestamp not null default current_timestamp,
+    constraint fk_assistant_messages_conversation
+        foreign key (conversation_id)
+        references assistant_conversations (id)
+        on delete cascade,
+    constraint assistant_messages_role_check
+        check (role in ('USER', 'ASSISTANT'))
+);
+
+create index if not exists idx_assistant_messages_conversation_created
+    on assistant_messages (conversation_id, created_at);
+
 
 
 alter table seniors

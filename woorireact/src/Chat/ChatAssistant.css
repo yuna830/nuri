@@ -22,7 +22,8 @@
 }
 
 .chatbot-back-button {
-  display: none;
+  display: grid;
+  place-items: center;
   position: fixed;
   left: max(32px, calc((100vw - 1280px) / 2 - 84px));
   top: 50%;
@@ -49,9 +50,190 @@
 
 @media (min-width: 1500px) {
   .chatbot-back-button {
-    display: grid;
-    place-items: center;
+    left: max(32px, calc((100vw - 1280px) / 2 - 84px));
   }
+}
+
+.conversation-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  border: 0;
+  background: rgba(34, 44, 34, 0.22);
+  cursor: default;
+}
+
+.conversation-sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 90;
+  width: min(340px, calc(100vw - 36px));
+  box-sizing: border-box;
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-right: 1px solid #d8e5d3;
+  background: #fffef5;
+  box-shadow: 12px 0 30px rgba(56, 72, 57, 0.16);
+}
+
+.conversation-sidebar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.conversation-sidebar h2 {
+  margin: 0 0 7px;
+  font-size: 25px;
+}
+
+.conversation-sidebar p {
+  margin: 0;
+  color: #667066;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.conversation-icon-button,
+.conversation-delete-button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #667066;
+  cursor: pointer;
+}
+
+.conversation-icon-button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.conversation-create-button {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #86a788;
+  border-radius: 8px;
+  background: #86a788;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.conversation-list {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+}
+
+.conversation-list-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.conversation-list-item.active {
+  border-color: #d8e5d3;
+  background: #f2f7ed;
+}
+
+.conversation-list-main {
+  position: relative;
+  min-width: 0;
+  padding: 11px 6px 11px 10px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  color: #3f4a3f;
+  text-align: left;
+}
+
+.conversation-select-button {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.conversation-list-item span {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.conversation-list-item strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-list-item small {
+  color: #8a9387;
+  font-size: 12px;
+}
+
+.conversation-edit-button,
+.conversation-delete-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
+.conversation-edit-button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #667066;
+  cursor: pointer;
+}
+
+.conversation-title-input {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  border: 1px solid #86a788;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #3f4a3f;
+  font-size: 14px;
+}
+
+.conversation-delete-button:hover,
+.conversation-edit-button:hover,
+.conversation-icon-button:hover {
+  color: #b44b3b;
+}
+
+.conversation-empty {
+  padding: 10px 4px;
 }
 
 .chatbot-header,
@@ -231,6 +413,98 @@
 
 .chat-message-row .chat-message {
   max-width: 100%;
+}
+
+.chat-message.food-analysis {
+  width: min(560px, 100%);
+  padding: 0;
+  overflow: hidden;
+}
+
+.food-analysis-card {
+  padding: 16px;
+}
+
+.food-analysis-title {
+  display: block;
+  margin-bottom: 6px;
+  color: #3f6f43;
+  font-size: 19px;
+}
+
+.food-analysis-product {
+  margin: 0 0 14px;
+  color: #4b554b;
+  font-size: 15px;
+}
+
+.food-nutrient-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid #dde5d4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.food-nutrient-table caption {
+  padding: 10px 12px;
+  background: #f2f7ed;
+  color: #3f6f43;
+  font-size: 17px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.food-nutrient-table th,
+.food-nutrient-table td {
+  padding: 9px 12px;
+  border-top: 1px solid #edf1e8;
+  font-size: 15px;
+}
+
+.food-nutrient-table th {
+  color: #4b554b;
+  font-weight: 700;
+  text-align: left;
+}
+
+.food-nutrient-table td {
+  color: #2f2f2f;
+  font-weight: 800;
+  text-align: right;
+}
+
+.food-analysis-notice,
+.food-warning-box {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.food-analysis-notice p,
+.food-warning-box p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.food-analysis-notice.notice {
+  border: 1px solid #e3c568;
+  background: #fff9df;
+  color: #6d5718;
+}
+
+.food-analysis-notice.danger,
+.food-warning-box {
+  border: 1px solid #e5968c;
+  background: #fff1ef;
+  color: #a93629;
+}
+
+.food-warning-box strong {
+  color: #b92727;
 }
 
 .chat-message-time {
@@ -866,7 +1140,11 @@ button.selected {
   }
 
   .chatbot-back-button {
-    display: none;
+    left: 14px;
+    top: 82px;
+    width: 44px;
+    height: 44px;
+    transform: none;
   }
 
   .chatbot-sub-action {
