@@ -252,7 +252,7 @@ function GuardianPage() {
   });
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInitialRoomType, setChatInitialRoomType] = useState("");
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadChatCountsByElder, setUnreadChatCountsByElder] = useState({});
 
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
@@ -261,19 +261,30 @@ function GuardianPage() {
 
   const activeElderId = selectedElderId ?? selectedElder?.id ?? null;
 
+  const unreadChatCount = useMemo(
+    () => unreadChatCountsByElder[activeElderId] || 0,
+    [activeElderId, unreadChatCountsByElder]
+  );
+
   const loadUnreadChatCount = useCallback(async () => {
-    if (!activeElderId) {
-      setUnreadChatCount(0);
+    if (elders.length === 0) {
+      setUnreadChatCountsByElder({});
       return;
     }
 
-    const count = await fetchUnreadChatCount({
-      viewerRole: "GUARDIAN",
-      seniorId: activeElderId,
-    }).catch(() => 0);
+    const entries = await Promise.all(
+      elders.map(async (elder) => {
+        const count = await fetchUnreadChatCount({
+          viewerRole: "GUARDIAN",
+          seniorId: elder.id,
+        }).catch(() => 0);
 
-    setUnreadChatCount(count);
-  }, [activeElderId]);
+        return [elder.id, count];
+      })
+    );
+
+    setUnreadChatCountsByElder(Object.fromEntries(entries));
+  }, [elders]);
 
   useEffect(() => {
     loadUnreadChatCount();
@@ -1361,6 +1372,7 @@ function GuardianPage() {
           const statusText =
             elderStatus === "normal" ? "정상" : elderStatus === "danger" ? "이탈" : "미수신";
           const isDeleteMode = deleteModeElderId === elder.id;
+          const elderUnreadCount = unreadChatCountsByElder[elder.id] || 0;
 
           return (
             <div
@@ -1383,6 +1395,14 @@ function GuardianPage() {
                   });
                 }}
               >
+                {elderUnreadCount > 0 && (
+                  <span
+                    className="elder-tab-unread-dot"
+                    aria-label={`${elder.name} 읽지 않은 메시지 ${elderUnreadCount}개`}
+                    title={`읽지 않은 메시지 ${elderUnreadCount}개`}
+                  />
+                )}
+
                 <span className="elder-tab-label">
                   {elder.name} ({elder.relation})
                 </span>

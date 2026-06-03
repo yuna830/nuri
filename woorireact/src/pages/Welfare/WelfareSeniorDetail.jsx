@@ -137,17 +137,6 @@ const valueOrMissing = (value, fallback = "미입력") => {
     return value === null || value === undefined || String(value).trim() === "" ? fallback : value;
 };
 
-const splitCsv = (value) => {
-    if (Array.isArray(value)) {
-        return value.filter(Boolean);
-    }
-
-    return String(value || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-};
-
 const readMedications = (healthInfo = {}) => {
     if (Array.isArray(healthInfo.medications)) {
         return healthInfo.medications;
@@ -163,18 +152,6 @@ const readMedications = (healthInfo = {}) => {
     }
 
     return [];
-};
-
-const formatBmi = (height, weight) => {
-    const heightNumber = Number(height);
-    const weightNumber = Number(weight);
-
-    if (!heightNumber || !weightNumber) {
-        return "미입력";
-    }
-
-    const bmi = weightNumber / ((heightNumber / 100) ** 2);
-    return bmi.toFixed(1);
 };
 
 function WelfareSeniorDetail() {
@@ -199,13 +176,10 @@ function WelfareSeniorDetail() {
     const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
     
     const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", "전화 및 상담기록"];
-    const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
-    
     const initialCategory = CATEGORY_LIST.includes(location.state?.category)
         ? location.state.category
         : "기본 정보";
     const [activeCategory, setActiveCategory] = useState(initialCategory);
-    const [activeHealthCategory, setActiveHealthCategory] = useState("신체 정보");
 
     const applyLoadedSenior = (loadedSenior) => {
         const nextSenior = applySavedWelfareDecision(loadedSenior);
@@ -401,8 +375,6 @@ function WelfareSeniorDetail() {
     const currentLocationForMap = senior?.lastGps
         ? { lat: senior.lastGps.latitude, lng: senior.lastGps.longitude }
         : null;
-    const disabledWork = splitCsv(healthInfo.disabledWork);
-
     const handleCounselingDateChange = (date) => {
         const nextRecord = counselingRecords.find((record) => record.date === date);
 
@@ -571,27 +543,6 @@ function WelfareSeniorDetail() {
         }
     };
 
-    const isVisibleHealthItem = (value) => {
-        const text = String(value || "").trim();
-        return text && !["없음", "미입력", "해당 없음", "아니오", "무"].includes(text);
-    };
-
-    const renderImportantHealthItems = (items) => {
-        const visibleItems = items.filter(([, value]) => isVisibleHealthItem(value));
-
-        if (visibleItems.length === 0) {
-            return <p className="wsd-empty-panel">주의가 필요한 건강 항목이 없습니다.</p>;
-        }
-
-        return renderFields(
-            visibleItems.map(([label, value]) => ({
-                label,
-                value,
-                wide: true,
-            }))
-        );
-    };
-
     const renderBasicInfo = () => (
         <section className="wsd-detail-section">
             <h2 className="wsd-section-title">기본 정보</h2>
@@ -670,7 +621,9 @@ function WelfareSeniorDetail() {
     );
 
     const renderHealthInfo = () => {
-        const chronicItems = [
+        const hasValue = (value) => value != null && String(value).trim() !== "" && String(value).trim() !== "없음" && String(value).trim() !== "미입력";
+
+        const cautionItems = [
             ["당뇨", healthInfo.diabetes],
             ["고혈압", healthInfo.hypertension],
             ["심장질환", healthInfo.heartDisease],
@@ -680,131 +633,55 @@ function WelfareSeniorDetail() {
             ["호흡기질환", healthInfo.lungDisease],
             ["간질환", healthInfo.liverDisease],
             ["암", healthInfo.cancer],
-        ];
-
-        const mobilityItems = [
             ["보행 보조기구", healthInfo.walkingAid],
-            ["기억하거나 판단하는 데 어려움", healthInfo.dementia],
-            ["눈으로 보는 데 어려움", healthInfo.vision],
-            ["귀로 듣는 데 어려움", healthInfo.hearing],
-            ["최근 낙상 경험", healthInfo.recentFall],
+            ["기억/판단", healthInfo.dementia],
+            ["시야", healthInfo.vision],
+            ["청각", healthInfo.hearing],
+            ["최근 낙상", healthInfo.recentFall],
             ["수술 이력", healthInfo.hasSurgery],
-        ];
+            ["수술 내용", healthInfo.surgeryDetail],
+            ["기타 참고사항", healthInfo.otherDisease],
+        ].filter(([, value]) => hasValue(value));
 
         return (
             <section className="wsd-detail-section">
                 <h2 className="wsd-section-title">건강 정보</h2>
 
-                <div className="wsd-inner-tab-list">
-                    {HEALTH_CATEGORY_LIST.map((category) => (
-                        <button
-                            type="button"
-                            key={category}
-                            className={`wsd-inner-tab${activeHealthCategory === category ? " wsd-inner-tab-active" : ""}`}
-                            onClick={() => setActiveHealthCategory(category)}
-                        >
-                            {category}
-                        </button>
-                    ))}
+                <div className="wsd-health-summary-grid">
+                    <article className="wsd-health-summary-card caution">
+                        <span>주의 필요</span>
+                        <strong>{cautionItems.length}개 항목</strong>
+                        <p>{cautionItems.slice(0, 3).map(([label]) => label).join(" · ") || "특이사항 없음"}</p>
+                    </article>
+
+                    <article className="wsd-health-summary-card medicine">
+                        <span>복약</span>
+                        <strong>{medications.length}건 관리 중</strong>
+                        <p>{medications.map((item) => item.name || item.medicineName || item.drugName).filter(Boolean).join(" · ") || "등록된 복약 없음"}</p>
+                    </article>
+
+                    <article className="wsd-health-summary-card activity">
+                        <span>활동 조건</span>
+                        <strong>{healthInfo.maxHours ? `하루 ${healthInfo.maxHours}시간 이내` : "미입력"}</strong>
+                        <p>{valueOrMissing(healthInfo.maxDistance)}</p>
+                    </article>
                 </div>
 
-                {activeHealthCategory === "신체 정보" && (
-                    <div className="wsd-inner-panel">
-                        {renderFields([
-                            ["키", healthInfo.height ? `${healthInfo.height}cm` : ""],
-                            ["몸무게", healthInfo.weight ? `${healthInfo.weight}kg` : ""],
-                            ["BMI", formatBmi(healthInfo.height, healthInfo.weight)],
-                            ["흡연", healthInfo.smoking],
-                            ["음주", healthInfo.drinking],
-                            ["알레르기", healthInfo.allergies],
-                        ].map(([label, value]) => ({ label, value })))}
-
-                        <div className="wsd-health-activity-section">
-                            <h3 className="wsd-inner-panel-title">활동 조건</h3>
-
-                            <div className="wsd-activity-condition-panel">
-                                <div className="wsd-activity-range">
-                                    <div>
-                                        <span>하루 최대 활동 시간</span>
-                                        <strong>{healthInfo.maxHours ? `${healthInfo.maxHours}시간 이내` : "미입력"}</strong>
-                                    </div>
-
-                                    <div>
-                                        <span>이동 가능 거리</span>
-                                        <strong>{valueOrMissing(healthInfo.maxDistance)}</strong>
-                                    </div>
-                                </div>
-
-                                <div className="wsd-activity-limits">
-                                    <span>하기 어려운 작업</span>
-                                    <strong>
-                                        {splitCsv(disabledWork).length > 0
-                                            ? splitCsv(disabledWork).join(" · ")
-                                            : "미입력"}
-                                    </strong>
-                                </div>
-
-                                <div className="wsd-activity-limits">
-                                    <span>쉬는 시간 필요 정도</span>
-                                    <strong>{valueOrMissing(healthInfo.restNeed)}</strong>
-                                </div>
-
-                                <div className="wsd-activity-limits">
-                                    <span>피하고 싶은 작업 환경</span>
-                                    <strong>
-                                        {splitCsv(healthInfo.avoidEnvironment).length > 0
-                                            ? splitCsv(healthInfo.avoidEnvironment).join(" · ")
-                                            : "미입력"}
-                                    </strong>
-                                </div>
-                            </div>
+                <div className="wsd-health-block">
+                    <h3 className="wsd-inner-panel-title">주의 항목</h3>
+                    {cautionItems.length > 0 ? (
+                        <div className="wsd-caution-list">
+                            {cautionItems.map(([label, value]) => (
+                                <article className="wsd-caution-item" key={label}>
+                                    <span>{label}</span>
+                                    <strong>{valueOrMissing(value)}</strong>
+                                </article>
+                            ))}
                         </div>
-                    </div>
-                )}
-
-                {activeHealthCategory === "질환/주의 항목" && (
-                    <div className="wsd-inner-panel">
-                        {renderImportantHealthItems([
-                            ...chronicItems,
-                            ...mobilityItems,
-                            ["수술 내용", healthInfo.surgeryDetail],
-                            ["기타 건강 참고사항", healthInfo.otherDisease],
-                        ])}
-
-                        <div className="wsd-medication-section">
-                            <h3 className="wsd-inner-panel-title">복약 정보</h3>
-
-                            <div className="wsd-medication-list">
-                                {medications.length > 0 ? (
-                                    medications.map((medicine, index) => (
-                                        <article className="wsd-medication-card" key={`${medicine.name || "medicine"}-${index}`}>
-                                            <div>
-                                                <strong>{valueOrMissing(medicine.name || medicine.medicineName || medicine.drugName)}</strong>
-                                            </div>
-
-                                            <dl>
-                                                <div>
-                                                    <dt>시작일</dt>
-                                                    <dd>{valueOrMissing(medicine.startDate)}</dd>
-                                                </div>
-                                                <div>
-                                                    <dt>간격</dt>
-                                                    <dd>{medicine.intervalHours ? `${medicine.intervalHours}시간` : valueOrMissing(medicine.interval)}</dd>
-                                                </div>
-                                                <div>
-                                                    <dt>하루 횟수</dt>
-                                                    <dd>{valueOrMissing(medicine.timesPerDay || medicine.dailyCount)}</dd>
-                                                </div>
-                                            </dl>
-                                        </article>
-                                    ))
-                                ) : (
-                                    <p className="wsd-empty-panel">등록된 복약 정보가 없습니다.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                    ) : (
+                        <p className="wsd-empty-panel">등록된 주의 항목이 없습니다.</p>
+                    )}
+                </div>
             </section>
         );
     };

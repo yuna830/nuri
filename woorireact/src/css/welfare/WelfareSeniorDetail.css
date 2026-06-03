@@ -1333,6 +1333,107 @@
     border-top: 1px solid #e0eee0;
 }
 
+.wsd-health-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin: 1.5rem 0;
+}
+
+.wsd-health-summary-card {
+    min-height: 112px;
+    padding: 1rem;
+    border: 1px solid #d8e8d9;
+    border-radius: 14px;
+    background: #fbfdf8;
+}
+
+.wsd-health-summary-card span {
+    color: #78947a;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.wsd-health-summary-card strong {
+    display: block;
+    margin-top: 0.35rem;
+    color: #101a12;
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+.wsd-health-summary-card p {
+    margin: 0.45rem 0 0;
+    color: #5f6f61;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.wsd-health-summary-card.caution {
+    background: #fff8e6;
+    border-color: #ead8a4;
+}
+
+.wsd-health-summary-card.medicine {
+    background: #eef6ef;
+}
+
+.wsd-health-summary-card.activity {
+    background: #f6f8f2;
+}
+
+.wsd-health-block {
+    margin-top: 1.6rem;
+}
+
+.wsd-caution-list {
+    display: grid;
+    border-top: 1px solid #e6eadf;
+}
+
+.wsd-caution-item {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid #e6eadf;
+}
+
+.wsd-caution-item span,
+.wsd-health-metric span {
+    color: #78947a;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.wsd-caution-item strong,
+.wsd-health-metric strong {
+    color: #101a12;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.wsd-health-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid #e6eadf;
+    border-left: 1px solid #e6eadf;
+}
+
+.wsd-health-metric {
+    min-height: 78px;
+    padding: 0.85rem 1rem;
+    border-right: 1px solid #e6eadf;
+    border-bottom: 1px solid #e6eadf;
+    background: #ffffff;
+}
+
+.wsd-health-metric strong {
+    display: block;
+    margin-top: 0.4rem;
+}
+
 .wsd-consult-action-strip {
     display: flex;
     align-items: center;
@@ -1447,6 +1548,16 @@
     .wsd-medication-card dl,
     .wsd-requested-job-card dl {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .wsd-health-summary-grid,
+    .wsd-health-metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .wsd-caution-item {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
     }
 }
 
