@@ -20,6 +20,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
 
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _rememberMe = true;
 
   @override
   void dispose() {
@@ -58,7 +59,9 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
         throw Exception('어르신 ID가 없습니다.');
       }
 
-      await SeniorSessionStorage.saveSeniorId(seniorId);
+      if (_rememberMe) {
+        await SeniorSessionStorage.saveSeniorId(seniorId);
+      }
 
       if (!mounted) return;
 
@@ -207,8 +210,8 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                         width: 22,
                         height: 22,
                         child: Checkbox(
-                          value: true,
-                          onChanged: (_) {},
+                          value: _rememberMe,
+                          onChanged: (_) => setState(() => _rememberMe = !_rememberMe),
                           activeColor: const Color(0xFF86A788),
                         ),
                       ),

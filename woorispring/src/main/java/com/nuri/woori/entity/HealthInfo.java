@@ -25,10 +25,16 @@ public class HealthInfo {
     private String drinking;
     private String allergies;
     private String incomeLevel;
+    private String livingCostStatus;
     private String householdType;
+    private String pensionStatus;
+    private String housingType;
 
     @Column(columnDefinition = "TEXT")
     private String currentBenefits;
+
+    @Column(columnDefinition = "TEXT")
+    private String careNeeds;
 
     @Column(columnDefinition = "TEXT")
     private String welfareMemo;

@@ -2,8 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 import '../../core/api/senior_api.dart';
+import '../../core/config/app_config.dart';
+import '../../core/storage/senior_session_storage.dart';
+import '../auth/login_screen.dart';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -41,15 +46,35 @@ const _restNeeds = [
 const _avoidEnvironments = [
   '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'
 ];
-const _incomeLevels = [
-  _none, '기초생활수급자', '차상위계층', '중위소득 50% 이하', '중위소득 100% 이하', '일반'
+// 웹앱 LIVING_COST_STATUSES 와 동일
+const _livingCostStatuses = [
+  _none, '잘 모르겠어요', '수입이 거의 없어요', '기초연금 정도만 받아요',
+  '가족에게 일부 도움을 받아요', '연금이나 월급 수입이 있어요',
+  '생계비/의료비/주거비 지원을 받고 있어요',
 ];
+// 웹앱 HOUSEHOLD_TYPES 와 동일
 const _householdTypes = [
-  _none, '독거 가구', '부부 가구', '자녀와 동거', '기타 가구'
+  _none, '잘 모르겠어요', '혼자 살아요', '배우자와 살아요',
+  '자녀/가족과 살아요', '시설이나 요양원에 있어요', '기타',
 ];
+// 웹앱 PENSION_STATUSES 와 동일
+const _pensionStatuses = [
+  _none, '잘 모르겠어요', '기초연금을 받고 있어요', '국민연금을 받고 있어요',
+  '기초연금과 국민연금을 모두 받고 있어요', '신청했지만 기다리는 중이에요', '신청한 적 없어요',
+];
+// 웹앱 HOUSING_TYPES 와 동일
+const _housingTypes = [
+  _none, '잘 모르겠어요', '자가', '전세', '월세', '공공임대', '시설이나 요양원', '기타',
+];
+// 웹앱 CURRENT_BENEFITS 와 동일
 const _currentBenefits = [
-  '기초연금', '노인맞춤돌봄서비스', '장기요양등급', '응급안전안심서비스',
-  '기초생활보장', '의료급여', '주거급여', '노인일자리 사업',
+  '잘 모르겠어요', '받고 있는 지원이 없어요', '기초연금', '생계비/의료비/주거비 지원',
+  '장기요양 서비스', '장애 관련 지원', '노인 일자리', '노인맞춤돌봄서비스', '응급안전안심서비스',
+];
+// 웹앱 CARE_NEEDS 와 동일
+const _careNeeds = [
+  '잘 모르겠어요', '특별히 없어요', '식사 준비', '청소/빨래',
+  '목욕/위생', '병원 동행', '외출/장보기', '약 챙기기', '안부 확인',
 ];
 const _days = ['월', '화', '수', '목', '금', '토', '일'];
 const _jobTypes = [
@@ -85,6 +110,7 @@ class _ProfileForm {
   String birthDate = '';
   String gender = '여성';
   String region = '';
+  String profileImageUrl = '';
   String disabilityGrade = _none;
   String disabilityType = _none;
 
@@ -123,8 +149,12 @@ class _ProfileForm {
 
   // 복지정보
   String incomeLevel = _none;
+  String livingCostStatus = _none;
   String householdType = _none;
+  String pensionStatus = _none;
+  String housingType = _none;
   List<String> currentBenefits = [];
+  List<String> careNeeds = [];
   String welfareMemo = '';
 
   // 일자리
@@ -169,6 +199,7 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   form.birthDate = '${s['birthDate'] ?? ''}';
   form.gender = '${s['gender'] ?? '여성'}';
   form.region = '${s['region'] ?? s['address'] ?? ''}';
+  form.profileImageUrl = '${s['profileImageUrl'] ?? ''}';
   form.disabilityGrade = _orNone(s['disabilityGrade']);
   form.disabilityType = _orNone(s['disabilityType']);
 
@@ -232,10 +263,14 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   form.avoidEnvironments = _parseList(h['avoidEnvironment']); // Spring: avoidEnvironment
 
   // ── 복지정보 ─────────────────────────────────────
-  form.incomeLevel     = _orNone(h['incomeLevel']);
-  form.householdType   = _orNone(h['householdType']);
-  form.currentBenefits = _parseList(h['currentBenefits']);
-  form.welfareMemo     = '${h['welfareMemo'] ?? ''}';
+  form.incomeLevel       = _orNone(h['incomeLevel']);
+  form.livingCostStatus  = _orNone(h['livingCostStatus']);
+  form.householdType     = _orNone(h['householdType']);
+  form.pensionStatus     = _orNone(h['pensionStatus']);
+  form.housingType       = _orNone(h['housingType']);
+  form.currentBenefits   = _parseList(h['currentBenefits']);
+  form.careNeeds         = _parseList(h['careNeeds']);
+  form.welfareMemo       = '${h['welfareMemo'] ?? ''}';
 
   // ── 일자리 (JobPreference 엔티티, memo 필드 사용) ──
   form.payType     = _orNone(j['payType']);
@@ -259,6 +294,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'birthDate': f.birthDate,
     'gender': f.gender,
     'region': f.region,
+    'profileImageUrl': f.profileImageUrl,
     'disabilityGrade': f.disabilityGrade == _none ? '' : f.disabilityGrade,
     'disabilityType': f.disabilityType == _none ? '' : f.disabilityType,
     'height': f.height,
@@ -285,8 +321,12 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'restNeeds': f.restNeeds == _none ? '' : f.restNeeds,
     'avoidEnvironments': f.avoidEnvironments,
     'incomeLevel': f.incomeLevel == _none ? '' : f.incomeLevel,
+    'livingCostStatus': f.livingCostStatus == _none ? '' : f.livingCostStatus,
     'householdType': f.householdType == _none ? '' : f.householdType,
+    'pensionStatus': f.pensionStatus == _none ? '' : f.pensionStatus,
+    'housingType': f.housingType == _none ? '' : f.housingType,
     'currentBenefits': f.currentBenefits,
+    'careNeeds': f.careNeeds,
     'welfareMemo': f.welfareMemo,
     'payType': f.payType == _none ? '' : f.payType,
     'hopeDays': f.hopeDays,
@@ -345,6 +385,32 @@ class _ProfileScreenState extends State<ProfileScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: const Text('로그아웃 하시겠어요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('로그아웃', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await SeniorSessionStorage.clear();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const SeniorLoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -449,6 +515,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _JobSection(form: _form, onChanged: () => setState(() {})),
                   ],
                 ),
+      persistentFooterButtons: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
+            label: const Text(
+              '로그아웃',
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.redAccent),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -469,6 +552,7 @@ class _PersonalSectionState extends State<_PersonalSection> {
   late final TextEditingController _phone;
   late final TextEditingController _birthDate;
   late final TextEditingController _region;
+  bool _uploadingPhoto = false;
 
   @override
   void initState() {
@@ -477,6 +561,37 @@ class _PersonalSectionState extends State<_PersonalSection> {
     _phone = TextEditingController(text: widget.form.phone);
     _birthDate = TextEditingController(text: widget.form.birthDate);
     _region = TextEditingController(text: widget.form.region);
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final uri = Uri.parse('$apiBaseUrl/api/uploads/profile');
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(await http.MultipartFile.fromPath('image', picked.path));
+      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        final url = '${data['fileUrl'] ?? data['imageUrl'] ?? ''}';
+        if (url.isNotEmpty) {
+          widget.form.profileImageUrl = url;
+          widget.onChanged();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('사진 업로드에 실패했습니다.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
   }
 
   @override
@@ -512,7 +627,53 @@ class _PersonalSectionState extends State<_PersonalSection> {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = widget.form.profileImageUrl.isNotEmpty
+        ? (widget.form.profileImageUrl.startsWith('/')
+            ? '$apiBaseUrl${widget.form.profileImageUrl}'
+            : widget.form.profileImageUrl)
+        : '';
+
     return _SectionScroll(children: [
+      Center(
+        child: GestureDetector(
+          onTap: _uploadingPhoto ? null : _pickAndUploadPhoto,
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFD4E8D6),
+                  image: imageUrl.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(imageUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: imageUrl.isEmpty
+                    ? const Icon(Icons.person, size: 44, color: Color(0xFF86A788))
+                    : null,
+              ),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF86A788),
+                  shape: BoxShape.circle,
+                ),
+                child: _uploadingPhoto
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
       const _FieldLabel('이름'),
       _FormField(controller: _name, hint: '예: 김나리', onChanged: (v) {
         widget.form.name = v;
@@ -1060,12 +1221,12 @@ class _WelfareSectionState extends State<_WelfareSection> {
   @override
   Widget build(BuildContext context) {
     return _SectionScroll(children: [
-      const _FieldLabel('소득 수준'),
+      const _FieldLabel('생활비 상황'),
       _Dropdown(
-          value: widget.form.incomeLevel,
-          items: _incomeLevels,
+          value: widget.form.livingCostStatus,
+          items: _livingCostStatuses,
           onChanged: (v) {
-            widget.form.incomeLevel = v;
+            widget.form.livingCostStatus = v;
             widget.onChanged();
           }),
       const _FieldLabel('가구 형태'),
@@ -1076,7 +1237,7 @@ class _WelfareSectionState extends State<_WelfareSection> {
             widget.form.householdType = v;
             widget.onChanged();
           }),
-      const _FieldLabel('현재 이용 중인 복지서비스 (중복 선택)'),
+      const _FieldLabel('현재 받고 있는 복지 혜택 (중복 선택)'),
       _ChipGroup(
           items: _currentBenefits,
           selected: widget.form.currentBenefits,
@@ -1084,7 +1245,31 @@ class _WelfareSectionState extends State<_WelfareSection> {
             widget.form.currentBenefits = v;
             widget.onChanged();
           }),
-      const _FieldLabel('메모'),
+      const _FieldLabel('연금 수급 상태'),
+      _Dropdown(
+          value: widget.form.pensionStatus,
+          items: _pensionStatuses,
+          onChanged: (v) {
+            widget.form.pensionStatus = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('주거 형태'),
+      _Dropdown(
+          value: widget.form.housingType,
+          items: _housingTypes,
+          onChanged: (v) {
+            widget.form.housingType = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('도움이 필요한 일 (중복 선택)'),
+      _ChipGroup(
+          items: _careNeeds,
+          selected: widget.form.careNeeds,
+          onChanged: (v) {
+            widget.form.careNeeds = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('그 밖에 참고사항'),
       _FormField(
         controller: _memo,
         hint: '복지 관련 메모',

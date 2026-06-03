@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/storage/senior_session_storage.dart';
+import '../auth/login_screen.dart';
 import '../chat/chat_screen.dart';
 import '../home/senior_home_screen.dart';
 import '../job/job_screen.dart';
@@ -8,15 +10,14 @@ import '../notifications/notification_screen.dart';
 import '../profile/profile_screen.dart';
 import '../weather/weather_screen.dart';
 
-const _tabTitles = ['홈', '위치', '기후', '일자리', '채팅', '알림', '내 정보'];
+// 하단 탭: 채팅·알림 제거 (헤더로 이동)
+const _tabTitles = ['홈', '위치', '기후', '일자리', '내 정보'];
 
 const _tabIcons = [
   Icons.home_outlined,
   Icons.location_on_outlined,
   Icons.wb_sunny_outlined,
   Icons.work_outline,
-  Icons.chat_bubble_outline,
-  Icons.notifications_outlined,
   Icons.person_outline,
 ];
 
@@ -25,8 +26,6 @@ const _tabSelectedIcons = [
   Icons.location_on,
   Icons.wb_sunny,
   Icons.work,
-  Icons.chat_bubble,
-  Icons.notifications,
   Icons.person,
 ];
 
@@ -41,7 +40,6 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
-  // 각 탭 화면에서 콜백으로 액션을 전달받아 AppBar에 표시
   VoidCallback? _currentAction;
   IconData? _currentActionIcon;
   String? _currentActionTooltip;
@@ -67,6 +65,57 @@ class _AppShellState extends State<AppShell> {
         });
       }
     });
+  }
+
+  void _openChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(seniorId: widget.seniorId),
+      ),
+    );
+  }
+
+  void _openNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NotificationScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: false,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: const Text('로그아웃 하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('로그아웃',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await SeniorSessionStorage.clear();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const SeniorLoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 
   @override
@@ -103,12 +152,33 @@ class _AppShellState extends State<AppShell> {
                 ],
               ),
         actions: [
+          // 탭별 등록 액션 (저장 등)
           if (_currentAction != null && _currentActionIcon != null)
             IconButton(
               icon: Icon(_currentActionIcon, color: const Color(0xFF86A788)),
               tooltip: _currentActionTooltip,
               onPressed: _currentAction,
             ),
+          // 채팅
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: Color(0xFF86A788)),
+            tooltip: '채팅',
+            onPressed: _openChat,
+          ),
+          // 알림
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined,
+                color: Color(0xFF86A788)),
+            tooltip: '알림',
+            onPressed: _openNotifications,
+          ),
+          // 로그아웃
+          IconButton(
+            icon: const Icon(Icons.logout, color: Color(0xFF86A788)),
+            tooltip: '로그아웃',
+            onPressed: _logout,
+          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -132,12 +202,6 @@ class _AppShellState extends State<AppShell> {
             onRegisterAction: _registerAction,
           ),
           JobScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          ChatScreen(seniorId: widget.seniorId),
-          NotificationScreen(
             seniorId: widget.seniorId,
             hideAppBar: true,
             onRegisterAction: _registerAction,

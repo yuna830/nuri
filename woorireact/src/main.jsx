@@ -11,6 +11,10 @@ import './index.css'
 // App.jsx 파일을 불러옴
 // App.jsx 안에서 WelfareDashboard 페이지를 보여주고 있음
 import App from './App.jsx'
+import { initFontSize } from './components/FontSizeControl.jsx'
+
+// 저장된 글씨 크기 즉시 적용 (렌더링 전)
+initFontSize()
 
 // index.html 안에 있는 id = "root"인 요소를 찾고,
 // 그 안에 React 앱을 렌더링함

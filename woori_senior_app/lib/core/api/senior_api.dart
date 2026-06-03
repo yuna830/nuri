@@ -291,8 +291,12 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
+  static const _timeout = Duration(seconds: 6);
+
   Future<Map<String, dynamic>> _getJson(String path) async {
-    final response = await http.get(Uri.parse('$apiBaseUrl$path'));
+    final response = await http
+        .get(Uri.parse('$apiBaseUrl$path'))
+        .timeout(_timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('API 요청 실패: $path');
@@ -306,7 +310,9 @@ class SeniorApi {
   }
 
   Future<List<dynamic>> _getJsonList(String path) async {
-    final response = await http.get(Uri.parse('$apiBaseUrl$path'));
+    final response = await http
+        .get(Uri.parse('$apiBaseUrl$path'))
+        .timeout(_timeout);
 
     if (response.statusCode == 204) {
       return [];

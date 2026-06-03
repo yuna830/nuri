@@ -14,6 +14,7 @@ import {
 } from "../api/userPageApi.js";
 import CommonHeader from "./CommonHeader.jsx";
 import TripartiteChatModal from "./TripartiteChatModal.jsx";
+import FontSizeControl from "./FontSizeControl.jsx";
 import { fetchUnreadChatCount } from "../api/chatApi.js";
 import "../css/user/UserCommonHeader.css";
 
@@ -517,6 +518,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         rightText={formatKoreanDate()}
         actions={
           <>
+            <FontSizeControl />
             <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
               <MessageCircle size={19} />
               {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}

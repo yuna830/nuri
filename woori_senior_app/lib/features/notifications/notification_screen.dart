@@ -241,9 +241,9 @@ class _NotificationScreenState extends State<NotificationScreen>
     }
 
     if (_alerts.isEmpty) {
-      return const ListView(
-        padding: EdgeInsets.all(20),
-        children: [
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: const [
           _EmptyState(
             icon: Icons.notifications_none,
             title: '새 알림이 없습니다.',

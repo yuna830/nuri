@@ -136,6 +136,7 @@ export const createMedicine = () => ({
   ongoing: false,
   interval: "",
   dailyCount: "",
+  alertEnabled: false,
 });
 
 export const getMedicineMinimumCount = (medicineCount) => {
@@ -272,6 +273,7 @@ const readMedications = (healthInfo = {}) => {
     startDate: medicine.startDate ?? "",
     endDate: medicine.endDate ?? "",
     ongoing: Boolean(medicine.ongoing),
+    alertEnabled: Boolean(medicine.alertEnabled),
   });
 
   if (Array.isArray(healthInfo.medications)) {

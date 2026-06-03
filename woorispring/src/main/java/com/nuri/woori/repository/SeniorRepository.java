@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface SeniorRepository extends JpaRepository<Senior, Long> {
     Optional<Senior> findByNameAndPhone(String name, String phone);
 
+    List<Senior> findByFallApiUrlIsNotNull();
+
     List<Senior> findByWelfareWorkerIdOrderByIdAsc(Long welfareWorkerId);
 
     Page<Senior> findByWelfareWorkerId(Long welfareWorkerId, Pageable pageable);

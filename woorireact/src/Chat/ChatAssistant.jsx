@@ -50,7 +50,6 @@ const getResolvedSeniorId = () => {
     // ignore
 
     // Fall back to the stored senior id lookup result.
-
   }
   return null;
 };
@@ -231,7 +230,6 @@ export default function ChatAssistant() {
   useEffect(() => {
     if (searchParams.get("mode") === "schedule") {
       setEditingSchedule(null);
-       
       setMode("schedule");
     }
   }, [searchParams]);

@@ -143,7 +143,7 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
         <div className="up-radar-unit">/ 100점</div>
         {quality && (
           <div className={`up-radar-quality ${quality.level || ""}`}>
-            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : "참고용"}
+            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : null}
           </div>
         )}
         {note && <div className="up-radar-note">{note}</div>}
@@ -166,6 +166,14 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
 
 const formatScore = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "-");
 
+const getActivityLabel = (score) => {
+  const val = Number(score);
+  if (!Number.isFinite(val)) return { text: "수집 중", level: "slot-empty" };
+  if (val >= 60) return { text: "양호", level: "slot-high" };
+  if (val >= 25) return { text: "보통", level: "slot-mid" };
+  return { text: "활동 적음", level: "slot-low" };
+};
+
 const DEFAULT_ACTIVITY_TODAY = {
   status: "pending",
   scores: null,
@@ -185,7 +193,7 @@ const DEFAULT_ACTIVITY_SLOTS = {
 
 const DEFAULT_ACTIVITY_BASELINE = {
   status: "pending",
-  message: "데이터를 수집하고 있습니다. 하루치 활동이 쌓이면 평소 기준선과 비교해 보여드립니다.",
+  message: "정보를 모으는 중이에요. 며칠 지나면 평소 움직임과 비교해 보여드려요.",
 };
 
 const DEFAULT_FALL_PATTERN = {
@@ -213,9 +221,6 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
       <div className="up-card full up-activity-insights">
         <div className="up-card-head">
           <div className="up-card-title">활동 변화 분석</div>
-          <button className="up-card-more up-info-chip" type="button" onClick={() => onInfoClick?.("reference")}>
-            참고 지표
-          </button>
         </div>
 
         <div className="up-insight-grid">
@@ -223,15 +228,20 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
             <div className="up-insight-title">시간대별 활동</div>
             {slotList.length ? (
               <div className="up-slot-list">
-                {slotList.map(([key, slot]) => (
-                  <div key={key} className={`up-slot-item ${slot.status}`}>
-                    <div>
-                      <strong>{slot.label}</strong>
-                      <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                {slotList.map(([key, slot]) => {
+                  const label = slot.status === "ok"
+                    ? getActivityLabel(slot.scores?.activity)
+                    : { text: "수집 중", level: "slot-empty" };
+                  return (
+                    <div key={key} className="up-slot-item">
+                      <div>
+                        <strong>{slot.label}</strong>
+                        <span>{slot.status === "ok" ? `${slot.data_points}개 기록` : "기록 없음"}</span>
+                      </div>
+                      <b className={label.level}>{label.text}</b>
                     </div>
-                    <b>{slot.status === "ok" ? formatScore(slot.scores?.activity) : "수집 중"}</b>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="up-insight-empty">시간대별 활동 데이터를 불러오는 중입니다.</p>
@@ -239,7 +249,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
           </section>
 
           <section className="up-insight-panel">
-            <div className="up-insight-title">개인 기준선</div>
+            <div className="up-insight-title">평소 움직임 비교</div>
             {baseline?.status === "ok" ? (
               <div className="up-baseline-list">
                 {baselineItems.map(([key, item]) => (
@@ -251,7 +261,7 @@ function ActivityInsightCards({ slots, baseline, fallPattern, onInfoClick }) {
                 ))}
               </div>
             ) : (
-              <p className="up-insight-empty">{baseline?.message || "개인 기준선을 만드는 중입니다."}</p>
+              <p className="up-insight-empty">{"정보를 모으는 중이에요. 며칠 지나면 평소 움직임과 비교해 보여드려요."}</p>
             )}
           </section>
 
@@ -492,13 +502,14 @@ export default function UserPage() {
     let isMounted = true;
 
     const loadActivityCondition = async () => {
+      const seniorId = getCurrentSeniorId(initialSenior);
       try {
-        const today = await fetchActivityToday();
+        const today = await fetchActivityToday(seniorId);
         const [trend, slots, baseline, fallPattern] = await Promise.all([
-          fetchActivityTrend(1),
-          fetchActivitySlots(),
-          fetchActivityBaseline(14),
-          fetchFallPattern(),
+          fetchActivityTrend(1, seniorId),
+          fetchActivitySlots(seniorId),
+          fetchActivityBaseline(14, seniorId),
+          fetchFallPattern(seniorId),
         ]);
         if (!isMounted) return;
         setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
@@ -1249,16 +1260,13 @@ export default function UserPage() {
       const seniorId = profile?.senior?.id;
       if (!seniorId) return;
 
-      const response = await fetch(`/api/seniors/${seniorId}`, {
-        method: "PUT",
+      // PATCH로 guardianName/guardianRelation만 업데이트 (PUT은 전체 덮어써서 데이터 날아감)
+      const response = await fetch(`/api/seniors/${seniorId}/requested-info`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...profile,
-          senior: {
-            ...profile.senior,
-            guardianName: guardianEditForm.name.trim(),
-            guardianRelation: guardianEditForm.relation.trim(),
-          },
+          guardianName: guardianEditForm.name.trim(),
+          guardianRelation: guardianEditForm.relation.trim(),
         }),
       });
 
@@ -1591,9 +1599,11 @@ export default function UserPage() {
               <div className="up-card full">
                 <div className="up-card-head">
                   <div className="up-card-title">오늘의 활동 컨디션</div>
-                  <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}> 
-                    {activityToday.data_quality?.level === "good" ? "실측 데이터" : "참고용"}
-                  </button>
+                  {activityToday.data_quality?.level === "good" && (
+                    <button className="up-card-more up-info-chip" type="button" onClick={() => setActivityInfoModal("measured")}>
+                      실측 데이터
+                    </button>
+                  )}
                 </div>
                 {activityToday.scores ? (
                   <RadarChart

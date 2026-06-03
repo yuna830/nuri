@@ -12,11 +12,11 @@
   max-width: 1280px;
   height: 100%;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 12px;
 }
 
 .common-app-header .common-app-logo {
@@ -42,7 +42,8 @@
 .common-app-actions {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .common-app-header .common-app-header-text {
