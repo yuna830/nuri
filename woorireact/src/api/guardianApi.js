@@ -169,3 +169,16 @@ export function respondWelfareConsultation(alertId, { responseType, scheduleAt }
     }),
   });
 }
+
+// 보호자 확인 요청
+export function sendCheckInReply({ seniorId, guardianId, reply, originalMessage }) {
+  return request(API_BASE_URL, "/api/alerts/check-in-reply", {
+    method: "POST",
+    body: JSON.stringify({
+      seniorId,
+      guardianId,
+      reply,
+      originalMessage,
+    }),
+  });
+}

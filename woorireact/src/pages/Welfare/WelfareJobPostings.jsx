@@ -12,7 +12,6 @@ import {
 import { fetchWelfareSeniors } from "../../api/welfareDashboardApi";
 import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
 import WelfareSidebar from "../../components/welfare/WelfareSidebar";
-import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 import "../../css/welfare/WelfareDashboard.css";
 import "../../css/welfare/WelfareJobPostings.css";

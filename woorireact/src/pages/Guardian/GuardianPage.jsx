@@ -16,6 +16,7 @@ import {
   deleteGuardianSenior,
   sendMedicineAlert,
   updateSeniorRequestedInfo,
+  sendCheckInReply,
 } from "../../api/guardianApi";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
@@ -579,8 +580,8 @@ function GuardianPage() {
       <main className="guardian-page">
         <GuardianHeader
           displayedAlerts={displayedAlerts}
-          onReadAlert={() => {}}
-          onOpenEmergencyReport={() => {}}
+          onReadAlert={() => { }}
+          onOpenEmergencyReport={() => { }}
         />
 
         <div className="guardian-loading-backdrop" role="status" aria-live="polite">
@@ -599,8 +600,8 @@ function GuardianPage() {
       <main className="guardian-page">
         <GuardianHeader
           displayedAlerts={displayedAlerts}
-          onReadAlert={() => {}}
-          onOpenEmergencyReport={() => {}}
+          onReadAlert={() => { }}
+          onOpenEmergencyReport={() => { }}
         />
 
         <section className="guardian-empty-state">
@@ -696,9 +697,9 @@ function GuardianPage() {
         [activeElderId]: currentZones.map((zone) =>
           String(zone.id) === String(currentZoneId)
             ? {
-                ...zone,
-                [name]: ["name", "address"].includes(name) ? value : Number(value),
-              }
+              ...zone,
+              [name]: ["name", "address"].includes(name) ? value : Number(value),
+            }
             : zone
         ),
       };
@@ -793,8 +794,8 @@ function GuardianPage() {
           ...prev,
           [seniorId]: hasSameZone
             ? latestZones.map((zone) =>
-                String(zone.id) === String(safeZoneForm.id) ? savedSafeZone : zone
-              )
+              String(zone.id) === String(safeZoneForm.id) ? savedSafeZone : zone
+            )
             : [...latestZones, savedSafeZone],
         };
       });
@@ -1321,6 +1322,32 @@ function GuardianPage() {
     }
   };
 
+  const handleCheckInOk = async (targetAlert) => {
+    if (!targetAlert?.seniorId) return;
+
+    const guardianId = getCurrentGuardianId();
+    const targetElder = elders.find((elder) => String(elder.id) === String(targetAlert.seniorId));
+    const seniorName = targetAlert.seniorName || targetAlert.name || targetElder?.name || "대상자";
+
+    try {
+      await sendCheckInReply({
+        seniorId: targetAlert.seniorId,
+        guardianId,
+        reply: `${seniorName} 대상자의 안부를 확인했으며 이상 없습니다.`,
+        originalMessage: targetAlert.message || targetAlert.detailMessage || "",
+      });
+
+      if (targetAlert.id) {
+        await handleReadAlert(targetAlert.id);
+      }
+
+      window.alert("복지사에게 이상 없음 알림을 보냈습니다.");
+    } catch (error) {
+      console.error("이상 없음 알림 전송 실패:", error);
+      window.alert("이상 없음 알림 전송에 실패했습니다.");
+    }
+  };
+
   const activeMedicines = getActiveMedicines(selectedElder);
 
   return (
@@ -1330,8 +1357,17 @@ function GuardianPage() {
         onReadAlert={handleReadAlert}
         onCallAlert={handleCallAlert}
         onOpenEmergencyReport={handleOpenEmergencyReport}
+        onCheckInOk={handleCheckInOk}
         onOpenChat={() => {
           setChatInitialRoomType("");
+          setIsChatOpen(true);
+        }}
+        onOpenWelfareChat={(alert) => {
+          if (alert?.seniorId) {
+            setSelectedElderId(alert.seniorId);
+          }
+
+          setChatInitialRoomType("GUARDIAN_WELFARE");
           setIsChatOpen(true);
         }}
         unreadChatCount={unreadChatCount}
@@ -1377,9 +1413,8 @@ function GuardianPage() {
           return (
             <div
               key={elder.id}
-              className={`elder-tab ${elder.id === selectedElderId ? "active" : ""} ${
-                isDeleteMode ? "show-delete" : ""
-              }`}
+              className={`elder-tab ${elder.id === selectedElderId ? "active" : ""} ${isDeleteMode ? "show-delete" : ""
+                }`}
               onMouseEnter={() => setDeleteModeElderId(elder.id)}
               onMouseLeave={() => setDeleteModeElderId(null)}
             >
@@ -1770,20 +1805,84 @@ function GuardianHeader({
   onCallAlert,
   onOpenEmergencyReport,
   onOpenChat,
+  onOpenWelfareChat,
+  onCheckInOk,
   unreadChatCount = 0,
 }) {
-  const guardianNotifications = displayedAlerts.map((alert) => ({
-    id: alert.id,
-    title: alert.isFall ? "낙상 감지 알림" : alert.message || "보호 대상자 알림",
-    message: alert.isFall ? [alert.message, alert.detailMessage].filter(Boolean).join(" ") : alert.detailMessage || "",
-    category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
-    time: alert.time,
-    isRead: alert.status !== "미확인",
-    danger: alert.isSos || alert.isSafeZone || alert.isFall,
-    raw: alert,
-  }));
+  const isCheckInRequestAlert = (alert) => {
+    const text = [
+      alert?.type,
+      alert?.title,
+      alert?.message,
+      alert?.detailMessage,
+    ].filter(Boolean).join(" ");
+
+    return (
+      text.includes("CHECK_IN_REQUEST") ||
+      text.includes("안부 확인 요청") ||
+      text.includes("안부 확인 후")
+    );
+  };
+
+  const guardianNotifications = displayedAlerts
+    .filter((alert) => alert.type !== "CHECK_IN_OK")
+    // 안부 확인 요청 알림 중 이미 읽은 알림은 제외
+    // .filter((alert) => !(isCheckInRequestAlert(alert) && alert.rawAlert?.isRead === true))
+    .map((alert) => {
+      const isCheckInRequest = isCheckInRequestAlert(alert);
+      const seniorName = alert.seniorName || alert.name || "대상자";
+
+      return {
+        id: alert.id,
+        title: isCheckInRequest
+          ? `${seniorName}님 안부 확인 요청`
+          : alert.isFall
+            ? "낙상 감지 알림"
+            : alert.message || "보호 대상자 알림",
+        message: isCheckInRequest
+          ? `${seniorName} 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
+          : alert.isFall
+            ? [alert.message, alert.detailMessage].filter(Boolean).join(" ")
+            : alert.detailMessage || "",
+        category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
+        time: alert.time,
+        isRead: alert.status !== "미확인",
+        danger: alert.isSos || alert.isSafeZone || alert.isFall,
+        raw: alert,
+      };
+    });
 
   const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
+    if (isCheckInRequestAlert(alert)) {
+      if (isRead) return null;
+      return (
+        <div className="guardian-alert-actions-below two">
+          {!isRead && (
+            <button
+              type="button"
+              className="guardian-alert-secondary-action"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCheckInOk?.(alert);
+              }}
+            >
+              이상 없음
+            </button>
+          )}
+          <button
+            type="button"
+            className="guardian-alert-primary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenWelfareChat?.(alert);
+            }}
+          >
+            복지사 채팅
+          </button>
+        </div>
+      );
+    }
+
     if (!alert?.isFall && !alert?.isSos && !alert?.isSafeZone) {
       return defaultAction;
     }
@@ -1795,17 +1894,24 @@ function GuardianHeader({
             확인
           </button>
         )}
-        <button type="button" onClick={(event) => {
-          event.stopPropagation();
-          onCallAlert?.(alert);
-        }}>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onCallAlert?.(alert);
+          }}
+        >
           전화
         </button>
         {(alert.isFall || alert.isSos) && (
-          <button className="danger" type="button" onClick={(event) => {
-            event.stopPropagation();
-            onOpenEmergencyReport?.(alert);
-          }}>
+          <button
+            className="danger"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenEmergencyReport?.(alert);
+            }}
+          >
             신고
           </button>
         )}

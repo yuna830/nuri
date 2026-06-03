@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search } from "lucide-react";
+import { CheckCircle, MapPin, MessageCircle, Phone, Route, Search } from "lucide-react";
 
 import {
-    assignWelfareSenior,
     fetchWelfareAlerts,
     fetchWelfareSeniors,
     requestSeniorInfoUpdate,
     searchSeniorExact,
+    assignWelfareSenior,
+    sendGuardianCheckInRequest,
+    readWelfareAlert,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSidebar from "../../components/welfare/WelfareSidebar";
@@ -15,7 +17,6 @@ import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import WelfareSummaryCards from "../../components/welfare/WelfareSummaryCards";
 import WelfareSeniorTable from "../../components/welfare/WelfareSeniorTable";
-import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     getMissingSeniorInfoFields,
     getSeniorSummaryCounts,
@@ -30,8 +31,8 @@ import {
     getSeniorReviewStatus,
     mapWelfareSenior,
 } from "../../utils/welfare/welfareDashboardData";
-import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 import "../../css/welfare/WelfareDashboard.css";
 
@@ -99,6 +100,11 @@ function WelfareDashboard() {
     const [addSeniorForm, setAddSeniorForm] = useState({ name: "", phone: "" });
     const [addSeniorStatus, setAddSeniorStatus] = useState("");
     const [isAddingSenior, setIsAddingSenior] = useState(false);
+    const [checkInRequestedNotificationIds, setCheckInRequestedNotificationIds] = useState([]);
+    const [agencyLinkTarget, setAgencyLinkTarget] = useState(null);
+    const [agencyPlaces, setAgencyPlaces] = useState([]);
+    const [isAgencyLoading, setIsAgencyLoading] = useState(false);
+    const [agencyError, setAgencyError] = useState("");
 
     useEffect(() => {
         if (!currentWorker) {
@@ -157,7 +163,7 @@ function WelfareDashboard() {
 
         const loadWelfareAlerts = async () => {
             try {
-                const alerts = await fetchWelfareAlerts();
+                const alerts = await fetchWelfareAlerts({ welfareWorkerId: currentWorker.id });
 
                 if (!ignore) {
                     setDbWelfareAlerts(Array.isArray(alerts) ? alerts : []);
@@ -387,17 +393,26 @@ function WelfareDashboard() {
     const dbWelfareNotifications = dbWelfareAlerts.map((alert) => {
         const isFallAlert = alert.type === "FALL_DETECTED" || alert.type === "FALL_RISK";
         const isLastAccessAlert = alert.type === "LAST_ACCESS";
+        const isCheckInOkAlert = alert.type === "CHECK_IN_OK";
 
         return {
             id: `db-${alert.id}`,
             seniorId: alert.seniorId,
-            title: isFallAlert ? "낙상 감지 알림" : alert.title,
+            seniorName: alert.seniorName,
+            type: alert.type,
+            title: isFallAlert
+                ? "낙상 감지 알림"
+                : isCheckInOkAlert
+                    ? "보호자 안부 확인 완료"
+                    : alert.title,
             message: isFallAlert
-                ? `${alert.message || "대상자의 낙상이 감지되었습니다."} 보호자 확인 또는 대처 답변이 없으면 신고 조치를 검토해주세요.`
+                ? `${alert.message || "대상자의 낙상이 감지되었습니다."} 보호자 확인 또는 대처 응답이 없으면 신고 조치를 검토해주세요.`
                 : alert.message,
-            category: isFallAlert ? "낙상" : isLastAccessAlert ? "복지" : "긴급",
-            detailCategory: isFallAlert ? "낙상 대응" : isLastAccessAlert ? "기본 정보" : "안전구역 관리",
-            danger: !isLastAccessAlert,
+            category: isFallAlert ? "낙상" : isLastAccessAlert ? "복지" : isCheckInOkAlert ? "정보" : "긴급",
+            detailCategory: isFallAlert ? "낙상 대응" : isLastAccessAlert ? "기본 정보" : isCheckInOkAlert ? "복지" : "안전구역 관리",
+            danger: !isLastAccessAlert && !isCheckInOkAlert,
+            statusLabel: isCheckInOkAlert ? null : undefined,
+            isRead: alert.isRead === true,
             time: alert.createdAt
                 ? new Date(alert.createdAt).toLocaleString("ko-KR", {
                     month: "2-digit",
@@ -436,28 +451,274 @@ function WelfareDashboard() {
             });
         }
 
-        if (shouldNotifyLastAccessDelay(senior.lastAccess)) {
-            notifications.push({
-                id: `${senior.id}-last-access`,
-                seniorId: senior.id,
-                title: "접속 확인 필요",
-                message: `${senior.name} 대상자가 4시간 넘게 접속하지 않았습니다.`,
-                category: "복지",
-                detailCategory: "기본 정보",
-            });
-        }
-
         return notifications;
     });
 
+    const checkInRepliedSeniorIds = new Set(
+        dbWelfareNotifications
+            .filter((notification) => notification.type === "CHECK_IN_OK")
+            .map((notification) => String(notification.seniorId))
+    );
+
     const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications]
+        .filter((notification) => {
+            if (notification.type !== "LAST_ACCESS") return true;
+            return !checkInRepliedSeniorIds.has(String(notification.seniorId));
+        })
         .filter((notification, index, source) =>
             source.findIndex((item) => item.id === notification.id) === index
         )
         .filter((notification) => !dismissedNotifications.includes(notification.id));
+
     const dismissNotification = (notificationId) => {
         setDismissedNotifications((previousIds) =>
             previousIds.includes(notificationId) ? previousIds : [...previousIds, notificationId]
+        );
+    };
+
+    // 서버 id 추출 함수 추가
+    const getServerAlertId = (notificationId) => {
+        if (!notificationId) return null;
+
+        const match = String(notificationId).match(/(\d+)$/);
+        return match ? Number(match[1]) : null;
+    };
+
+
+
+    const isLastAccessNotification = (notification) => {
+        const text = [
+            notification?.type,
+            notification?.title,
+            notification?.message,
+        ].filter(Boolean).join(" ");
+
+        return (
+            text.includes("LAST_ACCESS") ||
+            text.includes("장시간 미접속") ||
+            text.includes("접속 확인 필요")
+        );
+    };
+
+    const handleSendGuardianCheckInRequest = async (notification) => {
+        if (!notification?.seniorId) return;
+
+        const seniorName = notification.seniorName || "대상자";
+
+        await sendGuardianCheckInRequest({
+            seniorId: notification.seniorId,
+            message: `${seniorName} 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`,
+        });
+
+        setCheckInRequestedNotificationIds((previousIds) =>
+            previousIds.includes(notification.id)
+                ? previousIds
+                : [...previousIds, notification.id]
+        );
+    };
+
+    const handleResolveLastAccessAlert = (notification) => {
+        dismissNotification(notification.id);
+    };
+
+    const getSeniorLocationForAgency = (notification) => {
+        const senior = seniors.find((item) => String(item.id) === String(notification?.seniorId));
+
+        const lat =
+            senior?.lastGps?.latitude ??
+            senior?.lastLocation?.latitude ??
+            senior?.currentLocation?.lat ??
+            senior?.currentLocation?.latitude ??
+            senior?.safeZone?.centerLatitude ??
+            null;
+
+        const lng =
+            senior?.lastGps?.longitude ??
+            senior?.lastLocation?.longitude ??
+            senior?.currentLocation?.lng ??
+            senior?.currentLocation?.longitude ??
+            senior?.safeZone?.centerLongitude ??
+            null;
+
+        return {
+            senior,
+            lat: lat == null ? null : Number(lat),
+            lng: lng == null ? null : Number(lng),
+        };
+    };
+
+    const formatAgencyDistance = (value) => {
+        const meters = Number(value);
+        if (!Number.isFinite(meters)) return "";
+        if (meters >= 1000) return `${(meters / 1000).toFixed(1)}km`;
+        return `${meters}m`;
+    };
+
+    const openAgencyRoute = (place, currentLat, currentLng) => {
+        const destination = `${encodeURIComponent(place.name)},${place.lat},${place.lon}`;
+        const url = currentLat && currentLng
+            ? `https://map.kakao.com/link/from/${encodeURIComponent("대상자 마지막 위치")},${currentLat},${currentLng}/to/${destination}`
+            : `https://map.kakao.com/link/to/${destination}`;
+
+        window.open(url, "_blank", "noopener,noreferrer");
+    };
+
+    const handleAgencyLinkLastAccessAlert = async (notification) => {
+        if (!notification?.seniorId) return;
+
+        const { senior, lat, lng } = getSeniorLocationForAgency(notification);
+        const seniorName = notification.seniorName || senior?.name || "대상자";
+
+        setAgencyLinkTarget({
+            notification,
+            senior,
+            seniorName,
+            lat,
+            lng,
+        });
+        setAgencyPlaces([]);
+        setAgencyError("");
+
+        if (!lat || !lng || Number.isNaN(lat) || Number.isNaN(lng)) {
+            setAgencyError("대상자의 마지막 위치 정보가 없어 가까운 행정복지센터를 조회할 수 없습니다.");
+            return;
+        }
+
+        setIsAgencyLoading(true);
+
+        try {
+            const keywords = ["행정복지센터", "주민센터", "동주민센터"];
+            const results = [];
+
+            for (const keyword of keywords) {
+                const places = await searchPlacesByKakao(keyword, {
+                    size: 5,
+                    x: lng,
+                    y: lat,
+                    radius: 5000,
+                });
+
+                results.push(...places);
+            }
+
+            const uniquePlaces = Array.from(
+                new Map(results.map((place) => [place.place_id || `${place.name}-${place.display_name}`, place])).values()
+            )
+                .sort((left, right) => Number(left.distance || 999999) - Number(right.distance || 999999))
+                .slice(0, 5);
+
+            if (uniquePlaces.length === 0) {
+                setAgencyError("5km 이내에서 행정복지센터 또는 주민센터를 찾지 못했습니다.");
+                return;
+            }
+
+            setAgencyPlaces(uniquePlaces);
+        } catch (error) {
+            console.error("기관 연계 장소 검색 실패:", error);
+            setAgencyError("가까운 행정복지센터를 불러오지 못했습니다.");
+        } finally {
+            setIsAgencyLoading(false);
+        }
+    };
+
+    const handleCompleteAgencyLink = () => {
+        if (agencyLinkTarget?.notification?.id) {
+            dismissNotification(agencyLinkTarget.notification.id);
+        }
+
+        setAgencyLinkTarget(null);
+        setAgencyPlaces([]);
+        setAgencyError("");
+    };
+
+    // CHECK_IN_OK 확인 처리 함수 추가
+    const handleConfirmCheckInOkAlert = async (notification) => {
+        const serverAlertId = getServerAlertId(notification.id);
+
+        if (!serverAlertId) return;
+
+        try {
+            await readWelfareAlert(serverAlertId);
+
+            setDbWelfareAlerts((previousAlerts) =>
+                previousAlerts.map((alert) =>
+                    `db-${alert.id}` === notification.id
+                        ? { ...alert, isRead: true }
+                        : alert
+                )
+            );
+        } catch (error) {
+            console.error("안부 확인 완료 알림 읽음 처리 실패:", error);
+            window.alert("알림 확인 처리에 실패했습니다.");
+        }
+    };
+
+    const renderWelfareNotificationActions = (notification, { defaultAction }) => {
+        if (notification?.type === "CHECK_IN_OK") {
+            if (notification.isRead) return null;
+
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-secondary-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleConfirmCheckInOkAlert(notification);
+                        }}
+                    >
+                        확인
+                    </button>
+                </div>
+            );
+        }
+
+        if (!isLastAccessNotification(notification)) {
+            return defaultAction;
+        }
+
+        const isRequested = checkInRequestedNotificationIds.includes(notification.id);
+
+        if (!isRequested) {
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-primary-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleSendGuardianCheckInRequest(notification);
+                        }}
+                    >
+                        안부 확인 요청
+                    </button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="welfare-alert-actions-below two">
+                <button
+                    type="button"
+                    className="welfare-alert-secondary-action"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleResolveLastAccessAlert(notification);
+                    }}
+                >
+                    확인 완료
+                </button>
+                <button
+                    type="button"
+                    className="welfare-alert-primary-action"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleAgencyLinkLastAccessAlert(notification);
+                    }}
+                >
+                    기관 연계
+                </button>
+            </div>
         );
     };
 
@@ -566,10 +827,13 @@ function WelfareDashboard() {
                     message: notification.message,
                     category: notification.category || notification.detailCategory || "정보",
                     time: notification.time,
-                    isRead: false,
+                    isRead: notification.isRead === true,
+                    statusLabel: notification.statusLabel,
                     danger: notification.danger === true || notification.category === "긴급",
                     raw: {
                         ...notification,
+                        type: notification.raw?.type || notification.type,
+                        seniorName: notification.raw?.seniorName || notification.seniorName,
                         imageUrl: notification.raw?.imageAccessUrl || notification.raw?.imageUrl || notification.imageUrl || "",
                     },
                 }))}
@@ -604,6 +868,8 @@ function WelfareDashboard() {
                         대상자 추가
                     </button>
                 }
+
+                renderNotificationActions={renderWelfareNotificationActions}
             />
 
             <TripartiteChatModal
@@ -629,16 +895,83 @@ function WelfareDashboard() {
                 onClose={() => setIsChatOpen(false)}
             />
 
+            {agencyLinkTarget && (
+                <div className="wd-agency-modal-backdrop" onClick={() => setAgencyLinkTarget(null)}>
+                    <section className="wd-agency-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="wd-agency-modal-header">
+                            <div>
+                                <h2>근처 행정복지센터 연계</h2>
+                                <p>
+                                    {agencyLinkTarget.seniorName} 대상자의 마지막 위치를 기준으로 가까운 기관을 조회했어요.
+                                </p>
+                            </div>
+                            <button type="button" onClick={() => setAgencyLinkTarget(null)}>
+                                닫기
+                            </button>
+                        </div>
+
+                        <div className="wd-agency-guide">
+                            <strong>연계 안내</strong>
+                            <p>
+                                보호자와도 연락이 어려운 경우, 인근 행정복지센터의 찾아가는 보건복지팀 또는 복지 담당자에게
+                                안부 확인을 요청할 수 있습니다.
+                            </p>
+                        </div>
+
+                        {isAgencyLoading ? (
+                            <div className="wd-agency-empty">가까운 기관을 찾는 중입니다.</div>
+                        ) : agencyError ? (
+                            <div className="wd-agency-empty danger">{agencyError}</div>
+                        ) : (
+                            <div className="wd-agency-list">
+                                {agencyPlaces.map((place) => (
+                                    <article className="wd-agency-card" key={place.place_id || `${place.name}-${place.display_name}`}>
+                                        <div>
+                                            <strong>{place.name}</strong>
+                                            <span>
+                                                <MapPin size={14} />
+                                                {place.display_name}
+                                            </span>
+                                            {place.distance && <em>{formatAgencyDistance(place.distance)} 거리</em>}
+                                        </div>
+
+                                        <div className="wd-agency-actions">
+                                            {place.phone && (
+                                                <a href={`tel:${place.phone.replace(/[^0-9]/g, "")}`}>
+                                                    <Phone size={15} />
+                                                    전화
+                                                </a>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => openAgencyRoute(place, agencyLinkTarget.lat, agencyLinkTarget.lng)}
+                                            >
+                                                <Route size={15} />
+                                                길찾기
+                                            </button>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="wd-agency-footer">
+                            <button type="button" className="secondary" onClick={() => setAgencyLinkTarget(null)}>
+                                취소
+                            </button>
+                            <button type="button" onClick={handleCompleteAgencyLink}>
+                                <CheckCircle size={16} />
+                                연계 완료
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
             <div className="wd-layout">
                 <WelfareSidebar
                     active="seniors"
                     onAddSenior={openAddSeniorModal}
-                    policyChatSlot={
-                        <WelfarePolicyChatButton
-                            variant="sidebar"
-                            seniorOptions={currentSeniors}
-                        />
-                    }
                 />
 
                 <main className="wd-content">

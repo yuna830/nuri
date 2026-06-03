@@ -14,7 +14,6 @@ import {
     isPendingJobApplication,
     isPhoneConsultationJobApplication,
 } from "../../utils/welfare/welfareSummaryStats";
-import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 
 
 import "../../css/welfare/WelfareDashboard.css";

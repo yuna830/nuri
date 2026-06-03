@@ -12,6 +12,8 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/alerts")
@@ -472,7 +474,9 @@ public class AlertController {
     }
 
     @GetMapping("/welfare")
-    public List<WelfareAlertResponse> getWelfareAlerts() {
+    public List<WelfareAlertResponse> getWelfareAlerts(
+            @RequestParam(required = false) Long welfareWorkerId
+    ) {
         List<WelfareAlertResponse> fallAlerts = alertRepository
                 .findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED")
                 .stream()
@@ -491,7 +495,8 @@ public class AlertController {
                             message,
                             "FALL_DETECTED",
                             alert.getCreatedAt(),
-                            alert.getImageUrl()
+                            alert.getImageUrl(),
+                            alert.getIsRead()
                     );
                 })
                 .toList();
@@ -511,14 +516,44 @@ public class AlertController {
                             seniorName + " 대상자의 SOS 요청에 보호자 응답이 없습니다.",
                             "SOS",
                             alert.getCreatedAt(),
-                            alert.getImageUrl()
+                            alert.getImageUrl(),
+                            alert.getIsRead()
+                    );
+                })
+                .toList();
+
+        LocalDateTime checkInOkCutoff = LocalDateTime.now().minusDays(7);
+
+        List<WelfareAlertResponse> checkInOkAlerts = alertRepository
+                .findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff)
+                .stream()
+                .map(alert -> {
+                    Senior senior = seniorRepository.findById(alert.getSeniorId()).orElse(null);
+                    String seniorName = senior == null ? "대상자" : senior.getName();
+
+                    return new WelfareAlertResponse(
+                            "check-in-ok-" + alert.getId(),
+                            alert.getSeniorId(),
+                            seniorName,
+                            "보호자 안부 확인 완료",
+                            alert.getMessage() == null || alert.getMessage().isBlank()
+                                    ? seniorName + " 대상자의 안부 확인 결과 이상 없음으로 전달되었습니다."
+                                    : alert.getMessage(),
+                            "CHECK_IN_OK",
+                            alert.getCreatedAt(),
+                            null,
+                            alert.getIsRead()
                     );
                 })
                 .toList();
 
         LocalDateTime threshold = LocalDateTime.now().minusHours(4);
 
-        List<WelfareAlertResponse> inactiveAlerts = seniorRepository.findAll()
+        List<Senior> inactiveAlertTargets = welfareWorkerId == null
+                ? seniorRepository.findAll()
+                : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+
+        List<WelfareAlertResponse> inactiveAlerts = inactiveAlertTargets
                 .stream()
                 .filter(senior -> senior.getLastLoginAt() != null)
                 .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
@@ -530,13 +565,15 @@ public class AlertController {
                         senior.getName() + " 대상자가 4시간 이상 접속하지 않았습니다.",
                         "LAST_ACCESS",
                         senior.getLastLoginAt(),
-                        null
+                        null,
+                        false
                 ))
                 .toList();
 
         List<WelfareAlertResponse> responses = new ArrayList<>();
         responses.addAll(fallAlerts);
         responses.addAll(sosAlerts);
+        responses.addAll(checkInOkAlerts);
         responses.addAll(inactiveAlerts);
 
         return responses.stream()
@@ -552,7 +589,72 @@ public class AlertController {
             String message,
             String type,
             LocalDateTime createdAt,
-            String imageUrl
+            String imageUrl,
+            Boolean isRead
+    ) {
+    }
+
+    // 보호자 안부 확인 요청
+    @PostMapping("/guardian-check-in-request")
+    public List<Alert> createGuardianCheckInRequest(@RequestBody GuardianCheckInRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        List<GuardianSenior> guardianLinks = guardianSeniorRepository.findBySeniorId(request.seniorId());
+
+        if (guardianLinks.isEmpty()) {
+            throw new RuntimeException("Connected guardian not found");
+        }
+
+        String message = request.message() == null || request.message().isBlank()
+                ? senior.getName() + " 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요."
+                : request.message().trim();
+
+        return guardianLinks.stream()
+                .map(link -> {
+                    Alert alert = new Alert();
+                    alert.setSeniorId(request.seniorId());
+                    alert.setGuardianId(link.getGuardianId());
+                    alert.setType("CHECK_IN_REQUEST");
+                    alert.setTitle("안부 확인 요청");
+                    alert.setMessage(message);
+                    alert.setIsRead(false);
+                    return alertRepository.save(alert);
+                })
+                .toList();
+    }
+
+    public record GuardianCheckInRequest(
+            Long seniorId,
+            String message
+    ) {
+    }
+
+    @PostMapping("/check-in-reply")
+    public Alert createCheckInReply(@RequestBody CheckInReplyRequest request) {
+        Senior senior = seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        String reply = request.reply() == null || request.reply().isBlank()
+                ? senior.getName() + " 대상자의 안부를 확인했으며 이상 없습니다."
+                : request.reply().trim();
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(null);
+        alert.setType("CHECK_IN_OK");
+        alert.setTitle("안부 확인 완료");
+        alert.setMessage(reply);
+        alert.setIsRead(false);
+
+        return alertRepository.save(alert);
+    }
+
+    public record CheckInReplyRequest(
+            Long seniorId,
+            Long guardianId,
+            String reply,
+            String originalMessage
     ) {
     }
 }

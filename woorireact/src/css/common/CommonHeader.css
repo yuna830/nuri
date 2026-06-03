@@ -215,6 +215,10 @@
   word-break: keep-all;
 }
 
+.uch-alert-item.common-alert-item .uch-alert-action:empty {
+    display: none;
+}
+
 .uch-alert-thumbnail {
   display: block;
   width: min(220px, 100%);
@@ -240,6 +244,115 @@
   border-color: #e05252;
   background: #e05252;
   color: #ffffff;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-action:has(.welfare-alert-actions-below) {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    margin-top: 4px;
+    padding-left: 0;
+    justify-self: stretch;
+    align-self: start;
+}
+
+.uch-alert-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.uch-alert-title-row strong {
+  min-width: 0;
+}
+
+.uch-alert-time-inline {
+  flex-shrink: 0;
+  color: #789277;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.welfare-alert-actions-below {
+    display: flex;
+    width: 100%;
+}
+
+.welfare-alert-actions-below .welfare-alert-primary-action,
+.welfare-alert-actions-below .welfare-alert-secondary-action {
+    width: 100%;
+}
+
+.welfare-alert-actions-below.two {
+    gap: 16px;
+}
+
+.welfare-alert-actions-below.two .welfare-alert-primary-action,
+.welfare-alert-actions-below.two .welfare-alert-secondary-action {
+    flex: 1;
+}
+
+.welfare-alert-primary-action,
+.welfare-alert-secondary-action {
+    min-height: 42px;
+    border-radius: 10px;
+    padding: 0 16px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.welfare-alert-primary-action {
+    border: 0;
+    color: #ffffff;
+    background: #c95b57;
+}
+
+.uch-alert-item .welfare-alert-secondary-action {
+    border: 0;
+    color: #ffffff;
+    background: #7f9b7c;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-action:has(.guardian-alert-actions-below) {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  width: 100%;
+  min-width: 0;
+  margin-top: 6px;
+  padding-left: 0;
+  justify-self: stretch;
+  align-self: start;
+}
+
+.guardian-alert-actions-below {
+  display: flex;
+  width: 100%;
+}
+
+.guardian-alert-actions-below.two {
+  gap: 12px;
+}
+
+.guardian-alert-actions-below .guardian-alert-primary-action,
+.guardian-alert-actions-below .guardian-alert-secondary-action {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guardian-alert-secondary-action {
+  background: #7f9b7c !important;
+}
+
+.guardian-alert-primary-action {
+  background: #c95b57 !important;
 }
 
 @media (max-width: 900px) {

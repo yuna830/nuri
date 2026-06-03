@@ -9,7 +9,6 @@ import {
     formatAgeGender,
     formatGps,
 } from "../../utils/welfare/welfareSenior";
-import WelfarePolicyChatButton from "../../components/welfare/WelfarePolicyChatButton";
 import {
     fetchWelfareSeniorDetail,
     requestGuardianConsultation,
@@ -19,6 +18,7 @@ import {
 import KakaoMap from "../../components/KakaoMap";
 
 import { resolveUploadUrl } from "../../api/userPageApi.js";
+import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import "../../css/welfare/WelfareSeniorDetail.css";
 
 const COUNSELING_RECORDS_STORAGE_KEY = "welfareCounselingRecords";
@@ -331,11 +331,18 @@ function WelfareSeniorDetail() {
     const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
     const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
 
-    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", HEALTH_EVALUATION_CATEGORY];
+    const [agencyPlaces, setAgencyPlaces] = useState([]);
+    const [isAgencyLoading, setIsAgencyLoading] = useState(false);
+    const [agencyError, setAgencyError] = useState("");
+    const [linkedAgencyId, setLinkedAgencyId] = useState(null);
+
+    const AGENCY_LINK_CATEGORY = "기관 연계";
+
+    const CATEGORY_LIST = ["기본 정보", "보호자 정보", "건강 정보", "안심구역 관리", HEALTH_EVALUATION_CATEGORY, AGENCY_LINK_CATEGORY];
     const HEALTH_CATEGORY_LIST = ["신체 정보", "질환/주의 항목"];
-    
-    const requestedCategory = location.state?.category === "전화 및 상담기록"
-        ? HEALTH_EVALUATION_CATEGORY
+
+    const requestedCategory = location.state?.agencyLinkNeeded
+        ? AGENCY_LINK_CATEGORY
         : location.state?.category;
     const initialCategory = CATEGORY_LIST.includes(requestedCategory)
         ? requestedCategory
@@ -549,6 +556,73 @@ function WelfareSeniorDetail() {
     const currentLocationForMap = senior?.lastGps
         ? { lat: senior.lastGps.latitude, lng: senior.lastGps.longitude }
         : null;
+
+    const agencySearchCenter = currentLocationForMap || (hasSafeZoneCenter ? safeZoneCenter : null);
+
+    useEffect(() => {
+        if (activeCategory !== AGENCY_LINK_CATEGORY) return;
+
+        if (!agencySearchCenter?.lat || !agencySearchCenter?.lng) {
+            setAgencyPlaces([]);
+            setAgencyError("대상자의 마지막 위치 정보가 없어 기관을 검색할 수 없습니다.");
+            return;
+        }
+
+        let ignore = false;
+
+        const loadAgencyPlaces = async () => {
+            setIsAgencyLoading(true);
+            setAgencyError("");
+
+            try {
+                const keywords = ["행정복지센터", "주민센터", "동주민센터"];
+
+                const results = await Promise.all(
+                    keywords.map((keyword) =>
+                        searchPlacesByKakao(keyword, {
+                            x: agencySearchCenter.lng,
+                            y: agencySearchCenter.lat,
+                            radius: 3000,
+                            size: 5,
+                        }).catch(() => [])
+                    )
+                );
+
+                const uniquePlaces = results
+                    .flat()
+                    .filter((place, index, array) => {
+                        const key = place.place_id || `${place.name}-${place.display_name}`;
+                        return array.findIndex((item) => {
+                            const itemKey = item.place_id || `${item.name}-${item.display_name}`;
+                            return itemKey === key;
+                        }) === index;
+                    })
+                    .sort((a, b) => Number(a.distance || 999999) - Number(b.distance || 999999))
+                    .slice(0, 5);
+
+                if (!ignore) {
+                    setAgencyPlaces(uniquePlaces);
+                    setAgencyError(uniquePlaces.length ? "" : "근처 행정복지센터 또는 주민센터를 찾지 못했습니다.");
+                }
+            } catch {
+                if (!ignore) {
+                    setAgencyPlaces([]);
+                    setAgencyError("기관 검색 중 오류가 발생했습니다.");
+                }
+            } finally {
+                if (!ignore) {
+                    setIsAgencyLoading(false);
+                }
+            }
+        };
+
+        loadAgencyPlaces();
+
+        return () => {
+            ignore = true;
+        };
+    }, [activeCategory, agencySearchCenter?.lat, agencySearchCenter?.lng]);
+
     const handleCounselingDateChange = (date) => {
         const nextRecord = counselingRecords.find((record) => record.date === date);
 
@@ -1058,12 +1132,85 @@ function WelfareSeniorDetail() {
         </section>
     );
 
+    const renderAgencyLinkInfo = () => (
+        <section className="wsd-detail-section">
+            <h2 className="wsd-section-title">기관 연계</h2>
+
+            <div className="wsd-agency-summary-card minimal">
+                <div>
+                    <span>대상자</span>
+                    <strong>{senior?.name || "-"}</strong>
+                    <p>{formatAgeGender(senior)}</p>
+                </div>
+
+                <div>
+                    <span>마지막 위치</span>
+                    <strong>{senior?.lastGps?.address || senior?.address || "위치 정보 없음"}</strong>
+                    <p>기관 검색 기준 위치</p>
+                </div>
+            </div>
+
+            <div className="wsd-agency-result-header">
+                <div>
+                    <h3>가까운 행정복지센터</h3>
+                    <p>대상자 마지막 위치 기준 3km 이내 검색 결과입니다.</p>
+                </div>
+                {isAgencyLoading && <span>검색 중</span>}
+            </div>
+
+            {agencyError && <p className="wsd-agency-error">{agencyError}</p>}
+
+            <div className="wsd-agency-place-list scrollable">
+                {agencyPlaces.map((place, index) => {
+                    const placeId = place.place_id || `${place.name}-${index}`;
+                    const isLinked = linkedAgencyId === placeId;
+
+                    return (
+                        <article className={`wsd-agency-place-card${isLinked ? " linked" : ""}`} key={placeId}>
+                            <div className="wsd-agency-place-main">
+                                <span>{index + 1}순위</span>
+                                <strong>{place.name}</strong>
+                                <p>{place.display_name}</p>
+                                <small>
+                                    {place.distance ? `약 ${Number(place.distance).toLocaleString()}m` : "거리 정보 없음"}
+                                    {place.phone ? ` · ${place.phone}` : ""}
+                                </small>
+                            </div>
+
+                            <div className="wsd-agency-place-actions">
+                                {place.phone ? (
+                                    <a href={`tel:${place.phone}`}>전화</a>
+                                ) : (
+                                    <button type="button" disabled>전화 없음</button>
+                                )}
+
+                                {place.place_url && (
+                                    <a href={place.place_url} target="_blank" rel="noreferrer">
+                                        길찾기
+                                    </a>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setLinkedAgencyId(placeId)}
+                                >
+                                    {isLinked ? "연계 완료됨" : "연계 완료"}
+                                </button>
+                            </div>
+                        </article>
+                    );
+                })}
+            </div>
+        </section>
+    );
+
     const renderActiveSection = () => {
         if (activeCategory === "기본 정보") return renderBasicInfo();
         if (activeCategory === "보호자 정보") return renderGuardianInfo();
         if (activeCategory === "건강 정보") return renderHealthInfo();
         if (activeCategory === "안심구역 관리") return renderSafeZoneInfo();
         if (activeCategory === HEALTH_EVALUATION_CATEGORY) return renderHealthEvaluation();
+        if (activeCategory === AGENCY_LINK_CATEGORY) return renderAgencyLinkInfo();
 
         return null;
     };
@@ -1139,110 +1286,6 @@ function WelfareSeniorDetail() {
 
                             <div className="wsd-category-content">
                                 {renderActiveSection()}
-
-                                {activeCategory === "전화 및 상담기록" && (
-                                    <section className="wsd-detail-section">
-                                        <div className="wsd-memo-header">
-                                            <div>
-                                                <h2 className="wsd-section-title">전화 및 상담기록</h2>
-                                            </div>
-
-                                            {!isMemoEditing && (
-                                                <button
-                                                    type="button"
-                                                    className="wsd-small-button"
-                                                    onClick={() => {
-                                                        setIsMemoEditing(true);
-                                                        setMemoStatusMessage("");
-                                                    }}
-                                                >
-                                                    수정
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        <div className="wsd-date-search-row">
-                                            <label className="wsd-date-label">
-                                                조회 날짜
-                                                <input
-                                                    type="date"
-                                                    value={selectedCounselingDate}
-                                                    onChange={(event) => handleCounselingDateChange(event.target.value)}
-                                                    className="wsd-date-input"
-                                                />
-                                            </label>
-                                        </div>
-
-                                        {latestConsultRequest?.guardianResponseType && (
-                                            <div className="wsd-consult-action-strip">
-                                                <div>
-                                                    <strong>보호자가 지금 상담 가능합니다</strong>
-                                                    <span>필요하면 바로 전화하거나 상담기록을 작성하세요.</span>
-                                                </div>
-
-                                                <div className="wsd-consult-action-buttons">
-                                                    <a
-                                                        className="wsd-call-link-button"
-                                                        href={`tel:${String(detail.guardianPhone || "").replace(/\D/g, "")}`}
-                                                    >
-                                                        전화 걸기
-                                                    </a>
-
-                                                    <button
-                                                        type="button"
-                                                        className="wsd-secondary-action-button"
-                                                        onClick={() => {
-                                                            const today = new Date().toISOString().slice(0, 10);
-                                                            const memo = `${senior.name}님 보호자가 지금 바로 상담 가능하다고 응답했습니다. 보호자 연락처: ${formatPhoneForDetail(detail.guardianPhone)}`;
-
-                                                            setSelectedCounselingDate(today);
-                                                            setDraftCounselingMemo(memo);
-                                                            setIsMemoEditing(true);
-                                                            setMemoStatusMessage("");
-                                                        }}
-                                                    >
-                                                        기록 작성
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {isMemoEditing ? (
-                                            <>
-                                                <textarea
-                                                    value={draftCounselingMemo}
-                                                    onChange={(event) => setDraftCounselingMemo(event.target.value)}
-                                                    className="wsd-memo-textarea"
-                                                    placeholder="전화 및 상담기록을 입력하세요."
-                                                />
-                                                <div className="wsd-memo-action-row">
-                                                    <button
-                                                        type="button"
-                                                        className="wsd-small-button"
-                                                        onClick={handleCounselingMemoSave}
-                                                    >
-                                                        저장
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="wsd-hold-button"
-                                                        onClick={handleCounselingMemoCancel}
-                                                    >
-                                                        취소
-                                                    </button>
-                                                </div>
-                                            </>
-                                        ) : selectedCounselingRecord?.content ? (
-                                            <p className="wsd-memo-text">
-                                                {selectedCounselingRecord.content}
-                                            </p>
-                                        ) : null}
-
-                                        {memoStatusMessage && (
-                                            <p className="wsd-status-message">{memoStatusMessage}</p>
-                                        )}
-                                    </section>
-                                )}
                             </div>
                         </div>
                     </>
@@ -1371,7 +1414,6 @@ function WelfareSeniorDetail() {
                 </div>
             )}
 
-            <WelfarePolicyChatButton senior={senior} />
         </div>
     );
 }

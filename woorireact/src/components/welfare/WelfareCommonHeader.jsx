@@ -4,10 +4,16 @@ import { useNavigate } from "react-router-dom";
 
 import CommonHeader from "../CommonHeader.jsx";
 import TripartiteChatModal from "../TripartiteChatModal.jsx";
-import { assignWelfareSenior, fetchWelfareAlerts, fetchWelfareSeniors, searchSeniorExact } from "../../api/welfareDashboardApi";
+import {
+    assignWelfareSenior,
+    fetchWelfareAlerts,
+    fetchWelfareSeniors,
+    readWelfareAlert,
+    searchSeniorExact,
+    sendGuardianCheckInRequest,
+} from "../../api/welfareDashboardApi";
 import { fetchUnreadChatCount } from "../../api/chatApi";
 import { mapWelfareSenior, getSeniorReviewStatus } from "../../utils/welfare/welfareDashboardData";
-import { shouldNotifyLastAccessDelay } from "../../utils/welfare/welfareTime";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 
@@ -23,6 +29,7 @@ function WelfareCommonHeader({ rightText }) {
 
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
     const [dismissedNotifications, setDismissedNotifications] = useState([]);
+    const [checkInRequestedNotificationIds, setCheckInRequestedNotificationIds] = useState([]);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [seniors, setSeniors] = useState([]);
@@ -36,7 +43,7 @@ function WelfareCommonHeader({ rightText }) {
         let ignore = false;
         const load = async () => {
             try {
-                const alerts = await fetchWelfareAlerts();
+                const alerts = await fetchWelfareAlerts({ welfareWorkerId: currentWorker.id });
                 if (!ignore) setDbWelfareAlerts(Array.isArray(alerts) ? alerts : []);
             } catch {
                 if (!ignore) setDbWelfareAlerts([]);
@@ -55,7 +62,7 @@ function WelfareCommonHeader({ rightText }) {
         const load = () =>
             fetchUnreadChatCount({ viewerRole: "WELFARE" })
                 .then(setUnreadChatCount)
-                .catch(() => {});
+                .catch(() => { });
         load();
         const timerId = setInterval(load, 5000);
         return () => clearInterval(timerId);
@@ -68,18 +75,27 @@ function WelfareCommonHeader({ rightText }) {
                 const raw = Array.isArray(data) ? data : data.content || [];
                 setSeniors(raw.map(mapWelfareSenior));
             })
-            .catch(() => {});
+            .catch(() => { });
     }, [currentWorker]);
 
-    const dbNotifications = dbWelfareAlerts.map((alert) => ({
-        id: `db-${alert.id}`,
-        seniorId: alert.seniorId,
-        title: alert.title,
-        message: alert.message,
-        category: alert.type === "LAST_ACCESS" ? "복지" : "긴급",
-        detailCategory: alert.type === "LAST_ACCESS" ? "기본 정보" : "안전구역 관리",
-        danger: alert.type !== "LAST_ACCESS",
-    }));
+    const dbNotifications = dbWelfareAlerts.map((alert) => {
+        const isLastAccessAlert = alert.type === "LAST_ACCESS";
+        const isCheckInOkAlert = alert.type === "CHECK_IN_OK";
+
+        return {
+            id: `db-${alert.id}`,
+            seniorId: alert.seniorId,
+            seniorName: alert.seniorName,
+            type: alert.type,
+            title: isCheckInOkAlert ? "보호자 안부 확인 완료" : alert.title,
+            message: alert.message,
+            category: isLastAccessAlert ? "복지" : isCheckInOkAlert ? "정보" : "긴급",
+            detailCategory: isLastAccessAlert ? "기본 정보" : isCheckInOkAlert ? "복지" : "안전구역 관리",
+            danger: !isLastAccessAlert && !isCheckInOkAlert,
+            statusLabel: isCheckInOkAlert ? null : undefined,
+            isRead: alert.isRead === true,
+        };
+    });
 
     const seniorNotifications = seniors.flatMap((senior) => {
         const notifications = [];
@@ -104,25 +120,171 @@ function WelfareCommonHeader({ rightText }) {
                 detailCategory: "일자리 요청 상태",
             });
         }
-        if (shouldNotifyLastAccessDelay(senior.lastAccess)) {
-            notifications.push({
-                id: `${senior.id}-last-access`,
-                seniorId: senior.id,
-                title: "접속 확인 필요",
-                message: `${senior.name} 대상자가 4시간 넘게 접속하지 않았습니다.`,
-                category: "복지",
-                detailCategory: "기본 정보",
-            });
-        }
+
         return notifications;
     });
 
+    const checkInRepliedSeniorIds = new Set(
+        dbNotifications
+            .filter((notification) => notification.type === "CHECK_IN_OK")
+            .map((notification) => String(notification.seniorId))
+    );
+
     const activeNotifications = [...dbNotifications, ...seniorNotifications]
+        .filter((notification) => {
+            if (notification.type !== "LAST_ACCESS") return true;
+            return !checkInRepliedSeniorIds.has(String(notification.seniorId));
+        })
         .filter((n, i, arr) => arr.findIndex((x) => x.id === n.id) === i)
         .filter((n) => !dismissedNotifications.includes(n.id));
 
     const dismissNotification = (id) =>
         setDismissedNotifications((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+    const getServerAlertId = (notificationId) => {
+        if (!notificationId) return null;
+
+        const match = String(notificationId).match(/(\d+)$/);
+        return match ? Number(match[1]) : null;
+    };
+
+    const handleConfirmCheckInOkAlert = async (notification) => {
+        const serverAlertId = getServerAlertId(notification.id);
+
+        if (!serverAlertId) return;
+
+        try {
+            await readWelfareAlert(serverAlertId);
+
+            setDbWelfareAlerts((previousAlerts) =>
+                previousAlerts.map((alert) =>
+                    `db-${alert.id}` === notification.id
+                        ? { ...alert, isRead: true }
+                        : alert
+                )
+            );
+        } catch (error) {
+            console.error("안부 확인 완료 알림 확인 처리 실패:", error);
+            window.alert("알림 확인 처리에 실패했습니다.");
+        }
+    };
+
+    const handleSendGuardianCheckInRequest = async (notification) => {
+        if (!notification?.seniorId) return;
+
+        const seniorName = notification.seniorName || "대상자";
+
+        await sendGuardianCheckInRequest({
+            seniorId: notification.seniorId,
+            message: `${seniorName} 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`,
+        });
+
+        setCheckInRequestedNotificationIds((previousIds) =>
+            previousIds.includes(notification.id)
+                ? previousIds
+                : [...previousIds, notification.id]
+        );
+    };
+
+    const handleResolveLastAccessAlert = (notification) => {
+        dismissNotification(notification.id);
+    };
+
+    const handleAgencyLinkLastAccessAlert = (notification) => {
+        if (notification?.seniorId) {
+            navigate(`/welfare/seniors/${notification.seniorId}`, {
+                state: {
+                    category: "기관 연계",
+                    agencyLinkNeeded: true,
+                },
+            });
+        }
+
+        dismissNotification(notification.id);
+    };
+
+    const isLastAccessNotification = (notification) => {
+        const text = [
+            notification?.type,
+            notification?.title,
+            notification?.message,
+        ].filter(Boolean).join(" ");
+
+        return (
+            text.includes("LAST_ACCESS") ||
+            text.includes("장시간 미접속") ||
+            text.includes("접속 확인 필요")
+        );
+    };
+
+    const renderWelfareNotificationActions = (notification, { defaultAction }) => {
+        if (notification?.type === "CHECK_IN_OK") {
+            if (notification.isRead) return null;
+
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-secondary-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleConfirmCheckInOkAlert(notification);
+                        }}
+                    >
+                        확인
+                    </button>
+                </div>
+            );
+        }
+
+        if (!isLastAccessNotification(notification)) {
+            return defaultAction;
+        }
+
+        const isRequested = checkInRequestedNotificationIds.includes(notification.id);
+
+        if (!isRequested) {
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-primary-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleSendGuardianCheckInRequest(notification);
+                        }}
+                    >
+                        안부 확인 요청
+                    </button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="welfare-alert-actions-below two">
+                <button
+                    type="button"
+                    className="welfare-alert-secondary-action"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleResolveLastAccessAlert(notification);
+                    }}
+                >
+                    확인 완료
+                </button>
+                <button
+                    type="button"
+                    className="welfare-alert-primary-action"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleAgencyLinkLastAccessAlert(notification);
+                    }}
+                >
+                    기관 연계
+                </button>
+            </div>
+        );
+    };
 
     const openAddSeniorModal = () => {
         setAddSeniorForm({ name: "", phone: "" });
@@ -184,12 +346,18 @@ function WelfareCommonHeader({ rightText }) {
                     message: n.message,
                     category: n.category || n.detailCategory || "정보",
                     time: n.time,
-                    isRead: false,
+                    isRead: n.isRead === true,
+                    statusLabel: n.statusLabel,
                     danger: n.danger === true || n.category === "긴급",
-                    raw: n,
+                    raw: {
+                        ...n,
+                        type: n.raw?.type || n.type,
+                        imageUrl: n.raw?.imageAccessUrl || n.raw?.imageUrl || n.imageUrl || "",
+                    },
                 }))}
                 notificationTabs={["전체", "긴급", "정보 미입력", "일자리", "복지", "읽지 않음"]}
                 onReadNotification={(raw) => dismissNotification(raw.id)}
+                renderNotificationActions={renderWelfareNotificationActions}
                 onNotificationClick={(raw) => {
                     if (raw.seniorId) {
                         navigate(`/welfare/seniors/${raw.seniorId}`, {
@@ -228,7 +396,7 @@ function WelfareCommonHeader({ rightText }) {
                 onReadChange={() =>
                     fetchUnreadChatCount({ viewerRole: "WELFARE" })
                         .then(setUnreadChatCount)
-                        .catch(() => {})
+                        .catch(() => { })
                 }
             />
             {isAddSeniorModalOpen && (

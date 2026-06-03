@@ -107,6 +107,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
 
       return {
         id: alert.id,
+        seniorName: alert.seniorName || alert.name,
         seniorId: alert.seniorId,
         type: alert.type,
         latitude: alert.latitude,

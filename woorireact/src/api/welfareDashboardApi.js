@@ -144,15 +144,21 @@ export const fetchWelfareSeniorDetail = async (seniorId) => {
 };
 
 // 복지 알림 불러오기 API 추가
-export const fetchWelfareAlerts = async () => {
-    const response = await fetch(`${WELFARE_API_BASE}/api/alerts/welfare`);
+export const fetchWelfareAlerts = async ({ welfareWorkerId } = {}) => {
+    const params = new URLSearchParams();
+
+    if (welfareWorkerId !== undefined && welfareWorkerId !== null && welfareWorkerId !== "") {
+        params.set("welfareWorkerId", welfareWorkerId);
+    }
+
+    const queryString = params.toString();
+    const response = await fetch(`${WELFARE_API_BASE}/api/alerts/welfare${queryString ? `?${queryString}` : ""}`);
 
     if (!response.ok) {
         return [];
     }
 
     const data = await response.json();
-
     return Array.isArray(data) ? data : [];
 };
 
@@ -183,6 +189,7 @@ export const requestSeniorInfoUpdate = async ({
     return response.json();
 };
 
+// 보호자 상담 요청 API 추가
 export const requestGuardianConsultation = async ({ seniorId, message }) => {
     const response = await fetch("/api/alerts/welfare-consult-request", {
         method: "POST",
@@ -202,6 +209,7 @@ export const requestGuardianConsultation = async ({ seniorId, message }) => {
     return response.json();
 };
 
+// 특정 복지 대상자에 대한 알림 불러오기 API 추가
 export const fetchSeniorAlerts = async (seniorId) => {
     const response = await fetch(`/api/alerts/senior/${seniorId}`);
 
@@ -212,4 +220,34 @@ export const fetchSeniorAlerts = async (seniorId) => {
     const data = await response.json();
 
     return Array.isArray(data) ? data : [];
+};
+
+// 보호자 확인 요청
+export const sendGuardianCheckInRequest = async ({ seniorId, message }) => {
+    const response = await fetch(`${WELFARE_API_BASE}/api/alerts/guardian-check-in-request`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ seniorId, message }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to send guardian check-in request");
+    }
+
+    return response.json();
+};
+
+// 읽음 처리 함수 추가
+export const readWelfareAlert = async (alertId) => {
+    const response = await fetch(`/api/alerts/${alertId}/read`, {
+        method: "PATCH",
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to read welfare alert");
+    }
+
+    return response.json();
 };
