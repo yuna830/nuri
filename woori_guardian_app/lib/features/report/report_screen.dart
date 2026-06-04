@@ -3,10 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
@@ -227,7 +226,7 @@ class _ReportScreenState extends State<ReportScreen> {
     // 지도에서 선택
     final defaultLat = 37.5665;
     final defaultLng = 126.9780;
-    final initial = LatLng(defaultLat, defaultLng);
+    final initial = kakao.LatLng(defaultLat, defaultLng);
 
     final result = await Navigator.push<_MapPickResult>(
       context,
@@ -315,7 +314,9 @@ class _ReportScreenState extends State<ReportScreen> {
                 _sectionLabel('사진 첨부  (선택, ${_photos.length}/4장)'),
                 const SizedBox(height: 6),
                 _buildPhotoSection(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                _buildConsentSection(),
+                const SizedBox(height: 18),
               ],
             ),
           ),
@@ -615,7 +616,61 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // ── 하단 동의 + 버튼 ───────────────────────────────────────────────────────
+  // ── 개인정보 동의 ─────────────────────────────────────────────────────────
+
+  Widget _buildConsentSection() {
+    return GestureDetector(
+      onTap: () => setState(() => _consentGiven = !_consentGiven),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: Checkbox(
+              value: _consentGiven,
+              onChanged: (v) => setState(() => _consentGiven = v ?? false),
+              fillColor: WidgetStateProperty.resolveWith((states) =>
+                  states.contains(WidgetState.selected)
+                      ? Colors.white
+                      : Colors.white),
+              checkColor: _kRed,
+              side: WidgetStateBorderSide.resolveWith((states) => BorderSide(
+                    color: states.contains(WidgetState.selected)
+                        ? _kRed
+                        : const Color(0xFFBBBBBB),
+                    width: 1.5,
+                  )),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4)),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 12, color: _kTextSub, height: 1.5),
+                children: [
+                  TextSpan(text: '신고 처리를 위해 '),
+                  TextSpan(
+                    text: '개인정보(이름, 연락처, 위치정보)',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, color: _kTextMain),
+                  ),
+                  TextSpan(
+                      text:
+                          '를 수집·이용하는 것에 동의합니다. 수집된 정보는 신고 처리 목적으로만 사용됩니다.'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 하단 버튼 ─────────────────────────────────────────────────────────────
 
   Widget _buildBottomBar() {
     return Container(
@@ -623,68 +678,6 @@ class _ReportScreenState extends State<ReportScreen> {
       padding: EdgeInsets.fromLTRB(
           16, 10, 16, MediaQuery.of(context).padding.bottom + 14),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const SizedBox(height: 4),
-
-        // 개인정보 동의 — 심플 인라인
-        GestureDetector(
-          onTap: () =>
-              setState(() => _consentGiven = !_consentGiven),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: Checkbox(
-                  value: _consentGiven,
-                  onChanged: (v) =>
-                      setState(() => _consentGiven = v ?? false),
-                  fillColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? Colors.white
-                          : Colors.white),
-                  checkColor: _kRed,
-                  side: WidgetStateBorderSide.resolveWith((states) =>
-                      BorderSide(
-                        color: states.contains(WidgetState.selected)
-                            ? _kRed
-                            : const Color(0xFFBBBBBB),
-                        width: 1.5,
-                      )),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4)),
-                  materialTapTargetSize:
-                      MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: _kTextSub,
-                        height: 1.5),
-                    children: [
-                      TextSpan(text: '신고 처리를 위해 '),
-                      TextSpan(
-                        text: '개인정보(이름, 연락처, 위치정보)',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: _kTextMain),
-                      ),
-                      TextSpan(
-                          text:
-                              '를 수집·이용하는 것에 동의합니다. 수집된 정보는 신고 처리 목적으로만 사용됩니다.'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-
         SizedBox(
           width: double.infinity,
           height: 50,
@@ -1068,7 +1061,7 @@ Future<List<_NominatimResult>> _searchNominatim(String query) async {
 // ── 지도 선택 결과 ─────────────────────────────────────────────────────────────
 
 class _MapPickResult {
-  final LatLng point;
+  final kakao.LatLng point;
   final String address;
   const _MapPickResult({required this.point, required this.address});
 }
@@ -1076,7 +1069,7 @@ class _MapPickResult {
 // ── 지도에서 위치 선택 화면 ────────────────────────────────────────────────────
 
 class _ReportMapPickScreen extends StatefulWidget {
-  final LatLng initial;
+  final kakao.LatLng initial;
   const _ReportMapPickScreen({required this.initial});
 
   @override
@@ -1084,8 +1077,9 @@ class _ReportMapPickScreen extends StatefulWidget {
 }
 
 class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
-  late LatLng _picked;
-  final _mc = MapController();
+  late kakao.LatLng _picked;
+  kakao.KakaoMapController? _controller;
+  kakao.Poi? _pickedPoi;
   bool _geocoding = false;
   String _address = '';
 
@@ -1095,18 +1089,26 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
     _picked = widget.initial;
   }
 
-  @override
-  void dispose() {
-    _mc.dispose();
-    super.dispose();
+  Future<void> _renderPickedPoi() async {
+    final controller = _controller;
+    if (controller == null) return;
+    if (_pickedPoi != null) {
+      await _pickedPoi!.remove();
+      _pickedPoi = null;
+    }
+    _pickedPoi = await controller.labelLayer.addPoi(
+      _picked,
+      style: kakao.PoiStyle(),
+    );
   }
 
-  Future<void> _onTap(LatLng point) async {
+  Future<void> _onTap(kakao.LatLng point) async {
     setState(() {
       _picked   = point;
       _address  = '';
       _geocoding = true;
     });
+    await _renderPickedPoi();
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse'
@@ -1146,29 +1148,16 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
         ],
       ),
       body: Stack(children: [
-        FlutterMap(
-          mapController: _mc,
-          options: MapOptions(
-            initialCenter: _picked,
-            initialZoom: 15.0,
-            onTap: (_, point) => _onTap(point),
+        kakao.KakaoMap(
+          option: kakao.KakaoMapOption(
+            position: _picked,
+            zoomLevel: 15,
           ),
-          children: [
-            TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.woori.woori_guardian_app',
-            ),
-            MarkerLayer(markers: [
-              Marker(
-                point: _picked,
-                width: 40,
-                height: 40,
-                child: const Icon(Icons.location_pin,
-                    color: _kGreen, size: 40),
-              ),
-            ]),
-          ],
+          onMapReady: (controller) {
+            _controller = controller;
+            _renderPickedPoi();
+          },
+          onMapClick: (_, position) => _onTap(position),
         ),
 
         // 하단 안내 박스

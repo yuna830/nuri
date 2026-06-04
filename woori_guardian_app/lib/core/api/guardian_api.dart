@@ -9,7 +9,10 @@ import '../models/alert.dart';
 import '../models/safe_zone.dart';
 
 class GuardianApi {
-  Future<Map<String, dynamic>> loginGuardian(String email, String password) async {
+  Future<Map<String, dynamic>> loginGuardian(
+    String email,
+    String password,
+  ) async {
     final baseUrl = AppConfig.apiBaseUrl;
     final url = Uri.parse('$baseUrl/guardians/login');
 
@@ -18,14 +21,22 @@ class GuardianApi {
     dev.log('[LOGIN] 요청 email: $email', name: 'GuardianApi');
 
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 10));
 
-      dev.log('[LOGIN] 응답 statusCode: ${response.statusCode}', name: 'GuardianApi');
-      dev.log('[LOGIN] 응답 body: ${utf8.decode(response.bodyBytes)}', name: 'GuardianApi');
+      dev.log(
+        '[LOGIN] 응답 statusCode: ${response.statusCode}',
+        name: 'GuardianApi',
+      );
+      dev.log(
+        '[LOGIN] 응답 body: ${utf8.decode(response.bodyBytes)}',
+        name: 'GuardianApi',
+      );
 
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
@@ -53,20 +64,28 @@ class GuardianApi {
           msg.contains('NETWORK_ERROR')) {
         rethrow;
       }
-      dev.log('[LOGIN] Exception (기타): ${e.runtimeType}: $e', name: 'GuardianApi');
+      dev.log(
+        '[LOGIN] Exception (기타): ${e.runtimeType}: $e',
+        name: 'GuardianApi',
+      );
       throw Exception('NETWORK_ERROR');
     }
   }
 
-  Future<Map<String, dynamic>?> searchSeniorExact(String name, String phone) async {
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/seniors/search-exact')
-        .replace(queryParameters: {'name': name, 'phone': phone});
+  Future<Map<String, dynamic>?> searchSeniorExact(
+    String name,
+    String phone,
+  ) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/seniors/search-exact',
+    ).replace(queryParameters: {'name': name, 'phone': phone});
     try {
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
         if (data.isEmpty) return null;
-        return (data.first as Map<String, dynamic>)['senior'] as Map<String, dynamic>?;
+        return (data.first as Map<String, dynamic>)['senior']
+            as Map<String, dynamic>?;
       }
       return null;
     } catch (_) {
@@ -74,21 +93,32 @@ class GuardianApi {
     }
   }
 
-  Future<void> connectSeniorToGuardian(int guardianId, int seniorId, String relation) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/guardians/$guardianId/seniors');
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'seniorId': seniorId, 'relation': relation}),
-    ).timeout(const Duration(seconds: 10));
+  Future<void> connectSeniorToGuardian(
+    int guardianId,
+    int seniorId,
+    String relation,
+  ) async {
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/guardians/$guardianId/seniors',
+    );
+    final response = await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'seniorId': seniorId, 'relation': relation}),
+        )
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode == 200 || response.statusCode == 201) return;
     final body = utf8.decode(response.bodyBytes);
-    if (body.contains('Already connected')) throw Exception('ALREADY_CONNECTED');
+    if (body.contains('Already connected'))
+      throw Exception('ALREADY_CONNECTED');
     throw Exception('연결 실패 (${response.statusCode})');
   }
 
   Future<List<Senior>> fetchGuardianSeniors(int guardianId) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/seniors/guardian/$guardianId');
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/seniors/guardian/$guardianId',
+    );
 
     try {
       final response = await http.get(url);
@@ -105,7 +135,9 @@ class GuardianApi {
   }
 
   Future<Map<String, dynamic>> fetchLatestLocation(int seniorId) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/locations/senior/$seniorId/latest');
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/locations/senior/$seniorId/latest',
+    );
 
     dev.log('[LOCATION] 요청 URL: $url', name: 'GuardianApi');
 
@@ -113,12 +145,18 @@ class GuardianApi {
       final response = await http.get(url);
       final bodyStr = utf8.decode(response.bodyBytes);
 
-      dev.log('[LOCATION] statusCode: ${response.statusCode}', name: 'GuardianApi');
+      dev.log(
+        '[LOCATION] statusCode: ${response.statusCode}',
+        name: 'GuardianApi',
+      );
       dev.log('[LOCATION] response body: $bodyStr', name: 'GuardianApi');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(bodyStr) as Map<String, dynamic>;
-        dev.log('[LOCATION] latitude: ${data['latitude']}, longitude: ${data['longitude']}', name: 'GuardianApi');
+        dev.log(
+          '[LOCATION] latitude: ${data['latitude']}, longitude: ${data['longitude']}',
+          name: 'GuardianApi',
+        );
         return data;
       } else if (response.statusCode == 404) {
         throw Exception('위치 정보가 없습니다.');
@@ -127,20 +165,27 @@ class GuardianApi {
       }
     } catch (e) {
       if (e.toString().contains('위치 정보')) rethrow;
-      dev.log('[LOCATION] Exception: ${e.runtimeType}: $e', name: 'GuardianApi');
+      dev.log(
+        '[LOCATION] Exception: ${e.runtimeType}: $e',
+        name: 'GuardianApi',
+      );
       throw Exception('위치 조회 중 오류가 발생했습니다: $e');
     }
   }
 
   Future<List<AlertModel>> fetchGuardianAlerts(int guardianId) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/guardian/$guardianId');
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/alerts/guardian/$guardianId',
+    );
 
     try {
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
-        return data.map((json) => AlertModel.fromJson(json as Map<String, dynamic>)).toList();
+        return data
+            .map((json) => AlertModel.fromJson(json as Map<String, dynamic>))
+            .toList();
       } else {
         throw Exception('알림 목록을 불러오지 못했습니다. (${response.statusCode})');
       }
@@ -168,12 +213,16 @@ class GuardianApi {
   // ── 안전 구역 API (/api/safe-zones) ─────────────────────────────────────
 
   Future<List<SafeZone>> fetchSafeZones(int seniorId) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId');
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId',
+    );
     try {
       final res = await http.get(url);
       if (res.statusCode == 200) {
         final list = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
-        return list.map((j) => SafeZone.fromJson(j as Map<String, dynamic>)).toList();
+        return list
+            .map((j) => SafeZone.fromJson(j as Map<String, dynamic>))
+            .toList();
       }
       throw Exception('안전 구역 조회 실패 (${res.statusCode})');
     } catch (e) {
@@ -183,15 +232,19 @@ class GuardianApi {
   }
 
   Future<SafeZone> createSafeZone(int seniorId, SafeZone zone) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId');
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId',
+    );
     try {
-      final res = await http.post(url,
+      final res = await http.post(
+        url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(zone.toJson()),
       );
       if (res.statusCode == 200 || res.statusCode == 201) {
         return SafeZone.fromJson(
-            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>,
+        );
       }
       throw Exception('안전 구역 추가 실패 (${res.statusCode})');
     } catch (e) {
@@ -200,17 +253,24 @@ class GuardianApi {
     }
   }
 
-  Future<SafeZone> updateSafeZone(int seniorId, int zoneId, SafeZone zone) async {
+  Future<SafeZone> updateSafeZone(
+    int seniorId,
+    int zoneId,
+    SafeZone zone,
+  ) async {
     final url = Uri.parse(
-        '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId/$zoneId');
+      '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId/$zoneId',
+    );
     try {
-      final res = await http.put(url,
+      final res = await http.put(
+        url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(zone.toJson()),
       );
       if (res.statusCode == 200) {
         return SafeZone.fromJson(
-            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>,
+        );
       }
       throw Exception('안전 구역 수정 실패 (${res.statusCode})');
     } catch (e) {
@@ -221,7 +281,8 @@ class GuardianApi {
 
   Future<void> deleteSafeZone(int seniorId, int zoneId) async {
     final url = Uri.parse(
-        '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId/$zoneId');
+      '${AppConfig.apiBaseUrl}/safe-zones/senior/$seniorId/$zoneId',
+    );
     try {
       final res = await http.delete(url);
       if (res.statusCode != 200 && res.statusCode != 204) {
@@ -231,5 +292,22 @@ class GuardianApi {
       if (e.toString().contains('안전 구역')) rethrow;
       throw Exception('안전 구역 삭제 중 오류: $e');
     }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSeniorJobApplications(
+    int seniorId,
+  ) async {
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/job-interests/senior/$seniorId',
+    );
+
+    final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      return data.map((item) => item as Map<String, dynamic>).toList();
+    }
+
+    throw Exception('일자리 신청 내역을 불러오지 못했습니다.');
   }
 }
