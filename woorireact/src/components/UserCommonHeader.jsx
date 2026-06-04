@@ -265,7 +265,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       );
 
       resolvedInfoRequestAlerts.forEach((alert) => {
-        readAlert(alert.id).catch(() => {});
+        readAlert(alert.id).catch((error) => {
+          console.warn("알림 읽음 처리 실패:", alert.id, error);
+        });
       });
 
       const nextInfoRequestAlert = seniorAlerts.find((alert) =>
