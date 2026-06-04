@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../location/location_tab_screen.dart';
 import '../notification/notification_center_screen.dart';
 import '../report/report_screen.dart';
@@ -10,8 +11,8 @@ import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/widgets/app_header.dart';
+import '../senior/senior_detail_screen.dart';
 
-// ── 디자인 토큰 ───────────────────────────────────────────────────────────────
 // 한 곳에서 색상을 관리해 변경 시 전체가 일관되게 반영됩니다.
 abstract final class _C {
   /// 브랜드 그린 — AppBar·메인 버튼·포인트에만 사용
@@ -74,10 +75,11 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   Future<void> _loadSessionInfo() async {
     try {
       final info = await _sessionStorage.getGuardianInfo();
-      if (mounted) setState(() {
-        _guardianName = info['name'] ?? '';
-        _guardianEmail = info['email'] ?? '';
-      });
+      if (mounted)
+        setState(() {
+          _guardianName = info['name'] ?? '';
+          _guardianEmail = info['email'] ?? '';
+        });
       final idStr = info['guardianId'];
       if (idStr != null && idStr.isNotEmpty) {
         await _refreshUnreadCount(int.parse(idStr));
@@ -104,7 +106,10 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   }
 
   void _navigateToLocationTab(int seniorId) {
-    setState(() { _selectedSeniorId = seniorId; _selectedIndex = 1; });
+    setState(() {
+      _selectedSeniorId = seniorId;
+      _selectedIndex = 1;
+    });
   }
 
   void _navigateToReportTab() => setState(() => _selectedIndex = 2);
@@ -159,16 +164,31 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
         backgroundColor: Colors.white,
         elevation: 8,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on_outlined),
-              activeIcon: Icon(Icons.location_on), label: '위치'),
-          BottomNavigationBarItem(icon: Icon(Icons.report_problem_outlined),
-              activeIcon: Icon(Icons.report_problem), label: '신고'),
-          BottomNavigationBarItem(icon: Icon(Icons.phone_outlined),
-              activeIcon: Icon(Icons.phone), label: '연락'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person), label: '마이'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: '홈',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.location_on_outlined),
+            activeIcon: Icon(Icons.location_on),
+            label: '위치',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_problem_outlined),
+            activeIcon: Icon(Icons.report_problem),
+            label: '신고',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.phone_outlined),
+            activeIcon: Icon(Icons.phone),
+            label: '연락',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: '마이',
+          ),
         ],
       ),
     );
@@ -204,7 +224,10 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Future<void> _loadSeniors() async {
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final info = await _sessionStorage.getGuardianInfo();
       final idStr = info['guardianId'];
@@ -212,7 +235,11 @@ class _HomeTabState extends State<_HomeTab> {
         throw Exception('보호자 세션 정보가 없습니다. 다시 로그인해주세요.');
       }
       final seniors = await _api.fetchGuardianSeniors(int.parse(idStr));
-      if (mounted) setState(() { _seniors = seniors; _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _seniors = seniors;
+          _isLoading = false;
+        });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -226,8 +253,7 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(color: _C.green));
+      return const Center(child: CircularProgressIndicator(color: _C.green));
     }
 
     if (_errorMessage != null) {
@@ -239,9 +265,11 @@ class _HomeTabState extends State<_HomeTab> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: _C.danger),
               const SizedBox(height: 12),
-              Text(_errorMessage!,
-                  style: const TextStyle(color: _C.danger, fontSize: 15),
-                  textAlign: TextAlign.center),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: _C.danger, fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: _loadSeniors,
@@ -261,8 +289,10 @@ class _HomeTabState extends State<_HomeTab> {
           children: [
             Icon(Icons.people_outline, size: 56, color: _C.textHint),
             const SizedBox(height: 12),
-            const Text('담당 어르신이 없습니다.',
-                style: TextStyle(fontSize: 16, color: _C.textSub)),
+            const Text(
+              '담당 어르신이 없습니다.',
+              style: TextStyle(fontSize: 16, color: _C.textSub),
+            ),
           ],
         ),
       );
@@ -279,25 +309,33 @@ class _HomeTabState extends State<_HomeTab> {
           senior: _seniors[i],
           onViewLocation: widget.onViewLocation,
           onReport: widget.onReport,
+          onOpenDetail: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SeniorDetailScreen(senior: _seniors[i]),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // _SeniorCard
-// ═══════════════════════════════════════════════════════════════════════════════
 
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
   final void Function(int seniorId) onViewLocation;
   final VoidCallback onReport;
+  final VoidCallback onOpenDetail;
 
   const _SeniorCard({
     required this.senior,
     required this.onViewLocation,
     required this.onReport,
+    required this.onOpenDetail,
   });
 
   Future<void> _callPhone(BuildContext context, String phone) async {
@@ -307,7 +345,8 @@ class _SeniorCard extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('연락처 사용이 비활성화되어 있습니다. 마이페이지 > 정보 제공 동의에서 켜주세요.')),
+            content: Text('연락처 사용이 비활성화되어 있습니다. 마이페이지 > 정보 제공 동의에서 켜주세요.'),
+          ),
         );
       }
       return;
@@ -317,47 +356,56 @@ class _SeniorCard extends StatelessWidget {
       await launchUrl(uri);
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('전화 앱을 열 수 없습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('전화 앱을 열 수 없습니다.')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E8E0), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+        onTap: onOpenDetail,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE0E8E0), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // ── 헤더: 이름 + 나이 / 상태 배지 ──────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(senior.name,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: _C.textTitle)),
+                Text(
+                  senior.name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: _C.textTitle,
+                  ),
+                ),
                 if (senior.age != null) ...[
                   const SizedBox(width: 6),
-                  Text('${senior.age}세',
-                      style: const TextStyle(
-                          fontSize: 13, color: _C.textSub)),
+                  Text(
+                    '${senior.age}세',
+                    style: const TextStyle(fontSize: 13, color: _C.textSub),
+                  ),
                 ],
                 const Spacer(),
                 _StatusBadge(status: senior.status),
@@ -388,7 +436,7 @@ class _SeniorCard extends StatelessWidget {
               const SizedBox(height: 7),
               _InfoRow(
                 icon: Icons.medication_outlined,
-                label: '복약 중 ${senior.medicineCount}종',
+                label: '복약 중 ${senior.medicineCount}',
               ),
             ],
 
@@ -427,7 +475,8 @@ class _SeniorCard extends StatelessWidget {
                       foregroundColor: _C.textSub,
                       disabledForegroundColor: _C.textHint,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: const Icon(Icons.call_outlined, size: 18),
                   ),
@@ -444,12 +493,17 @@ class _SeniorCard extends StatelessWidget {
                         backgroundColor: _C.green,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       icon: const Icon(Icons.location_on_outlined, size: 16),
-                      label: const Text('위치 보기',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      label: const Text(
+                        '위치 보기',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -466,14 +520,17 @@ class _SeniorCard extends StatelessWidget {
                       foregroundColor: _C.danger,
                       side: BorderSide(color: _C.danger.withValues(alpha: 0.4)),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: const Icon(Icons.report_problem_outlined, size: 18),
                   ),
                 ),
               ],
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -545,13 +602,23 @@ class _InfoRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 13, color: _C.textTitle, height: 1.3)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: _C.textTitle,
+                  height: 1.3,
+                ),
+              ),
               if (sub != null)
-                Text(sub!,
-                    style: const TextStyle(
-                        fontSize: 11, color: _C.textHint, height: 1.4)),
+                Text(
+                  sub!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: _C.textHint,
+                    height: 1.4,
+                  ),
+                ),
             ],
           ),
         ),
