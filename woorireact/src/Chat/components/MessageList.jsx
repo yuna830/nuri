@@ -87,6 +87,58 @@ function FoodAnalysisMessage({ analysis }) {
   );
 }
 
+function parseFoodSafetyAdvice(content) {
+  const lines = String(content || "").split("\n").map((line) => line.trim());
+  const cautionStart = lines.indexOf("주의할 점");
+  if (cautionStart < 0) return null;
+
+  const eatingStart = lines.indexOf("드실 때");
+  const title = lines.slice(0, cautionStart).find(Boolean) || "섭취 안내";
+  const cautionEnd = eatingStart >= 0 ? eatingStart : lines.length;
+  const cautions = lines
+    .slice(cautionStart + 1, cautionEnd)
+    .filter((line) => line.startsWith("- "))
+    .map((line) => {
+      const [label, ...descriptionParts] = line.slice(2).split(":");
+      return {
+        label: label.trim(),
+        description: descriptionParts.join(":").trim() || line.slice(2).trim(),
+      };
+    });
+  const tips = eatingStart >= 0
+    ? lines.slice(eatingStart + 1).filter((line) => line.startsWith("- ")).map((line) => line.slice(2))
+    : [];
+
+  return cautions.length ? { title, cautions, tips } : null;
+}
+
+function FoodSafetyAdviceMessage({ advice }) {
+  return (
+    <div className="food-safety-card">
+      <strong className="food-safety-title">{advice.title}</strong>
+
+      <table className="food-caution-table">
+        <caption>주의할 점</caption>
+        <tbody>
+          {advice.cautions.map((item) => (
+            <tr key={`${item.label}-${item.description}`}>
+              <th scope="row">{item.label}</th>
+              <td>{item.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {advice.tips.length > 0 && (
+        <div className="food-eating-tip-box">
+          <strong>드실 때</strong>
+          {advice.tips.map((tip) => <p key={tip}>{tip}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MessageList = forwardRef(function MessageList(
   { messages, isLoading },
   messagesEndRef
@@ -98,6 +150,7 @@ const MessageList = forwardRef(function MessageList(
         const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
         const foodAnalysis = parseFoodAnalysis(message.content);
+        const foodSafetyAdvice = foodAnalysis ? null : parseFoodSafetyAdvice(message.content);
 
         return (
           <Fragment key={messageKey}>
@@ -113,8 +166,14 @@ const MessageList = forwardRef(function MessageList(
             )}
             {hasVisibleContent && (
               <div className={`chat-message-row ${message.role}`}>
-                <div className={`chat-message ${message.role} ${foodAnalysis ? "food-analysis" : ""}`}>
-                  {foodAnalysis ? <FoodAnalysisMessage analysis={foodAnalysis} /> : message.content}
+                <div className={`chat-message ${message.role} ${foodAnalysis || foodSafetyAdvice ? "food-analysis" : ""}`}>
+                  {foodAnalysis ? (
+                    <FoodAnalysisMessage analysis={foodAnalysis} />
+                  ) : foodSafetyAdvice ? (
+                    <FoodSafetyAdviceMessage advice={foodSafetyAdvice} />
+                  ) : (
+                    message.content
+                  )}
                 </div>
                 <time className="chat-message-time">{formattedTime}</time>
               </div>

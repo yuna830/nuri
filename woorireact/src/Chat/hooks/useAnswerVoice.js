@@ -114,8 +114,28 @@ export function useAnswerVoice() {
 
 function normalizeSpeechText(text) {
   return String(text || "")
+    .replace(/●/g, " ")
+    .replace(/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})/g, (_, year, month, day, hour, minute) =>
+      `${year}년 ${Number(month)}월 ${Number(day)}일 ${formatKoreanTime(hour, minute)}`
+    )
+    .replace(/(\d{4})-(\d{1,2})-(\d{1,2})/g, (_, year, month, day) =>
+      `${year}년 ${Number(month)}월 ${Number(day)}일`
+    )
+    .replace(/(^|\s)(\d{1,2}):(\d{2})(?=\s|$)/g, (_, prefix, hour, minute) =>
+      `${prefix}${formatKoreanTime(hour, minute)}`
+    )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatKoreanTime(rawHour, rawMinute) {
+  const hour = Number(rawHour);
+  const minute = Number(rawMinute);
+  const meridiem = hour < 12 ? "오전" : "오후";
+  const displayHour = hour % 12 || 12;
+  const minuteText = minute === 0 ? "" : ` ${minute}분`;
+
+  return `${meridiem} ${displayHour}시${minuteText}`;
 }
 
 function getCuteKoreanVoice() {

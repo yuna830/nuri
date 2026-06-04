@@ -259,10 +259,30 @@ function parseWeekday(text, baseDate) {
 }
 
 function splitIntoItems(text) {
-  return expandSharedTitleDateLists(text)
-    .split(/\n|[.;]|,\s*(?=(?:20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}|(?:\d{1,2}\s*월\s*)?\d{1,2}\s*일|오늘|내일|모레|글피))/)
+  const items = expandSharedTitleDateLists(text)
+    .split(/\n|[.;]|,\s*(?=(?:20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}|(?:\d{1,2}\s*월\s*)?\d{1,2}\s*일|오늘|내일|모레|글피|(?:오전|오후|아침|저녁|밤|새벽|낮|점심)?\s*(?:\d{1,2}|열하나|열한|열두|열둘|다섯|여섯|일곱|여덟|아홉|하나|둘|셋|넷|한|두|세|네|삼십|사십|오십|이십|십|열)\s*시))/)
     .map((item) => item.trim())
     .filter(Boolean);
+
+  let sharedDateText = "";
+  return items.map((item) => {
+    const dateText = extractDateCueText(item);
+    if (dateText) sharedDateText = dateText;
+    if (sharedDateText && !dateText && parseTimeExpression(item)) {
+      return `${sharedDateText} ${item}`;
+    }
+    return item;
+  });
+}
+
+function extractDateCueText(text) {
+  const normalized = normalizeScheduleText(text);
+  return (
+    normalized.match(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/)?.[0] ||
+    normalized.match(/\d{1,2}\s*월\s*\d{1,2}\s*일?/)?.[0] ||
+    normalized.match(/내일\s*모레|내일모레|오늘|글피|모레|내일/)?.[0] ||
+    ""
+  );
 }
 
 function parseDateRangeSchedules(text, baseDate) {

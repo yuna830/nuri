@@ -71,8 +71,12 @@ export async function createCareResponse({ text, schedules, history = [], profil
   }
 
   try {
+    if (isGeneralFoodRecommendationQuestion(text)) {
+      return await answerGeneralFoodRecommendation(text, profileContext);
+    }
+
     const latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
-    const foodSafetyAnswer = answerFoodSafetyQuestion(text, latestFoodAnalysisMemory, profileContext);
+    const foodSafetyAnswer = answerFoodSafetyQuestion(text, latestFoodAnalysisMemory, profileContext, history);
     if (foodSafetyAnswer) return foodSafetyAnswer;
 
     const foodIngredientAnswer = answerFoodIngredientQuestion(text, latestFoodAnalysisMemory);
@@ -170,16 +174,89 @@ function answerFoodIngredientQuestion(text, memory) {
   return `OCR 원문에서는 ${ingredient}가 명확히 확인되지 않았어요. 알레르기나 제한 식품이면 원재료명 부분을 직접 확인하는 것이 안전해요.`;
 }
 
-function answerFoodSafetyQuestion(text, memory, profileContext) {
+async function answerGeneralFoodRecommendation(text, profileContext) {
+  const fallbackAnswer = buildRuleBasedFoodRecommendation(profileContext);
+  if (!GEMINI_API_KEY) return fallbackAnswer;
+
+  try {
+    const content = await askGemini([
+      { role: "system", content: buildCareAssistantSystemPrompt(profileContext) },
+      ...(profileContext ? [{ role: "system", content: buildProfileContextPrompt(profileContext) }] : []),
+      {
+        role: "system",
+        content: [
+          "사용자는 특정 사진 속 음식이 아니라, 본인 건강상태 기준으로 먹어도 되는 음식 예시를 묻고 있다.",
+          "먹지 말아야 할 음식 목록보다 먹어도 되는 음식과 먹는 방법을 먼저 알려준다.",
+          "답변은 한국어로 짧게, 4~7개 음식 예시를 bullet 없이 줄바꿈으로 제시한다.",
+          "의료 진단처럼 말하지 말고 일반적인 식사 참고 안내로 말한다.",
+        ].join("\n"),
+      },
+      { role: "user", content: text },
+    ], {
+      options: {
+        maxOutputTokens: 260,
+        temperature: 0.3,
+      },
+    });
+
+    return normalizeCareResponse(content);
+  } catch (error) {
+    console.warn("음식 추천 Gemini 응답 실패. 규칙 기반 답변으로 대체합니다.", error);
+    return fallbackAnswer;
+  }
+}
+
+function buildRuleBasedFoodRecommendation(profileContext) {
+  const diseases = profileContext?.diseases || {};
+  const allergies = String(profileContext?.allergies || "").trim();
+  const hasDiabetes = hasHealthCondition(diseases.diabetes);
+  const hasSaltSensitive =
+    hasHealthCondition(diseases.hypertension) ||
+    hasHealthCondition(diseases.heartDisease) ||
+    hasHealthCondition(diseases.kidneyDisease);
+  const hasLiverDisease = hasHealthCondition(diseases.liverDisease);
+
+  const foods = [
+    "삶은 달걀이나 두부처럼 담백한 단백질 음식",
+    "나물, 데친 채소, 샐러드처럼 양념이 적은 채소 음식",
+    "흰밥보다 양을 줄인 잡곡밥이나 현미밥",
+    "맑은 국보다 건더기 위주로 먹는 국이나 찌개",
+    "구운 생선이나 찐 생선처럼 기름이 적은 음식",
+  ];
+
+  const notes = [];
+  if (hasDiabetes) notes.push("당뇨가 있으니 밥, 떡, 빵, 과일은 양을 줄여 드세요.");
+  if (hasSaltSensitive) notes.push("혈압이나 신장, 심장 때문에 국물과 짠 반찬은 적게 드세요.");
+  if (hasLiverDisease) notes.push("간질환이 있으니 튀김이나 기름진 음식은 적게 드세요.");
+  if (allergies && allergies !== "없음") notes.push(`알레르기(${allergies})가 있는 음식은 피하고 원재료명을 확인하세요.`);
+
+  return [
+    "드셔도 비교적 무난한 음식은 이런 쪽이에요.",
+    "",
+    ...foods.map((food) => `- ${food}`),
+    "",
+    "드실 때",
+    ...notes.map((note) => `- ${note}`),
+    "- 한 번에 많이 드시기보다 조금씩 나누어 드세요.",
+  ].join("\n");
+}
+
+function answerFoodSafetyQuestion(text, memory, profileContext, history = []) {
   if (!memory || !isFoodSafetyQuestion(text)) return "";
 
+  const intro = getFoodNameIntro(memory, history);
+  const productName = getVisibleFoodName(memory);
   const conflicts = extractFoodMemorySection(memory, "Personal allergy conflicts found:");
   const ocrText = extractFoodMemorySection(memory, "OCR text:");
   const hasConflicts = conflicts && conflicts !== "none";
   const diseaseCaution = getFoodDiseaseCaution(profileContext);
+  const foodSpecificCaution = getFoodSpecificCaution(productName);
+  const eatingTips = getFoodEatingTips(productName);
 
   if (hasConflicts) {
-    return [
+    return compactFoodAnswer([
+      intro,
+      intro && "",
       "드시지 마세요.",
       "",
       "이유",
@@ -187,38 +264,135 @@ function answerFoodSafetyQuestion(text, memory, profileContext) {
       "",
       "확인해 주세요",
       "- 드시기 전에 원재료명을 다시 확인해 주세요.",
-    ].join("\n");
+    ]);
   }
 
   if (diseaseCaution.length > 0) {
-    return [
+    return compactFoodAnswer([
+      intro,
+      intro && "",
       "조금만 드세요.",
       "",
       "주의할 점",
+      ...foodSpecificCaution,
       ...diseaseCaution,
       "",
       "드실 때",
-      "- 작은 양만 덜어 드세요.",
-      "- 국물이나 양념은 적게 드세요.",
+      ...eatingTips,
       "- 가능하면 성분표도 확인해 주세요.",
-    ].join("\n");
+    ]);
   }
 
   if (!ocrText) {
-    return [
+    return compactFoodAnswer([
+      intro,
+      intro && "",
       "사진만으로는 드셔도 되는지 판단하기 어려워요.",
       "",
       "확인해 주세요",
       "- 알레르기나 제한 식품이 있다면 원재료명을 확인해 주세요.",
-    ].join("\n");
+    ]);
   }
 
-  return [
+  return compactFoodAnswer([
+    intro,
+    intro && "",
     "사진에서 피해야 할 성분은 명확히 보이지 않아요.",
     "",
     "확인해 주세요",
     "- 드시기 전에 원재료명을 한 번 더 확인해 주세요.",
-  ].join("\n");
+  ]);
+}
+
+function getFoodNameIntro(memory, history) {
+  const productName = getVisibleFoodName(memory);
+  if (!productName) return "";
+
+  const alreadyMentioned = [...history]
+    .reverse()
+    .slice(0, 4)
+    .some((message) =>
+      message.role === "assistant" &&
+      !message.hidden &&
+      String(message.content || "").includes(productName)
+    );
+
+  return alreadyMentioned ? "" : `${productName}로 보여요.`;
+}
+
+function getVisibleFoodName(memory) {
+  const name = extractFoodMemorySection(memory, "Product name:")
+    .split("\n")[0]
+    .trim();
+
+  return name && name !== "unknown" ? name : "";
+}
+
+function compactFoodAnswer(lines) {
+  return lines.filter((line) => line !== false && line !== null && line !== undefined).join("\n");
+}
+
+function getFoodSpecificCaution(productName) {
+  const name = normalizeFoodName(productName);
+
+  if (/치킨|닭튀김|후라이드|프라이드|양념치킨/.test(name)) {
+    return [
+      "- 치킨: 튀긴 음식이라 지방과 열량이 높을 수 있어요.",
+      "- 치킨 껍질: 포화지방이 많을 수 있어 가능하면 줄이세요.",
+    ];
+  }
+
+  if (/떡볶이|떡복이|떡볶/.test(name)) {
+    return [
+      "- 떡볶이: 떡 때문에 탄수화물이 많을 수 있어요.",
+      "- 떡볶이 양념: 맵고 짜며 당이 들어갈 수 있어요.",
+    ];
+  }
+
+  if (/라면|국수|우동|칼국수/.test(name)) {
+    return [
+      "- 면 음식: 탄수화물과 나트륨이 많을 수 있어요.",
+      "- 국물: 나트륨이 많으니 적게 드세요.",
+    ];
+  }
+
+  if (/피자|햄버거|버거/.test(name)) {
+    return [
+      "- 패스트푸드: 지방과 나트륨이 많을 수 있어요.",
+      "- 소스: 당과 나트륨이 들어갈 수 있어 적게 드세요.",
+    ];
+  }
+
+  return [];
+}
+
+function getFoodEatingTips(productName) {
+  const name = normalizeFoodName(productName);
+
+  if (/치킨|닭튀김|후라이드|프라이드|양념치킨/.test(name)) {
+    return [
+      "- 한두 조각만 덜어 드세요.",
+      "- 껍질과 튀김옷은 조금 줄이세요.",
+      "- 양념치킨이면 소스가 많은 부분은 피하세요.",
+    ];
+  }
+
+  if (/떡볶이|떡복이|떡볶/.test(name)) {
+    return [
+      "- 떡은 조금만 덜어 드세요.",
+      "- 국물이나 양념은 적게 드세요.",
+      "- 가능하면 채소나 단백질 음식과 함께 드세요.",
+    ];
+  }
+
+  return [
+    "- 작은 양만 덜어 드세요.",
+    "- 자극적인 양념은 적게 드세요.",
+  ];
+}
+
+function normalizeFoodName(productName) {
+  return String(productName || "").replace(/\s/g, "").toLowerCase();
 }
 
 function isFoodSafetyQuestion(text) {
@@ -231,6 +405,15 @@ function isFoodSafetyQuestion(text) {
     .replace(/섭취해두/g, "섭취해도");
 
   return /(먹어도|먹어봐도|드셔도|섭취해도|먹으면|먹을수있)/.test(normalized);
+}
+
+function isGeneralFoodRecommendationQuestion(text) {
+  const normalized = String(text || "").replace(/\s/g, "");
+
+  return (
+    /(먹어도되는|먹을수있는|먹어도괜찮은|먹어도좋은|먹어야하는|추천)/.test(normalized) &&
+    /(음식|식단|반찬|밥|메뉴|먹을거|먹거리|뭐|무엇)/.test(normalized)
+  );
 }
 
 function getFoodDiseaseCaution(profileContext) {
