@@ -613,15 +613,80 @@
 }
 
 .wsd-health-eval-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 16px;
-    align-items: start;
     margin-bottom: 18px;
 }
 
+/* ── 상단 3단 요약 ── */
+.wsd-health-summary-row {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.wsd-health-summary-grade,
+.wsd-health-summary-prob,
+.wsd-health-summary-score {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 16px;
+    border: 1px solid #d4e8d6;
+    border-radius: 14px;
+    background: #f8fbf5;
+}
+
+.wsd-health-summary-grade {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.wsd-health-summary-grade span {
+    color: #6f876f;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.wsd-health-summary-grade strong {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.wsd-health-summary-grade em {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-style: normal;
+    opacity: 0.7;
+}
+
+.wsd-health-summary-grade-good  { background: #edf6ee; color: #2f6a3b; border-color: #b8ddc0; }
+.wsd-health-summary-grade-caution { background: #fff6d8; color: #8a640e; border-color: #eed27a; }
+.wsd-health-summary-grade-danger  { background: #ffe8e8; color: #a53a3a; border-color: #efb0b0; }
+
+.wsd-health-summary-label {
+    color: #6f876f;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.wsd-health-summary-score strong {
+    color: #1e2a1f;
+    font-size: 1.4rem;
+    font-weight: 900;
+}
+
+.wsd-health-summary-score p {
+    margin: 0;
+    color: #486349;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
 .wsd-health-eval-heading .wsd-section-title {
-    margin-bottom: 0.55rem;
+    margin-bottom: 0.4rem;
 }
 
 .wsd-health-eval-heading p {
@@ -806,12 +871,41 @@
     border-top: 1px solid #d4e8d6;
 }
 
+.wsd-health-reason-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.wsd-health-reason-header h3 {
+    margin: 0;
+}
+
+.wsd-health-criteria-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+    padding: 8px 16px;
+    border: 1px solid #d4e8d6;
+    border-radius: 999px;
+    background: #f4faf5;
+    color: #486349;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wsd-health-criteria-toggle:hover {
+    background: #e6f3e8;
+}
+
 .wsd-health-probability-panel {
     margin-bottom: 1.35rem;
 }
 
 .wsd-health-probability-panel h3,
-.wsd-health-reason-section h3,
 .wsd-health-criteria-section h3,
 .wsd-health-score-rule-section h3 {
     margin: 0 0 1rem;
@@ -916,6 +1010,14 @@
     color: #9a3535;
 }
 
+.wsd-health-grade-segment:first-child {
+    border-radius: 999px 0 0 999px;
+}
+
+.wsd-health-grade-segment:last-child {
+    border-radius: 0 999px 999px 0;
+}
+
 .wsd-health-grade-segment-active {
     box-shadow: inset 0 0 0 2px currentColor;
 }
@@ -923,8 +1025,8 @@
 .wsd-health-grade-segment-active::after {
     content: "현재";
     position: absolute;
-    top: 4px;
-    right: 10px;
+    top: 6px;
+    right: 20px;
     color: inherit;
     font-size: 0.64rem;
     font-weight: 900;
@@ -1079,14 +1181,16 @@
     line-height: 1.45;
 }
 
+.wsd-health-reason-card-good {
+    border-left: 4px solid #86a788;
+}
+
 .wsd-health-reason-card-caution {
-    border-color: #efd892;
-    background: #fffaf0;
+    border-left: 4px solid #f0c24d;
 }
 
 .wsd-health-reason-card-danger {
-    border-color: #efb0b0;
-    background: #fff4f4;
+    border-left: 4px solid #d86969;
 }
 
 .wsd-health-reason-card-danger span {

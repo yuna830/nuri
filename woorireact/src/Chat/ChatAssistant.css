@@ -507,6 +507,77 @@
   color: #b92727;
 }
 
+.food-safety-card {
+  padding: 16px;
+}
+
+.food-safety-title {
+  display: block;
+  margin-bottom: 12px;
+  color: #3f6f43;
+  font-size: 19px;
+}
+
+.food-caution-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid #e1d7ca;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.food-caution-table caption {
+  padding: 10px 12px;
+  background: #fff4ec;
+  color: #9b4d2e;
+  font-size: 17px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.food-caution-table th,
+.food-caution-table td {
+  padding: 10px 12px;
+  border-top: 1px solid #f0e5dc;
+  font-size: 15px;
+  line-height: 1.45;
+  vertical-align: top;
+}
+
+.food-caution-table th {
+  width: 34%;
+  color: #8d3f29;
+  font-weight: 800;
+  text-align: left;
+}
+
+.food-caution-table td {
+  color: #2f2f2f;
+  font-weight: 650;
+}
+
+.food-eating-tip-box {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d9e7d1;
+  border-radius: 8px;
+  background: #f7fbf3;
+  color: #405b3f;
+}
+
+.food-eating-tip-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #3f6f43;
+}
+
+.food-eating-tip-box p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .chat-message-time {
   flex: 0 0 auto;
   padding-bottom: 2px;

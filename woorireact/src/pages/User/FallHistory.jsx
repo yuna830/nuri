@@ -213,7 +213,8 @@ export default function FallHistory() {
           escalationRequired: true,
           escalationMessage: "보호자 확인 또는 대처 답변이 없으면 담당 복지사가 신고 조치를 검토합니다.",
         });
-        rememberCapture(captureName);
+        const createdId = Array.isArray(result) ? result[0]?.id : result?.id;
+        if (createdId) rememberCapture(captureName);
         const createdAlert = Array.isArray(result) ? result[0] : null;
         if (createdAlert && !createdAlert.isRead) {
           setActiveFallAlert(createdAlert);

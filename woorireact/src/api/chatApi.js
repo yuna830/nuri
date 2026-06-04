@@ -58,11 +58,12 @@ export const fetchSeniorChatMessages = async (
   return Array.isArray(data) ? data.map(normalizeChatMessage) : [];
 };
 
-export const fetchUnreadChatCount = async ({ viewerRole, seniorId } = {}) => {
+export const fetchUnreadChatCount = async ({ viewerRole, seniorId, welfareWorkerId } = {}) => {
   if (!viewerRole) return 0;
 
   const params = new URLSearchParams({ viewerRole });
   if (seniorId) params.set("seniorId", seniorId);
+  if (welfareWorkerId) params.set("welfareWorkerId", welfareWorkerId);
 
   const response = await fetch(`/api/chat/unread?${params.toString()}`);
   if (!response.ok) return 0;

@@ -28,6 +28,7 @@ export function useChatFlow({
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [pendingSchedules, setPendingSchedules] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [lastDeletedSchedules, setLastDeletedSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   async function sendMessage(customText = null, options = {}) {
@@ -51,6 +52,16 @@ export function useChatFlow({
           await savePendingSchedule(applyMeridiemToSchedule(pendingSchedule, meridiem), options);
           return;
         }
+      }
+
+      if (pendingDelete) {
+        const pendingDeleteHandled = await handlePendingDeleteReply(text, options);
+        if (pendingDeleteHandled) return;
+      }
+
+      if (isRestoreDeleteRequest(text)) {
+        await restoreLastDeletedSchedules(options);
+        return;
       }
 
       if (pendingSchedules.length > 0 && isAffirmativeReply(text)) {
@@ -156,6 +167,7 @@ export function useChatFlow({
     }
 
     if (action.type === "delete") {
+      setLastDeletedSchedules([action.target]);
       await onScheduleDelete(action.target.id);
       return true;
     }
@@ -224,6 +236,10 @@ export function useChatFlow({
   }
 
   async function deletePendingSchedule(scheduleId) {
+    const deletedSchedule = pendingDelete?.schedules.find((schedule) => schedule.id === scheduleId);
+    if (deletedSchedule) {
+      setLastDeletedSchedules([deletedSchedule]);
+    }
     await onScheduleDelete(scheduleId);
     setPendingDelete((current) => {
       if (!current) return null;
@@ -236,10 +252,63 @@ export function useChatFlow({
     if (!pendingDelete) return;
 
     const schedules = pendingDelete.schedules;
+    setLastDeletedSchedules(schedules);
     for (const schedule of schedules) {
       await onScheduleDelete(schedule.id);
     }
     setPendingDelete(null);
+  }
+
+  async function restoreLastDeletedSchedules(options = {}) {
+    if (lastDeletedSchedules.length === 0) {
+      answer("되돌릴 삭제 일정이 없어요.", options);
+      return;
+    }
+
+    const schedulesToRestore = lastDeletedSchedules.map((schedule) => ({
+      ...schedule,
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      createdAt: new Date().toISOString(),
+    }));
+
+    for (const schedule of schedulesToRestore) {
+      await onScheduleSave(schedule);
+    }
+
+    setLastDeletedSchedules([]);
+    answer(
+      schedulesToRestore.length === 1
+        ? `${scheduleToText(schedulesToRestore[0])} 일정을 다시 등록했어요.`
+        : `${schedulesToRestore.length}개의 일정을 다시 등록했어요.`,
+      options
+    );
+  }
+
+  async function handlePendingDeleteReply(text, options = {}) {
+    const normalized = normalizeScheduleText(text).replace(/\s+/g, "");
+
+    if (/^(전체삭제|전부삭제|모두삭제|다삭제|전체지워|전부지워|모두지워)$/.test(normalized)) {
+      const count = pendingDelete.schedules.length;
+      await deleteAllPendingSchedules();
+      answer(`${count}개의 일정을 모두 삭제했어요.`, options);
+      return true;
+    }
+
+    if (/^(취소|아니|아니요|그만|삭제취소)$/.test(normalized)) {
+      cancelPendingDelete();
+      return true;
+    }
+
+    const target = pendingDelete.schedules.find((schedule) =>
+      scheduleToSearchText(schedule).includes(normalized)
+    );
+    if (target) {
+      await deletePendingSchedule(target.id);
+      answer(`${scheduleToText(target)} 일정을 삭제했어요.`, options);
+      return true;
+    }
+
+    return false;
   }
 
   function cancelPendingDelete() {
@@ -272,6 +341,16 @@ export function useChatFlow({
     cancelPendingDelete,
     addAssistantMessage,
   };
+}
+
+function isRestoreDeleteRequest(text) {
+  const normalized = normalizeScheduleText(text).replace(/\s+/g, "");
+  return /(되돌려|돌려줘|복구|다시등록|삭제취소|취소해줘)/.test(normalized);
+}
+
+function scheduleToSearchText(schedule) {
+  return `${schedule.title || ""} ${schedule.detail || ""} ${schedule.text || ""}`
+    .replace(/\s+/g, "");
 }
 
 export function getCurrentUserHealthContext() {
@@ -339,7 +418,7 @@ function getConfirmedSuggestedSchedule(text, messages) {
 }
 
 function isAffirmativeReply(text) {
-  return /^(응|네|예|어|좋아|좋습니다|그래|그래요|ㅇㅇ|오케이|ok|okay|등록해줘|추가해줘|웅)[.!?\s]*$/i.test(
+  return /^(응|엉|네|예|어|좋아|좋습니다|그래|그래요|ㅇㅇ|오케이|ok|okay|등록해줘|추가해줘|웅)[.!?\s]*$/i.test(
     normalizeScheduleText(text).trim()
   );
 }

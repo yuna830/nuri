@@ -711,8 +711,9 @@ export default function UserPage() {
             address: displayAddress,
             accuracy,
           }),
-        }).catch(() => {});
-
+        }).catch((error) => {
+          console.warn("위치 저장 실패:", error);
+        });
       }
 
       lastSavedLocationRef.current = { lat, lon };

@@ -115,22 +115,18 @@
 }
 
 .tcm-rooms {
-  overflow-x: auto;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.8rem 1.2rem;
   border-bottom: 1px solid #edf2e8;
   background: #fbfdf8;
-  scrollbar-width: none;
 }
 
-.tcm-rooms::-webkit-scrollbar {
-  display: none;
-}
 
 .tcm-rooms button {
-  min-width: 0;
-  flex: 1 1 0;
+  flex: 1 1 auto;
+  min-width: max-content;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,15 +149,19 @@
 }
 
 .tcm-rooms strong {
+  min-width: 0;
   overflow: hidden;
   font-size: 0.9rem;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tcm-rooms span {
+  flex-shrink: 0;
   color: #6f8b72;
   font-size: 0.76rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .tcm-search {

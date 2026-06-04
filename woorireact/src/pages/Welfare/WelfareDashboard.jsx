@@ -202,7 +202,7 @@ function WelfareDashboard() {
     }, [currentWorker]);
 
     const loadUnreadChatCount = async () => {
-        const count = await fetchUnreadChatCount({ viewerRole: "WELFARE" }).catch(() => 0);
+        const count = await fetchUnreadChatCount({ viewerRole: "WELFARE", welfareWorkerId: currentWorker?.id }).catch(() => 0);
         setUnreadChatCount(count);
     };
 

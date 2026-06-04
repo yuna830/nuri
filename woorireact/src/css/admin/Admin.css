@@ -548,6 +548,21 @@
   gap: 8px;
 }
 
+.admin-input {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #9aaabd;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1e2a3a;
+  outline: none;
+}
+
+.admin-input:focus {
+  border-color: #526b89;
+}
+
 .admin-action-message {
   margin: 10px 0 0;
   font-size: 12px;

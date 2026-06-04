@@ -1,5 +1,8 @@
 const GEMINI_STT_FIX_API_KEY = import.meta.env.VITE_GEMINI_STT_FIX_API_KEY || "";
 const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash-lite";
+const STT_CORRECTION_COOLDOWN_MS = 5 * 60 * 1000;
+
+let sttCorrectionUnavailableUntil = 0;
 
 const STT_CORRECTION_PROMPT = `
 너는 한국어 음성 인식 결과를 보정하는 도우미다.
@@ -18,6 +21,7 @@ const STT_CORRECTION_PROMPT = `
 export async function correctSttText(text) {
   const originalText = String(text || "").trim();
   if (!originalText || !GEMINI_STT_FIX_API_KEY) return originalText;
+  if (Date.now() < sttCorrectionUnavailableUntil) return originalText;
 
   try {
     const response = await fetch(
@@ -47,6 +51,9 @@ export async function correctSttText(text) {
     );
 
     if (!response.ok) {
+      if (response.status === 429) {
+        sttCorrectionUnavailableUntil = Date.now() + STT_CORRECTION_COOLDOWN_MS;
+      }
       throw new Error(`STT correction failed: ${response.status}`);
     }
 
@@ -58,7 +65,7 @@ export async function correctSttText(text) {
 
     return sanitizeCorrectedText(correctedText, originalText);
   } catch (error) {
-    console.error("STT 보정 오류:", error);
+    console.warn("STT 보정은 건너뛰고 원문으로 진행합니다.", error);
     return originalText;
   }
 }

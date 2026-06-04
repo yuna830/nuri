@@ -11,14 +11,13 @@ export async function getNearbyPlaceChatAnswer(text) {
       lon,
       radius: DEFAULT_RADIUS_METERS,
       size: 3,
-      sort: "distance",
     });
 
     if (places.length === 0) {
-      return `근처에서 ${request.label}을 찾지 못했어요. 다른 검색어로 다시 말씀해 주세요.`;
+      return `현재 위치 근처에서 ${request.label}을 찾지 못했어요. 다른 검색어로 다시 말해주세요.`;
     }
 
-    return `${request.label} 가까운 곳입니다.\n${places.map(formatPlace).join("\n")}`;
+    return `현재 위치 기준 가까운 ${request.label}입니다.\n${places.map(formatPlace).join("\n")}`;
   } catch (error) {
     console.error("주변 장소 검색 오류:", error);
 
@@ -26,10 +25,10 @@ export async function getNearbyPlaceChatAnswer(text) {
       return "장소 검색을 하려면 카카오 REST API 키 설정이 필요해요.";
     }
     if (error.message === "KAKAO_RATE_LIMIT" || error.message === "KAKAO_COOLDOWN") {
-      return "장소 검색 요청이 잠시 많아요. 조금 뒤 다시 말씀해 주세요.";
+      return "장소 검색 요청이 잠시 많아요. 조금 뒤 다시 말해주세요.";
     }
 
-    return "현재 위치 권한이 필요해요. 브라우저 위치 권한을 허용한 뒤 다시 말씀해 주세요.";
+    return "현재 위치 권한이 필요해요. 브라우저 위치 권한을 허용한 뒤 다시 말해주세요.";
   }
 }
 
@@ -55,15 +54,16 @@ async function searchNearbyPlaces(keyword, { lat, lon, radius, size }) {
   }
 
   const data = await response.json();
-  return (data?.documents || []).map((place) => ({
-    place_id: place.id,
-    display_name: place.road_address_name || place.address_name || place.place_name,
-    name: place.place_name,
-    distance: place.distance,
-    phone: place.phone,
-    lat: place.y,
-    lon: place.x,
-  })).filter((place) => place.name && place.lat && place.lon);
+  return (data?.documents || [])
+    .map((place) => ({
+      place_id: place.id,
+      display_name: place.road_address_name || place.address_name || place.place_name,
+      name: place.place_name,
+      distance: place.distance,
+      lat: place.y,
+      lon: place.x,
+    }))
+    .filter((place) => place.name && place.lat && place.lon);
 }
 
 function parseNearbyPlaceRequest(text) {
@@ -91,7 +91,7 @@ function hasPlaceSearchSignal(text) {
 }
 
 function isCasualAdviceQuestion(text) {
-  return /(뭐\s*하지|뭐\s*할지|뭘\s*하지|뭐\s*할까|뭐\s*먹을까|뭘\s*먹을까|메뉴\s*추천|추천해\s*줘|추천해줘)/.test(text);
+  return /(뭐\s*먹|뭘\s*먹|먹어도\s*돼|먹어도\s*되|메뉴\s*추천|추천해\s*줘|추천해줘)/.test(text);
 }
 
 function inferKeyword(text) {
@@ -108,8 +108,7 @@ function inferKeyword(text) {
 function formatPlace(place, index) {
   const distance = formatDistance(place.distance);
   const address = place.display_name ? ` - ${place.display_name}` : "";
-  const phone = place.phone ? `, ${place.phone}` : "";
-  return `${index + 1}. ${place.name}${distance}${address}${phone}`;
+  return `${index + 1}. ${place.name}${distance}${address}`;
 }
 
 function formatDistance(distance) {

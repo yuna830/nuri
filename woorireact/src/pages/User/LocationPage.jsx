@@ -97,7 +97,9 @@ export default function LocationPage() {
         address: nextAddress,
         accuracy,
       }),
-    }).catch(() => {});
+    }).catch((error) => {
+      console.warn("위치 저장 실패:", error);
+    });
 
     lastSavedLocationRef.current = { lat, lon };
   };
