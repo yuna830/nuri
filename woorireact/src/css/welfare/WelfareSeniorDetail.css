@@ -760,6 +760,11 @@
     white-space: nowrap;
 }
 
+.wsd-health-score-header em.wsd-health-score-note {
+    background: #edf4ee;
+    color: #486349;
+}
+
 .wsd-health-score-track {
     height: 14px;
     overflow: hidden;
@@ -799,6 +804,10 @@
     margin-top: 1.45rem;
     padding-top: 1.45rem;
     border-top: 1px solid #d4e8d6;
+}
+
+.wsd-health-probability-panel {
+    margin-bottom: 1.35rem;
 }
 
 .wsd-health-probability-panel h3,
