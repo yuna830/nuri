@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
 
-const double _kSafeRadiusM = 300.0;
 const double _defaultLat   = 37.5665;
 const double _defaultLng   = 126.9780;
 
@@ -25,7 +23,8 @@ class SeniorLocationScreen extends StatefulWidget {
 
 class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
   final _api           = GuardianApi();
-  final _mapController = MapController();
+  kakao.KakaoMapController? _mapController;
+  kakao.Poi? _seniorPoi;
 
   bool    _isLoading    = true;
   String? _errorMessage;
@@ -39,12 +38,6 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
   void initState() {
     super.initState();
     _loadLocation();
-  }
-
-  @override
-  void dispose() {
-    _mapController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadLocation() async {
@@ -71,7 +64,8 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
       });
 
       if (lat != null && lng != null) {
-        _mapController.move(LatLng(lat, lng), 15.0);
+        await _moveMap(lat, lng);
+        await _syncMapOverlays();
       }
     } catch (e) {
       if (!mounted) return;
@@ -82,13 +76,43 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
     }
   }
 
+  Future<void> _moveMap(double lat, double lng) async {
+    final controller = _mapController;
+    if (controller == null) return;
+    await controller.moveCamera(
+      kakao.CameraUpdate.newCenterPosition(
+        kakao.LatLng(lat, lng),
+        zoomLevel: 15,
+      ),
+    );
+  }
+
+  Future<void> _clearMapOverlays() async {
+    if (_seniorPoi != null) {
+      await _seniorPoi!.remove();
+      _seniorPoi = null;
+    }
+  }
+
+  Future<void> _syncMapOverlays() async {
+    final controller = _mapController;
+    final lat = _latitude;
+    final lng = _longitude;
+    if (controller == null || lat == null || lng == null || !mounted) return;
+
+    await _clearMapOverlays();
+
+    _seniorPoi = await controller.labelLayer.addPoi(
+      kakao.LatLng(lat, lng),
+      style: kakao.PoiStyle(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final centerLat  = _latitude  ?? _defaultLat;
     final centerLng  = _longitude ?? _defaultLng;
     final hasLocation = _latitude != null && _longitude != null;
-    final isSafe     = widget.status == '안전';
-    final safeColor  = isSafe ? const Color(0xFF4A7A4C) : const Color(0xFFFF9500);
 
     return Scaffold(
       appBar: AppBar(
@@ -109,49 +133,18 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
             flex: 3,
             child: Stack(
               children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: LatLng(centerLat, centerLng),
-                    initialZoom: 15.0,
+                kakao.KakaoMap(
+                  option: kakao.KakaoMapOption(
+                    position: kakao.LatLng(centerLat, centerLng),
+                    zoomLevel: 15,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.woori.woori_guardian_app',
-                    ),
-                    if (hasLocation) ...[
-                      CircleLayer(
-                        circles: [
-                          CircleMarker(
-                            point: LatLng(centerLat, centerLng),
-                            radius: _kSafeRadiusM,
-                            useRadiusInMeter: true,
-                            color: safeColor.withValues(alpha: 0.15),
-                            borderColor: safeColor,
-                            borderStrokeWidth: 1.5,
-                          ),
-                        ],
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: LatLng(centerLat, centerLng),
-                            width: 40,
-                            height: 40,
-                            child: Icon(
-                              Icons.location_on,
-                              color: safeColor,
-                              size: 40,
-                              shadows: const [
-                                Shadow(color: Colors.black26, blurRadius: 4),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                  onMapReady: (controller) async {
+                    _mapController = controller;
+                    if (hasLocation) {
+                      await _moveMap(centerLat, centerLng);
+                    }
+                    await _syncMapOverlays();
+                  },
                 ),
                 if (_isLoading)
                   Container(
