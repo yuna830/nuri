@@ -2,6 +2,7 @@ package com.nuri.woori.controller;
 
 import com.nuri.woori.entity.ChatMessage;
 import com.nuri.woori.repository.ChatMessageRepository;
+import com.nuri.woori.repository.SeniorRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,9 +16,11 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class ChatMessageController {
     private final ChatMessageRepository chatMessageRepository;
+    private final SeniorRepository seniorRepository;
 
-    public ChatMessageController(ChatMessageRepository chatMessageRepository) {
+    public ChatMessageController(ChatMessageRepository chatMessageRepository, SeniorRepository seniorRepository) {
         this.chatMessageRepository = chatMessageRepository;
+        this.seniorRepository = seniorRepository;
     }
 
     @GetMapping("/senior/{seniorId}")
@@ -56,11 +59,19 @@ public class ChatMessageController {
     @GetMapping("/unread")
     public Map<String, Long> getUnreadCount(
             @RequestParam String viewerRole,
-            @RequestParam(required = false) Long seniorId
+            @RequestParam(required = false) Long seniorId,
+            @RequestParam(required = false) Long welfareWorkerId
     ) {
-        List<ChatMessage> messages = seniorId == null
-                ? chatMessageRepository.findAll()
-                : chatMessageRepository.findBySeniorId(seniorId);
+        List<ChatMessage> messages;
+        if (seniorId != null) {
+            messages = chatMessageRepository.findBySeniorId(seniorId);
+        } else if (welfareWorkerId != null) {
+            List<Long> seniorIds = seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId)
+                    .stream().map(s -> s.getId()).toList();
+            messages = seniorIds.isEmpty() ? List.of() : chatMessageRepository.findBySeniorIdIn(seniorIds);
+        } else {
+            messages = chatMessageRepository.findAll();
+        }
 
         long count = messages.stream()
                 .filter(message -> isUnreadForViewer(message, viewerRole))
