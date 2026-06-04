@@ -1,0 +1,153 @@
+{
+  "model": "XGBoost (2-stage cascade)",
+  "architecture": "Stage1: 양호vs비양호 → Stage2: 주의vs위험",
+  "labeling_method": "K-FRAIL (임상 척도 기반)",
+  "total_rows": 8841,
+  "train_rows": 7072,
+  "test_rows": 1769,
+  "feature_count": 26,
+  "label_distribution": {
+    "양호": 5870,
+    "주의": 2306,
+    "위험": 665
+  },
+  "stage2_train_distribution": {
+    "주의": 1845,
+    "위험": 532
+  },
+  "cross_validation": {
+    "folds": 5,
+    "cv_accuracy_mean": 0.7914,
+    "cv_accuracy_std": 0.0083,
+    "cv_macro_f1_mean": 0.7089,
+    "cv_macro_f1_std": 0.0127,
+    "cv_stage1_auc_mean": 0.8464,
+    "cv_stage2_auc_mean": 0.8869
+  },
+  "holdout": {
+    "accuracy": 0.8129,
+    "macro_f1": 0.745,
+    "auc_roc_3class": 0.8795,
+    "stage1_auc": 0.8694,
+    "stage2_auc": 0.9211,
+    "classification_report": {
+      "양호": {
+        "precision": 0.8544453186467349,
+        "recall": 0.9242553191489362,
+        "f1-score": 0.8879803761242846,
+        "support": 1175.0
+      },
+      "주의": {
+        "precision": 0.7070422535211267,
+        "recall": 0.544468546637744,
+        "f1-score": 0.6151960784313726,
+        "support": 461.0
+      },
+      "위험": {
+        "precision": 0.7062937062937062,
+        "recall": 0.7593984962406015,
+        "f1-score": 0.7318840579710145,
+        "support": 133.0
+      },
+      "accuracy": 0.8128886376483889,
+      "macro avg": {
+        "precision": 0.7559270928205226,
+        "recall": 0.742707454009094,
+        "f1-score": 0.7450201708422238,
+        "support": 1769.0
+      },
+      "weighted avg": {
+        "precision": 0.8048936072471541,
+        "recall": 0.8128886376483889,
+        "f1-score": 0.805157102212008,
+        "support": 1769.0
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "양호",
+        "주의",
+        "위험"
+      ],
+      "matrix": [
+        [
+          1086,
+          81,
+          8
+        ],
+        [
+          176,
+          251,
+          34
+        ],
+        [
+          9,
+          23,
+          101
+        ]
+      ]
+    }
+  },
+  "top_features": [
+    {
+      "feature": "fine_motor_limited_flag",
+      "importance_stage1": 0.28510043025016785,
+      "importance_stage2": 0.37072065472602844,
+      "importance_avg": 0.32791054248809814
+    },
+    {
+      "feature": "disease_count",
+      "importance_stage1": 0.18172785639762878,
+      "importance_stage2": 0.02663392201066017,
+      "importance_avg": 0.10418088734149933
+    },
+    {
+      "feature": "walking_limited_flag",
+      "importance_stage1": 0.11908800154924393,
+      "importance_stage2": 0.07237372547388077,
+      "importance_avg": 0.09573086351156235
+    },
+    {
+      "feature": "dementia_flag",
+      "importance_stage1": 0.02329428307712078,
+      "importance_stage2": 0.06152775511145592,
+      "importance_avg": 0.042411018162965775
+    },
+    {
+      "feature": "very_high_medication_flag",
+      "importance_stage1": 0.015028766356408596,
+      "importance_stage2": 0.04418865963816643,
+      "importance_avg": 0.0296087134629488
+    },
+    {
+      "feature": "kidney_disease_flag",
+      "importance_stage1": 0.03882262110710144,
+      "importance_stage2": 0.019375046715140343,
+      "importance_avg": 0.029098834842443466
+    },
+    {
+      "feature": "comorbidity_score",
+      "importance_stage1": 0.0357479602098465,
+      "importance_stage2": 0.021629150956869125,
+      "importance_avg": 0.02868855558335781
+    },
+    {
+      "feature": "age_80plus",
+      "importance_stage1": 0.022740039974451065,
+      "importance_stage2": 0.03112725168466568,
+      "importance_avg": 0.026933645829558372
+    },
+    {
+      "feature": "age_70plus",
+      "importance_stage1": 0.019859982654452324,
+      "importance_stage2": 0.027417734265327454,
+      "importance_avg": 0.023638859391212463
+    },
+    {
+      "feature": "age_num",
+      "importance_stage1": 0.020131435245275497,
+      "importance_stage2": 0.025145672261714935,
+      "importance_avg": 0.022638553753495216
+    }
+  ]
+}
