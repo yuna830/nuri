@@ -165,6 +165,7 @@ function GuardianPage() {
   const [isSearchingSenior, setIsSearchingSenior] = useState(false);
   const [hasSearchedSenior, setHasSearchedSenior] = useState(false);
   const [selectedSafeZoneIds, setSelectedSafeZoneIds] = useState({});
+  const [mapFocusVersion, setMapFocusVersion] = useState(0);
 
   const [newSeniorForm, setNewSeniorForm] = useState({
     name: "",
@@ -888,6 +889,7 @@ function GuardianPage() {
       await reloadGuardianSeniors();
       setSelectedRouteDate(getDateValue());
       setIsRouteVisible(true);
+      setMapFocusVersion((value) => value + 1);
     } finally {
       setIsRefreshingLocation(false);
     }
@@ -1563,6 +1565,7 @@ function GuardianPage() {
           isRefreshingLocation={isRefreshingLocation}
           formatShortAddress={formatShortAddress}
           onRefreshLocation={handleRefreshLocation}
+          mapFocusVersion={mapFocusVersion}
         />
 
         <EmergencyPanel
