@@ -347,6 +347,10 @@ function GuardianPage() {
     );
 
     return buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      .filter((alert) => {
+        if (!activeElderId) return true;
+        return String(alert.seniorId) === String(activeElderId);
+      })
       .map((alert) => ({
         ...alert,
         seniorName:
@@ -355,7 +359,7 @@ function GuardianPage() {
           selectedElder?.name ||
           "사용자",
       }));
-  }, [apiAlerts, reportedAlertIds, elders, selectedElder?.name]);
+  }, [apiAlerts, reportedAlertIds, activeElderId, elders, selectedElder?.name]);
 
   const unreadAlertsByElder = useMemo(() => {
     const map = {};
@@ -1443,6 +1447,16 @@ function GuardianPage() {
               onMouseEnter={() => setDeleteModeElderId(elder.id)}
               onMouseLeave={() => setDeleteModeElderId(null)}
             >
+              {hasNotification && (
+                <span
+                  className="elder-tab-unread-dot"
+                  aria-label={`${elder.name} 새 알림 또는 읽지 않은 메시지`}
+                  title={[
+                    elderAlertCount > 0 ? `알림 ${elderAlertCount}개` : "",
+                    elderUnreadCount > 0 ? `채팅 ${elderUnreadCount}개` : "",
+                  ].filter(Boolean).join(", ")}
+                />
+              )}
               <button
                 className="elder-tab-main"
                 type="button"
@@ -1455,17 +1469,6 @@ function GuardianPage() {
                   });
                 }}
               >
-                {hasNotification && (
-                  <span
-                    className="elder-tab-unread-dot"
-                    aria-label={`${elder.name} 새 알림 또는 읽지 않은 메시지`}
-                    title={[
-                      elderAlertCount > 0 ? `알림 ${elderAlertCount}개` : "",
-                      elderUnreadCount > 0 ? `채팅 ${elderUnreadCount}개` : "",
-                    ].filter(Boolean).join(", ")}
-                  />
-                )}
-
                 <span className="elder-tab-label">
                   {elder.name} ({elder.relation})
                 </span>
