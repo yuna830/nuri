@@ -341,10 +341,25 @@ function GuardianPage() {
     };
   }, [activeElderId]);
 
-  const displayedAlerts = useMemo(
-    () => buildDisplayedAlerts(apiAlerts, reportedAlertIds),
-    [apiAlerts, reportedAlertIds]
-  );
+  const displayedAlerts = useMemo(() => {
+    const elderNameById = new Map(
+      elders.map((elder) => [String(elder.id), elder.name])
+    );
+
+    return buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      .filter((alert) => {
+        if (!activeElderId) return true;
+        return String(alert.seniorId) === String(activeElderId);
+      })
+      .map((alert) => ({
+        ...alert,
+        seniorName:
+          alert.seniorName ||
+          elderNameById.get(String(alert.seniorId)) ||
+          selectedElder?.name ||
+          "사용자",
+      }));
+  }, [apiAlerts, reportedAlertIds, activeElderId, elders, selectedElder?.name]);
 
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
@@ -1327,25 +1342,27 @@ function GuardianPage() {
 
     const guardianId = getCurrentGuardianId();
     const targetElder = elders.find((elder) => String(elder.id) === String(targetAlert.seniorId));
-    const seniorName = targetAlert.seniorName || targetAlert.name || targetElder?.name || "대상자";
+    const seniorName = targetAlert.seniorName || targetAlert.name || targetElder?.name || "사용자";
+    const seniorDisplayName = seniorName.endsWith("님") ? seniorName : `${seniorName}님`;
 
     try {
       await sendCheckInReply({
         seniorId: targetAlert.seniorId,
         guardianId,
-        reply: `${seniorName} 대상자의 안부를 확인했으며 이상 없습니다.`,
+        reply: `${seniorDisplayName}께서 안부 확인 결과 이상 없습니다.`,
         originalMessage: targetAlert.message || targetAlert.detailMessage || "",
       });
-
-      if (targetAlert.id) {
-        await handleReadAlert(targetAlert.id);
-      }
-
-      window.alert("복지사에게 이상 없음 알림을 보냈습니다.");
     } catch (error) {
       console.error("이상 없음 알림 전송 실패:", error);
       window.alert("이상 없음 알림 전송에 실패했습니다.");
+      return;
     }
+
+    if (targetAlert.id) {
+      await handleReadAlert(targetAlert.id);
+    }
+
+    window.alert("복지사에게 이상 없음 알림을 보냈습니다.");
   };
 
   const activeMedicines = getActiveMedicines(selectedElder);
@@ -1824,23 +1841,28 @@ function GuardianHeader({
     );
   };
 
+  const formatSeniorDisplayName = (name) => {
+    const value = String(name || "사용자").trim();
+    return value.endsWith("님") ? value : `${value}님`;
+  };
+
   const guardianNotifications = displayedAlerts
     .filter((alert) => alert.type !== "CHECK_IN_OK")
     // 안부 확인 요청 알림 중 이미 읽은 알림은 제외
     // .filter((alert) => !(isCheckInRequestAlert(alert) && alert.rawAlert?.isRead === true))
     .map((alert) => {
       const isCheckInRequest = isCheckInRequestAlert(alert);
-      const seniorName = alert.seniorName || alert.name || "대상자";
+      const seniorDisplayName = formatSeniorDisplayName(alert.seniorName || alert.name);
 
       return {
         id: alert.id,
         title: isCheckInRequest
-          ? `${seniorName}님 안부 확인 요청`
+          ? `${seniorDisplayName} 안부 확인 요청`
           : alert.isFall
             ? "낙상 감지 알림"
-            : alert.message || "보호 대상자 알림",
+            : alert.message || `${seniorDisplayName} 알림`,
         message: isCheckInRequest
-          ? `${seniorName} 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
+          ? `${seniorDisplayName}께서 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
           : alert.isFall
             ? [alert.message, alert.detailMessage].filter(Boolean).join(" ")
             : alert.detailMessage || "",

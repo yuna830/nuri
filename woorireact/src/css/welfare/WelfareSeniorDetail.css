@@ -2053,6 +2053,64 @@
     margin-top: 18px;
 }
 
+.wsd-agency-timeline.top {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    margin: 8px 0 34px;
+    padding: 0 4px;
+    box-sizing: border-box;
+}
+
+.wsd-agency-timeline.top::before {
+    content: "";
+    position: absolute;
+    top: 17px;
+    left: 4%;
+    right: 4%;
+    height: 3px;
+    background: #d5ddd2;
+}
+
+.wsd-agency-timeline-step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #7c8679;
+    font-weight: 900;
+    text-align: center;
+}
+
+.wsd-agency-timeline-step span {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 4px solid #d5ddd2;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #7c8679;
+    font-size: 13px;
+}
+
+.wsd-agency-timeline-step.done span {
+    border-color: #86a788;
+}
+
+.wsd-agency-timeline-step.current span {
+    border-color: #5f7f63;
+    background: #5f7f63;
+    color: #ffffff;
+}
+
+.wsd-agency-timeline-step strong {
+    font-size: 13px;
+}
+
 .wsd-agency-summary-card.simple {
     padding: 22px 24px;
     border: 1px solid #d4e8d6;
@@ -2128,7 +2186,7 @@
 .wsd-agency-place-list.scrollable {
     display: grid;
     gap: 12px;
-    max-height: 350px;
+    max-height: 330px;
     margin-top: 14px;
     padding-right: 8px;
     overflow-y: auto;

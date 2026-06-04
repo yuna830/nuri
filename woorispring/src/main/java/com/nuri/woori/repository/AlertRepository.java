@@ -26,4 +26,6 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findBySeniorIdAndTypeInAndCreatedAtBefore(Long seniorId, List<String> types, LocalDateTime cutoff);
 
     List<Alert> findByTypeAndCreatedAtAfterOrderByCreatedAtDesc(String type, LocalDateTime createdAt);
+
+    List<Alert> findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(Long seniorId, String type);
 }

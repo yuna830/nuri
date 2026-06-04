@@ -138,9 +138,6 @@ export default function KakaoMap({
             center: mapCenter,
             level: zoom,
           });
-        } else {
-          mapRef.current.setCenter(mapCenter);
-          mapRef.current.setLevel(zoom);
         }
 
         setFailed(false);
@@ -283,15 +280,25 @@ export default function KakaoMap({
     autoFit,
   ]);
 
+  const lastFocusKeyRef = useRef("");
+
   useEffect(() => {
-    if (failed || !mapRef.current || !window.kakao?.maps || !isValidPoint(focusLocation)) {
+    if (
+      failed ||
+      !mapRef.current ||
+      !window.kakao?.maps ||
+      !isValidPoint(focusLocation) ||
+      !focusKey ||
+      lastFocusKeyRef.current === focusKey
+    ) {
       return;
     }
 
     const maps = window.kakao.maps;
     mapRef.current.setCenter(toLatLng(maps, focusLocation));
     mapRef.current.setLevel(focusLevel);
-  }, [failed, focusLocation, focusLevel, focusKey]);
+    lastFocusKeyRef.current = focusKey;
+  }, [failed, focusKey, focusLevel]);
 
   if (failed && fallback) {
     return fallback;

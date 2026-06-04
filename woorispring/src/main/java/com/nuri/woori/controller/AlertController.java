@@ -606,8 +606,18 @@ public class AlertController {
             throw new RuntimeException("Connected guardian not found");
         }
 
+        List<Alert> existingRequests = alertRepository
+                .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
+                        request.seniorId(),
+                        "CHECK_IN_REQUEST"
+                );
+
+        if (!existingRequests.isEmpty()) {
+            return existingRequests;
+        }
+
         String message = request.message() == null || request.message().isBlank()
-                ? senior.getName() + " 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요."
+                ? senior.getName() + "님께서 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요."
                 : request.message().trim();
 
         return guardianLinks.stream()
@@ -634,6 +644,17 @@ public class AlertController {
     public Alert createCheckInReply(@RequestBody CheckInReplyRequest request) {
         Senior senior = seniorRepository.findById(request.seniorId())
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        senior.setLastLoginAt(now);
+        seniorRepository.save(senior);
+
+        List<Alert> pendingRequests = alertRepository
+                .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(request.seniorId(), "CHECK_IN_REQUEST");
+
+        pendingRequests.forEach(requestAlert -> requestAlert.setIsRead(true));
+        alertRepository.saveAll(pendingRequests);
 
         String reply = request.reply() == null || request.reply().isBlank()
                 ? senior.getName() + " 대상자의 안부를 확인했으며 이상 없습니다."
