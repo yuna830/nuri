@@ -22,5 +22,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             Pageable pageable
     );
     List<ChatMessage> findBySeniorId(Long seniorId);
+    List<ChatMessage> findBySeniorIdIn(List<Long> seniorIds);
     List<ChatMessage> findBySeniorIdAndRoomType(Long seniorId, String roomType);
 }

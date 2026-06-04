@@ -60,7 +60,7 @@ function WelfareCommonHeader({ rightText }) {
     useEffect(() => {
         if (!currentWorker) return;
         const load = () =>
-            fetchUnreadChatCount({ viewerRole: "WELFARE" })
+            fetchUnreadChatCount({ viewerRole: "WELFARE", welfareWorkerId: currentWorker.id })
                 .then(setUnreadChatCount)
                 .catch(() => { });
         load();

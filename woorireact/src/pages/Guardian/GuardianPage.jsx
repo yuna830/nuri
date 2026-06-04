@@ -361,6 +361,16 @@ function GuardianPage() {
       }));
   }, [apiAlerts, reportedAlertIds, activeElderId, elders, selectedElder?.name]);
 
+  const unreadAlertsByElder = useMemo(() => {
+    const map = {};
+    buildDisplayedAlerts(apiAlerts, reportedAlertIds).forEach((alert) => {
+      if (!alert.seniorId) return;
+      const id = String(alert.seniorId);
+      map[id] = (map[id] || 0) + 1;
+    });
+    return map;
+  }, [apiAlerts, reportedAlertIds]);
+
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
     relation: previousElder?.relation || freshElder.relation,
@@ -1426,6 +1436,8 @@ function GuardianPage() {
             elderStatus === "normal" ? "정상" : elderStatus === "danger" ? "이탈" : "미수신";
           const isDeleteMode = deleteModeElderId === elder.id;
           const elderUnreadCount = unreadChatCountsByElder[elder.id] || 0;
+          const elderAlertCount = unreadAlertsByElder[String(elder.id)] || 0;
+          const hasNotification = elderUnreadCount > 0 || elderAlertCount > 0;
 
           return (
             <div
@@ -1435,6 +1447,16 @@ function GuardianPage() {
               onMouseEnter={() => setDeleteModeElderId(elder.id)}
               onMouseLeave={() => setDeleteModeElderId(null)}
             >
+              {hasNotification && (
+                <span
+                  className="elder-tab-unread-dot"
+                  aria-label={`${elder.name} 새 알림 또는 읽지 않은 메시지`}
+                  title={[
+                    elderAlertCount > 0 ? `알림 ${elderAlertCount}개` : "",
+                    elderUnreadCount > 0 ? `채팅 ${elderUnreadCount}개` : "",
+                  ].filter(Boolean).join(", ")}
+                />
+              )}
               <button
                 className="elder-tab-main"
                 type="button"
@@ -1447,14 +1469,6 @@ function GuardianPage() {
                   });
                 }}
               >
-                {elderUnreadCount > 0 && (
-                  <span
-                    className="elder-tab-unread-dot"
-                    aria-label={`${elder.name} 읽지 않은 메시지 ${elderUnreadCount}개`}
-                    title={`읽지 않은 메시지 ${elderUnreadCount}개`}
-                  />
-                )}
-
                 <span className="elder-tab-label">
                   {elder.name} ({elder.relation})
                 </span>

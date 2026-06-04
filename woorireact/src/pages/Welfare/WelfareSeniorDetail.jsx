@@ -314,6 +314,7 @@ function WelfareSeniorDetail() {
     const { id } = useParams();
     const location = useLocation();
     const [senior, setSenior] = useState(null);
+    const [showCriteria, setShowCriteria] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState("");
     const [counselingRecords, setCounselingRecords] = useState([]);
@@ -984,9 +985,45 @@ function WelfareSeniorDetail() {
                         <h2 className="wsd-section-title">건강 판정 근거</h2>
                         <p>건강 상태 모델 결과와 입력 건강 항목을 함께 보여주는 참고용 설명입니다.</p>
                     </div>
-                    <div className={`wsd-health-eval-status wsd-health-eval-status-${tone}`}>
+                </div>
+
+                {/* 핵심 정보 상단 요약 */}
+                <div className="wsd-health-summary-row">
+                    <div className={`wsd-health-summary-grade wsd-health-summary-grade-${tone}`}>
                         <span>현재 건강 등급</span>
                         <strong>{status}</strong>
+                        <em>{getEvaluationSourceLabel(healthEvaluation?.source)}</em>
+                    </div>
+
+                    <div className="wsd-health-summary-prob">
+                        <span className="wsd-health-summary-label">예측 확률</span>
+                        <div className="wsd-health-probability-list">
+                            {HEALTH_STATUS_ORDER.map((label) => (
+                                <div className="wsd-health-probability-row" key={label}>
+                                    <span>{label}</span>
+                                    <div className="wsd-health-probability-track">
+                                        <div
+                                            className={`wsd-health-probability-fill wsd-health-probability-fill-${getHealthTone(label)}`}
+                                            style={{ width: formatProbability(probabilities[label]) }}
+                                        />
+                                    </div>
+                                    <strong>{formatProbability(probabilities[label])}</strong>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="wsd-health-summary-score">
+                        <span className="wsd-health-summary-label">{isMlEvaluation ? "입력 항목 보조 점수" : "설명용 위험 점수"}</span>
+                        <strong>{riskScore} / {maxRiskScore}점</strong>
+                        <div className="wsd-health-score-track">
+                            <div
+                                className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
+                                style={{ width: riskPercent }}
+                            />
+                        </div>
+                        <p>{supportScoreText}</p>
+                        {isMlEvaluation && <em className="wsd-health-score-note">최종 등급 아님</em>}
                     </div>
                 </div>
 
@@ -999,45 +1036,18 @@ function WelfareSeniorDetail() {
                     <small>이 결과는 의료 진단이 아니라 돌봄과 일자리 추천을 위한 참고 정보입니다.</small>
                 </div>
 
-                <div className="wsd-health-probability-panel">
-                    <h3>예측 확률</h3>
-                    <div className="wsd-health-probability-list">
-                        {HEALTH_STATUS_ORDER.map((label) => (
-                            <div className="wsd-health-probability-row" key={label}>
-                                <span>{label}</span>
-                                <div className="wsd-health-probability-track">
-                                    <div
-                                        className={`wsd-health-probability-fill wsd-health-probability-fill-${getHealthTone(label)}`}
-                                        style={{ width: formatProbability(probabilities[label]) }}
-                                    />
-                                </div>
-                                <strong>{formatProbability(probabilities[label])}</strong>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="wsd-health-score-panel">
-                    <div className="wsd-health-score-header">
-                        <div>
-                            <span>{isMlEvaluation ? "입력 항목 보조 점수" : "설명용 위험 점수"}</span>
-                            <strong>{riskScore} / {maxRiskScore}점</strong>
-                        </div>
-                        <em className={isMlEvaluation ? "wsd-health-score-note" : undefined}>
-                            {isMlEvaluation ? "최종 등급 아님" : `${getGradeFromRiskScore(riskScore)} 기준`}
-                        </em>
-                    </div>
-                    <div className="wsd-health-score-track">
-                        <div
-                            className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
-                            style={{ width: riskPercent }}
-                        />
-                    </div>
-                    <p>{supportScoreText}</p>
-                </div>
-
                 <div className="wsd-health-reason-section">
-                    <h3>판정에 영향을 준 항목</h3>
+                    <div className="wsd-health-reason-header">
+                        <h3>판정에 영향을 준 항목</h3>
+                        <button
+                            type="button"
+                            className="wsd-health-criteria-toggle"
+                            onClick={() => setShowCriteria(v => !v)}
+                        >
+                            판정 기준 보기
+                            <span>{showCriteria ? "▲" : "▼"}</span>
+                        </button>
+                    </div>
                     <div className="wsd-health-reason-grid">
                         {reasons.map((reason, index) => (
                             <article
@@ -1058,50 +1068,54 @@ function WelfareSeniorDetail() {
                     </div>
                 </div>
 
-                <div className="wsd-health-criteria-section">
-                    <h3>등급별 판정 기준</h3>
-                    <div className="wsd-health-grade-scale" aria-label="등급별 위험 점수 구간">
-                        {criteria.map((item) => (
-                            <div
-                                className={`wsd-health-grade-segment wsd-health-grade-segment-${getHealthTone(item.status)}${item.status === status ? " wsd-health-grade-segment-active" : ""}`}
-                                key={item.status}
-                            >
-                                <span>{item.status}</span>
-                                <strong>{item.range}</strong>
+                {showCriteria && <div className="wsd-health-criteria-section">
+                    {(
+                        <>
+                            <h3>등급별 판정 기준</h3>
+                            <div className="wsd-health-grade-scale" aria-label="등급별 위험 점수 구간">
+                                {criteria.map((item) => (
+                                    <div
+                                        className={`wsd-health-grade-segment wsd-health-grade-segment-${getHealthTone(item.status)}${item.status === status ? " wsd-health-grade-segment-active" : ""}`}
+                                        key={item.status}
+                                    >
+                                        <span>{item.status}</span>
+                                        <strong>{item.range}</strong>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
 
-                    <div className="wsd-health-criteria-list">
-                        {criteria.map((item) => (
-                            <article
-                                className={`wsd-health-criteria-row${item.status === status ? " wsd-health-criteria-row-active" : ""}`}
-                                key={`${item.status}-description`}
-                            >
-                                <div>
-                                    <span>{item.status}</span>
-                                    <strong>{item.title}</strong>
-                                </div>
-                                <p>{item.text}</p>
-                            </article>
-                        ))}
-                    </div>
-                </div>
+                            <div className="wsd-health-criteria-list">
+                                {criteria.map((item) => (
+                                    <article
+                                        className={`wsd-health-criteria-row${item.status === status ? " wsd-health-criteria-row-active" : ""}`}
+                                        key={`${item.status}-description`}
+                                    >
+                                        <div>
+                                            <span>{item.status}</span>
+                                            <strong>{item.title}</strong>
+                                        </div>
+                                        <p>{item.text}</p>
+                                    </article>
+                                ))}
+                            </div>
 
-                <div className="wsd-health-score-rule-section">
-                    <h3>항목별 점수 기준</h3>
-                    <div className="wsd-health-score-rule-list">
-                        {scoreRules.map(([label, score, description]) => (
-                            <article className="wsd-health-score-rule-card" key={label}>
-                                <div>
-                                    <strong>{label}</strong>
-                                    <span>{score}</span>
+                            <div className="wsd-health-score-rule-section">
+                                <h3>항목별 점수 기준</h3>
+                                <div className="wsd-health-score-rule-list">
+                                    {scoreRules.map(([label, score, description]) => (
+                                        <article className="wsd-health-score-rule-card" key={label}>
+                                            <div>
+                                                <strong>{label}</strong>
+                                                <span>{score}</span>
+                                            </div>
+                                            <p>{description}</p>
+                                        </article>
+                                    ))}
                                 </div>
-                                <p>{description}</p>
-                            </article>
-                        ))}
-                    </div>
-                </div>
+                            </div>
+                        </>
+                    )}
+                </div>}
             </section>
         );
     };
