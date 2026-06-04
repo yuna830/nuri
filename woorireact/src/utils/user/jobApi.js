@@ -429,10 +429,10 @@ export const scoreJobMatch = (job, profile = {}, selectedCategory = "") => {
 
   if (selectedLabel && category !== selectedLabel) {
     score -= MATCH_SCORE_WEIGHTS.category;
-    reasons.push("선택 직종과 다름");
+    reasons.push("희망 직종과 다름");
   } else if (selectedLabel && category === selectedLabel) {
     score += MATCH_SCORE_WEIGHTS.category;
-    reasons.push("선택한 직종과 일치");
+    reasons.push("희망 직종과 일치");
   } else if (preferredCategories.includes(category)) {
     score += MATCH_SCORE_WEIGHTS.category;
     reasons.push("희망 직종과 일치");

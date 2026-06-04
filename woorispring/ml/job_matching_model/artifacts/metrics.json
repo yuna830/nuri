@@ -1,0 +1,74 @@
+{
+  "data_file": "data\\processed\\job_matching_training_v2.csv",
+  "rows": 10810,
+  "train_rows": 7567,
+  "test_rows": 3243,
+  "feature_count": 32,
+  "label_distribution": {
+    "보류": 3880,
+    "부적합": 3820,
+    "적합": 3110
+  },
+  "accuracy": 0.9787234042553191,
+  "balanced_accuracy": 0.979458501254014,
+  "macro_precision": 0.9785592562884645,
+  "macro_recall": 0.979458501254014,
+  "macro_f1": 0.9789054039721276,
+  "classification_report": {
+    "보류": {
+      "precision": 0.9659863945578231,
+      "recall": 0.9759450171821306,
+      "f1-score": 0.9709401709401709,
+      "support": 1164.0
+    },
+    "부적합": {
+      "precision": 0.9991031390134529,
+      "recall": 0.9720767888307156,
+      "f1-score": 0.9854046881910659,
+      "support": 1146.0
+    },
+    "적합": {
+      "precision": 0.9705882352941176,
+      "recall": 0.9903536977491961,
+      "f1-score": 0.9803713527851459,
+      "support": 933.0
+    },
+    "accuracy": 0.9787234042553191,
+    "macro avg": {
+      "precision": 0.9785592562884645,
+      "recall": 0.979458501254014,
+      "f1-score": 0.9789054039721276,
+      "support": 3243.0
+    },
+    "weighted avg": {
+      "precision": 0.9790130077410221,
+      "recall": 0.9787234042553191,
+      "f1-score": 0.9787649102034724,
+      "support": 3243.0
+    }
+  },
+  "confusion_matrix": {
+    "labels": [
+      "보류",
+      "부적합",
+      "적합"
+    ],
+    "matrix": [
+      [
+        1136,
+        1,
+        27
+      ],
+      [
+        31,
+        1114,
+        1
+      ],
+      [
+        9,
+        0,
+        924
+      ]
+    ]
+  }
+}

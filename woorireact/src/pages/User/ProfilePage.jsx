@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState(defaultForm);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
@@ -68,6 +69,7 @@ export default function ProfilePage() {
               const freshProfile = await response.json();
               sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
               setForm(profileToForm(freshProfile));
+              setIsLoaded(true);
               return;
             }
           }
@@ -80,8 +82,10 @@ export default function ProfilePage() {
         if (!latestProfile) return;
         sessionStorage.setItem("currentSenior", JSON.stringify(latestProfile));
         setForm(profileToForm(latestProfile));
+        setIsLoaded(true);
       } catch (error) {
         console.error("프로필 정보 조회 실패:", error);
+        setIsLoaded(true);
       }
     };
 
@@ -182,6 +186,7 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
+    if (!isLoaded) return;
     try {
       setSaving(true);
       setSaveToast("saving");
@@ -419,8 +424,8 @@ export default function ProfilePage() {
             <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)} disabled={saving}>
               초기화
             </button>
-            <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving}>
-              {saving ? "저장 중..." : "저장하기"}
+            <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving || !isLoaded}>
+              {!isLoaded ? "불러오는 중..." : saving ? "저장 중..." : "저장하기"}
             </button>
           </div>
         </aside>
