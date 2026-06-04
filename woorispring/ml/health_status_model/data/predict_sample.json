@@ -1,0 +1,61 @@
+{
+  "rows": [
+    {
+      "age": 72,
+      "gender": "여성",
+      "height": 158,
+      "weight": 55,
+      "medicine_count": 1,
+      "hypertension": "없음",
+      "diabetes": "없음",
+      "heart_disease": "없음",
+      "joint_disease": "없음",
+      "stroke": "없음",
+      "kidney_disease": "없음",
+      "lung_disease": "없음",
+      "liver_disease": "없음",
+      "cancer": "없음",
+      "dementia": "없음",
+      "walking_limited": "없음",
+      "fine_motor_limited": "없음"
+    },
+    {
+      "age": 81,
+      "gender": "남성",
+      "height": 166,
+      "weight": 67,
+      "medicine_count": 5,
+      "hypertension": "있음",
+      "diabetes": "있음",
+      "heart_disease": "있음",
+      "joint_disease": "있음",
+      "stroke": "없음",
+      "kidney_disease": "없음",
+      "lung_disease": "있음",
+      "liver_disease": "없음",
+      "cancer": "없음",
+      "dementia": "없음",
+      "walking_limited": "있음",
+      "fine_motor_limited": "없음"
+    },
+    {
+      "age": 78,
+      "gender": "여성",
+      "height": 152,
+      "weight": 48,
+      "medicine_count": 7,
+      "hypertension": "있음",
+      "diabetes": "있음",
+      "heart_disease": "있음",
+      "joint_disease": "있음",
+      "stroke": "있음",
+      "kidney_disease": "있음",
+      "lung_disease": "없음",
+      "liver_disease": "없음",
+      "cancer": "있음",
+      "dementia": "없음",
+      "walking_limited": "있음",
+      "fine_motor_limited": "있음"
+    }
+  ]
+}

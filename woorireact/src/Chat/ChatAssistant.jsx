@@ -47,6 +47,8 @@ const getResolvedSeniorId = () => {
       return id;
     }
   } catch {
+    // ignore
+
     // Fall back to the stored senior id lookup result.
   }
   return null;

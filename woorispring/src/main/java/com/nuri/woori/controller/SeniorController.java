@@ -19,6 +19,7 @@ import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
 import com.nuri.woori.repository.WelfareWorkerRepository;
+import com.nuri.woori.service.HealthStatusMlService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -48,6 +49,7 @@ public class SeniorController {
     private final LocationStatusRepository locationStatusRepository;
     private final AlertRepository alertRepository;
     private final WelfareWorkerRepository welfareWorkerRepository;
+    private final HealthStatusMlService healthStatusMlService;
 
     public SeniorController(
             SeniorRepository seniorRepository,
@@ -58,7 +60,8 @@ public class SeniorController {
             GuardianSeniorRepository guardianSeniorRepository,
             LocationStatusRepository locationStatusRepository,
             AlertRepository alertRepository,
-            WelfareWorkerRepository welfareWorkerRepository) {
+            WelfareWorkerRepository welfareWorkerRepository,
+            HealthStatusMlService healthStatusMlService) {
         this.seniorRepository = seniorRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.healthInfoRepository = healthInfoRepository;
@@ -68,6 +71,7 @@ public class SeniorController {
         this.locationStatusRepository = locationStatusRepository;
         this.alertRepository = alertRepository;
         this.welfareWorkerRepository = welfareWorkerRepository;
+        this.healthStatusMlService = healthStatusMlService;
     }
 
     @PostMapping
@@ -94,8 +98,12 @@ public class SeniorController {
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setLivingCostStatus(request.livingCostStatus());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setPensionStatus(request.pensionStatus());
+        healthInfo.setHousingType(request.housingType());
         healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setCareNeeds(join(request.careNeeds()));
         healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
@@ -121,6 +129,9 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        HealthStatusMlService.HealthEvaluation healthEvaluation =
+                healthStatusMlService.evaluateWithDetails(savedSenior, healthInfo);
+        healthInfo.setHealthStatus(healthEvaluation.status());
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -147,7 +158,8 @@ public class SeniorController {
                 null,
                 "",
                 "",
-                "");
+                "",
+                healthEvaluation);
     }
 
     @GetMapping
@@ -202,7 +214,7 @@ public class SeniorController {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
-        return toProfileResponse(senior);
+        return toProfileResponseWithHealthEvaluation(senior);
     }
 
 //    @PatchMapping("/{id}/welfare-worker")
@@ -229,7 +241,7 @@ public class SeniorController {
         String phone = request.phone() == null ? "" : request.phone().replaceAll("[^0-9]", "");
 
         Senior senior = seniorRepository.findByNameAndNormalizedPhone(name, phone)
-                .orElseThrow(() -> new RuntimeException("Senior not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Senior not found"));
 
         if (Boolean.FALSE.equals(senior.getActive())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Inactive account");
@@ -329,6 +341,9 @@ public class SeniorController {
         senior.setDisabilityGrade(request.disabilityGrade());
         senior.setDisabilityType(request.disabilityType());
         senior.setProfileImageUrl(request.profileImageUrl());
+        if (request.fallApiUrl() != null) {
+            senior.setFallApiUrl(request.fallApiUrl().isBlank() ? null : request.fallApiUrl().trim());
+        }
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -343,8 +358,12 @@ public class SeniorController {
         healthInfo.setDrinking(request.drinking());
         healthInfo.setAllergies(request.allergies());
         healthInfo.setIncomeLevel(request.incomeLevel());
+        healthInfo.setLivingCostStatus(request.livingCostStatus());
         healthInfo.setHouseholdType(request.householdType());
+        healthInfo.setPensionStatus(request.pensionStatus());
+        healthInfo.setHousingType(request.housingType());
         healthInfo.setCurrentBenefits(join(request.currentBenefits()));
+        healthInfo.setCareNeeds(join(request.careNeeds()));
         healthInfo.setWelfareMemo(request.welfareMemo());
         healthInfo.setMedicineCount(request.medicineCount());
         healthInfo.setMedicationsJson(request.medicationsJson());
@@ -370,6 +389,9 @@ public class SeniorController {
         healthInfo.setDisabledWork(join(request.disabledWork()));
         healthInfo.setRestNeed(request.restNeed());
         healthInfo.setAvoidEnvironment(join(request.avoidEnvironment()));
+        HealthStatusMlService.HealthEvaluation healthEvaluation =
+                healthStatusMlService.evaluateWithDetails(savedSenior, healthInfo);
+        healthInfo.setHealthStatus(healthEvaluation.status());
 
         HealthInfo savedHealthInfo = healthInfoRepository.save(healthInfo);
 
@@ -399,7 +421,8 @@ public class SeniorController {
                 null,
                 "",
                 "",
-                "");
+                "",
+                healthEvaluation);
     }
 
     @PatchMapping("/{id}/decision")
@@ -416,6 +439,18 @@ public class SeniorController {
         Senior savedSenior = seniorRepository.save(senior);
 
         return toProfileResponse(savedSenior);
+    }
+
+    @PatchMapping("/{id}/fall-api-url")
+    public ResponseEntity<Void> updateFallApiUrl(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+        String url = body.get("fallApiUrl");
+        senior.setFallApiUrl(url == null || url.isBlank() ? null : url.trim());
+        seniorRepository.save(senior);
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping("/{id}/requested-info")
@@ -445,6 +480,14 @@ public class SeniorController {
 
         if (request.profileImageUrl() != null) {
             senior.setProfileImageUrl(request.profileImageUrl());
+        }
+
+        if (request.guardianName() != null) {
+            senior.setGuardianName(request.guardianName());
+        }
+
+        if (request.guardianRelation() != null) {
+            senior.setGuardianRelation(request.guardianRelation());
         }
 
         Senior savedSenior = seniorRepository.save(senior);
@@ -536,6 +579,7 @@ public class SeniorController {
             healthInfo.setMedicineCount(request.medicationsJson().isBlank() ? "없음" : "1개 이상");
         }
 
+        healthInfo.setHealthStatus(healthStatusMlService.evaluate(savedSenior, healthInfo));
         healthInfoRepository.save(healthInfo);
 
         return toProfileResponse(savedSenior);
@@ -566,7 +610,9 @@ public class SeniorController {
             String hasSurgery,
             String surgeryDetail,
             String otherDisease,
-            String medicationsJson) {
+            String medicationsJson,
+            String guardianName,
+            String guardianRelation) {
     }
 
     @GetMapping("/welfare")
@@ -745,7 +791,8 @@ public class SeniorController {
                 welfareWorker == null ? null : welfareWorker.getId(),
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
-                welfareWorker == null ? "" : welfareWorker.getCenter());
+                welfareWorker == null ? "" : welfareWorker.getCenter(),
+                null);
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -789,7 +836,27 @@ public class SeniorController {
                 welfareWorker == null ? null : welfareWorker.getId(),
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
-                welfareWorker == null ? "" : welfareWorker.getCenter());
+                welfareWorker == null ? "" : welfareWorker.getCenter(),
+                null);
+    }
+
+    private SeniorProfileResponse toProfileResponseWithHealthEvaluation(Senior senior) {
+        SeniorProfileResponse response = toProfileResponse(senior);
+        return new SeniorProfileResponse(
+                response.senior(),
+                response.healthInfo(),
+                response.jobPreference(),
+                response.relation(),
+                response.guardianId(),
+                response.guardianName(),
+                response.guardianPhone(),
+                response.safeZone(),
+                response.lastGps(),
+                response.welfareWorkerId(),
+                response.socialWorkerName(),
+                response.socialWorkerPhone(),
+                response.socialWorkerCenter(),
+                healthStatusMlService.evaluateWithDetails(response.senior(), response.healthInfo()));
     }
 
     private WelfareWorker findWelfareWorker(Senior senior) {
@@ -861,8 +928,12 @@ public class SeniorController {
             String drinking,
             String allergies,
             String incomeLevel,
+            String livingCostStatus,
             String householdType,
+            String pensionStatus,
+            String housingType,
             List<String> currentBenefits,
+            List<String> careNeeds,
             String welfareMemo,
             String medicineCount,
             String medicationsJson,
@@ -892,7 +963,8 @@ public class SeniorController {
             List<String> hopeDays,
             List<String> hopeJobType,
             List<String> hopeCondition,
-            String memo) {
+            String memo,
+            String fallApiUrl) {
     }
 
     public record SeniorLoginRequest(
@@ -913,6 +985,7 @@ public class SeniorController {
             Long welfareWorkerId,
             String socialWorkerName,
             String socialWorkerPhone,
-            String socialWorkerCenter) {
+            String socialWorkerCenter,
+            HealthStatusMlService.HealthEvaluation healthEvaluation) {
     }
 }

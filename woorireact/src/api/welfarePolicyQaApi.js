@@ -1,5 +1,7 @@
-const FASTAPI_BASE_URL = "http://localhost:8001";
-const SPRING_API_BASE_URL = "http://localhost:8080";
+import { AI_API_BASE, SPRING_API_BASE } from "../config/api.js";
+
+const FASTAPI_BASE_URL = AI_API_BASE;
+const SPRING_API_BASE_URL = SPRING_API_BASE;
 
 function valueOrNull(value) {
     if (value === null || value === undefined || value === "") {

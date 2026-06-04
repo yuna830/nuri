@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   createFallAlert,
@@ -44,7 +43,7 @@ const getPosition = () =>
         try {
           address = await reverseGeocode(latitude, longitude);
         } catch {
-          address = "";
+          // address stays empty
         }
 
         resolve({ latitude, longitude, address });
@@ -80,12 +79,6 @@ const getCaptureNameFromAlert = (alert) =>
 const getCaptureNameFromCapture = (capture) =>
   normalizeCaptureName(capture?.image || capture?.filename || capture?.file || "");
 
-const getCaptureCreatedAt = (capture) =>
-  capture?.metadata?.created_at
-  || capture?.metadata?.timestamp
-  || capture?.created_at
-  || capture?.timestamp
-  || "";
 
 const toFallLog = (alert, captureMap) => {
   const captureName = getCaptureNameFromAlert(alert);
@@ -123,11 +116,9 @@ const toFallEventLog = (event, index = 0) => {
 };
 
 export default function FallHistory() {
-  const navigate = useNavigate();
   const seniorId = getCurrentSeniorId();
   const videoUrl = useMemo(() => getFallVideoUrl(), []);
   const [logs, setLogs] = useState([]);
-  const [captures, setCaptures] = useState([]);
   const [expanded, setExpanded] = useState(null);
   const [page, setPage] = useState(1);
   const [detector, setDetector] = useState({ fall_detected: false, score: 0 });
@@ -137,19 +128,10 @@ export default function FallHistory() {
   const sentCaptureRef = useRef(new Set(JSON.parse(localStorage.getItem("fall_sent_captures") || "[]")));
   const fallServerRetryAtRef = useRef(0);
 
-  const captureMap = useMemo(() => {
-    const map = new Map();
-    captures.forEach((capture) => {
-      const name = getCaptureNameFromCapture(capture);
-      if (name) map.set(name, capture);
-    });
-    return map;
-  }, [captures]);
 
   const loadCaptures = useCallback(async () => {
     if (Date.now() < fallServerRetryAtRef.current) return [];
     const nextCaptures = await fetchFallCaptures().catch(() => []);
-    setCaptures(nextCaptures);
     return nextCaptures;
   }, []);
 
@@ -203,13 +185,33 @@ export default function FallHistory() {
 
       try {
         const position = await getPosition();
+        const detectedAt = new Date().toISOString();
+        const captureFromStatus = getCaptureNameFromStatus(status);
+        const captureUrl = captureFromStatus ? getFallCaptureUrl(captureFromStatus) : "";
+        const score = Number(status.score) || 0;
+        const fallDetails = {
+          detectedAt,
+          score,
+          posture: status.posture || status.pose || "",
+          ensembleMode: status.ensemble_mode || status.ensembleMode || "",
+          captureName: captureFromStatus,
+          captureUrl,
+          locationText: position.address || "위치 확인 필요",
+        };
+
         const result = await createFallAlert({
           seniorId,
           latitude: position.latitude,
           longitude: position.longitude,
           address: position.address,
-          score: Number(status.score) || 0,
-          imageUrl: getCaptureNameFromStatus(status),
+          score,
+          imageUrl: captureFromStatus,
+          imageAccessUrl: captureUrl,
+          fallDetails,
+          notifyGuardian: true,
+          notifyWelfare: true,
+          escalationRequired: true,
+          escalationMessage: "보호자 확인 또는 대처 답변이 없으면 담당 복지사가 신고 조치를 검토합니다.",
         });
         rememberCapture(captureName);
         const createdAlert = Array.isArray(result) ? result[0] : null;

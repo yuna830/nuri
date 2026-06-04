@@ -67,7 +67,7 @@
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: minmax(240px, 280px) 1fr;
   gap: 1.5rem;
 }
 
@@ -124,21 +124,27 @@
 .up-profile-sub {
   font-size: 0.78rem;
   opacity: 0.8;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .up-profile-region {
   font-size: 0.75rem;
   opacity: 0.75;
   margin-top: 0.15rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .up-dot-wrap {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
   margin-top: 0.8rem;
   font-size: 0.75rem;
   opacity: 0.9;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .up-dot {
@@ -155,6 +161,32 @@
 
 .up-dot.danger {
   background: #e05252;
+}
+
+.up-sensor-battery {
+  margin-top: 0.8rem;
+}
+
+.up-sensor-battery-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  opacity: 0.9;
+  margin-bottom: 0.3rem;
+}
+
+.up-sensor-battery-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+}
+
+.up-sensor-battery-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease, background 0.4s ease;
 }
 
 .up-care-team {
@@ -195,6 +227,63 @@
 
 .up-care-call:hover {
   color: #f3fff3;
+}
+
+.up-care-edit-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.35;
+  word-break: keep-all;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.up-care-edit-btn:hover {
+  color: #f3fff3;
+}
+
+.up-guardian-modal {
+  text-align: left;
+  width: min(360px, 88vw);
+  padding: 2rem 1.8rem;
+}
+
+.up-guardian-field {
+  margin-top: 1rem;
+}
+
+.up-guardian-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #7a9a7c;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.up-guardian-input {
+  width: 100%;
+  border: 1.5px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+  font-family: "Noto Sans KR", sans-serif;
+  outline: none;
+  box-sizing: border-box;
+  color: #1e2a1f;
+}
+
+.up-guardian-input:focus {
+  border-color: #4e9962;
+}
+
+.up-modal-ok-green {
+  background: #4e9962;
 }
 
 @keyframes up-blink {
@@ -364,10 +453,9 @@
 
 .up-schedule-card,
 .up-climate-card {
-  height: 215px;
+  min-height: 215px;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .up-climate-card .up-alert-item:last-child {
@@ -543,7 +631,7 @@
   border-radius: 99px;
   white-space: nowrap;
   flex-shrink: 0;
-  width: 76px;
+  min-width: 4.5rem;
   text-align: center;
 }
 
@@ -882,11 +970,16 @@
 
 .up-slot-item b,
 .up-baseline-item strong {
-  color: #2f6f9f;
   font-size: 0.82rem;
+  font-weight: 800;
   text-align: center;
   white-space: nowrap;
 }
+
+.up-slot-item b.slot-high  { color: #2f6f9f; }   /* 양호 — 파랑 */
+.up-slot-item b.slot-mid   { color: #c07000; }   /* 보통 — 주황 */
+.up-slot-item b.slot-low   { color: #d94040; }   /* 활동 적음 — 빨강 */
+.up-slot-item b.slot-empty { color: #a9b9aa; }   /* 수집 중 — 회색 */
 
 .up-baseline-item em {
   text-align: right;

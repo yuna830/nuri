@@ -307,20 +307,17 @@
   font-weight: 800;
 }
 
-.tcm-compose {
+.tcm-compose-wrap {
   flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px 96px;
-  gap: 0.75rem;
-  padding: 1rem 1.2rem 1.2rem;
   border-top: 1px solid #edf2e8;
   background: #ffffff;
 }
 
-.tcm-compose-input-wrap {
-  min-width: 0;
+.tcm-compose {
   display: grid;
-  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) 72px 96px;
+  gap: 0.75rem;
+  padding: 0.75rem 1.2rem 1.2rem;
 }
 
 .tcm-compose textarea {
@@ -340,11 +337,10 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 42px;
-  border: 1px solid #d4e8d6;
-  border-radius: 12px;
-  padding: 0.35rem 0.45rem;
-  background: #fbfdf8;
+  min-height: 40px;
+  border-bottom: 1px solid #d4e8d6;
+  padding: 0.4rem 1.2rem;
+  background: #f4faf5;
   color: #48694b;
   font-size: 0.84rem;
   font-weight: 800;
@@ -463,6 +459,7 @@
 
   .tcm-compose {
     grid-template-columns: 1fr;
+    padding: 0.6rem 0.75rem 0.9rem;
   }
 
   .tcm-compose button {

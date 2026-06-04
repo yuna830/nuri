@@ -1,3 +1,5 @@
+import { mapWelfareInfoForRag } from "./welfareInfoMap.js";
+
 export const NONE = "없음";
 
 export const CHRONIC = [
@@ -61,17 +63,60 @@ export const REST_NEEDS = [
   "필요할 때 짧게 쉬기",
 ];
 export const AVOID_ENVIRONMENTS = ["소음 많은 곳", "먼지 많은 곳", "덥거나 추운 곳", "미끄러운 바닥", "사람 많은 곳", "혼자 하는 작업"];
-export const INCOME_LEVELS = [NONE, "기초생활수급자", "차상위계층", "중위소득 50% 이하", "중위소득 100% 이하", "일반"];
-export const HOUSEHOLD_TYPES = [NONE, "독거 가구", "부부 가구", "자녀와 동거", "기타 가구"];
+export const LIVING_COST_STATUSES = [
+  "잘 모르겠어요",
+  "수입이 거의 없어요",
+  "기초연금 정도만 받아요",
+  "가족에게 일부 도움을 받아요",
+  "연금이나 월급 수입이 있어요",
+  "생계비/의료비/주거비 지원을 받고 있어요",
+];
+export const HOUSEHOLD_TYPES = [
+  "잘 모르겠어요",
+  "혼자 살아요",
+  "배우자와 살아요",
+  "자녀/가족과 살아요",
+  "시설이나 요양원에 있어요",
+  "기타",
+];
 export const CURRENT_BENEFITS = [
+  "잘 모르겠어요",
+  "받고 있는 지원이 없어요",
   "기초연금",
+  "생계비/의료비/주거비 지원",
+  "장기요양 서비스",
+  "장애 관련 지원",
+  "노인 일자리",
   "노인맞춤돌봄서비스",
-  "장기요양등급",
   "응급안전안심서비스",
-  "기초생활보장",
-  "의료급여",
-  "주거급여",
-  "노인일자리 사업",
+];
+export const PENSION_STATUSES = [
+  "잘 모르겠어요",
+  "기초연금을 받고 있어요",
+  "국민연금을 받고 있어요",
+  "기초연금과 국민연금을 모두 받고 있어요",
+  "신청했지만 기다리는 중이에요",
+  "신청한 적 없어요",
+];
+export const HOUSING_TYPES = [
+  "잘 모르겠어요",
+  "자가",
+  "전세",
+  "월세",
+  "공공임대",
+  "시설이나 요양원",
+  "기타",
+];
+export const CARE_NEEDS = [
+  "잘 모르겠어요",
+  "특별히 없어요",
+  "식사 준비",
+  "청소/빨래",
+  "목욕/위생",
+  "병원 동행",
+  "외출/장보기",
+  "약 챙기기",
+  "안부 확인",
 ];
 export const SECTIONS = [
   { id: "personal", label: "인적사항" },
@@ -91,6 +136,7 @@ export const createMedicine = () => ({
   ongoing: false,
   interval: "",
   dailyCount: "",
+  alertEnabled: false,
 });
 
 export const getMedicineMinimumCount = (medicineCount) => {
@@ -173,9 +219,12 @@ export const defaultForm = {
   smoking: NONE,
   drinking: NONE,
   allergies: "",
-  incomeLevel: NONE,
-  householdType: NONE,
+  livingCostStatus: "",
+  householdType: "",
   currentBenefits: [],
+  pensionStatus: "",
+  housingType: "",
+  careNeeds: [],
   welfareMemo: "",
   medicineCount: NONE,
   medications: [],
@@ -224,6 +273,7 @@ const readMedications = (healthInfo = {}) => {
     startDate: medicine.startDate ?? "",
     endDate: medicine.endDate ?? "",
     ongoing: Boolean(medicine.ongoing),
+    alertEnabled: Boolean(medicine.alertEnabled),
   });
 
   if (Array.isArray(healthInfo.medications)) {
@@ -279,9 +329,12 @@ export const profileToForm = (profile = {}) => {
     smoking: healthInfo.smoking ?? NONE,
     drinking: healthInfo.drinking ?? NONE,
     allergies: healthInfo.allergies ?? "",
-    incomeLevel: healthInfo.incomeLevel ?? senior.incomeLevel ?? NONE,
-    householdType: healthInfo.householdType ?? senior.householdType ?? NONE,
+    livingCostStatus: healthInfo.livingCostStatus ?? "",
+    householdType: healthInfo.householdType ?? senior.householdType ?? "",
     currentBenefits: splitCsv(healthInfo.currentBenefits),
+    pensionStatus: healthInfo.pensionStatus ?? "",
+    housingType: healthInfo.housingType ?? "",
+    careNeeds: splitCsv(healthInfo.careNeeds),
     welfareMemo: healthInfo.welfareMemo ?? "",
     medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
     medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
@@ -325,6 +378,8 @@ export const normalizeForm = (form) => {
     Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
   );
 
+  const welfareRag = mapWelfareInfoForRag(form);
+
   return {
     ...form,
     age: form.birthDate ? String(calculateAge(form.birthDate) || "") : form.age,
@@ -335,6 +390,14 @@ export const normalizeForm = (form) => {
     medications,
     medicationsJson: JSON.stringify(medications),
     lastLoginAt: form.lastLoginAt || new Date().toISOString(),
+    // UI 선택값 (복원용)
+    careNeeds: (form.careNeeds || []).join(","),
+    currentBenefits: (form.currentBenefits || []).join(","),
+    // RAG 변환 필드
+    incomeLevel: welfareRag.incomeLevel ?? "",
+    livingAlone: welfareRag.livingAlone ?? "",
+    needsGuardianCheck: welfareRag.needsGuardianCheck ?? false,
+    guardianCheckFields: (welfareRag.guardianCheckFields || []).join(","),
   };
 };
 
@@ -373,10 +436,17 @@ export const formToProfile = (profile, form) => {
       smoking: normalized.smoking,
       drinking: normalized.drinking,
       allergies: normalized.allergies,
-      incomeLevel: normalized.incomeLevel,
+      livingCostStatus: normalized.livingCostStatus,
       householdType: normalized.householdType,
-      currentBenefits: normalized.currentBenefits.join(","),
+      currentBenefits: Array.isArray(normalized.currentBenefits) ? normalized.currentBenefits.join(",") : normalized.currentBenefits,
+      pensionStatus: normalized.pensionStatus,
+      housingType: normalized.housingType,
+      careNeeds: normalized.careNeeds,
       welfareMemo: normalized.welfareMemo,
+      incomeLevel: normalized.incomeLevel,
+      livingAlone: normalized.livingAlone,
+      needsGuardianCheck: normalized.needsGuardianCheck,
+      guardianCheckFields: normalized.guardianCheckFields,
       medicineCount: normalized.medicineCount,
       medications: normalized.medications,
       medicationsJson: JSON.stringify(normalized.medications),

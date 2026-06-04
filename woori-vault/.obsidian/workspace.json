@@ -11,14 +11,10 @@
             "id": "c7fbaf002ec722fb",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "04_RAG_변환규칙/실종자데이터_관리규칙.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "실종자데이터_관리규칙"
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "그래프 뷰"
             }
           },
           {
@@ -92,7 +88,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 334.49999618530273
+    "width": 223.49999618530273
   },
   "right": {
     "id": "277221a58f061283",
@@ -212,6 +208,8 @@
   },
   "active": "c7fbaf002ec722fb",
   "lastOpenFiles": [
+    "복지정책/교통약자이동지원.md",
+    "04_RAG_변환규칙/실종자데이터_관리규칙.md",
     "04_RAG_변환규칙/복지시설_Markdown_변환규칙.md",
     "04_RAG_변환규칙/복지서비스_Markdown_변환규칙.md",
     "03_프로젝트_구현메모/DB_저장_중복처리_기준.md",
@@ -230,7 +228,6 @@
     "00_API_공통/API_문서작성_공통_템플릿.md",
     "00_API_공통/인증키_보안_관리_규칙.md",
     "00_API_공통/공공데이터_API_공통_관리_규칙.md",
-    "04_RAG_변환규칙/실종자데이터_관리규칙.md",
     "복지정책/장기요양보험.md",
     "04_RAG_변환규칙",
     "03_프로젝트_구현메모",

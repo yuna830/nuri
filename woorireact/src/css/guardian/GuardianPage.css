@@ -228,23 +228,25 @@
   position: relative;
   width: min(280px, 60vw);
   padding: 0 22px;
-  background: transparent;
+  background: #FAFBF8;
   color: #4B5563;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 min(280px, 60vw);
+  border-right: 1px solid #E4E9DF;
 }
 
 .elder-tab:hover {
-  background: #F4F6F1;
+  background: #F1F5EF;
   color: var(--deep-green);
 }
 
 .elder-tab.active {
   background: var(--main-color);
   color: #FFFFFF;
+  border-right-color: var(--main-color);
 }
 
 .elder-tab.active:hover {
@@ -267,6 +269,31 @@
 
 .elder-tab-label {
   min-width: 0;
+}
+
+.elder-tab-unread-dot {
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #D84A3A;
+  box-shadow: 0 0 0 2px #FFFFFF;
+}
+
+.elder-tab.active .elder-tab-unread-dot {
+  box-shadow: 0 0 0 2px var(--main-color);
+}
+
+.elder-tab:not(.active) .status-badge.normal {
+  background: #DCE8D9;
+  color: var(--deep-green);
+}
+
+.elder-tab.active .status-badge.normal {
+  background: #FFFFFF;
+  color: var(--deep-green);
 }
 
 .status-badge {

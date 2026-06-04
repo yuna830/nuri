@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { UserCommonHeader, UserSubHeader } from "../../components/UserCommonHeader.jsx";
+import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   buildClimateInsightFromForecast,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId,
   reverseGeocode,
-  saveClimateAlert,
 } from "../../api/userPageApi.js";
 import { fetchAirQuality, fetchPollenIndex, fetchUVIndex } from "../../utils/user/weatherAdvice";
 import "../../css/user/WeatherAlert.css";
@@ -41,7 +39,6 @@ const LEVELS = {
   danger: { label: "위험", bg: "#7a1a1a", barColor: "#7a1a1a", icon: "⛔", desc: "외출 금지" },
 };
 
-const LEVEL_ORDER = { danger: 0, warning: 1, caution: 2, normal: 3, safe: 4 };
 const ACTIONS = [
   { icon: "🧥", text: "외출 전 옷차림과 보행 보조도구를 다시 확인하세요." },
   { icon: "📞", text: "위험 단계에서는 보호자에게 이동 사실을 먼저 알려주세요." },
@@ -108,39 +105,12 @@ const parseWarningLevel = (title) => {
 };
 
 export default function WeatherAlert() {
-  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [environmentAlerts, setEnvironmentAlerts] = useState([]);
   const [lastFetched, setLastFetched] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [insight, setInsight] = useState(DEFAULT_CLIMATE_INSIGHT);
   const liveIntervalRef = useRef(null);
-  const hourlyIntervalRef = useRef(null);
-
-  const persistAlert = async (alert) => {
-    const seniorId = getCurrentSeniorId();
-    if (!seniorId) return;
-    const now = new Date();
-    await saveClimateAlert({
-      seniorId,
-      eventId: String(alert.id),
-      type: alert.type,
-      level: alert.level,
-      message: alert.message,
-      region: alert.region,
-      source: "KMA",
-      alertDate: todayDate(),
-      issuedAt: `${todayDate()}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
-    }).catch(() => {});
-  };
-
-  const persistAlertOnce = async (alert) => {
-    const storageKey = `climate_saved_${todayDate()}`;
-    const savedIds = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    if (savedIds.includes(String(alert.id))) return;
-    await persistAlert(alert);
-    localStorage.setItem(storageKey, JSON.stringify([...savedIds, String(alert.id)]));
-  };
 
   const loadSavedAlerts = async () => {
     const seniorId = getCurrentSeniorId();
@@ -149,7 +119,7 @@ export default function WeatherAlert() {
     setAlerts(saved.map(normalizeAlert));
   };
 
-  const addAlerts = (newAlerts, shouldPersist = true) => {
+  const addAlerts = (newAlerts) => {
     setAlerts((prev) => {
       const existingIds = new Set(prev.map((item) => String(item.id)));
       const unique = newAlerts.filter((item) => !existingIds.has(String(item.id)));
@@ -157,7 +127,7 @@ export default function WeatherAlert() {
     });
   };
 
-  const fetchWarnings = async ({ recordSafe = false } = {}) => {
+  const fetchWarnings = async () => {
     try {
       setFetching(true);
       const now = new Date();
@@ -184,7 +154,7 @@ export default function WeatherAlert() {
           region: "대한민국",
           sortTime: new Date(`${todayDate()}T${pad(now.getHours())}:00:00`).getTime(),
         };
-        addAlerts([safeAlert], recordSafe);
+        addAlerts([safeAlert]);
         return;
       }
 
@@ -206,7 +176,7 @@ export default function WeatherAlert() {
             : now.getTime(),
         };
       });
-      addAlerts(parsed, true);
+      addAlerts(parsed);
     } catch {
       addAlerts([{
         id: "fallback",
@@ -216,7 +186,7 @@ export default function WeatherAlert() {
         time: formatTodayDateTime(formatNow()),
         region: "대한민국",
         sortTime: Date.now(),
-      }], false);
+      }]);
     } finally {
       setFetching(false);
     }
@@ -297,12 +267,12 @@ export default function WeatherAlert() {
   };
 
   useEffect(() => {
-    loadSavedAlerts().finally(() => fetchWarnings({ recordSafe: false }));
+    loadSavedAlerts().finally(() => fetchWarnings());
     loadInsight().catch(() => {});
     loadEnvironmentAlerts().catch(() => {});
 
     liveIntervalRef.current = setInterval(() => {
-      fetchWarnings({ recordSafe: false });
+      fetchWarnings();
       loadEnvironmentAlerts().catch(() => {});
     }, 60 * 1000);
 

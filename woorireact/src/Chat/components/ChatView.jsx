@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
+import { AI_API_BASE } from "../../config/api.js";
 import { createCareResponse } from "../services/aiCareService";
 import { useAnswerVoice } from "../hooks/useAnswerVoice";
 import { getCurrentUserHealthContext, useChatFlow } from "../hooks/useChatFlow";
@@ -13,7 +14,7 @@ import ScheduleConfirmBox from "./ScheduleConfirmBox";
 import TodaySchedulePanel from "./TodaySchedulePanel";
 import ConversationSidebar from "./ConversationSidebar";
 
-const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8002/food";
+const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || `${AI_API_BASE}/food`;
 
 export default function ChatView({
   messages,

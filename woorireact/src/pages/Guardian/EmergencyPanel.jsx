@@ -87,13 +87,11 @@ const getMissingSimilarity = (elder, alert) => {
 
 function EmergencyPanel({
   selectedElder,
-  displayedAlerts,
   policeAlerts,
   routeHistory,
   lastNormalLocation,
   safeZones = [],
   safeZoneForm,
-  distance,
   isMissingReportOpen,
   missingDescription,
   selectedRouteDate,
@@ -104,9 +102,7 @@ function EmergencyPanel({
   setMissingDescription,
   missingImagePreview,
   isSubmittingMissingReport,
-  onReadAlert,
   onCallAlert,
-  onOpenEmergencyReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
@@ -173,36 +169,10 @@ function EmergencyPanel({
     }
   };
 
-  const handleMedicationConfirmed = () => {
-    setMedicationReminderStatus("taken");
-  };
-
-  const handleMedicationNotConfirmed = () => {
-    setMedicationReminderStatus("not-taken");
-  };
-
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
     ? lastNormalLocation.address
     : "기록 없음";
-
-  const getRouteTimeParts = (receivedAt) => {
-    const date = new Date(receivedAt);
-
-    return {
-      period: date.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        hour12: true,
-      }).includes("오전")
-        ? "오전"
-        : "오후",
-      time: date.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }),
-    };
-  };
 
   const visiblePoliceAlert = policeAlerts?.[policeIndex] ?? null;
   const policeSimilarity = getMissingSimilarity(selectedElder, visiblePoliceAlert);
@@ -256,7 +226,7 @@ function EmergencyPanel({
     try {
       const results = await searchPlacesByKakao(keyword, { size: 5 });
       setSafeZoneResults(results);
-    } catch (error) {
+    } catch {
       alert("주소 검색에 실패했습니다.");
       setSafeZoneResults([]);
     } finally {

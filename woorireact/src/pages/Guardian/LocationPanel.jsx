@@ -98,7 +98,7 @@ function LocationPanel({
           showRoute={isRouteVisible && hasCurrentLocation}
           autoFit={false}
           focusLocation={hasCurrentLocation ? location : center}
-          focusKey={`${selectedElder.id}-${location?.receivedAt || location?.lat || center.lat}-${location?.lng || center.lng}`}
+          focusKey={`elder-${selectedElder.id}`}
           focusLevel={4}
           fallback={(
             <div className="leaflet-map" style={{

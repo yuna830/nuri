@@ -31,6 +31,7 @@ function CommonHeader({
 
   useEffect(() => {
     if (!notificationTabs.includes(activeNotificationTab)) {
+
       setActiveNotificationTab(notificationTabs[0] || "전체");
     }
   }, [activeNotificationTab, notificationTabs]);
@@ -42,23 +43,24 @@ function CommonHeader({
       notifications
         .filter((notification) => !hiddenNotificationIds.includes(String(notification.id)))
         .map((notification, index) => {
-        const status = notification.status || notification.readStatus || "";
+          const status = notification.status || notification.readStatus || "";
 
-        return {
-          key: notification.key || notification.id || `notification-${index}`,
-          id: notification.id,
-          title: notification.title || "새 알림",
-          message: notification.message || "",
-          category: notification.category || "정보",
-          time: notification.time || notification.createdAt || "",
-          isRead: notification.isRead === true || READ_STATUSES.has(status),
-          danger:
-            notification.danger === true ||
-            notification.isSafeZone === true ||
-            notification.severity === "danger",
-          raw: notification.raw || notification,
-        };
-      }),
+          return {
+            key: notification.key || notification.id || `notification-${index}`,
+            id: notification.id,
+            title: notification.title || "새 알림",
+            message: notification.message || "",
+            category: notification.category || "정보",
+            time: notification.time || notification.createdAt || "",
+            isRead: notification.isRead === true || READ_STATUSES.has(status),
+            statusLabel: notification.statusLabel,
+            danger:
+              notification.danger === true ||
+              notification.isSafeZone === true ||
+              notification.severity === "danger",
+            raw: notification.raw || notification,
+          };
+        }),
     [hiddenNotificationIds, notifications]
   );
 
@@ -102,6 +104,7 @@ function CommonHeader({
   useEffect(() => {
     const activeTabButton = notificationTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+
     setSelectedNotificationKeys([]);
   }, [activeNotificationTab]);
 
@@ -321,9 +324,8 @@ function CommonHeader({
                 filteredNotifications.map((notification) => (
                   <article
                     key={notification.key}
-                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger ? "danger" : ""} ${
-                      notification.isRead ? "read" : ""
-                    }`}
+                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger ? "danger" : ""} ${notification.isRead ? "read" : ""
+                      }`}
                     onClick={onNotificationClick ? () => handleNotificationClick(notification) : undefined}
                   >
                     <label className="uch-alert-select">
@@ -338,23 +340,36 @@ function CommonHeader({
                     </label>
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
-                        <span className={notification.isRead ? "read" : "unread"}>
-                          {notification.isRead ? getReadLabel(notification) : "확인 필요"}
-                        </span>
+                        {notification.statusLabel !== null && (
+                          <span className={notification.isRead ? "read" : "unread"}>
+                            {notification.statusLabel || (notification.isRead ? getReadLabel(notification) : "확인 필요")}
+                          </span>
+                        )}
                         <span>{notification.category}</span>
                       </div>
-                      <strong>{notification.title}</strong>
+                      <div className="uch-alert-title-row">
+                        <strong>{notification.title}</strong>
+                        {notification.time && (
+                          <span className="uch-alert-time-inline">{notification.time}</span>
+                        )}
+                      </div>
                       <p>{notification.message}</p>
-                      {notification.time && <span>{notification.time}</span>}
+                      {notification.raw?.imageUrl && (
+                        <img
+                          className="uch-alert-thumbnail"
+                          src={notification.raw.imageUrl}
+                          alt={`${notification.title} 사진`}
+                        />
+                      )}
                     </div>
 
                     <div className="uch-alert-action">
                       {renderNotificationActions
                         ? renderNotificationActions(notification.raw, {
-                            defaultAction: renderDefaultAction(notification),
-                            onRead: (event) => handleReadClick(event, notification),
-                            isRead: notification.isRead,
-                          })
+                          defaultAction: renderDefaultAction(notification),
+                          onRead: (event) => handleReadClick(event, notification),
+                          isRead: notification.isRead,
+                        })
                         : renderDefaultAction(notification)}
                     </div>
                   </article>

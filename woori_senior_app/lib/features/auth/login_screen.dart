@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/storage/senior_session_storage.dart';
-import '../home/senior_home_screen.dart';
+import '../shell/app_shell.dart';
 import 'sign_up_screen.dart';
 
 class SeniorLoginScreen extends StatefulWidget {
@@ -20,6 +20,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
 
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _rememberMe = true;
 
   @override
   void dispose() {
@@ -58,12 +59,14 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
         throw Exception('어르신 ID가 없습니다.');
       }
 
-      await SeniorSessionStorage.saveSeniorId(seniorId);
+      if (_rememberMe) {
+        await SeniorSessionStorage.saveSeniorId(seniorId);
+      }
 
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => SeniorHomeScreen(seniorId: seniorId)),
+        MaterialPageRoute(builder: (_) => AppShell(seniorId: seniorId)),
       );
     } catch (_) {
       setState(() {
@@ -97,7 +100,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                       width: 58,
                       height: 58,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF86A788).withOpacity(0.14),
+                        color: const Color(0xFF86A788).withValues(alpha: 0.14),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -207,8 +210,8 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                         width: 22,
                         height: 22,
                         child: Checkbox(
-                          value: true,
-                          onChanged: (_) {},
+                          value: _rememberMe,
+                          onChanged: (_) => setState(() => _rememberMe = !_rememberMe),
                           activeColor: const Color(0xFF86A788),
                         ),
                       ),

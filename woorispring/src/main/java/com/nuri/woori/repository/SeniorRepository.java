@@ -13,6 +13,8 @@ import java.util.Optional;
 public interface SeniorRepository extends JpaRepository<Senior, Long> {
     Optional<Senior> findByNameAndPhone(String name, String phone);
 
+    List<Senior> findByFallApiUrlIsNotNull();
+
     List<Senior> findByWelfareWorkerIdOrderByIdAsc(Long welfareWorkerId);
 
     Page<Senior> findByWelfareWorkerId(Long welfareWorkerId, Pageable pageable);
@@ -29,7 +31,7 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
     @Query("""
         select s from Senior s
         where s.name = :name
-          and replace(s.phone, '-', '') = :phone
+          and function('regexp_replace', s.phone, '[^0-9]', '', 'g') = :phone
         """)
     Optional<Senior> findByNameAndNormalizedPhone(
             @Param("name") String name,
@@ -39,7 +41,7 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
     // 이름, 전화번호 찾기 기능 추가
     @Query("""
         select s from Senior s
-        where function('replace', s.phone, '-', '') = :phone
+        where function('regexp_replace', s.phone, '[^0-9]', '', 'g') = :phone
         """)
     Optional<Senior> findByNormalizedPhone(@Param("phone") String phone);
 

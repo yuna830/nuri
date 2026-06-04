@@ -70,10 +70,8 @@ function UserPanel({
   hasCurrentLocation,
   isOutsideSafeZone,
   distance,
-  lastNormalLocation,
   safeZones,
   safeZoneForm,
-  formatShortAddress,
   isSafeZoneOpen,
   onToggleSafeZone,
   onSelectSafeZoneForm,
@@ -92,9 +90,10 @@ function UserPanel({
   onCreateAndConnectSenior,
   onDeleteElder,
   onProfileUpdated,
+
   activityReport,
 }) {
-  const [localBattery, setLocalBattery] = useState(null);
+  const [deviceBattery, setDeviceBattery] = useState(null);
   const [profileImages, setProfileImages] = useState(() => {
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
@@ -104,19 +103,19 @@ function UserPanel({
     if (!navigator.getBattery) return undefined;
 
     let batteryRef = null;
-    const updateBattery = () => {
+    const update = () => {
       if (!batteryRef) return;
-      setLocalBattery(Math.round((batteryRef.level || 0) * 100));
+      setDeviceBattery(Math.round(batteryRef.level * 100));
     };
 
-    navigator.getBattery().then((battery) => {
-      batteryRef = battery;
-      updateBattery();
-      battery.addEventListener("levelchange", updateBattery);
+    navigator.getBattery().then((bat) => {
+      batteryRef = bat;
+      update();
+      bat.addEventListener("levelchange", update);
     }).catch(() => {});
 
     return () => {
-      batteryRef?.removeEventListener?.("levelchange", updateBattery);
+      batteryRef?.removeEventListener?.("levelchange", update);
     };
   }, []);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -158,7 +157,7 @@ function UserPanel({
     setProfileEditForm({
       relation: selectedElder.relation || "",
       phone: selectedElder.phone || "",
-      condition: selectedElder.condition || "",
+      condition: selectedElder.healthInfo?.otherDisease || "",
       medications: selectedElder.medications?.map((item) => item.name).join(", ") || "",
     });
 
@@ -233,6 +232,7 @@ function UserPanel({
     : [];
 
   useEffect(() => {
+     
     setIsProfileMenuOpen(false);
   }, [selectedElderId]);
 
@@ -266,25 +266,27 @@ function UserPanel({
 
     try {
       const { imageUrl } = await uploadProfileImage(file);
+      const nextImageUrl = resolveUploadUrl(imageUrl);
 
       await updateSeniorRequestedInfo(selectedElder.id, {
-        profileImageUrl: imageUrl,
+        profileImageUrl: nextImageUrl,
       });
 
       setProfileImages((prev) => {
         const next = {
           ...prev,
-          [selectedElderId]: imageUrl,
+          [selectedElderId]: nextImageUrl,
         };
 
         localStorage.setItem("guardianProfileImages", JSON.stringify(next));
         return next;
       });
 
-      selectedElder.profileImageUrl = imageUrl;
+      // eslint-disable-next-line react-hooks/immutability
+      selectedElder.profileImageUrl = nextImageUrl;
       setIsProfileMenuOpen(false);
-    } catch (error) {
-      console.error("프로필 사진 저장 실패:", error);
+    } catch {
+      console.error("프로필 사진 저장 실패");
       alert("프로필 사진 저장에 실패했습니다.");
     } finally {
       event.target.value = "";
@@ -311,10 +313,11 @@ function UserPanel({
         return next;
       });
 
+      // eslint-disable-next-line react-hooks/immutability
       selectedElder.profileImageUrl = "";
       setIsProfileMenuOpen(false);
-    } catch (error) {
-      console.error("프로필 사진 삭제 실패:", error);
+    } catch {
+      console.error("프로필 사진 삭제 실패");
       alert("프로필 사진 삭제에 실패했습니다.");
     }
   };
@@ -450,12 +453,21 @@ function UserPanel({
 
           <div className="battery-box">
             <div className="battery-title-row">
-              <span>{localBattery == null ? "GPS 배터리" : "현재 기기 배터리"}</span>
-              <strong>{localBattery ?? selectedElder.battery}%</strong>
+              <span>기기 배터리</span>
+              <strong>{deviceBattery != null ? `${deviceBattery}%` : "--"}</strong>
             </div>
             <div className="battery-row">
               <div className="battery-bar">
-                <div style={{ width: `${localBattery ?? selectedElder.battery}%` }} />
+                <div
+                  style={{
+                    width: deviceBattery != null ? `${deviceBattery}%` : "0%",
+                    background:
+                      deviceBattery == null ? "transparent"
+                      : deviceBattery >= 80 ? "var(--main-color)"
+                      : deviceBattery >= 30 ? "#d89b2b"
+                      : "#e05252",
+                  }}
+                />
               </div>
             </div>
           </div>

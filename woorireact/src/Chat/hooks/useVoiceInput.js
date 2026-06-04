@@ -24,6 +24,7 @@ export function useVoiceInput({ onRecognized, onError }) {
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
+       
       recordingStartedAtRef.current = Date.now();
 
       mediaRecorder.ondataavailable = (event) => {

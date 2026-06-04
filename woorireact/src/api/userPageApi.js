@@ -8,21 +8,12 @@ import {
   markLocalAlertRead,
 } from "./localAlertStore";
 
-const API_BASE = "";
-const FALL_API_PORT = "8010";
-const getDefaultFallApiBase = () => {
-  const host = window.location.hostname;
+import { FALL_API_PORT, SPRING_API_BASE, getDefaultFallApiBase } from "../config/api.js";
 
-  if (host && host !== "localhost" && host !== "127.0.0.1") {
-    return `${window.location.protocol}//${host}:${FALL_API_PORT}`;
-  }
-
-  return `http://127.0.0.1:${FALL_API_PORT}`;
-};
+const API_BASE = SPRING_API_BASE;
 
 const getSavedFallApiBase = () => {
-  const saved = localStorage.getItem("woori_fall_api_base");
-  return saved?.includes(":8000") ? "" : saved;
+  return localStorage.getItem("woori_fall_api_base") || null;
 };
 
 const FALL_API_BASE = (
@@ -343,11 +334,31 @@ export const getCurrentSeniorId = () => {
   return profile?.senior?.id || localStorage.getItem("current_senior_id") || "";
 };
 
+const LOCAL_UPLOAD_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
 export const resolveUploadUrl = (imageUrl) => {
   if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
-  return `${API_BASE}${imageUrl}`;
+
+  const value = String(imageUrl).trim();
+  if (!value) return "";
+  if (value.startsWith("blob:") || value.startsWith("data:")) return value;
+  if (value.startsWith("uploads/")) return `/${value}`;
+
+  try {
+    const parsed = new URL(value, window.location.origin);
+
+    if (parsed.pathname.startsWith("/uploads/") && LOCAL_UPLOAD_HOSTS.has(parsed.hostname)) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      return parsed.href;
+    }
+  } catch {
+    // Keep non-URL values below.
+  }
+
+  return `${API_BASE}${value}`;
 };
 
 export const uploadProfileImage = async (file) => {
@@ -363,7 +374,13 @@ export const uploadProfileImage = async (file) => {
     throw new Error("Profile image upload failed");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  return {
+    ...data,
+    imageUrl: resolveUploadUrl(data?.imageUrl),
+    fileUrl: resolveUploadUrl(data?.fileUrl),
+  };
 };
 
 export const fetchTodayClimateAlerts = async (seniorId) => {
@@ -452,11 +469,19 @@ export const createSafeZoneAlert = async ({ seniorId, latitude, longitude, addre
   return response.json();
 };
 
-export const createFallAlert = async ({ seniorId, latitude, longitude, address, score, imageUrl }) => {
+export const createFallAlert = async ({
+  seniorId,
+  latitude,
+  longitude,
+  address,
+  score,
+  imageUrl,
+  ...extra
+}) => {
   const response = await fetch(`${API_BASE}/api/alerts/fall`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl }),
+    body: JSON.stringify({ seniorId, latitude, longitude, address, score, imageUrl, ...extra }),
   });
 
   if (!response.ok) {
@@ -485,12 +510,51 @@ export const fetchFallDetectionStatus = async () => {
   return response.json();
 };
 
-export const fetchActivityToday = async () => {
+export const fetchSensorBattery = async (seniorId) => {
+  // 1순위: Fall server /status 응답에서 battery 필드 추출
+  try {
+    const status = await fetchFallDetectionStatus();
+    const value = status?.battery ?? status?.sensorBattery ?? status?.sensor_battery;
+    if (value != null) return Math.round(Number(value));
+  } catch {
+    // fall server 미응답 또는 battery 필드 없음
+  }
+
+  // 2순위: Spring Boot /api/seniors/{id}/battery
+  if (seniorId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/seniors/${seniorId}/battery`);
+      if (res.ok) {
+        const data = await res.json();
+        const value = data?.battery ?? data?.sensorBattery;
+        if (value != null) return Math.round(Number(value));
+      }
+    } catch {
+      // 엔드포인트 없음
+    }
+  }
+
+  return null;
+};
+
+export const fetchActivityToday = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/today`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/today");
   return response.json();
 };
 
-export const fetchActivityTrend = async (days = 7) => {
+export const fetchActivityTrend = async (days = 7, seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/trend?days=${encodeURIComponent(days)}`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi(`/health/activity/trend?days=${encodeURIComponent(days)}`);
   return response.json();
 };
@@ -501,17 +565,35 @@ export const fetchFallEvents = async (days = 1) => {
   return Array.isArray(data?.events) ? data.events : [];
 };
 
-export const fetchActivitySlots = async () => {
+export const fetchActivitySlots = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/slots`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/slots");
   return response.json();
 };
 
-export const fetchActivityBaseline = async (days = 14) => {
+export const fetchActivityBaseline = async (days = 14, seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/baseline?days=${encodeURIComponent(days)}`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi(`/health/activity/baseline?days=${encodeURIComponent(days)}`);
   return response.json();
 };
 
-export const fetchFallPattern = async () => {
+export const fetchFallPattern = async (seniorId) => {
+  if (seniorId) {
+    try {
+      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/fall-pattern`);
+      if (response.ok) return response.json();
+    } catch { /* Fall API 폴백 */ }
+  }
   const response = await fetchFallApi("/health/activity/fall-pattern");
   return response.json();
 };

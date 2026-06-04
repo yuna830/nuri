@@ -1,3 +1,38 @@
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+export const resolveChatAttachmentUrl = (url) => {
+  if (!url) return "";
+
+  const value = String(url).trim();
+  if (!value) return "";
+  if (value.startsWith("blob:") || value.startsWith("data:")) return value;
+
+  if (value.startsWith("uploads/")) {
+    return `/${value}`;
+  }
+
+  try {
+    const parsed = new URL(value, window.location.origin);
+
+    if (parsed.pathname.startsWith("/uploads/") && LOCAL_HOSTS.has(parsed.hostname)) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      return parsed.href;
+    }
+  } catch {
+    // Keep the original value when it is not a URL-like string.
+  }
+
+  return value;
+};
+
+const normalizeChatMessage = (message) => ({
+  ...message,
+  attachmentUrl: resolveChatAttachmentUrl(message?.attachmentUrl),
+});
+
 export const fetchSeniorChatMessages = async (
   seniorId,
   roomType = "SENIOR_GUARDIAN",
@@ -20,7 +55,7 @@ export const fetchSeniorChatMessages = async (
   }
 
   const data = await response.json();
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? data.map(normalizeChatMessage) : [];
 };
 
 export const fetchUnreadChatCount = async ({ viewerRole, seniorId } = {}) => {
@@ -56,7 +91,7 @@ export const sendSeniorChatMessage = async ({
       senderId,
       senderName,
       message,
-      attachmentUrl,
+      attachmentUrl: resolveChatAttachmentUrl(attachmentUrl),
       attachmentType,
       attachmentName,
     }),
@@ -82,7 +117,13 @@ export const uploadChatAttachment = async (file) => {
     throw new Error("chat attachment upload failed");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  return {
+    ...data,
+    fileUrl: resolveChatAttachmentUrl(data?.fileUrl),
+    imageUrl: resolveChatAttachmentUrl(data?.imageUrl),
+  };
 };
 
 export const fetchChatMessages = fetchSeniorChatMessages;

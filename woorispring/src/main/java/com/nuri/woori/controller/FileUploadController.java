@@ -1,6 +1,7 @@
 package com.nuri.woori.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,7 +16,11 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class FileUploadController {
 
-    private final Path uploadRoot = Paths.get("uploads").toAbsolutePath().normalize();
+    private final Path uploadRoot;
+
+    public FileUploadController(@Value("${app.upload-root:uploads}") String uploadRoot) {
+        this.uploadRoot = Paths.get(uploadRoot).toAbsolutePath().normalize();
+    }
 
     @PostMapping("/{category}")
     public ResponseEntity<Map<String, String>> uploadImage(

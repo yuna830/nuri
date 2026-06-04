@@ -14,6 +14,7 @@ import {
 } from "../api/userPageApi.js";
 import CommonHeader from "./CommonHeader.jsx";
 import TripartiteChatModal from "./TripartiteChatModal.jsx";
+import FontSizeControl from "./FontSizeControl.jsx";
 import { fetchUnreadChatCount } from "../api/chatApi.js";
 import "../css/user/UserCommonHeader.css";
 
@@ -193,7 +194,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [activeAlertTab, setActiveAlertTab] = useState(ALERT_TABS[0]);
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
-  const [deletedAlertKeys, setDeletedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
@@ -311,6 +311,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
+     
     loadAlerts();
     const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
     return () => clearInterval(timerId);
@@ -332,6 +333,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
+     
     loadUnreadChatCount();
     const timerId = setInterval(loadUnreadChatCount, 5000);
     return () => clearInterval(timerId);
@@ -380,6 +382,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     const activeTabButton = alertTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+     
     setSelectedAlertKeys([]);
   }, [activeAlertTab]);
 
@@ -425,7 +428,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
 
   const removeAlertsFromList = (keys) => {
     deletedAlertKeysRef.current = [...new Set([...deletedAlertKeysRef.current, ...keys])];
-    setDeletedAlertKeys(deletedAlertKeysRef.current);
     setAlerts((prev) => prev.filter((alert) => !keys.includes(alert.key)));
     setSelectedAlertKeys([]);
   };
@@ -516,6 +518,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         rightText={formatKoreanDate()}
         actions={
           <>
+            <FontSizeControl />
             <button className="common-app-icon-button" type="button" onClick={() => setIsChatOpen(true)} aria-label="메시지">
               <MessageCircle size={19} />
               {unreadChatCount > 0 && <span className="common-app-badge">{unreadChatCount}</span>}

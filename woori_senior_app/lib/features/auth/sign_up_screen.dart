@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/storage/senior_session_storage.dart';
-import '../home/senior_home_screen.dart';
+import '../shell/app_shell.dart';
 
 class SeniorSignUpScreen extends StatefulWidget {
   const SeniorSignUpScreen({super.key});
@@ -20,8 +20,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   final TextEditingController _regionController = TextEditingController();
 
   String _gender = '여성';
-  String _incomeLevel = '???';
-  String _householdType = '?? ??';
+  String _incomeLevel = '없음';
+  String _householdType = '없음';
   bool _agreedToPrivacy = false;
   bool _isLoading = false;
   String _errorMessage = '';
@@ -84,7 +84,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => SeniorHomeScreen(seniorId: seniorId)),
+        MaterialPageRoute(builder: (_) => AppShell(seniorId: seniorId)),
         (_) => false,
       );
     } catch (_) {
@@ -153,7 +153,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  _SignUpLabel('이름'),
+                  const _SignUpLabel('이름'),
                   _SignUpTextField(
                     controller: _nameController,
                     hintText: '예: 김나리',
@@ -162,7 +162,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
                   const SizedBox(height: 18),
 
-                  _SignUpLabel('전화번호'),
+                  const _SignUpLabel('전화번호'),
                   _SignUpTextField(
                     controller: _phoneController,
                     hintText: '예: 01078945612',
@@ -172,7 +172,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
                   const SizedBox(height: 18),
 
-                  _SignUpLabel('생년월일'),
+                  const _SignUpLabel('생년월일'),
                   TextField(
                     controller: _birthDateController,
                     readOnly: true,
@@ -185,7 +185,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
                   const SizedBox(height: 18),
 
-                  _SignUpLabel('성별'),
+                  const _SignUpLabel('성별'),
                   Row(
                     children: [
                       Expanded(
@@ -208,7 +208,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
                   const SizedBox(height: 18),
 
-                  _SignUpLabel('주소'),
+                  const _SignUpLabel('주소'),
                   _SignUpTextField(
                     controller: _regionController,
                     hintText: '예: 서울 광진구 자양동',
@@ -223,18 +223,18 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
                   const SizedBox(height: 18),
 
                   _OptionSelector(
-                    label: '?? ??',
+                    label: '소득 정보',
                     value: _incomeLevel,
-                    options: const ['???', '??????', '?????', '???? 50% ??', '???? 100% ??', '??'],
+                    options: const ['없음', '기초생활수급자', '차상위계층', '중위소득 50% 이하', '중위소득 100% 이하', '일반'],
                     onChanged: (value) => setState(() => _incomeLevel = value),
                   ),
 
                   const SizedBox(height: 18),
 
                   _OptionSelector(
-                    label: '?? ??',
+                    label: '가구 형태',
                     value: _householdType,
-                    options: const ['?? ??', '?? ??', '??? ??', '?? ??'],
+                    options: const ['없음', '독거 가구', '부부 가구', '자녀와 동거', '기타 가구'],
                     onChanged: (value) => setState(() => _householdType = value),
                   ),
 

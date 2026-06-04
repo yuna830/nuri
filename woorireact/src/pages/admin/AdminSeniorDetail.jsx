@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Repeat2 } from "lucide-react";
 
@@ -14,6 +14,9 @@ function AdminSeniorDetail() {
   const [localWorkerId, setLocalWorkerId] = useState(undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [fallApiUrl, setFallApiUrl] = useState("");
+  const [isCameraSaving, setIsCameraSaving] = useState(false);
+  const [cameraSaveMessage, setCameraSaveMessage] = useState(null);
 
   const displayedSenior = senior
     ? {
@@ -31,9 +34,28 @@ function AdminSeniorDetail() {
 
   useEffect(() => {
     if (!displayedSenior) return;
-
     setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
-  }, [displayedSenior?.id, displayedSenior?.welfareId]);
+    setFallApiUrl(displayedSenior.fallApiUrl || "");
+  }, [displayedSenior?.id, displayedSenior?.welfareId, displayedSenior?.fallApiUrl]);
+
+  const handleCameraSave = async () => {
+    if (!displayedSenior) return;
+    setIsCameraSaving(true);
+    setCameraSaveMessage(null);
+    try {
+      const response = await fetch(`/api/seniors/${displayedSenior.id}/fall-api-url`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fallApiUrl: fallApiUrl.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      setCameraSaveMessage({ type: "success", text: "카메라 주소가 저장되었습니다." });
+    } catch {
+      setCameraSaveMessage({ type: "error", text: "저장에 실패했습니다." });
+    } finally {
+      setIsCameraSaving(false);
+    }
+  };
 
   const handleReassign = async () => {
     if (!displayedSenior || !hasSelectionChanged) return;
@@ -50,7 +72,7 @@ function AdminSeniorDetail() {
           ? "\ubcf5\uc9c0\uc0ac \uc7ac\ubc30\uc815\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4."
           : "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uac00 \ud574\uc81c\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
       });
-    } catch (error) {
+    } catch {
       setSaveMessage({
         type: "error",
         text: selectedWorkerId
@@ -137,12 +159,40 @@ function AdminSeniorDetail() {
                 disabled={!hasSelectionChanged || isSaving}
               >
                 <Repeat2 size={16} />
-                {isSaving ? "\uc800\uc7a5 \uc911" : actionLabel}
+                {isSaving ? "저장 중" : actionLabel}
               </button>
             </div>
             {saveMessage ? (
               <p className={`admin-action-message ${saveMessage.type}`}>{saveMessage.text}</p>
             ) : null}
+          </section>
+
+          <section className="admin-panel">
+            <h2>카메라 연동</h2>
+            <p className="admin-section-desc">낙상 감지 카메라 서버 주소를 입력하면 활동 데이터가 자동으로 저장됩니다.</p>
+            <div className="admin-reassign-row">
+              <input
+                className="admin-input"
+                type="url"
+                placeholder="예: http://192.168.0.10:5000"
+                value={fallApiUrl}
+                onChange={(event) => {
+                  setFallApiUrl(event.target.value);
+                  setCameraSaveMessage(null);
+                }}
+              />
+              <button
+                type="button"
+                className="admin-button primary"
+                onClick={handleCameraSave}
+                disabled={isCameraSaving}
+              >
+                {isCameraSaving ? "저장 중" : "저장"}
+              </button>
+            </div>
+            {cameraSaveMessage && (
+              <p className={`admin-action-message ${cameraSaveMessage.type}`}>{cameraSaveMessage.text}</p>
+            )}
           </section>
 
           <section className="admin-panel">
