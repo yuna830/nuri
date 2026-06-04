@@ -14,15 +14,16 @@ function LocationPanel({
   isRefreshingLocation,
   formatShortAddress,
   onRefreshLocation,
+  mapFocusVersion = 0,
 }) {
   const center = { lat: mapCenter[0], lng: mapCenter[1] };
   const route = routeHistory.length > 1
     ? routeHistory
     : hasCurrentLocation
       ? [
-          { lat: safeZoneForm.centerLatitude, lng: safeZoneForm.centerLongitude },
-          { lat: location.lat, lng: location.lng },
-        ]
+        { lat: safeZoneForm.centerLatitude, lng: safeZoneForm.centerLongitude },
+        { lat: location.lat, lng: location.lng },
+      ]
       : [];
 
   const formatReceivedAgo = (receivedAt) => {
@@ -48,14 +49,14 @@ function LocationPanel({
     if (!location?.receivedAt) {
       return "위치 수신 대기 중 · 휴대폰 GPS";
     }
-    
+
     // 실제 위치가 현재 좌표를 중심으로 대략 반경 안에 있을 가능성
     const accuracyText = location.accuracy != null
       ? `정확도 ±${Math.round(location.accuracy)}m`
       : "정확도 확인 중";
 
     return `마지막 수신 ${formatReceivedAgo(location.receivedAt)} · ${accuracyText} · 휴대폰 GPS`;
-  };    
+  };
 
   const currentLocationText = hasCurrentLocation
     ? formatShortAddress(location.address)
@@ -97,8 +98,8 @@ function LocationPanel({
           route={route}
           showRoute={isRouteVisible && hasCurrentLocation}
           autoFit={false}
-          focusLocation={hasCurrentLocation ? location : center}
-          focusKey={`elder-${selectedElder.id}`}
+          focusLocation={center}
+          focusKey={`safe-zone-${selectedElder.id}-${safeZoneForm.id}-${mapFocusVersion}`}
           focusLevel={4}
           fallback={(
             <div className="leaflet-map" style={{

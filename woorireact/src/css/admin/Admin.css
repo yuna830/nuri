@@ -478,6 +478,134 @@
   background: #ffffff;
 }
 
+.admin-count-button {
+  min-width: 54px;
+  min-height: 32px;
+  border: 1px solid #c9d4df;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #405a78;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-count-button:hover {
+  border-color: #9aaabd;
+  background: #eef3f8;
+}
+
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(17, 24, 39, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.admin-small-modal {
+  width: min(440px, 100%);
+  max-height: min(620px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #dfe4ea;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+}
+
+.admin-modal-header {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #e6ebf0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-modal-header h2 {
+  margin: 0;
+  color: #17231a;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.admin-modal-header p {
+  margin: 6px 0 0;
+  color: #65746a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-modal-close {
+  min-height: 34px;
+  border: 1px solid #c9d4df;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #405a78;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-modal-close:hover {
+  background: #eef3f8;
+}
+
+.admin-modal-list {
+  max-height: 420px;
+  margin: 0;
+  padding: 8px 22px 22px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.admin-modal-list li {
+  border-bottom: 1px solid #edf1f5;
+}
+
+.admin-modal-list li:last-child {
+  border-bottom: 0;
+}
+
+.admin-modal-list-link {
+  padding: 14px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-modal-list-link:hover strong {
+  color: #405a78;
+}
+
+.admin-modal-list-link strong {
+  color: #19251d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.admin-modal-list-link span {
+  color: #65746a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.admin-modal-empty {
+  margin: 0;
+  padding: 28px 22px;
+  color: #65746a;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .admin-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);

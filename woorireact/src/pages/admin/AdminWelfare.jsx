@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { getWorkerSeniorCount, updateWelfareWorkerActive } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
@@ -21,6 +22,11 @@ const TEXT = {
   activate: "\ud65c\uc131\ud654",
   deactivate: "\ube44\ud65c\uc131\ud654",
   countUnit: "\uba85",
+  viewList: "\uba85\ub2e8 \ubcf4\uae30",
+  modalTitle: "\ub2f4\ub2f9 \uc5b4\ub974\uc2e0 \uba85\ub2e8",
+  close: "\ub2eb\uae30",
+  noAssignedSeniors: "\ub2f4\ub2f9 \uc5b4\ub974\uc2e0\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+  yearsOld: "\uc138",
 };
 
 function AdminWelfare() {
@@ -28,6 +34,7 @@ function AdminWelfare() {
   const [updatingId, setUpdatingId] = useState(null);
   const [activeOverrides, setActiveOverrides] = useState({});
   const [actionMessage, setActionMessage] = useState(null);
+  const [selectedWorker, setSelectedWorker] = useState(null);
 
   const displayWorkers = welfareWorkers.map((worker) => ({
     ...worker,
@@ -54,6 +61,11 @@ function AdminWelfare() {
       setUpdatingId(null);
     }
   };
+
+  const getAssignedSeniors = (workerId) =>
+    seniors.filter((senior) => String(senior.welfareId) === String(workerId));
+
+  const selectedSeniors = selectedWorker ? getAssignedSeniors(selectedWorker.id) : [];
 
   return (
     <AdminLayout>
@@ -91,8 +103,15 @@ function AdminWelfare() {
                   <td>{worker.workerId || "-"}</td>
                   <td>{worker.center || "-"}</td>
                   <td>
-                    {getWorkerSeniorCount(worker.id, seniors)}
-                    {TEXT.countUnit}
+                    <button
+                      type="button"
+                      className="admin-count-button"
+                      onClick={() => setSelectedWorker(worker)}
+                      aria-label={`${worker.name} ${TEXT.viewList}`}
+                    >
+                      {getWorkerSeniorCount(worker.id, seniors)}
+                      {TEXT.countUnit}
+                    </button>
                   </td>
                   <td>
                     <span className={`admin-badge ${worker.active ? "active" : "inactive"}`}>
@@ -115,6 +134,47 @@ function AdminWelfare() {
           </table>
         </div>
       )}
+
+      {selectedWorker ? (
+        <div className="admin-modal-overlay" role="presentation" onClick={() => setSelectedWorker(null)}>
+          <section
+            className="admin-small-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assigned-seniors-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="admin-modal-header">
+              <div>
+                <h2 id="assigned-seniors-title">{TEXT.modalTitle}</h2>
+                <p>{`${selectedWorker.name} / ${selectedWorker.workerId || "-"}`}</p>
+              </div>
+              <button type="button" className="admin-modal-close" onClick={() => setSelectedWorker(null)}>
+                {TEXT.close}
+              </button>
+            </div>
+
+            {selectedSeniors.length > 0 ? (
+              <ul className="admin-modal-list">
+                {selectedSeniors.map((senior) => (
+                  <li key={senior.id}>
+                    <Link className="admin-modal-list-link" to={`/admin/seniors/${senior.id}`}>
+                      <strong>{senior.name}</strong>
+                      <span>
+                        {[senior.age ? `${senior.age}${TEXT.yearsOld}` : "", senior.address]
+                          .filter(Boolean)
+                          .join(" / ") || "-"}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="admin-modal-empty">{TEXT.noAssignedSeniors}</p>
+            )}
+          </section>
+        </div>
+      ) : null}
     </AdminLayout>
   );
 }

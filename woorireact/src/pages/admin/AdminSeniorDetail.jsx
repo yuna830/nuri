@@ -169,7 +169,7 @@ function AdminSeniorDetail() {
 
           <section className="admin-panel">
             <h2>카메라 연동</h2>
-            <p className="admin-section-desc">낙상 감지 카메라 서버 주소를 입력하면 활동 데이터가 자동으로 저장됩니다.</p>
+            <p className="admin-section-desc">카메라 서버 지정</p>
             <div className="admin-reassign-row">
               <input
                 className="admin-input"
