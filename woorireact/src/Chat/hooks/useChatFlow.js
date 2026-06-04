@@ -45,12 +45,6 @@ export function useChatFlow({
         return;
       }
 
-      const nearbyPlaceAnswer = await getNearbyPlaceChatAnswer(text);
-      if (nearbyPlaceAnswer) {
-        answer(nearbyPlaceAnswer, options);
-        return;
-      }
-
       if (pendingSchedule?.ambiguousTime) {
         const meridiem = parseMeridiemChoice(text);
         if (meridiem) {
@@ -124,6 +118,12 @@ export function useChatFlow({
       if (firstSchedule) {
         setPendingSchedule(firstSchedule);
         answer(`${scheduleToText(firstSchedule)} 일정으로 이해했어요. 등록할까요?`, options);
+        return;
+      }
+
+      const nearbyPlaceAnswer = await getNearbyPlaceChatAnswer(text);
+      if (nearbyPlaceAnswer) {
+        answer(nearbyPlaceAnswer, options);
         return;
       }
 
@@ -284,6 +284,7 @@ export function getCurrentUserHealthContext() {
     const senior = profile?.senior || {};
 
     return {
+      name: senior.name,
       age: senior.age,
       birthDate: senior.birthDate,
       allergies: healthInfo.allergies,

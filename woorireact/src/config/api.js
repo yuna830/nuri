@@ -11,7 +11,7 @@ const sameHostBase = (port) => {
 export const SPRING_API_BASE = trimEnv(import.meta.env.VITE_API_BASE_URL);
 
 export const AI_API_BASE =
-  trimEnv(import.meta.env.VITE_AI_API_BASE_URL) || sameHostBase("8001");
+  trimEnv(import.meta.env.VITE_AI_API_BASE_URL) || sameHostBase("8002");
 
 export const WELFARE_API_BASE =
   trimEnv(import.meta.env.VITE_WELFARE_API_BASE_URL) || SPRING_API_BASE;

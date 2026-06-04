@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
+import { AI_API_BASE } from "../../config/api.js";
 
-const TTS_API_URL = import.meta.env.VITE_CHAT_TTS_API_URL || "http://127.0.0.1:8002/tts";
+const TTS_API_URL = import.meta.env.VITE_CHAT_TTS_API_URL || `${AI_API_BASE}/tts`;
 const TTS_VOICE = import.meta.env.VITE_CHAT_TTS_VOICE || "F1";
 
 export function useAnswerVoice() {

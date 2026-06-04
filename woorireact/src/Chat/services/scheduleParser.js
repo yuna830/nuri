@@ -1,7 +1,7 @@
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 const SCHEDULE_INTENT_PATTERN =
-  /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|복약|약|병원|진료|검진|접종|약국|방문|전화|운동|이동|행사|모임|치과|안과|내과|상담|약속|산책|공원|수영장|취침|기상|수면|잠|자기|식사|아침|점심|저녁)/;
+  /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|복약|약|병원|진료|검진|접종|약국|방문|전화|운동|이동|행사|모임|치과|안과|내과|상담|약속|산책|공원|수영장|경로당|복지관|문화센터|주민센터|보건소|요양원|마트|시장|취침|기상|수면|잠|자기|식사|아침|점심|저녁)/;
 
 const SCHEDULE_COMMAND_PATTERN =
   /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|삭제|취소|지워|빼줘|없애|수정|변경|바꿔|미뤄|앞당겨|조회|확인|알려|보여)/;
@@ -136,13 +136,16 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
   return splitIntoItems(text)
     .map((sourceText) => {
       const item = normalizeScheduleText(sourceText);
-      const date = parseDateFromText(item, baseDate);
+      const parsedDate = parseDateFromText(item, baseDate);
       const timeExpression = parseTimeExpression(item);
-      const time = timeExpression?.isAmbiguous ? "" : timeExpression?.value || "";
+      const candidateTime = timeExpression?.value || "";
+      const date = parsedDate || (candidateTime ? formatDate(baseDate) : null);
+      const resolvedTime = resolveScheduleTime(timeExpression, date, baseDate);
+      const time = resolvedTime.time;
       const title = cleanTitle(item);
-      const candidateTime = time || timeExpression?.value || "";
+      const candidateTimeForCreation = time || candidateTime;
 
-      if (!shouldCreateScheduleCandidate({ text: item, date, time: candidateTime, title })) {
+      if (!shouldCreateScheduleCandidate({ text: item, date, time: candidateTimeForCreation, title })) {
         return null;
       }
 
@@ -151,9 +154,7 @@ export function parseKoreanSchedules(text, baseDate = new Date()) {
         title: title || item,
         date,
         time,
-        ambiguousTime: timeExpression?.isAmbiguous
-          ? { hour: timeExpression.hour, minute: timeExpression.minute }
-          : null,
+        ambiguousTime: resolvedTime.ambiguousTime,
         sourceText,
         createdAt: new Date().toISOString(),
       };
@@ -175,6 +176,35 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
   return false;
 }
 
+function resolveScheduleTime(timeExpression, date, baseDate) {
+  if (!timeExpression) return { time: "", ambiguousTime: null };
+  if (!timeExpression.isAmbiguous) return { time: timeExpression.value, ambiguousTime: null };
+
+  if (date === formatDate(baseDate)) {
+    const currentMinutes = baseDate.getHours() * 60 + baseDate.getMinutes();
+    const rawMinutes = timeExpression.hour * 60 + timeExpression.minute;
+    const pmMinutes = (timeExpression.hour + 12) * 60 + timeExpression.minute;
+
+    if (rawMinutes > currentMinutes) {
+      return {
+        time: `${pad(timeExpression.hour)}:${pad(timeExpression.minute)}`,
+        ambiguousTime: null,
+      };
+    }
+    if (pmMinutes > currentMinutes) {
+      return {
+        time: `${pad(timeExpression.hour + 12)}:${pad(timeExpression.minute)}`,
+        ambiguousTime: null,
+      };
+    }
+  }
+
+  return {
+    time: "",
+    ambiguousTime: { hour: timeExpression.hour, minute: timeExpression.minute },
+  };
+}
+
 function isScheduleQuestion(text) {
   return /일정/.test(text) && /(뭐|뭐야|있어|알려|확인|보여|언제|어떻게|요약)/.test(text);
 }
@@ -184,7 +214,7 @@ function isCasualAdviceQuestion(text) {
 }
 
 function cleanTitle(text) {
-  return normalizeScheduleText(text)
+  const title = normalizeScheduleText(text)
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?에?/g, "")
     .replace(/내일\s*모레|내일모레|오늘|글피|모레|내일|이번\s*주\s*[일월화수목금토]요일?|다음\s*주\s*[일월화수목금토]요일?|다음\s*주/g, "")
@@ -195,6 +225,15 @@ function cleanTitle(text) {
     .replace(/[,:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  return dedupeAdjacentWords(title);
+}
+
+function dedupeAdjacentWords(text) {
+  return text
+    .split(/\s+/)
+    .filter((word, index, words) => word && word !== words[index - 1])
+    .join(" ");
 }
 
 function parseWeekday(text, baseDate) {

@@ -1,11 +1,16 @@
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash-lite";
 
-const CARE_ASSISTANT_SYSTEM_PROMPT = `
-너는 어르신의 일상을 돕는 한국어 돌봄 챗봇이다.
+function buildCareAssistantSystemPrompt(profileContext) {
+  const name = profileContext?.name?.trim();
+  const userLabel = name ? `${name}님` : "사용자님";
+
+  return `
+너는 ${userLabel}의 일상을 돕는 한국어 돌봄 챗봇이다.
 
 규칙:
 - 모든 답변은 자연스러운 한국어 존댓말로 한다.
+- 사용자를 부를 때 "어르신"이라고 하지 말고 "${userLabel}"이라고 부른다.
 - 일반 답변은 1~3문장으로 짧고 확실하게 말한다.
 - 일정, 날짜, 시간, 날씨는 앱에서 먼저 처리하므로 추측하지 않는다.
 - 모르면 지어내지 말고 다시 말해 달라고 한다.
@@ -13,6 +18,7 @@ const CARE_ASSISTANT_SYSTEM_PROMPT = `
 - 이야기는 길어도 끝까지 말한다.
 - 반말, 과한 농담, 외국어 섞어 쓰기는 하지 않는다.
 `.trim();
+}
 
 const SCHEDULE_EXTRACT_SYSTEM_PROMPT = `
 너는 어르신의 채팅과 음성 인식 결과를 일정 명령으로 해석하는 JSON 추출기다.
@@ -73,7 +79,7 @@ export async function createCareResponse({ text, schedules, history = [], profil
     if (foodIngredientAnswer) return foodIngredientAnswer;
 
     const content = await askGemini([
-      { role: "system", content: CARE_ASSISTANT_SYSTEM_PROMPT },
+      { role: "system", content: buildCareAssistantSystemPrompt(profileContext) },
       ...(profileContext ? [{ role: "system", content: buildProfileContextPrompt(profileContext) }] : []),
       ...(latestFoodAnalysisMemory ? [{ role: "system", content: buildFoodAnalysisContextPrompt(latestFoodAnalysisMemory) }] : []),
       ...toRecentAiMessages(history),
@@ -109,6 +115,7 @@ function buildProfileContextPrompt(profileContext) {
 
   return `
 사용자 건강 참고 정보:
+- 이름: ${profileContext.name || "미확인"}
 - 나이: ${profileContext.age || "미확인"}
 - 생년월일: ${profileContext.birthDate || "미확인"}
 - 알레르기: ${allergyText}
