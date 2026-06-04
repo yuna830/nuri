@@ -882,6 +882,12 @@
   white-space: nowrap;
 }
 
+.jp-ml-prediction-badge {
+  background: #f0f7ff;
+  color: #326c9e;
+  border: 1px solid #bdd9ef;
+}
+
 .jp-source-badge {
   background: #edf6ff;
   color: #326c9e;
