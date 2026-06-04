@@ -155,8 +155,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     # 체형 → BMI
     height_cm = w["height"].map(extract_number).fillna(0)
     weight_kg = w["weight"].map(extract_number).fillna(0)
-    height_m  = (height_cm / 100).where(height_cm > 0, 0)
-    bmi       = (weight_kg / height_m.pow(2)).where(height_m > 0, 0).fillna(0)
+    height_m  = (height_cm / 100).where(height_cm > 0)
+    bmi       = (weight_kg / height_m.pow(2)).fillna(0)
     feat["bmi"]               = bmi.round(2)
     feat["bmi_obese_flag"]    = (bmi >= 30).astype(int)
     feat["bmi_underweight_flag"] = ((bmi > 0) & (bmi < 18.5)).astype(int)
@@ -189,7 +189,7 @@ def align_features(features: pd.DataFrame, feature_columns: list[str]) -> pd.Dat
     for col in feature_columns:
         if col not in aligned.columns:
             aligned[col] = 0
-    return aligned[feature_columns]
+    return aligned[feature_columns].apply(pd.to_numeric, errors="coerce").fillna(0).astype(float)
 
 
 # ---------------------------------------------------------------------------
