@@ -16,13 +16,8 @@
       "liver_disease": "없음",
       "cancer": "없음",
       "dementia": "없음",
-      "walking_aid": "없음",
-      "vision": "정상",
-      "hearing": "정상",
-      "recent_fall": "없음",
-      "has_surgery": "없음",
-      "physical_limitation_count": 0,
-      "max_hours": "5"
+      "walking_limited": "없음",
+      "fine_motor_limited": "없음"
     },
     {
       "age": 81,
@@ -40,13 +35,8 @@
       "liver_disease": "없음",
       "cancer": "없음",
       "dementia": "없음",
-      "walking_aid": "보행 불편",
-      "vision": "정상",
-      "hearing": "정상",
-      "recent_fall": "최근 낙상 있음",
-      "has_surgery": "있음",
-      "physical_limitation_count": 4,
-      "max_hours": "2"
+      "walking_limited": "보행 불편",
+      "fine_motor_limited": "없음"
     }
   ]
 }

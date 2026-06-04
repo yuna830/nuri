@@ -81,7 +81,8 @@ public class HealthStatusMlService {
 
     public boolean isModelAvailable() {
         return Files.exists(modelDirectory.resolve("predict_health_status.py"))
-                && Files.exists(modelDirectory.resolve("artifacts").resolve("health_status_model.joblib"))
+                && Files.exists(modelDirectory.resolve("artifacts").resolve("stage1_model.joblib"))
+                && Files.exists(modelDirectory.resolve("artifacts").resolve("stage2_model.joblib"))
                 && Files.exists(modelDirectory.resolve("artifacts").resolve("feature_columns.json"));
     }
 
@@ -95,11 +96,7 @@ public class HealthStatusMlService {
                     resolvePythonCommand(),
                     "predict_health_status.py",
                     "--input",
-                    inputPath.toAbsolutePath().toString(),
-                    "--model",
-                    "artifacts/health_status_model.joblib",
-                    "--feature-columns",
-                    "artifacts/feature_columns.json"
+                    inputPath.toAbsolutePath().toString()
             ));
             builder.directory(modelDirectory.toFile());
             builder.environment().put("PYTHONIOENCODING", "utf-8");
@@ -156,13 +153,8 @@ public class HealthStatusMlService {
         row.put("liver_disease", healthInfo.getLiverDisease());
         row.put("cancer", healthInfo.getCancer());
         row.put("dementia", healthInfo.getDementia());
-        row.put("walking_aid", healthInfo.getWalkingAid());
-        row.put("vision", healthInfo.getVision());
-        row.put("hearing", healthInfo.getHearing());
-        row.put("recent_fall", healthInfo.getRecentFall());
-        row.put("has_surgery", healthInfo.getHasSurgery());
-        row.put("physical_limitation_count", inferPhysicalLimitationCount(healthInfo));
-        row.put("max_hours", healthInfo.getMaxHours());
+        row.put("walking_limited", healthInfo.getWalkingAid());
+        row.put("fine_motor_limited", "");
         return row;
     }
 
