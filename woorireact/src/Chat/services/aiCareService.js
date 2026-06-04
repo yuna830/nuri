@@ -166,7 +166,6 @@ function answerFoodIngredientQuestion(text, memory) {
 function answerFoodSafetyQuestion(text, memory, profileContext) {
   if (!memory || !isFoodSafetyQuestion(text)) return "";
 
-  const productName = getVisibleFoodName(memory);
   const conflicts = extractFoodMemorySection(memory, "Personal allergy conflicts found:");
   const ocrText = extractFoodMemorySection(memory, "OCR text:");
   const hasConflicts = conflicts && conflicts !== "none";
@@ -174,8 +173,6 @@ function answerFoodSafetyQuestion(text, memory, profileContext) {
 
   if (hasConflicts) {
     return [
-      `${productName}로 보여요.`,
-      "",
       "드시지 마세요.",
       "",
       "이유",
@@ -188,8 +185,6 @@ function answerFoodSafetyQuestion(text, memory, profileContext) {
 
   if (diseaseCaution.length > 0) {
     return [
-      `${productName}로 보여요.`,
-      "",
       "조금만 드세요.",
       "",
       "주의할 점",
@@ -204,8 +199,6 @@ function answerFoodSafetyQuestion(text, memory, profileContext) {
 
   if (!ocrText) {
     return [
-      `${productName}로 보여요.`,
-      "",
       "사진만으로는 드셔도 되는지 판단하기 어려워요.",
       "",
       "확인해 주세요",
@@ -214,8 +207,6 @@ function answerFoodSafetyQuestion(text, memory, profileContext) {
   }
 
   return [
-    `${productName}로 보여요.`,
-    "",
     "사진에서 피해야 할 성분은 명확히 보이지 않아요.",
     "",
     "확인해 주세요",
@@ -270,14 +261,6 @@ function hasHealthCondition(value) {
 
   const normalized = String(value || "").trim().toLowerCase();
   return normalized && !["없음", "아니오", "false", "no", "0", "정상"].includes(normalized);
-}
-
-function getVisibleFoodName(memory) {
-  const name = extractFoodMemorySection(memory, "Product name:")
-    .split("\n")[0]
-    .trim();
-
-  return name && name !== "unknown" ? name : "사진 속 음식";
 }
 
 function extractFoodMemorySection(memory, label) {

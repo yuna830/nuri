@@ -55,3 +55,10 @@ export function deleteCurrentAdmin() {
     headers: getAdminHeaders(),
   });
 }
+
+export function deleteAdmin(adminId) {
+  return request(`/api/admins/${adminId}`, {
+    method: "DELETE",
+    headers: getAdminHeaders(),
+  });
+}

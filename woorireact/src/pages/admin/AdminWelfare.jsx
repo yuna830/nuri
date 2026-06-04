@@ -12,7 +12,7 @@ const TEXT = {
   error: "\ub370\uc774\ud130\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
   name: "\uc774\ub984",
   center: "\uc18c\uc18d",
-  contact: "\uc5f0\ub77d\ucc98",
+  workerId: "\ubcf5\uc9c0\uc0ac \uc544\uc774\ub514",
   assignedSeniors: "\ub2f4\ub2f9 \uc5b4\ub974\uc2e0",
   status: "\uc0c1\ud0dc",
   manage: "\uacc4\uc815 \uad00\ub9ac",
@@ -45,7 +45,7 @@ function AdminWelfare() {
         type: "success",
         text: "\uacc4\uc815 \uc0c1\ud0dc\uac00 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
       });
-    } catch (error) {
+    } catch {
       setActionMessage({
         type: "error",
         text: "\uacc4\uc815 \uc0c1\ud0dc \uc800\uc7a5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.",
@@ -77,8 +77,8 @@ function AdminWelfare() {
             <thead>
               <tr>
                 <th>{TEXT.name}</th>
+                <th>{TEXT.workerId}</th>
                 <th>{TEXT.center}</th>
-                <th>{TEXT.contact}</th>
                 <th>{TEXT.assignedSeniors}</th>
                 <th>{TEXT.status}</th>
                 <th>{TEXT.manage}</th>
@@ -88,8 +88,8 @@ function AdminWelfare() {
               {displayWorkers.map((worker) => (
                 <tr key={worker.id} className={worker.active ? "" : "admin-inactive-row"}>
                   <td className="admin-name-cell">{worker.name}</td>
+                  <td>{worker.workerId || "-"}</td>
                   <td>{worker.center || "-"}</td>
-                  <td>{worker.phone || "-"}</td>
                   <td>
                     {getWorkerSeniorCount(worker.id, seniors)}
                     {TEXT.countUnit}

@@ -6,6 +6,7 @@ const TTS_VOICE = import.meta.env.VITE_CHAT_TTS_VOICE || "F1";
 export function useAnswerVoice() {
   const audioRef = useRef(null);
   const audioUrlRef = useRef("");
+  const activeTextRef = useRef("");
   const requestIdRef = useRef(0);
 
   const releaseAudio = useCallback(() => {
@@ -18,6 +19,7 @@ export function useAnswerVoice() {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = "";
     }
+    activeTextRef.current = "";
   }, []);
 
   const stopSpeaking = useCallback(() => {
@@ -47,7 +49,13 @@ export function useAnswerVoice() {
   async function speak(text) {
     if (!text) return;
 
+    const speechText = normalizeSpeechText(text);
+    if (speechText === activeTextRef.current) {
+      return;
+    }
+
     stopSpeaking();
+    activeTextRef.current = speechText;
     const requestId = ++requestIdRef.current;
 
     try {
@@ -55,7 +63,7 @@ export function useAnswerVoice() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text,
+          text: speechText,
           voice: TTS_VOICE,
           speed: 1,
         }),
@@ -77,7 +85,7 @@ export function useAnswerVoice() {
       if (requestId !== requestIdRef.current) return;
       releaseAudio();
       console.warn("로컬 음성 재생 실패. 브라우저 음성으로 대체합니다.", error);
-      speakWithBrowser(text);
+      speakWithBrowser(speechText);
     }
   }
 
@@ -90,10 +98,23 @@ export function useAnswerVoice() {
     utterance.pitch = 1;
     utterance.rate = 0.95;
     utterance.volume = 1;
+    utterance.onend = () => {
+      activeTextRef.current = "";
+    };
+    utterance.onerror = () => {
+      activeTextRef.current = "";
+    };
+    activeTextRef.current = normalizeSpeechText(text);
     window.speechSynthesis.speak(utterance);
   }
 
   return { speak };
+}
+
+function normalizeSpeechText(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getCuteKoreanVoice() {

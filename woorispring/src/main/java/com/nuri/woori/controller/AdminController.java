@@ -124,6 +124,23 @@ public class AdminController {
         adminRepository.delete(admin);
     }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAdmin(
+            @RequestHeader("X-Admin-Id") Long requesterId,
+            @PathVariable Long id) {
+        requireApprovedAdmin(requesterId);
+
+        Admin admin = adminRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Admin not found"));
+
+        if ("APPROVED".equals(admin.getStatus()) && adminRepository.countByStatus("APPROVED") <= 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The last approved admin cannot be deleted");
+        }
+
+        adminRepository.delete(admin);
+    }
+
     private Admin requireApprovedAdmin(Long id) {
         Admin admin = adminRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Approved admin required"));

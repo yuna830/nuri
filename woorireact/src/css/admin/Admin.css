@@ -465,6 +465,19 @@
   background: #526b89;
 }
 
+.admin-button.danger {
+  border-color: #d9a6a6;
+  color: #b44444;
+}
+
+.admin-button.danger:hover {
+  background: #fff1f1;
+}
+
+.admin-button.danger:disabled:hover {
+  background: #ffffff;
+}
+
 .admin-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);

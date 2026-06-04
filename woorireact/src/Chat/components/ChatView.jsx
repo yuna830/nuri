@@ -13,7 +13,7 @@ import ScheduleConfirmBox from "./ScheduleConfirmBox";
 import TodaySchedulePanel from "./TodaySchedulePanel";
 import ConversationSidebar from "./ConversationSidebar";
 
-const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8001/food";
+const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || "http://127.0.0.1:8002/food";
 
 export default function ChatView({
   messages,
@@ -85,8 +85,15 @@ export default function ChatView({
 
   const handleSendMessage = (customText = null, options = {}) => {
     const text = typeof customText === "string" ? customText.trim() : input.trim();
+    const lastAssistantMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant" && !message.hidden && message.content)
+      ?.content;
+    const isGenericRead =
+      /^(읽어\s*줘|다시\s*읽어\s*줘|한\s*번\s*더\s*읽어\s*줘|위에\s*읽어\s*줘)[.!?\s]*$/i.test(text) ||
+      /(방금|위에|마지막).*(읽어|말해)/i.test(text);
     const isConfirmedRead =
-      isWaitingForFoodAnalysisReadRef.current && /^(응|네|예|그래|좋아|읽어\s*줘)[.!?\s]*$/i.test(text);
+      isWaitingForFoodAnalysisReadRef.current && /^(응|네|예|그래|좋아)[.!?\s]*$/i.test(text);
     const isExplicitRead =
       /(성분표|영양\s*성분).*(읽어|말해|알려)|(읽어|말해|알려).*(성분표|영양\s*성분)/i.test(text);
     const isWarningRead =
@@ -100,6 +107,17 @@ export default function ChatView({
         { role: "assistant", content: "주의사항을 읽어드릴게요." },
       ]);
       speak(foodWarningSpeechRef.current);
+      return;
+    }
+
+    if (isGenericRead && lastAssistantMessage) {
+      setInput("");
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: "방금 답변을 읽어드릴게요." },
+      ]);
+      speak(lastAssistantMessage);
       return;
     }
 
@@ -120,7 +138,7 @@ export default function ChatView({
       setPendingImage(null);
       setPendingImageUrl("");
       setInput("");
-      handleImageUpload(image, text);
+      handleImageUpload(image, text, options);
       return;
     }
 
@@ -411,7 +429,7 @@ export default function ChatView({
     setPendingImageUrl("");
   };
 
-  const handleImageUpload = async (file, prompt = "") => {
+  const handleImageUpload = async (file, prompt = "", options = {}) => {
     const imageUrl = URL.createObjectURL(file);
     const userMessage = {
       role: "user",
@@ -452,12 +470,13 @@ export default function ChatView({
           { role: "assistant", content: answer },
           { role: "assistant", content: memory, hidden: true },
         ]);
+        if (options.speak) speak(answer);
         return;
       }
 
       const answer = formatFoodAnalysisMessage(result);
       const memory = buildFoodAnalysisMemory(result, answer);
-      const visibleAnswer = prompt ? await answerImagePrompt(prompt, memory) : answer;
+      const visibleAnswer = answer;
 
       setMessages((prev) => [
         ...prev,
@@ -474,6 +493,7 @@ export default function ChatView({
       foodAnalysisSpeechRef.current = buildFoodNutritionSpeech(answer);
       foodWarningSpeechRef.current = buildFoodWarningSpeech(answer);
       isWaitingForFoodAnalysisReadRef.current = true;
+      if (options.speak) speak(visibleAnswer);
     } catch (error) {
       console.error("Food OCR analysis failed:", error);
       const answer = "성분표 분석 중 문제가 생겼어요. chat_server가 켜져 있는지 확인해 주세요.";
@@ -485,6 +505,7 @@ export default function ChatView({
           content: answer,
         },
       ]);
+      if (options.speak) speak(answer);
     } finally {
       setIsImageLoading(false);
     }

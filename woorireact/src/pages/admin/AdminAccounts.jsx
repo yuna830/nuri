@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Trash2, X } from "lucide-react";
 
-import { fetchAdmins, updateAdminStatus } from "../../api/adminAuthApi";
+import { deleteAdmin, fetchAdmins, updateAdminStatus } from "../../api/adminAuthApi";
 import AdminLayout from "./AdminLayout";
 
 const statusLabel = {
@@ -33,6 +33,25 @@ function AdminAccounts() {
       );
     } catch {
       alert("관리자 계정 상태 변경에 실패했습니다.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleDelete = async (admin) => {
+    const confirmed = window.confirm(`${admin.name} 관리자 계정을 삭제하시겠습니까?`);
+    if (!confirmed) return;
+
+    try {
+      setSavingId(admin.id);
+      await deleteAdmin(admin.id);
+      setAdmins((current) => current.filter((item) => item.id !== admin.id));
+    } catch (requestError) {
+      if (requestError.status === 409) {
+        alert("마지막 승인 관리자는 삭제할 수 없습니다.");
+      } else {
+        alert("관리자 계정 삭제에 실패했습니다.");
+      }
     } finally {
       setSavingId(null);
     }
@@ -98,6 +117,15 @@ function AdminAccounts() {
                           거절
                         </button>
                       )}
+                      <button
+                        className="admin-button danger"
+                        type="button"
+                        disabled={savingId === admin.id || currentAdmin?.id === admin.id}
+                        onClick={() => handleDelete(admin)}
+                      >
+                        <Trash2 size={15} />
+                        삭제
+                      </button>
                     </div>
                   </td>
                 </tr>
