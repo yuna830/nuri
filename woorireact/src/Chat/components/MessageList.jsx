@@ -1,4 +1,5 @@
 import { forwardRef, Fragment } from "react";
+import { Link } from "react-router-dom";
 
 const FALLBACK_MESSAGE_TIME = Date.now();
 
@@ -113,6 +114,36 @@ function parseFoodSafetyAdvice(content) {
   return cautions.length ? { title, cautions, tips } : null;
 }
 
+function parseActionCard(content) {
+  const text = String(content || "");
+  const match = text.match(/\[WOORI_ACTION_CARD\]([\s\S]*?)\[\/WOORI_ACTION_CARD\]/);
+  if (!match) return null;
+
+  try {
+    return {
+      intro: text.replace(match[0], "").trim(),
+      action: JSON.parse(match[1]),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function ActionCardMessage({ card }) {
+  return (
+    <div className="chat-action-card">
+      {card.intro && <p className="chat-action-card-intro">{card.intro}</p>}
+      <div className="chat-action-card-box">
+        <strong>{card.action.title}</strong>
+        {card.action.description && <span>{card.action.description}</span>}
+        <Link className="chat-action-card-button" to={card.action.href || "/"}>
+          {card.action.buttonLabel || "바로가기"}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function FoodSafetyAdviceMessage({ advice }) {
   return (
     <div className="food-safety-card">
@@ -153,6 +184,12 @@ const MessageList = forwardRef(function MessageList(
         const imageUrls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
         const foodAnalysis = parseFoodAnalysis(message.content);
         const foodSafetyAdvice = foodAnalysis ? null : parseFoodSafetyAdvice(message.content);
+        const actionCard = foodAnalysis || foodSafetyAdvice ? null : parseActionCard(message.content);
+        const specialMessageClass = foodAnalysis || foodSafetyAdvice
+          ? "food-analysis"
+          : actionCard
+            ? "action-card-message"
+            : "";
 
         return (
           <Fragment key={messageKey}>
@@ -173,11 +210,13 @@ const MessageList = forwardRef(function MessageList(
             )}
             {hasVisibleContent && (
               <div className={`chat-message-row ${message.role}`}>
-                <div className={`chat-message ${message.role} ${foodAnalysis || foodSafetyAdvice ? "food-analysis" : ""}`}>
+                <div className={`chat-message ${message.role} ${specialMessageClass}`}>
                   {foodAnalysis ? (
                     <FoodAnalysisMessage analysis={foodAnalysis} />
                   ) : foodSafetyAdvice ? (
                     <FoodSafetyAdviceMessage advice={foodSafetyAdvice} />
+                  ) : actionCard ? (
+                    <ActionCardMessage card={actionCard} />
                   ) : (
                     message.content
                   )}
