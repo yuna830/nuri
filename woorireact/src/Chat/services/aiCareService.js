@@ -10,7 +10,7 @@ function buildCareAssistantSystemPrompt(profileContext) {
 
 규칙:
 - 모든 답변은 자연스러운 한국어 존댓말로 한다.
-- 사용자를 부를 때 "어르신"이라고 하지 말고 "${userLabel}"이라고 부른다.
+- 사용자를 부를 때 "보호대상자"라고 하지 말고 "${userLabel}"이라고 부른다.
 - 일반 답변은 1~3문장으로 짧고 확실하게 말한다.
 - 일정, 날짜, 시간, 날씨는 앱에서 먼저 처리하므로 추측하지 않는다.
 - 모르면 지어내지 말고 다시 말해 달라고 한다.
@@ -21,7 +21,7 @@ function buildCareAssistantSystemPrompt(profileContext) {
 }
 
 const SCHEDULE_EXTRACT_SYSTEM_PROMPT = `
-너는 어르신의 채팅과 음성 인식 결과를 일정 명령으로 해석하는 JSON 추출기다.
+너는 보호대상자의 채팅과 음성 인식 결과를 일정 명령으로 해석하는 JSON 추출기다.
 
 규칙:
 - 설명 없이 JSON 객체만 답한다.

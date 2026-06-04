@@ -40,8 +40,8 @@ export default function ChatView({
   onConversationRename,
 }) {
   const messagesEndRef = useRef(null);
-  const [pendingImage, setPendingImage] = useState(null);
-  const [pendingImageUrl, setPendingImageUrl] = useState("");
+  const [pendingImages, setPendingImages] = useState([]);
+  const [pendingImageUrls, setPendingImageUrls] = useState([]);
   const [isImageLoading, setIsImageLoading] = useState(false);
   const foodAnalysisSpeechRef = useRef("");
   const foodWarningSpeechRef = useRef("");
@@ -134,12 +134,13 @@ export default function ChatView({
       return;
     }
 
-    if (pendingImage) {
-      const image = pendingImage;
-      setPendingImage(null);
-      setPendingImageUrl("");
+    if (pendingImages.length > 0) {
+      const images = pendingImages;
+      const imageUrls = pendingImageUrls;
+      setPendingImages([]);
+      setPendingImageUrls([]);
       setInput("");
-      handleImageUpload(image, text, options);
+      handleImageUpload(images, imageUrls, text, options);
       return;
     }
 
@@ -149,10 +150,6 @@ export default function ChatView({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatLoading, pendingSchedule, pendingSchedules]);
-
-  useEffect(() => () => {
-    if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
-  }, [pendingImageUrl]);
 
   const splitAllergyText = (value) => {
     if (Array.isArray(value)) {
@@ -418,24 +415,35 @@ export default function ChatView({
       : "별도의 주의사항은 없어요.";
   };
 
-  const selectImage = (file) => {
-    if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
-    setPendingImage(file);
-    setPendingImageUrl(URL.createObjectURL(file));
+  const selectImages = (files) => {
+    const nextFiles = Array.from(files || []).filter(Boolean);
+    if (nextFiles.length === 0) return;
+
+    setPendingImages((current) => [...current, ...nextFiles].slice(0, 3));
+    setPendingImageUrls((current) => {
+      const availableSlots = Math.max(0, 3 - current.length);
+      const addedUrls = nextFiles.slice(0, availableSlots).map((file) => URL.createObjectURL(file));
+      return [...current, ...addedUrls].slice(0, 3);
+    });
   };
 
-  const removePendingImage = () => {
-    if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
-    setPendingImage(null);
-    setPendingImageUrl("");
+  const removePendingImage = (index) => {
+    setPendingImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setPendingImageUrls((current) => {
+      const removedUrl = current[index];
+      if (removedUrl) URL.revokeObjectURL(removedUrl);
+      return current.filter((_, itemIndex) => itemIndex !== index);
+    });
   };
 
-  const handleImageUpload = async (file, prompt = "", options = {}) => {
-    const imageUrl = URL.createObjectURL(file);
+  const handleImageUpload = async (files, imageUrls, prompt = "", options = {}) => {
+    const imageList = Array.isArray(files) ? files.slice(0, 3) : [files].filter(Boolean);
+    const visibleImageUrls = await Promise.all(imageList.map(fileToDataUrl));
+    (imageUrls || []).forEach((url) => URL.revokeObjectURL(url));
     const userMessage = {
       role: "user",
       content: prompt || "사진을 보냈어요.",
-      imageUrl,
+      imageUrls: visibleImageUrls,
     };
     foodAnalysisSpeechRef.current = "";
     foodWarningSpeechRef.current = "";
@@ -445,56 +453,27 @@ export default function ChatView({
     setIsImageLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const analysisItems = [];
 
-      const response = await fetch(`${FOOD_API_URL}/analyze-image`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Food analysis request failed");
+      for (const [index, file] of imageList.entries()) {
+        const { answer, memory } = await analyzeSingleFoodImage(file, prompt);
+        analysisItems.push({
+          answer: imageList.length > 1 ? `${index + 1}번째 사진\n${answer}` : answer,
+          memory,
+        });
       }
-
-      const result = await response.json();
-
-      if (!hasRecognizedNutrients(result) && !hasRecognizedLabelText(result)) {
-        const classification = await classifyFoodImage(file);
-        const memory = buildFoodClassificationMemory(classification);
-        const answer =
-          prompt && classification.accepted
-            ? await answerImagePrompt(prompt, memory)
-            : formatFoodClassificationMessage(classification);
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: answer },
-          { role: "assistant", content: memory, hidden: true },
-        ]);
-        if (options.speak) speak(answer);
-        return;
-      }
-
-      const answer = formatFoodAnalysisMessage(result);
-      const memory = buildFoodAnalysisMemory(result, answer);
-      const visibleAnswer = answer;
 
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: visibleAnswer,
-        },
-        {
-          role: "assistant",
-          content: memory,
-          hidden: true,
-        },
+        ...analysisItems.flatMap((item) => [
+          { role: "assistant", content: item.answer },
+          { role: "assistant", content: item.memory, hidden: true },
+        ]),
       ]);
-      foodAnalysisSpeechRef.current = buildFoodNutritionSpeech(answer);
-      foodWarningSpeechRef.current = buildFoodWarningSpeech(answer);
+      foodAnalysisSpeechRef.current = analysisItems.map((item) => buildFoodNutritionSpeech(item.answer)).join(" ");
+      foodWarningSpeechRef.current = analysisItems.map((item) => buildFoodWarningSpeech(item.answer)).join(" ");
       isWaitingForFoodAnalysisReadRef.current = true;
-      if (options.speak) speak(visibleAnswer);
+      if (options.speak) speak(analysisItems.map((item) => item.answer).join("\n\n"));
     } catch (error) {
       console.error("Food OCR analysis failed:", error);
       const answer = "성분표 분석 중 문제가 생겼어요. chat_server가 켜져 있는지 확인해 주세요.";
@@ -511,6 +490,44 @@ export default function ChatView({
       setIsImageLoading(false);
     }
   };
+
+  const analyzeSingleFoodImage = async (file, prompt = "") => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${FOOD_API_URL}/analyze-image`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Food analysis request failed");
+    }
+
+    const result = await response.json();
+
+    if (!hasRecognizedNutrients(result) && !hasRecognizedLabelText(result)) {
+      const classification = await classifyFoodImage(file);
+      const memory = buildFoodClassificationMemory(classification);
+      const answer =
+        prompt && classification.accepted
+          ? await answerImagePrompt(prompt, memory)
+          : formatFoodClassificationMessage(classification);
+      return { answer, memory };
+    }
+
+    const answer = formatFoodAnalysisMessage(result);
+    const memory = buildFoodAnalysisMemory(result, answer);
+    return { answer, memory };
+  };
+
+  const fileToDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   return (
     <section className="chatbot-page">
@@ -567,8 +584,8 @@ export default function ChatView({
             onSend={() => handleSendMessage()}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
-            pendingImageUrl={pendingImageUrl}
-            onImageSelect={selectImage}
+            pendingImageUrls={pendingImageUrls}
+            onImageSelect={selectImages}
             onImageRemove={removePendingImage}
           />
         </section>

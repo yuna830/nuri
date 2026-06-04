@@ -11,9 +11,10 @@ function formatMessageTime(value) {
 }
 
 function parseFoodAnalysis(content) {
-  if (!content?.startsWith("성분표 분석이 끝났어요.")) return null;
+  const normalizedContent = String(content || "").replace(/^\d+번째 사진\s*\n/, "");
+  if (!normalizedContent.startsWith("성분표 분석이 끝났어요.")) return null;
 
-  const lines = content.split("\n").map((line) => line.trim());
+  const lines = normalizedContent.split("\n").map((line) => line.trim());
   const nutrientsStart = lines.indexOf("영양성분");
   const warningsStart = lines.indexOf("주의사항");
   if (nutrientsStart < 0 || warningsStart < 0) return null;
@@ -88,7 +89,7 @@ function FoodAnalysisMessage({ analysis }) {
 }
 
 function parseFoodSafetyAdvice(content) {
-  const lines = String(content || "").split("\n").map((line) => line.trim());
+  const lines = String(content || "").replace(/^\d+번째 사진\s*\n/, "").split("\n").map((line) => line.trim());
   const cautionStart = lines.indexOf("주의할 점");
   if (cautionStart < 0) return null;
 
@@ -149,18 +150,24 @@ const MessageList = forwardRef(function MessageList(
         const messageKey = `${message.role}-${index}`;
         const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
+        const imageUrls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
         const foodAnalysis = parseFoodAnalysis(message.content);
         const foodSafetyAdvice = foodAnalysis ? null : parseFoodSafetyAdvice(message.content);
 
         return (
           <Fragment key={messageKey}>
-            {message.imageUrl && (
+            {imageUrls.length > 0 && (
               <div className={`chat-message-row image ${message.role}`}>
-                <img
-                  className="chat-message-image"
-                  src={message.imageUrl}
-                  alt="첨부한 사진"
-                />
+                <div className="chat-message-images">
+                  {imageUrls.map((imageUrl, imageIndex) => (
+                    <img
+                      className="chat-message-image"
+                      src={imageUrl}
+                      alt={`첨부한 사진 ${imageIndex + 1}`}
+                      key={imageUrl}
+                    />
+                  ))}
+                </div>
                 {!hasVisibleContent && <time className="chat-message-time">{formattedTime}</time>}
               </div>
             )}

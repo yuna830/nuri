@@ -21,11 +21,11 @@ function AdminDashboard() {
   }).length;
 
   const summaryCards = [
-    { label: "\uc5b4\ub974\uc2e0", value: seniors.length, icon: UserRound },
+    { label: "보호대상자", value: seniors.length, icon: UserRound },
     { label: "\ubcf5\uc9c0\uc0ac", value: welfareWorkers.length, icon: ShieldCheck },
     { label: "\ubcf4\ud638\uc790", value: guardians.length, icon: UsersRound },
     {
-      label: "\uc5f0\uacb0 \ud544\uc694 \uc5b4\ub974\uc2e0",
+      label: "연결 필요 보호대상자",
       value: needsConnectionCount,
       icon: UserCheck,
       to: "/admin/seniors?filter=unlinked",
@@ -72,7 +72,7 @@ function AdminDashboard() {
 
           <section className="admin-section">
             <header className="admin-page-header">
-              <h1>{"\ucd5c\uadfc \uc5b4\ub974\uc2e0 \uc5f0\uacb0 \ud604\ud669"}</h1>
+              <h1>{"최근 보호대상자 연결 현황"}</h1>
               <p>{"\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uc640 \ubcf4\ud638\uc790 \uc5f0\uacb0\uc774 \ube44\uc5b4 \uc788\ub294\uc9c0 \ube60\ub974\uac8c \ud655\uc778\ud569\ub2c8\ub2e4."}</p>
             </header>
 
@@ -118,7 +118,7 @@ function AdminDashboard() {
                 {welfareWorkers.map((worker) => (
                   <div key={worker.id} className="admin-linked-item">
                     <strong>{worker.name}</strong>
-                    <span>{`${worker.center} / \ub2f4\ub2f9 \uc5b4\ub974\uc2e0 ${getWorkerSeniorCount(worker.id, seniors)}\uba85`}</span>
+                    <span>{`${worker.center} / 담당 보호대상자 ${getWorkerSeniorCount(worker.id, seniors)}명`}</span>
                   </div>
                 ))}
               </div>
@@ -133,7 +133,7 @@ function AdminDashboard() {
                   return (
                     <div key={guardian.id} className="admin-linked-item">
                       <strong>{guardian.name}</strong>
-                      <span>{names.length > 0 ? names.join(", ") : "\uc5f0\uacb0\ub41c \uc5b4\ub974\uc2e0 \uc5c6\uc74c"}</span>
+                      <span>{names.length > 0 ? names.join(", ") : "연결된 보호대상자 없음"}</span>
                     </div>
                   );
                 })}

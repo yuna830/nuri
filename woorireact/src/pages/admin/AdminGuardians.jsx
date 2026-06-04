@@ -6,14 +6,14 @@ import { useAdminData } from "./useAdminData";
 
 const TEXT = {
   title: "\ubcf4\ud638\uc790 \uad00\ub9ac",
-  description: "\ubcf4\ud638\uc790 \uacc4\uc815 \uc0c1\ud0dc\uc640 \uc5f0\uacb0\ub41c \uc5b4\ub974\uc2e0\uc744 \ud655\uc778\ud569\ub2c8\ub2e4.",
+  description: "보호자 계정 상태와 연결된 보호대상자를 확인합니다.",
   loading: "\ubcf4\ud638\uc790 \ubaa9\ub85d\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.",
   empty: "\ub4f1\ub85d\ub41c \ubcf4\ud638\uc790\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.",
   error: "\ub370\uc774\ud130\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
   name: "\uc774\ub984",
   relation: "\uad00\uacc4",
   contact: "\uc5f0\ub77d\ucc98",
-  connectedSeniors: "\uc5f0\uacb0 \uc5b4\ub974\uc2e0",
+  connectedSeniors: "연결 보호대상자",
   status: "\uc0c1\ud0dc",
   manage: "\uacc4\uc815 \uad00\ub9ac",
   active: "\ud65c\uc131",
