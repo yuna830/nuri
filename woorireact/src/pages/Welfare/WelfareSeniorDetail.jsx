@@ -1028,6 +1028,10 @@ function WelfareSeniorDetail() {
         const riskScore = Math.min(maxRiskScore, Math.max(0, Number(healthEvaluation?.riskScore) || 0));
         const riskPercent = `${Math.round((riskScore / maxRiskScore) * 100)}%`;
         const gradeBasis = healthEvaluation?.gradeBasis || buildRiskGradeBasis(riskScore);
+        const isMlEvaluation = String(healthEvaluation?.source || "").toUpperCase() === "ML";
+        const supportScoreText = isMlEvaluation
+            ? (healthEvaluation?.gradeBasis || `입력 항목 보조 점수 ${riskScore}점입니다. 최종 건강 등급은 위 ML 예측 확률을 기준으로 합니다.`)
+            : gradeBasis;
         const criteria = [
             {
                 status: "양호",
@@ -1080,23 +1084,6 @@ function WelfareSeniorDetail() {
                     <small>이 결과는 의료 진단이 아니라 돌봄과 일자리 추천을 위한 참고 정보입니다.</small>
                 </div>
 
-                <div className="wsd-health-score-panel">
-                    <div className="wsd-health-score-header">
-                        <div>
-                            <span>설명용 위험 점수</span>
-                            <strong>{riskScore} / {maxRiskScore}점</strong>
-                        </div>
-                        <em>{getGradeFromRiskScore(riskScore)} 기준</em>
-                    </div>
-                    <div className="wsd-health-score-track">
-                        <div
-                            className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
-                            style={{ width: riskPercent }}
-                        />
-                    </div>
-                    <p>{gradeBasis}</p>
-                </div>
-
                 <div className="wsd-health-probability-panel">
                     <h3>예측 확률</h3>
                     <div className="wsd-health-probability-list">
@@ -1113,6 +1100,25 @@ function WelfareSeniorDetail() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                <div className="wsd-health-score-panel">
+                    <div className="wsd-health-score-header">
+                        <div>
+                            <span>{isMlEvaluation ? "입력 항목 보조 점수" : "설명용 위험 점수"}</span>
+                            <strong>{riskScore} / {maxRiskScore}점</strong>
+                        </div>
+                        <em className={isMlEvaluation ? "wsd-health-score-note" : undefined}>
+                            {isMlEvaluation ? "최종 등급 아님" : `${getGradeFromRiskScore(riskScore)} 기준`}
+                        </em>
+                    </div>
+                    <div className="wsd-health-score-track">
+                        <div
+                            className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
+                            style={{ width: riskPercent }}
+                        />
+                    </div>
+                    <p>{supportScoreText}</p>
                 </div>
 
                 <div className="wsd-health-reason-section">

@@ -81,7 +81,8 @@ public class HealthStatusMlService {
 
     public boolean isModelAvailable() {
         return Files.exists(modelDirectory.resolve("predict_health_status.py"))
-                && Files.exists(modelDirectory.resolve("artifacts").resolve("health_status_model.joblib"))
+                && Files.exists(modelDirectory.resolve("artifacts").resolve("stage1_model.joblib"))
+                && Files.exists(modelDirectory.resolve("artifacts").resolve("stage2_model.joblib"))
                 && Files.exists(modelDirectory.resolve("artifacts").resolve("feature_columns.json"));
     }
 
@@ -96,10 +97,8 @@ public class HealthStatusMlService {
                     "predict_health_status.py",
                     "--input",
                     inputPath.toAbsolutePath().toString(),
-                    "--model",
-                    "artifacts/health_status_model.joblib",
-                    "--feature-columns",
-                    "artifacts/feature_columns.json"
+                    "--artifacts-dir",
+                    "artifacts"
             ));
             builder.directory(modelDirectory.toFile());
             builder.environment().put("PYTHONIOENCODING", "utf-8");
@@ -156,6 +155,8 @@ public class HealthStatusMlService {
         row.put("liver_disease", healthInfo.getLiverDisease());
         row.put("cancer", healthInfo.getCancer());
         row.put("dementia", healthInfo.getDementia());
+        row.put("walking_limited", inferWalkingLimited(healthInfo));
+        row.put("fine_motor_limited", inferFineMotorLimited(healthInfo));
         row.put("walking_aid", healthInfo.getWalkingAid());
         row.put("vision", healthInfo.getVision());
         row.put("hearing", healthInfo.getHearing());
@@ -164,6 +165,20 @@ public class HealthStatusMlService {
         row.put("physical_limitation_count", inferPhysicalLimitationCount(healthInfo));
         row.put("max_hours", healthInfo.getMaxHours());
         return row;
+    }
+
+    private String inferWalkingLimited(HealthInfo healthInfo) {
+        boolean limited = hasLimitedValue(healthInfo.getWalkingAid())
+                || hasSevereText(healthInfo.getJointDisease())
+                || containsAny(safe(healthInfo.getMaxDistance()), "10분", "짧은", "가까운")
+                || containsAny(safe(healthInfo.getDisabledWork()), "장시간", "계단", "운반", "보행");
+        return limited ? "있음" : "없음";
+    }
+
+    private String inferFineMotorLimited(HealthInfo healthInfo) {
+        boolean limited = containsAny(safe(healthInfo.getDisabledWork()), "손", "수공예", "반복", "컴퓨터", "글씨", "정밀")
+                || hasLimitedValue(healthInfo.getVision());
+        return limited ? "있음" : "없음";
     }
 
     private String fallbackEvaluate(HealthInfo healthInfo) {
@@ -207,8 +222,8 @@ public class HealthStatusMlService {
                 normalizeProbabilities(normalizedStatus, probabilities),
                 riskScore,
                 MAX_RISK_SCORE,
-                buildGradeBasis(riskScore),
-                buildSummary(normalizedStatus, riskScore, reasons),
+                buildGradeBasis(riskScore, source),
+                buildSummary(normalizedStatus, riskScore, reasons, source),
                 reasons
         );
     }
@@ -399,7 +414,11 @@ public class HealthStatusMlService {
         return 0;
     }
 
-    private String buildGradeBasis(int riskScore) {
+    private String buildGradeBasis(int riskScore, String source) {
+        if ("ML".equalsIgnoreCase(source)) {
+            return "입력 항목 보조 점수 " + riskScore + "점입니다. 이 점수는 판정 사유를 설명하기 위한 참고 지표이며, 최종 건강 등급은 ML 예측 결과를 우선합니다.";
+        }
+
         String grade = gradeByRiskScore(riskScore);
         return riskScore + "점은 " + grade + " 기준입니다. 0~24점은 양호, 25~59점은 주의, 60점 이상은 위험으로 설명합니다.";
     }
@@ -414,7 +433,18 @@ public class HealthStatusMlService {
         return "양호";
     }
 
-    private String buildSummary(String status, int riskScore, List<HealthEvaluationReason> reasons) {
+    private String buildSummary(String status, int riskScore, List<HealthEvaluationReason> reasons, String source) {
+        if ("ML".equalsIgnoreCase(source)) {
+            String primaryLabels = reasons.stream()
+                    .filter(reason -> status.equals(reason.level()) || "위험".equals(reason.level()))
+                    .limit(2)
+                    .map(HealthEvaluationReason::label)
+                    .reduce((left, right) -> left + ", " + right)
+                    .orElse("입력 건강 정보");
+
+            return "ML 모델이 " + status + "로 예측했습니다. " + primaryLabels + " 항목은 판정 근거를 설명하기 위한 입력 기반 보조 근거입니다.";
+        }
+
         if ("양호".equals(status)) {
             return "위험 점수 " + riskScore + "점으로 주의 또는 위험으로 볼 만한 건강 조건이 감지되지 않아 양호로 판정되었습니다.";
         }
