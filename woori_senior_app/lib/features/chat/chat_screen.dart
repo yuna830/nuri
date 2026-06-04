@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,8 +9,11 @@ import 'package:mime/mime.dart';
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
 
-// AI 백엔드 주소 (에뮬레이터에서 호스트 PC 접근)
-const _aiBaseUrl = 'http://10.0.2.2:8001';
+// Gemini API 설정
+const _geminiApiKey = 'AIzaSyBfkhXevFXhiNxsjbgieQiP35e2Iwuptd8';
+const _geminiModel = 'gemini-2.5-flash-lite';
+const _geminiUrl =
+    'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.seniorId});
@@ -199,29 +201,11 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
 
     setState(() => _sending = true);
     try {
-      final file = File(picked.path);
-      final bytes = await file.readAsBytes();
+      final bytes = await picked.readAsBytes();
       final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
       final name = picked.name;
-
-      final req = http.MultipartRequest(
-        'POST',
-        Uri.parse('$apiBaseUrl/api/uploads/chat'),
-      );
-      req.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: name,
-      ));
-
-      final streamed = await req.send();
-      final res = await http.Response.fromStream(streamed);
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final url = '${data['fileUrl'] ?? data['imageUrl'] ?? ''}';
-        await _send(attachUrl: url, attachName: name, attachType: mime);
-      }
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      await _send(attachUrl: dataUrl, attachName: name, attachType: mime);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -302,10 +286,13 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   final _api = const SeniorApi();
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _picker = ImagePicker();
 
   final List<_AiMsg> _history = [];
   bool _sending = false;
   Map<String, dynamic> _profile = {};
+  String? _pendingImageBase64;
+  String? _pendingImageMime;
 
   @override
   void initState() {
@@ -333,39 +320,70 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     } catch (_) {}
   }
 
+  Future<void> _pickAiImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
+    setState(() {
+      _pendingImageBase64 = base64Encode(bytes);
+      _pendingImageMime = mime;
+    });
+  }
+
   Future<void> _ask() async {
     final q = _inputCtrl.text.trim();
-    if (q.isEmpty || _sending) return;
+    final hasImage = _pendingImageBase64 != null;
+    if (q.isEmpty && !hasImage || _sending) return;
 
     _inputCtrl.clear();
+    final sentImageBase64 = _pendingImageBase64;
+    final sentImageMime = _pendingImageMime;
     setState(() {
-      _history.add(_AiMsg(role: 'user', text: q));
+      _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime));
+      _pendingImageBase64 = null;
+      _pendingImageMime = null;
       _sending = true;
     });
     _scrollToBottom();
 
     try {
-      final historyForApi = _history
-          .where((m) => m.role != 'user' || m.text != q)
-          .take(_history.length - 1)
-          .map((m) => {'role': m.role, 'text': m.text})
+      final systemPrompt =
+          '너는 ${_profile['name'] ?? '사용자'}님의 일상을 돕는 한국어 돌봄 챗봇이다.\n'
+          '규칙:\n'
+          '- 모든 답변은 자연스러운 한국어 존댓말로 한다.\n'
+          '- 복지 정책, 건강, 일자리에 대해 간결하게 답변한다.\n'
+          '- 이미지가 첨부되면 이미지 내용을 분석하여 답변한다.\n'
+          '- 모르면 지어내지 말고 다시 말해 달라고 한다.\n'
+          '- 반말, 외국어 섞어 쓰기는 하지 않는다.';
+
+      // 이전 대화 히스토리 (이미지 없는 텍스트만)
+      final prevContents = _history
+          .where((m) => !(m.role == 'user' && m.text == q && m.imageBase64 == sentImageBase64))
+          .map((m) => {
+                'role': m.role == 'assistant' ? 'model' : 'user',
+                'parts': [{'text': m.text}],
+              })
           .toList();
 
+      // 현재 메시지 파트 (텍스트 + 이미지)
+      final userParts = <Map<String, dynamic>>[];
+      if (q.isNotEmpty) userParts.add({'text': q});
+      if (sentImageBase64 != null) {
+        userParts.add({'inlineData': {'mimeType': sentImageMime ?? 'image/jpeg', 'data': sentImageBase64}});
+      }
+
+      final contents = [...prevContents, {'role': 'user', 'parts': userParts}];
+
       final res = await http.post(
-        Uri.parse('$_aiBaseUrl/api/chat'),
+        Uri.parse('$_geminiUrl?key=$_geminiApiKey'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
         body: jsonEncode({
-          'question': q,
-          'mode': 'qa',
-          'audience': 'worker',
-          'history': historyForApi,
-          'profile': {
-            'name': _profile['name'] ?? '',
-            'age': _profile['age'],
-            'gender': _profile['gender'] ?? '',
-            'region': _profile['region'] ?? _profile['address'] ?? '',
-            'incomeLevel': _profile['incomeLevel'] ?? '',
-            'householdType': _profile['householdType'] ?? '',
+          'system_instruction': {'parts': [{'text': systemPrompt}]},
+          'contents': contents,
+          'generationConfig': {
+            'maxOutputTokens': 400,
+            'temperature': 0.5,
           },
         }),
       ).timeout(const Duration(seconds: 30));
@@ -374,7 +392,11 @@ class _AiChatRoomState extends State<_AiChatRoom> {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-        final answer = data['answer']?.toString() ?? '답변을 가져오지 못했습니다.';
+        final answer = (data['candidates'] as List?)
+                ?.first['content']['parts']?.first['text']
+                ?.toString()
+                .trim() ??
+            '답변을 가져오지 못했습니다.';
         setState(() => _history.add(_AiMsg(role: 'assistant', text: answer)));
       } else {
         setState(() => _history.add(const _AiMsg(
@@ -383,8 +405,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     } catch (_) {
       if (mounted) {
         setState(() => _history.add(const _AiMsg(
-            role: 'assistant',
-            text: 'AI 서버에 연결할 수 없습니다.\n(AI 백엔드 서버가 실행 중인지 확인하세요)')));
+            role: 'assistant', text: '응답을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.')));
       }
     } finally {
       if (mounted) {
@@ -455,38 +476,53 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                     const SizedBox(width: 8),
                   ],
                   Flexible(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isMine
-                            ? const Color(0xFF86A788)
-                            : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isMine ? 16 : 4),
-                          bottomRight: Radius.circular(isMine ? 4 : 16),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
+                    child: Column(
+                      crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        if (m.imageBase64 != null) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.memory(
+                              base64Decode(m.imageBase64!),
+                              width: 200,
+                              fit: BoxFit.cover,
+                            ),
                           ),
+                          const SizedBox(height: 4),
                         ],
-                      ),
-                      child: Text(
-                        m.text,
-                        style: TextStyle(
-                          color: isMine ? Colors.white : const Color(0xFF1F2A20),
-                          fontSize: 14,
-                          height: 1.5,
-                        ),
-                      ),
+                        if (m.text.isNotEmpty)
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isMine ? const Color(0xFF86A788) : Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(isMine ? 16 : 4),
+                                bottomRight: Radius.circular(isMine ? 4 : 16),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              m.text,
+                              style: TextStyle(
+                                color: isMine ? Colors.white : const Color(0xFF1F2A20),
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -495,11 +531,39 @@ class _AiChatRoomState extends State<_AiChatRoom> {
           },
         ),
       ),
+      if (_pendingImageBase64 != null)
+        Stack(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                image: DecorationImage(
+                  image: MemoryImage(base64Decode(_pendingImageBase64!)),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => setState(() { _pendingImageBase64 = null; _pendingImageMime = null; }),
+                child: const CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.black54,
+                  child: Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
       _InputBar(
         controller: _inputCtrl,
         sending: _sending,
         onSend: _ask,
-        onAttach: null, // AI는 파일 첨부 불필요
+        onAttach: _pickAiImage,
         hintText: '복지 · 건강 · 일자리에 대해 질문하세요',
       ),
     ]);
@@ -507,9 +571,11 @@ class _AiChatRoomState extends State<_AiChatRoom> {
 }
 
 class _AiMsg {
-  const _AiMsg({required this.role, required this.text});
+  const _AiMsg({required this.role, required this.text, this.imageBase64, this.imageMime});
   final String role;
   final String text;
+  final String? imageBase64;
+  final String? imageMime;
 }
 
 // ─── 공통 위젯 ────────────────────────────────────────────────────────────────
@@ -650,6 +716,19 @@ class _AttachmentBubble extends StatelessWidget {
     final fullUrl = url.startsWith('http') ? url : '$apiBaseUrl$url';
 
     if (_isImage) {
+      if (url.startsWith('data:')) {
+        // Base64 data URL 처리
+        final base64Str = url.contains(',') ? url.split(',').last : url;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(
+            base64Decode(base64Str),
+            width: 200,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fileTile(),
+          ),
+        );
+      }
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.network(

@@ -216,12 +216,14 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Text(
-                        '로그인 정보 저장',
-                        style: TextStyle(
-                          color: Color(0xFF111827),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                      const Flexible(
+                        child: Text(
+                          '로그인 정보 저장',
+                          style: TextStyle(
+                            color: Color(0xFF111827),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
