@@ -106,25 +106,19 @@ export const sendSeniorChatMessage = async ({
 };
 
 export const uploadChatAttachment = async (file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch("/api/uploads/chat", {
-    method: "POST",
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Url = reader.result;
+      resolve({
+        fileUrl: base64Url,
+        imageUrl: base64Url,
+        fileName: file.name,
+      });
+    };
+    reader.onerror = () => reject(new Error("파일 읽기 실패"));
+    reader.readAsDataURL(file);
   });
-
-  if (!response.ok) {
-    throw new Error("chat attachment upload failed");
-  }
-
-  const data = await response.json();
-
-  return {
-    ...data,
-    fileUrl: resolveChatAttachmentUrl(data?.fileUrl),
-    imageUrl: resolveChatAttachmentUrl(data?.imageUrl),
-  };
 };
 
 export const fetchChatMessages = fetchSeniorChatMessages;

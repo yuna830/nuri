@@ -38,23 +38,36 @@ export default function TripartiteChatModal({
   const [draft, setDraft] = useState("");
   const [keyword, setKeyword] = useState("");
   const [historyPage, setHistoryPage] = useState(0);
-  const [attachment, setAttachment] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [roomGroup, setRoomGroup] = useState("ALL");
   const [activeRoomKey, setActiveRoomKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
   const listRef = useRef(null);
-  const attachmentPreviewUrl = useMemo(() => {
-    if (!attachment?.type?.startsWith("image/")) return "";
-    return URL.createObjectURL(attachment);
-  }, [attachment]);
+  const attachmentPreviewUrls = useMemo(() =>
+    attachments.map((file) =>
+      file.type.startsWith("image/") ? URL.createObjectURL(file) : ""
+    ), [attachments]);
 
   useEffect(() => {
     return () => {
-      if (attachmentPreviewUrl) URL.revokeObjectURL(attachmentPreviewUrl);
+      attachmentPreviewUrls.forEach((url) => { if (url) URL.revokeObjectURL(url); });
     };
-  }, [attachmentPreviewUrl]);
+  }, [attachmentPreviewUrls]);
+
+  const handleFileChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    setAttachments((prev) => {
+      const merged = [...prev, ...files];
+      return merged.slice(0, 3);
+    });
+    event.target.value = "";
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const chatRooms = useMemo(() => {
     const sourceRooms = rooms.length > 0
@@ -106,7 +119,15 @@ export default function TripartiteChatModal({
         page,
         size: 100,
       });
-      setMessages((prev) => (appendOlder ? [...nextMessages, ...prev] : nextMessages));
+
+      // 복지사 채팅방은 본인 + 대상자/보호자 메시지만 표시 (다른 복지사 메시지 제외)
+      const filtered = (senderRole === "WELFARE" && senderId)
+        ? nextMessages.filter((msg) =>
+            msg.senderRole !== "WELFARE" || String(msg.senderId) === String(senderId)
+          )
+        : nextMessages;
+
+      setMessages((prev) => (appendOlder ? [...filtered, ...prev] : filtered));
       setHistoryPage(page);
       onReadChange?.();
       setError("");
@@ -142,7 +163,7 @@ export default function TripartiteChatModal({
     const targetSeniorId = activeRoom?.seniorId || seniorId;
     const targetRoomType = activeRoom?.roomType || roomType;
 
-    if (!message && !attachment) {
+    if (!message && attachments.length === 0) {
       window.alert("보낼 메시지를 입력해주세요.");
       return;
     }
@@ -154,10 +175,10 @@ export default function TripartiteChatModal({
 
     try {
       setIsSending(true);
-      const uploadedAttachment = attachment
-        ? await uploadChatAttachment(attachment)
-        : null;
 
+      // 첫 번째 메시지: 텍스트 + 첫 번째 첨부
+      const firstFile = attachments[0] || null;
+      const uploaded0 = firstFile ? await uploadChatAttachment(firstFile) : null;
       await sendSeniorChatMessage({
         seniorId: targetSeniorId,
         roomType: targetRoomType,
@@ -165,12 +186,30 @@ export default function TripartiteChatModal({
         senderId,
         senderName,
         message,
-        attachmentUrl: uploadedAttachment?.fileUrl || uploadedAttachment?.imageUrl || "",
-        attachmentType: attachment?.type || "",
-        attachmentName: uploadedAttachment?.fileName || attachment?.name || "",
+        attachmentUrl: uploaded0?.fileUrl || uploaded0?.imageUrl || "",
+        attachmentType: firstFile?.type || "",
+        attachmentName: uploaded0?.fileName || firstFile?.name || "",
       });
+
+      // 2~3번째 첨부는 추가 메시지로 전송
+      for (let i = 1; i < attachments.length; i++) {
+        const file = attachments[i];
+        const uploaded = await uploadChatAttachment(file);
+        await sendSeniorChatMessage({
+          seniorId: targetSeniorId,
+          roomType: targetRoomType,
+          senderRole,
+          senderId,
+          senderName,
+          message: "",
+          attachmentUrl: uploaded?.fileUrl || uploaded?.imageUrl || "",
+          attachmentType: file.type || "",
+          attachmentName: uploaded?.fileName || file.name || "",
+        });
+      }
+
       setDraft("");
-      setAttachment(null);
+      setAttachments([]);
       await loadMessages({ silent: true });
     } catch (sendError) {
       console.error("채팅 전송 실패:", sendError);
@@ -316,13 +355,17 @@ export default function TripartiteChatModal({
 
         {!noTabSelected && (
           <div className="tcm-compose-wrap">
-            {attachment && (
+            {attachments.length > 0 && (
               <div className="tcm-compose-attachment">
-                {attachmentPreviewUrl && (
-                  <img src={attachmentPreviewUrl} alt="첨부 미리보기" />
-                )}
-                <span>{attachment.name}</span>
-                <button type="button" onClick={() => setAttachment(null)} aria-label="첨부 제거">×</button>
+                {attachments.map((file, i) => (
+                  <div key={i} className="tcm-compose-attachment-item">
+                    {attachmentPreviewUrls[i] && (
+                      <img src={attachmentPreviewUrls[i]} alt={`첨부 미리보기 ${i + 1}`} />
+                    )}
+                    <span>{file.name}</span>
+                    <button type="button" onClick={() => removeAttachment(i)} aria-label="첨부 제거">×</button>
+                  </div>
+                ))}
               </div>
             )}
             <footer className="tcm-compose">
@@ -331,11 +374,14 @@ export default function TripartiteChatModal({
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="메시지를 입력하세요."
               />
-              <label className="tcm-file-button">
-                첨부
+              <label className={`tcm-file-button${attachments.length >= 3 ? " tcm-file-button-disabled" : ""}`}>
+                첨부 {attachments.length > 0 ? `${attachments.length}/3` : ""}
                 <input
                   type="file"
-                  onChange={(event) => setAttachment(event.target.files?.[0] || null)}
+                  multiple
+                  accept="image/*,application/pdf"
+                  disabled={attachments.length >= 3}
+                  onChange={handleFileChange}
                 />
               </label>
               <button type="button" onClick={handleSend} disabled={isSending}>
