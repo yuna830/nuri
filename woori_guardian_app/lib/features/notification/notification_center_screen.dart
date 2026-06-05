@@ -302,6 +302,7 @@ AlertDisplayConfig alertConfig(String type) {
         bgColor: Colors.deepOrange.shade50,
       );
     case 'SAFE_ZONE':
+    case 'SAFE_ZONE_EXIT':
       return AlertDisplayConfig(
         icon: Icons.location_off,
         iconColor: Colors.purple,

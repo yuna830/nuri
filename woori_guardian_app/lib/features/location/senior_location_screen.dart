@@ -4,6 +4,7 @@ import '../../core/api/guardian_api.dart';
 
 const double _defaultLat   = 37.5665;
 const double _defaultLng   = 126.9780;
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
 class SeniorLocationScreen extends StatefulWidget {
   final int    seniorId;
@@ -131,7 +132,9 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
           // 지도 영역
           Expanded(
             flex: 3,
-            child: Stack(
+            child: _disableKakaoMap
+                ? const _KakaoMapDisabledView()
+                : Stack(
               children: [
                 kakao.KakaoMap(
                   option: kakao.KakaoMapOption(
@@ -266,6 +269,29 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
         Text('좌표: $latLngText',
             style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
+    );
+  }
+}
+
+class _KakaoMapDisabledView extends StatelessWidget {
+  const _KakaoMapDisabledView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          '에뮬레이터에서는 카카오맵을 비활성화했습니다.\n실제 기기에서 지도를 확인해주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF6C6C70),
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../job/job_screen.dart';
 import '../location/location_screen.dart';
 import '../notifications/notification_screen.dart';
 import '../profile/profile_screen.dart';
+import '../settings/settings_screen.dart';
 import '../weather/weather_screen.dart';
 
 // 하단 탭: 채팅·알림 제거 (헤더로 이동)
@@ -67,6 +68,15 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(seniorId: widget.seniorId),
+      ),
+    );
+  }
+
   void _openChat() {
     Navigator.push(
       context,
@@ -92,7 +102,8 @@ class _AppShellState extends State<AppShell> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        title:
+            const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
         content: const Text('로그아웃 하시겠어요?'),
         actions: [
           TextButton(
@@ -101,8 +112,8 @@ class _AppShellState extends State<AppShell> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('로그아웃',
-                style: TextStyle(color: Colors.redAccent)),
+            child:
+                const Text('로그아웃', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -152,19 +163,13 @@ class _AppShellState extends State<AppShell> {
                 ],
               ),
         actions: [
-          // 탭별 등록 액션 (저장 등)
-          if (_currentAction != null && _currentActionIcon != null)
-            IconButton(
-              icon: Icon(_currentActionIcon, color: const Color(0xFF86A788)),
-              tooltip: _currentActionTooltip,
-              onPressed: _currentAction,
-            ),
           // 채팅
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline,
-                color: Color(0xFF86A788)),
+            icon:
+                const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
             tooltip: '채팅',
             onPressed: _openChat,
+            visualDensity: VisualDensity.compact,
           ),
           // 알림
           IconButton(
@@ -172,47 +177,28 @@ class _AppShellState extends State<AppShell> {
                 color: Color(0xFF86A788)),
             tooltip: '알림',
             onPressed: _openNotifications,
+            visualDensity: VisualDensity.compact,
+          ),
+          // 설정
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Color(0xFF86A788)),
+            tooltip: '설정',
+            onPressed: _openSettings,
+            visualDensity: VisualDensity.compact,
           ),
           // 로그아웃
-          IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFF86A788)),
-            tooltip: '로그아웃',
-            onPressed: _logout,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: IndexedStack(
-        index: _index,
-        children: [
-          SeniorHomeScreen(
-            seniorId: widget.seniorId,
-            onTabSwitch: _go,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          LocationScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          WeatherScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          JobScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          ProfileScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.logout, color: Color(0xFF86A788)),
+              tooltip: '로그아웃',
+              onPressed: _logout,
+              visualDensity: VisualDensity.compact,
+            ),
           ),
         ],
       ),
+      body: _buildCurrentPage(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _go,
@@ -223,12 +209,53 @@ class _AppShellState extends State<AppShell> {
         destinations: List.generate(_tabTitles.length, (i) {
           return NavigationDestination(
             icon: Icon(_tabIcons[i]),
-            selectedIcon: Icon(_tabSelectedIcons[i],
-                color: const Color(0xFF86A788)),
+            selectedIcon:
+                Icon(_tabSelectedIcons[i], color: const Color(0xFF86A788)),
             label: _tabTitles[i],
           );
         }),
       ),
     );
+  }
+
+  Widget _buildCurrentPage() {
+    switch (_index) {
+      case 0:
+        return SeniorHomeScreen(
+          seniorId: widget.seniorId,
+          onTabSwitch: _go,
+          hideAppBar: true,
+        );
+      case 1:
+        return LocationScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 2:
+        return WeatherScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 3:
+        return JobScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 4:
+        return ProfileScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      default:
+        return SeniorHomeScreen(
+          seniorId: widget.seniorId,
+          onTabSwitch: _go,
+          hideAppBar: true,
+        );
+    }
   }
 }

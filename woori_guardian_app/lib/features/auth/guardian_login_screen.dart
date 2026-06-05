@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../home/guardian_home_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/push/fcm_service.dart';
 
 class GuardianLoginScreen extends StatefulWidget {
   const GuardianLoginScreen({super.key});
@@ -55,12 +56,16 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
 
     try {
       final response = await _api.loginGuardian(email, password);
+      final guardianId = int.parse(response['id'].toString());
 
       await _sessionStorage.saveGuardianInfo(
-        guardianId: response['id'].toString(),
+        guardianId: guardianId.toString(),
         name: response['name'] ?? '',
         email: response['email'] ?? '',
       );
+
+      // FCM 초기화 및 토큰 등록
+      await FcmService.init(role: 'GUARDIAN', userId: guardianId);
 
       if (!mounted) return;
 
@@ -96,11 +101,7 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 48),
-                const Icon(
-                  Icons.eco,
-                  size: 64,
-                  color: _mainGreen,
-                ),
+                const Icon(Icons.eco, size: 64, color: _mainGreen),
                 const SizedBox(height: 20),
                 const Text(
                   '우리 보호자',
@@ -115,10 +116,7 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                 const Text(
                   '함께 돌보는 마음, 언제나 곁에',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF888888),
-                  ),
+                  style: TextStyle(fontSize: 14, color: Color(0xFF888888)),
                 ),
                 const SizedBox(height: 48),
                 const Align(
@@ -139,7 +137,10 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                   decoration: InputDecoration(
                     hintText: 'email@example.com',
                     hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
@@ -150,7 +151,10 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _mainGreen, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: _mainGreen,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
@@ -173,7 +177,10 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                   decoration: InputDecoration(
                     hintText: '비밀번호를 입력하세요',
                     hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
@@ -184,7 +191,10 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _mainGreen, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: _mainGreen,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),

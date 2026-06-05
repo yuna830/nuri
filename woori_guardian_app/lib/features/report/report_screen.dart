@@ -18,6 +18,7 @@ const _kWarn     = Color(0xFFFF9500);
 const _kWarnBg   = Color(0xFFFFF4E5);
 const _kRed      = Color(0xFFB85252);
 const _kTextMain = Color(0xFF1C1C1E);
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 const _kTextSub  = Color(0xFF6C6C70);
 const _kTextHint = Color(0xFFAEAEB2);
 const _kDivider  = Color(0xFFE5E5EA);
@@ -910,6 +911,29 @@ class _SeniorCard extends StatelessWidget {
   }
 }
 
+class _KakaoMapDisabledView extends StatelessWidget {
+  const _KakaoMapDisabledView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          '에뮬레이터에서는 카카오맵을 비활성화했습니다.\n실제 기기에서 지도를 확인해주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF6C6C70),
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Row extends StatelessWidget {
   final IconData icon;
   final String   label;
@@ -1147,21 +1171,23 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
           ),
         ],
       ),
-      body: Stack(children: [
-        kakao.KakaoMap(
-          option: kakao.KakaoMapOption(
-            position: _picked,
-            zoomLevel: 15,
-          ),
-          onMapReady: (controller) {
-            _controller = controller;
-            _renderPickedPoi();
-          },
-          onMapClick: (_, position) => _onTap(position),
-        ),
+      body: _disableKakaoMap
+          ? const _KakaoMapDisabledView()
+          : Stack(children: [
+              kakao.KakaoMap(
+                option: kakao.KakaoMapOption(
+                  position: _picked,
+                  zoomLevel: 15,
+                ),
+                onMapReady: (controller) {
+                  _controller = controller;
+                  _renderPickedPoi();
+                },
+                onMapClick: (_, position) => _onTap(position),
+              ),
 
-        // 하단 안내 박스
-        Positioned(
+              // 하단 안내 박스
+              Positioned(
           bottom: 16,
           left: 16,
           right: 16,
