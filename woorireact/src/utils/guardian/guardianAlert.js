@@ -88,6 +88,8 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
       return true;
     })
     .filter((alert) => {
+      if (alert.type === "CALL_REQUEST") return false;
+
       if (!alert.createdAt) return false;
 
       const createdAt = new Date(alert.createdAt);

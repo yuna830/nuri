@@ -1166,10 +1166,14 @@ function GuardianPage() {
   };
 
   const handleCallAlert = async (targetAlert) => {
-    const targetElder = targetAlert?.seniorId
-      ? elders.find((elder) => String(elder.id) === String(targetAlert.seniorId))
-      : selectedElder;
+    setCallingAlert(targetAlert);
+    setIsCallResultOpen(true);
+  };
 
+  const handleCallResolved = async () => {
+    const targetElder = callingAlert?.seniorId
+      ? elders.find((elder) => String(elder.id) === String(callingAlert.seniorId))
+      : selectedElder;
     const phone = targetElder?.phone;
 
     if (!phone) {
@@ -1177,11 +1181,13 @@ function GuardianPage() {
       return;
     }
 
-    setCallingAlert(targetAlert);
-
     if (targetElder?.id) {
+      const guardianId = getCurrentGuardianId();
+
       const created = await createCallRequestAlert({
         seniorId: targetElder.id,
+        guardianId,
+        message: `보호자가 ${targetElder.name}님에게 전화를 요청했습니다.`,
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
       }).catch(() => null);
@@ -1191,17 +1197,13 @@ function GuardianPage() {
       }
     }
 
-    setIsCallResultOpen(true);
-    window.location.href = `tel:${phone}`;
-  };
-
-  const handleCallResolved = async () => {
     if (callingAlert?.id) {
       await handleReadAlert(callingAlert.id);
     }
 
     setCallingAlert(null);
     setIsCallResultOpen(false);
+    window.location.href = `tel:${phone}`;
   };
 
   const handleCallNeedsReport = () => {
@@ -1934,23 +1936,21 @@ function GuardianHeader({
       };
     });
 
-  const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
+    const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
     if (isCheckInRequestAlert(alert)) {
       if (isRead) return null;
       return (
         <div className="guardian-alert-actions-below two">
-          {!isRead && (
-            <button
-              type="button"
-              className="guardian-alert-secondary-action"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCheckInOk?.(alert);
-              }}
-            >
-              이상 없음
-            </button>
-          )}
+          <button
+            type="button"
+            className="guardian-alert-secondary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCheckInOk?.(alert);
+            }}
+          >
+            이상 없음
+          </button>
           <button
             type="button"
             className="guardian-alert-primary-action"
@@ -1969,15 +1969,13 @@ function GuardianHeader({
       return defaultAction;
     }
 
+    if (isRead) return null;
+
     return (
-      <div className="guardian-alert-actions">
-        {!isRead && (
-          <button type="button" onClick={onRead}>
-            확인
-          </button>
-        )}
+      <div className="guardian-alert-actions-below">
         <button
           type="button"
+          className="guardian-alert-primary-action"
           onClick={(event) => {
             event.stopPropagation();
             onCallAlert?.(alert);
@@ -1985,18 +1983,6 @@ function GuardianHeader({
         >
           전화
         </button>
-        {(alert.isFall || alert.isSos) && (
-          <button
-            className="danger"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenEmergencyReport?.(alert);
-            }}
-          >
-            신고
-          </button>
-        )}
       </div>
     );
   };
@@ -2006,7 +1992,7 @@ function GuardianHeader({
       homePath="/guardian"
       showNotificationButton
       notifications={guardianNotifications}
-      notificationTabs={["전체", "읽지 않음", "긴급", "낙상", "정보"]}
+      notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);
