@@ -10,6 +10,7 @@ import '../auth/login_screen.dart';
 import '../fall/fall_history_screen.dart';
 import '../job/job_screen.dart';
 import '../location/location_screen.dart';
+import '../notifications/notification_screen.dart';
 import '../profile/profile_screen.dart';
 import '../weather/weather_screen.dart';
 
@@ -127,10 +128,14 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
 
   late Future<SeniorHomeData> _homeDataFuture;
   SeniorHomeData? _cachedData;
+  Map<String, dynamic>? _weather;
 
   Timer? _alertTimer;
   List<dynamic> _alerts = [];
   bool _sosPending = false;
+
+  // 나중에 누른 알림 ID (세션 중 재표시 방지)
+  final Set<int> _dismissedAlertIds = {};
 
   // 각 알림 타입별 현재 알림 (null=없음)
   Map<String, dynamic>? _callAlert;
@@ -176,7 +181,16 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     final data = await _api.fetchHomeData(widget.seniorId);
     _cachedData = data;
     _processAlerts(data.alerts);
+    _fetchWeather();
     return data;
+  }
+
+  Future<void> _fetchWeather() async {
+    try {
+      // 서울 기본 격자 (nx=60, ny=127) — 날씨 팁 표시용
+      final w = await _api.fetchWeather(60, 127);
+      if (mounted) setState(() => _weather = w);
+    } catch (_) {}
   }
 
   void _startAlertPolling() {
@@ -208,7 +222,12 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
 
   Map<String, dynamic>? _firstOfType(List<dynamic> alerts, bool Function(Map) test) {
     for (final a in alerts) {
-      if (a is Map<String, dynamic> && test(a)) return a;
+      if (a is Map<String, dynamic> && test(a)) {
+        final id = a['id'];
+        final intId = id is int ? id : int.tryParse('$id');
+        if (intId != null && _dismissedAlertIds.contains(intId)) continue;
+        return a;
+      }
     }
     return null;
   }
@@ -321,8 +340,42 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   Future<void> _dismissInfoAlert() async {
-    await _readAlert(_infoAlert?['id']);
+    // 나중에 — 세션 중 재표시 방지, 읽음 처리는 수정 완료 후에
+    final id = _infoAlert?['id'];
+    final intId = id is int ? id : int.tryParse('$id');
+    if (intId != null) _dismissedAlertIds.add(intId);
     setState(() => _infoAlert = null);
+  }
+
+  Future<void> _handleInfoAlert(BuildContext context) async {
+    final alert = _infoAlert;
+    if (alert == null) return;
+    setState(() => _infoAlert = null);
+
+    final id = alert['id'];
+    final alertId = id is int ? id : int.tryParse('$id');
+    final message = '${alert['message'] ?? ''}';
+
+    // 메시지 내용으로 해당 탭 추정
+    int sectionIndex = 0;
+    if (RegExp(r'복약|약|복용').hasMatch(message)) sectionIndex = 2;
+    else if (RegExp(r'만성|질환|수술').hasMatch(message)) sectionIndex = 3;
+    else if (RegExp(r'거동|인지|감각|보행').hasMatch(message)) sectionIndex = 4;
+    else if (RegExp(r'활동|이동|쉬는|작업').hasMatch(message)) sectionIndex = 5;
+    else if (RegExp(r'복지|소득|가구|혜택').hasMatch(message)) sectionIndex = 6;
+    else if (RegExp(r'일자리|희망|근무|직종').hasMatch(message)) sectionIndex = 7;
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(
+          seniorId: widget.seniorId,
+          initialSectionIndex: sectionIndex,
+          pendingAlertId: alertId,
+        ),
+      ),
+    );
   }
 
   Future<void> _sendCheckInReply() async {
@@ -350,7 +403,10 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   Future<void> _dismissCheckInAlert() async {
-    await _readAlert(_checkInAlert?['id']);
+    // "확인했어요" (답장 없이 닫기) → 읽음 처리 안 함, 세션 중 재표시 방지
+    final id = _checkInAlert?['id'];
+    final intId = id is int ? id : int.tryParse('$id');
+    if (intId != null) _dismissedAlertIds.add(intId);
     setState(() {
       _checkInAlert = null;
       _replyController.clear();
@@ -455,6 +511,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
                   onRefresh: _refresh,
                   seniorId: widget.seniorId,
                   onTabSwitch: widget.onTabSwitch,
+                  weather: _weather,
                 );
               },
             ),
@@ -493,8 +550,10 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
               icon: '📋',
               title: '${_infoAlert!['title'] ?? '정보 수정 요청'}',
               message: '${_infoAlert!['message'] ?? '복지사가 정보 수정을 요청했습니다.'}',
-              confirmLabel: '확인',
-              onConfirm: _dismissInfoAlert,
+              cancelLabel: '나중에',
+              onCancel: _dismissInfoAlert,
+              confirmLabel: '수정하러 가기',
+              onConfirm: () => _handleInfoAlert(context),
             ),
           // ── 안부 메시지 모달 ──────────────────
           if (_checkInAlert != null)
@@ -520,6 +579,7 @@ class _HomeBody extends StatelessWidget {
     required this.onRefresh,
     required this.seniorId,
     this.onTabSwitch,
+    this.weather,
   });
 
   final SeniorHomeData data;
@@ -527,6 +587,7 @@ class _HomeBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final int seniorId;
   final ValueChanged<int>? onTabSwitch;
+  final Map<String, dynamic>? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -608,7 +669,7 @@ class _HomeBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _LocationCard(region: region),
+          _LocationCard(region: region, onTap: onTabSwitch != null ? () => onTabSwitch!(1) : null),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -621,19 +682,23 @@ class _HomeBody extends StatelessWidget {
                   valueColor: fallCount > 0
                       ? const Color(0xFFD94E4E)
                       : const Color(0xFF1F2A20),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => FallHistoryScreen(seniorId: seniorId),
+                  )),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _SmallStatusCard(
-                  title: '오늘 복약',
+                  title: '복약 알림',
                   value: '$medicineCount건',
                   description:
                       medicineCount > 0 ? '복용 알림을 확인해주세요.' : '복용 알림이 없어요.',
                   icon: Icons.medication_outlined,
-                  valueColor: medicineCount > 0
-                      ? const Color(0xFF5E7CE2)
-                      : const Color(0xFF1F2A20),
+                  valueColor: const Color(0xFF1F2A20),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => NotificationScreen(seniorId: seniorId, typeFilter: 'MEDICINE'),
+                  )),
                 ),
               ),
             ],
@@ -651,7 +716,7 @@ class _HomeBody extends StatelessWidget {
           const SizedBox(height: 14),
           _ScheduleCard(schedules: data.schedules),
           const SizedBox(height: 14),
-          _ClimateAlertCard(alerts: data.climateAlerts),
+          _ClimateAlertCard(alerts: data.climateAlerts, weather: weather),
         ],
       ),
     );
@@ -709,9 +774,7 @@ class _HomeBody extends StatelessWidget {
   int _medicineCount(List<dynamic> alerts) {
     return alerts.where((alert) {
       if (alert is! Map<String, dynamic>) return false;
-      return alert['type'] == 'MEDICINE' &&
-          alert['isRead'] != true &&
-          _isToday(alert['createdAt']);
+      return alert['type'] == 'MEDICINE';
     }).length;
   }
 
@@ -845,20 +908,38 @@ class _AlertOverlay extends StatelessWidget {
                           fontSize: 14, color: Color(0xFF6D766A))),
                   const SizedBox(height: 20),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (cancelLabel != null) ...[
-                        TextButton(
-                          onPressed: onCancel,
-                          child: Text(cancelLabel!),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: onCancel,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6D766A),
+                              side: const BorderSide(color: Color(0xFFCCCCCC)),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(cancelLabel!,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                       ],
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF86A788)),
-                        onPressed: onConfirm,
-                        child: Text(confirmLabel),
+                      Expanded(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF86A788),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: onConfirm,
+                          child: Text(confirmLabel,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                        ),
                       ),
                     ],
                   ),
@@ -1146,34 +1227,42 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.region});
+  const _LocationCard({required this.region, this.onTap});
   final String region;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return _BaseCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: onTap,
+      child: Row(
         children: [
-          const _SectionTitle(title: '현재 위치'),
-          const SizedBox(height: 10),
-          const Row(
-            children: [
-              Icon(Icons.check_circle, color: Color(0xFF86A788), size: 20),
-              SizedBox(width: 8),
-              Text('안전 반경 안',
-                  style: TextStyle(
-                      color: Color(0xFF48624B),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SectionTitle(title: '현재 위치'),
+                const SizedBox(height: 10),
+                const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Color(0xFF86A788), size: 20),
+                    SizedBox(width: 8),
+                    Text('안전 반경 안',
+                        style: TextStyle(
+                            color: Color(0xFF48624B),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(region,
+                    style: const TextStyle(
+                        color: Color(0xFF6D766A),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(region,
-              style: const TextStyle(
-                  color: Color(0xFF6D766A),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -1187,6 +1276,7 @@ class _SmallStatusCard extends StatelessWidget {
     required this.description,
     required this.icon,
     this.valueColor = const Color(0xFF1F2A20),
+    this.onTap,
   });
 
   final String title;
@@ -1194,10 +1284,12 @@ class _SmallStatusCard extends StatelessWidget {
   final String description;
   final IconData icon;
   final Color valueColor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return _BaseCard(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1422,28 +1514,85 @@ class _ScheduleRow extends StatelessWidget {
   }
 }
 
+({String message, IconData icon, Color iconBg, Color iconColor}) _weatherTip(
+    Map<String, dynamic> w) {
+  double n(dynamic v) => double.tryParse('$v') ?? 0;
+  final temp = n(w['temp'] ?? w['TMP'] ?? '20');
+  final rainProb = n(w['rainProb'] ?? w['POP'] ?? '0');
+  final wind = n(w['wind'] ?? w['WSD'] ?? '0');
+  final humid = n(w['humid'] ?? w['REH'] ?? '50');
+
+  if (temp >= 33) {
+    return (message: '오늘 폭염 주의. 수분 섭취를 자주 하고 낮 외출을 자제하세요.', icon: Icons.wb_sunny, iconBg: const Color(0xFFFFECCC), iconColor: const Color(0xFFE07B00));
+  }
+  if (temp <= 0) {
+    return (message: '오늘 한파 주의. 외출 시 보온에 신경 쓰고 빙판길을 조심하세요.', icon: Icons.ac_unit, iconBg: const Color(0xFFDCEEFF), iconColor: const Color(0xFF4C8ED9));
+  }
+  if (rainProb >= 60) {
+    return (message: '오늘 비 올 확률 ${rainProb.toInt()}%. 우산과 미끄럼 방지 신발을 챙기세요.', icon: Icons.umbrella, iconBg: const Color(0xFFDCEEFF), iconColor: const Color(0xFF4C8ED9));
+  }
+  if (wind >= 9) {
+    return (message: '오늘 강풍 주의. 외출 시 보행 보조도구를 꼭 챙기세요.', icon: Icons.air, iconBg: const Color(0xFFFFF3CD), iconColor: const Color(0xFFE07B00));
+  }
+  if (humid < 35) {
+    return (message: '오늘 대기가 건조해요. 수분 섭취와 보습에 신경 쓰세요.', icon: Icons.water_drop_outlined, iconBg: const Color(0xFFEBF5E9), iconColor: const Color(0xFF4C8A50));
+  }
+  if (temp >= 27) {
+    return (message: '오늘 더위 대비. 자외선 차단제를 바르고 그늘에서 쉬어가세요.', icon: Icons.wb_sunny_outlined, iconBg: const Color(0xFFFFECCC), iconColor: const Color(0xFFE07B00));
+  }
+  return (message: '오늘 기후는 비교적 안전해요. 가벼운 산책을 즐기세요.', icon: Icons.wb_sunny_outlined, iconBg: const Color(0xFFEBF5E9), iconColor: const Color(0xFF4C8A50));
+}
+
 class _ClimateAlertCard extends StatelessWidget {
-  const _ClimateAlertCard({required this.alerts});
+  const _ClimateAlertCard({required this.alerts, this.weather});
   final List<dynamic> alerts;
+  final Map<String, dynamic>? weather;
 
   @override
   Widget build(BuildContext context) {
     final bool hasAlert = alerts.isNotEmpty;
-    final String message = hasAlert
-        ? (alerts.first is Map<String, dynamic>
-            ? _textFrom(
-                alerts.first as Map<String, dynamic>,
-                ['message', 'type', 'level'],
-                '기후 알림')
-            : '기후 알림')
-        : '현재 발령된 기상특보가 없습니다. 오늘 하루 기후 상태는 비교적 안전합니다.';
 
-    final Color iconBg =
-        hasAlert ? const Color(0xFFFFF3CD) : const Color(0xFFEBF5E9);
-    final Color iconColor =
-        hasAlert ? const Color(0xFFE07B00) : const Color(0xFF4C8A50);
-    final IconData icon =
-        hasAlert ? Icons.warning_amber_rounded : Icons.wb_sunny_rounded;
+    final String message;
+    final IconData icon;
+    final Color iconBg;
+    final Color iconColor;
+
+    if (hasAlert) {
+      final a = alerts.first is Map<String, dynamic>
+          ? alerts.first as Map<String, dynamic>
+          : <String, dynamic>{};
+      message = _textFrom(a, ['message', 'type', 'level'], '기후 알림');
+      final type = '${a['type'] ?? ''}';
+      final level = '${a['level'] ?? ''}';
+      final isDangerous = ['danger', 'warning'].contains(level);
+      final isCaution = level == 'caution';
+      if (type.contains('HEATWAVE') || type.contains('heat') || type.contains('더위')) {
+        icon = Icons.wb_sunny; iconBg = const Color(0xFFFFECCC); iconColor = const Color(0xFFE07B00);
+      } else if (type.contains('COLDWAVE') || type.contains('cold') || type.contains('한파')) {
+        icon = Icons.ac_unit; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('RAIN') || type.contains('rain') || type.contains('비')) {
+        icon = Icons.umbrella; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('SNOW') || type.contains('snow') || type.contains('눈')) {
+        icon = Icons.ac_unit; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('WIND') || type.contains('wind') || type.contains('바람')) {
+        icon = Icons.air; iconBg = const Color(0xFFFFF3CD); iconColor = const Color(0xFFE07B00);
+      } else if (isDangerous || isCaution) {
+        icon = Icons.warning_amber_rounded; iconBg = const Color(0xFFFFF3CD); iconColor = const Color(0xFFE07B00);
+      } else {
+        icon = Icons.wb_sunny_outlined; iconBg = const Color(0xFFEBF5E9); iconColor = const Color(0xFF4C8A50);
+      }
+    } else if (weather != null) {
+      final tip = _weatherTip(weather!);
+      message = tip.message;
+      icon = tip.icon;
+      iconBg = tip.iconBg;
+      iconColor = tip.iconColor;
+    } else {
+      message = '오늘 기후는 비교적 안전해요. 가벼운 산책을 즐기세요.';
+      icon = Icons.wb_sunny_outlined;
+      iconBg = const Color(0xFFEBF5E9);
+      iconColor = const Color(0xFF4C8A50);
+    }
 
     return _BaseCard(
       child: Row(
@@ -1463,31 +1612,11 @@ class _ClimateAlertCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text('기후 알림',
-                        style: TextStyle(
-                            color: Color(0xFF1F2A20),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900)),
-                    if (alerts.length > 1) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE07B00),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text('${alerts.length}',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ],
-                ),
+                const Text('기후 알림',
+                    style: TextStyle(
+                        color: Color(0xFF1F2A20),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Text(message,
                     style: const TextStyle(

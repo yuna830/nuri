@@ -218,8 +218,6 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    position: sticky;
-    top: 82px;
     background-color: white;
     border: 1px solid #d4e8d6;
     border-radius: 16px;
@@ -526,28 +524,35 @@
 
 .wsd-info-request-option {
     display: flex;
+    flex-direction: row;
     align-items: flex-start;
     gap: 10px;
-    padding: 12px;
+    padding: 14px;
     border: 1px solid #d4e8d6;
     border-radius: 10px;
     background: #fbfdf8;
     cursor: pointer;
 }
 
-.wsd-info-request-option input {
-    margin-top: 4px;
+.wsd-info-request-option input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
     accent-color: #6f9272;
+    cursor: pointer;
 }
 
 .wsd-info-request-option span {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 4px;
 }
 
 .wsd-info-request-option strong {
     color: #1e2a1f;
     font-size: 14px;
+    font-weight: 700;
 }
 
 .wsd-info-request-option small {

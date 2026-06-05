@@ -481,6 +481,7 @@ export default function UserPage() {
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
   const dismissedMedicineAlertIdsRef = useRef(new Set());
+  const dismissedInfoAlertIdsRef = useRef(new Set());
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -1064,7 +1065,11 @@ export default function UserPage() {
       ));
       setMedicineAlert(medicineAlert || null);
 
-      const infoRequestAlert = alerts.find((alert) => alert.type === "INFO_UPDATE_REQUEST" && !alert.isRead);
+      const infoRequestAlert = alerts.find((alert) =>
+        alert.type === "INFO_UPDATE_REQUEST"
+        && !alert.isRead
+        && !dismissedInfoAlertIdsRef.current.has(String(alert.id))
+      );
       setInfoUpdateRequestAlert(infoRequestAlert || null);
 
       const checkInAlert = alerts.find((alert) => alert.type === "CHECK_IN_MESSAGE" && !alert.isRead);
@@ -1167,14 +1172,11 @@ export default function UserPage() {
     }
   };
 
-  const handleDismissCallRequest = async () => {
-    const callAlertIds = userAlerts
-      .filter((alert) => alert.type === "CALL_REQUEST" && !alert.isRead)
-      .map((alert) => alert.id)
-      .filter(Boolean);
+  const handleDismissCallRequest = () => {
+    const alertId = incomingCallAlert?.id;
     setIncomingCallAlert(null);
-    markCallAlertHandled(incomingCallAlert?.id);
-    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+    markCallAlertHandled(alertId);
+    if (alertId) readAlert(alertId).catch(() => {});
   };
 
   const handleReadMedicineAlert = async () => {
@@ -1189,12 +1191,9 @@ export default function UserPage() {
     }
   };
 
-  const handleGoToInfoUpdateRequest = async () => {
-    if (infoUpdateRequestAlert?.id) {
-      await readAlert(infoUpdateRequestAlert.id).catch(() => {});
-    }
-
+  const handleGoToInfoUpdateRequest = () => {
     const text = String(infoUpdateRequestAlert?.message || "");
+    const alertId = infoUpdateRequestAlert?.id;
     let section = "personal";
 
     if (/복약|약|medicine/i.test(text)) section = "medication";
@@ -1205,7 +1204,7 @@ export default function UserPage() {
     else if (/일자리|근무|직종|job/i.test(text)) section = "job";
 
     setInfoUpdateRequestAlert(null);
-    navigate(`/profile?section=${section}`);
+    navigate(`/profile?section=${section}${alertId ? `&alertId=${alertId}` : ""}`);
   };
 
   const handleReadCheckInMessageAlert = async () => {
@@ -1763,9 +1762,21 @@ export default function UserPage() {
               {infoUpdateRequestAlert.message || "복지사가 정보 수정을 요청했습니다."}
             </div>
 
-            <div className="up-modal-row medicine-alert-modal-row">
+            <div className="up-modal-row" style={{ marginTop: "2rem" }}>
               <button
-                className="up-modal-ok medicine-alert-confirm-button"
+                className="up-modal-cancel"
+                type="button"
+                onClick={() => {
+                  if (infoUpdateRequestAlert?.id) {
+                    dismissedInfoAlertIdsRef.current.add(String(infoUpdateRequestAlert.id));
+                  }
+                  setInfoUpdateRequestAlert(null);
+                }}
+              >
+                나중에
+              </button>
+              <button
+                className="up-modal-ok"
                 type="button"
                 onClick={handleGoToInfoUpdateRequest}
               >

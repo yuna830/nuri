@@ -1,5 +1,11 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../../core/api/senior_api.dart';
+import '../../core/config/app_config.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 import '../chat/chat_screen.dart';
@@ -40,10 +46,50 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  int _unreadCount = 0;
+  int _unreadChatCount = 0;
+  Timer? _notiTimer;
+  final _api = const SeniorApi();
 
   VoidCallback? _currentAction;
   IconData? _currentActionIcon;
   String? _currentActionTooltip;
+
+  @override
+  void initState() {
+    super.initState();
+    _pollUnread();
+    _notiTimer = Timer.periodic(const Duration(seconds: 10), (_) => _pollUnread());
+  }
+
+  @override
+  void dispose() {
+    _notiTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _pollUnread() async {
+    try {
+      final alerts = await _api.fetchAlerts(widget.seniorId);
+      final count = alerts.where((a) => a is Map && a['isRead'] != true).length;
+      if (mounted && count != _unreadCount) setState(() => _unreadCount = count);
+    } catch (_) {}
+    try {
+      int chatUnread = 0;
+      for (final roomType in ['SENIOR_GUARDIAN', 'SENIOR_WELFARE']) {
+        final res = await http.get(Uri.parse(
+          '$apiBaseUrl/api/chat/senior/${widget.seniorId}?roomType=$roomType&viewerRole=SENIOR&size=50',
+        )).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final list = jsonDecode(utf8.decode(res.bodyBytes));
+          if (list is List) {
+            chatUnread += list.where((m) => m is Map && m['senderRole'] != 'SENIOR' && m['isRead'] != true).length;
+          }
+        }
+      }
+      if (mounted && chatUnread != _unreadChatCount) setState(() => _unreadChatCount = chatUnread);
+    } catch (_) {}
+  }
 
   void _go(int i) => setState(() {
         _index = i;
@@ -164,20 +210,75 @@ class _AppShellState extends State<AppShell> {
               ),
         actions: [
           // 채팅
-          IconButton(
-            icon:
-                const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
-            tooltip: '채팅',
-            onPressed: _openChat,
-            visualDensity: VisualDensity.compact,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
+                tooltip: '채팅',
+                onPressed: () {
+                  _openChat();
+                  setState(() => _unreadChatCount = 0);
+                },
+                visualDensity: VisualDensity.compact,
+              ),
+              if (_unreadChatCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFD94E4E),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      _unreadChatCount > 99 ? '99+' : '$_unreadChatCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           // 알림
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: Color(0xFF86A788)),
-            tooltip: '알림',
-            onPressed: _openNotifications,
-            visualDensity: VisualDensity.compact,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined,
+                    color: Color(0xFF86A788)),
+                tooltip: '알림',
+                onPressed: () {
+                  _openNotifications();
+                  setState(() => _unreadCount = 0);
+                },
+                visualDensity: VisualDensity.compact,
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFD94E4E),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      _unreadCount > 99 ? '99+' : '$_unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           // 설정
           IconButton(

@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
-import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
+import { readAlert, resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
+import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
@@ -187,10 +188,18 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!isLoaded) return;
+    const alertId = searchParams.get("alertId");
     try {
       setSaving(true);
       setSaveToast("saving");
-      await saveProfile(form);
+      const updatedProfile = await saveProfile(form);
+      if (alertId) {
+        const seniorId = updatedProfile?.senior?.id;
+        await readAlert(alertId).catch(() => {});
+        if (seniorId) {
+          await notifyProfileUpdateComplete({ seniorId, alertId }).catch(() => {});
+        }
+      }
       setSaveToast("saved");
       setTimeout(() => {
         setSaveToast(null);

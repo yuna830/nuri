@@ -172,11 +172,10 @@ class _ProfileForm {
 
 List<String> _parseList(dynamic v) {
   if (v == null) return [];
-  if (v is List) return v.map((e) => '$e').toList();
+  if (v is List) return v.map((e) => '$e').where((e) => e.isNotEmpty).toList();
   final s = '$v'.trim();
   if (s.isEmpty || s == '[]') return [];
   try {
-    // Try JSON array format
     if (s.startsWith('[')) {
       final inner = s.substring(1, s.length - 1);
       return inner
@@ -186,7 +185,8 @@ List<String> _parseList(dynamic v) {
           .toList();
     }
   } catch (_) {}
-  return [s];
+  // CSV 문자열 (웹에서 join(",")으로 저장한 형식)
+  return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 }
 
 List<Map<String, String>> _parseMedications(dynamic raw) {
@@ -375,10 +375,14 @@ class ProfileScreen extends StatefulWidget {
     required this.seniorId,
     this.hideAppBar = false,
     this.onRegisterAction,
+    this.initialSectionIndex,
+    this.pendingAlertId,
   });
   final int seniorId;
   final bool hideAppBar;
   final ActionRegistrar? onRegisterAction;
+  final int? initialSectionIndex;
+  final int? pendingAlertId;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -397,7 +401,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _sections.length, vsync: this);
+    _tabController = TabController(
+      length: _sections.length,
+      vsync: this,
+      initialIndex: widget.initialSectionIndex?.clamp(0, _sections.length - 1) ?? 0,
+    );
     _load();
   }
 
@@ -458,6 +466,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     setState(() => _saving = true);
     try {
       await _api.updateProfile(widget.seniorId, _formToApi(_form));
+      // 수정 요청 알림이 있었으면 읽음 처리 + 복지사 완료 알림
+      if (widget.pendingAlertId != null) {
+        await _api.readAlert(widget.pendingAlertId!);
+        await _api.notifyProfileUpdateComplete(widget.seniorId, widget.pendingAlertId!);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('저장되었습니다'), backgroundColor: Color(0xFF86A788)),
