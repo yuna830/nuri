@@ -356,9 +356,7 @@ function isRestoreDeleteRequest(text) {
 
 function getJobRecommendationActionAnswer(text) {
   const normalized = String(text || "").replace(/\s+/g, "");
-  const asksJob =
-    /(일자리|일할곳|구인|공고|채용|알바|근무)/.test(normalized) &&
-    /(맞춤|추천|나한테|내게|나에게|있어|보여|찾아)/.test(normalized);
+  const asksJob = /(일자리공고|일자리|일할곳|구인|공고|채용|알바|근무)/.test(normalized);
   if (!asksJob) return "";
 
   return [
