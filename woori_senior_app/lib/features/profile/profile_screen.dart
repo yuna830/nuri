@@ -487,23 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(
                     color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
               ),
-        actions: [
-          if (!_loading && !widget.hideAppBar)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: TextButton(
-                onPressed: _saving ? null : _save,
-                child: Text(
-                  _saving ? '저장 중...' : '저장',
-                  style: const TextStyle(
-                    color: Color(0xFF86A788),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-        ],
+        actions: const [],
         bottom: _loading
             ? null
             : TabBar(
@@ -527,7 +511,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _PersonalSection(
                       form: _form,
                       onChanged: () => setState(() {}),
-                      onLogout: _logout,
                     ),
                     _BodySection(form: _form, onChanged: () => setState(() {})),
                     _MedicationSection(form: _form, onChanged: () => setState(() {})),
@@ -565,11 +548,9 @@ class _PersonalSection extends StatefulWidget {
   const _PersonalSection({
     required this.form,
     required this.onChanged,
-    required this.onLogout,
   });
   final _ProfileForm form;
   final VoidCallback onChanged;
-  final VoidCallback onLogout;
 
   @override
   State<_PersonalSection> createState() => _PersonalSectionState();
@@ -831,20 +812,6 @@ class _PersonalSectionState extends State<_PersonalSection> {
             widget.form.disabilityType = v;
             widget.onChanged();
           }),
-      const SizedBox(height: 16),
-      OutlinedButton.icon(
-        onPressed: widget.onLogout,
-        icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
-        label: const Text(
-          '로그아웃',
-          style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.redAccent),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
     ]);
   }
 }
