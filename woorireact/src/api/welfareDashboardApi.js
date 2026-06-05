@@ -189,6 +189,17 @@ export const requestSeniorInfoUpdate = async ({
     return response.json();
 };
 
+// 정보수정 완료 알림 (복지사에게)
+export const notifyProfileUpdateComplete = async ({ seniorId, alertId }) => {
+    const response = await fetch("/api/alerts/profile-update-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seniorId, alertId }),
+    });
+    if (!response.ok) throw new Error("완료 알림 전송 실패");
+    return response.json().catch(() => ({}));
+};
+
 // 보호자 상담 요청 API 추가
 export const requestGuardianConsultation = async ({ seniorId, message }) => {
     const response = await fetch("/api/alerts/welfare-consult-request", {

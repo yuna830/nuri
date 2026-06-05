@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../settings/settings_screen.dart';
 
 typedef ActionRegistrar = void Function({
   required VoidCallback action,
@@ -17,11 +18,14 @@ class NotificationScreen extends StatefulWidget {
     required this.seniorId,
     this.hideAppBar = false,
     this.onRegisterAction,
+    this.typeFilter,
   });
 
   final int seniorId;
   final bool hideAppBar;
   final ActionRegistrar? onRegisterAction;
+  /// null 이면 전체 알림, 값이 있으면 해당 type 만 표시 (예: 'MEDICINE')
+  final String? typeFilter;
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -36,6 +40,7 @@ class _NotificationScreenState extends State<NotificationScreen>
   bool _refreshing = false;
   String? _error;
   Timer? _timer;
+  int _tabIndex = 0; // 0=전체, 1=읽지않음, 2=읽음
 
   @override
   void initState() {
@@ -76,11 +81,15 @@ class _NotificationScreenState extends State<NotificationScreen>
 
     try {
       final data = await _api.fetchAlerts(widget.seniorId);
-      final alerts = data
+      var alerts = data
           .whereType<Map<String, dynamic>>()
           .map((alert) => Map<String, dynamic>.from(alert))
           .toList()
         ..sort((a, b) => _createdAt(b).compareTo(_createdAt(a)));
+
+      if (widget.typeFilter != null) {
+        alerts = alerts.where((a) => a['type'] == widget.typeFilter).toList();
+      }
 
       if (!mounted) return;
       setState(() {
@@ -103,8 +112,13 @@ class _NotificationScreenState extends State<NotificationScreen>
     if (id == null || _isRead(alert)) return;
 
     setState(() => alert['isRead'] = true);
+
     try {
-      await _api.readAlert(id);
+      if (alert['type'] == 'CONSENT_REQUEST') {
+        await _api.confirmConsentRequest(id);
+      } else {
+        await _api.readAlert(id);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => alert['isRead'] = false);
@@ -200,17 +214,17 @@ class _NotificationScreenState extends State<NotificationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final content = RefreshIndicator(
-      onRefresh: _loadAlerts,
-      color: const Color(0xFF86A788),
-      child: _buildBody(),
-    );
-
-    if (widget.hideAppBar) return content;
+    if (widget.hideAppBar) return _buildBody();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFFFDEC),
       appBar: AppBar(
-        title: const Text('알림'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        title: Text(
+            widget.typeFilter == 'MEDICINE' ? '복약 알림' : '알림',
+            style: const TextStyle(fontWeight: FontWeight.w900)),
         actions: [
           IconButton(
             onPressed: _loadAlerts,
@@ -219,7 +233,7 @@ class _NotificationScreenState extends State<NotificationScreen>
           ),
         ],
       ),
-      body: content,
+      body: _buildBody(),
     );
   }
 
@@ -244,41 +258,158 @@ class _NotificationScreenState extends State<NotificationScreen>
     if (_alerts.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(20),
-        children: const [
+        children: [
           _EmptyState(
             icon: Icons.notifications_none,
-            title: '새 알림이 없습니다.',
-            message: '보호자, 복지사, 기후, 낙상 알림이 이곳에 표시됩니다.',
+            title: '알림이 없습니다.',
+            message: widget.typeFilter == 'MEDICINE'
+                ? '복약 알림이 없어요.'
+                : '보호자, 복지사, 기후, 낙상 알림이 이곳에 표시됩니다.',
           ),
         ],
       );
     }
 
     final unreadCount = _alerts.where((alert) => !_isRead(alert)).length;
+    final readCount = _alerts.length - unreadCount;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+    final filtered = _tabIndex == 1
+        ? _alerts.where((a) => !_isRead(a)).toList()
+        : _tabIndex == 2
+            ? _alerts.where((a) => _isRead(a)).toList()
+            : _alerts;
+
+    return Column(
       children: [
-        _SummaryCard(
-          total: _alerts.length,
-          unread: unreadCount,
-          refreshing: _refreshing,
-          onMarkAllRead: unreadCount == 0 ? null : _markAllRead,
-        ),
-        const SizedBox(height: 16),
-        ..._alerts.map(
-          (alert) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _NotificationCard(
-              alert: alert,
-              onRead: () => _markRead(alert),
-              onReply: alert['type'] == 'CHECK_IN_MESSAGE'
-                  ? () => _replyToCheckIn(alert)
-                  : null,
-            ),
+        // ── 탭 ──────────────────────────────────────
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: Row(
+            children: [
+              _SegTab(label: '전체', count: _alerts.length, selected: _tabIndex == 0, onTap: () => setState(() => _tabIndex = 0)),
+              _SegTab(label: '읽지 않음', count: unreadCount, selected: _tabIndex == 1, onTap: () => setState(() => _tabIndex = 1)),
+              _SegTab(label: '읽음', count: readCount, selected: _tabIndex == 2, onTap: () => setState(() => _tabIndex = 2)),
+              const Spacer(),
+              if (unreadCount > 0)
+                TextButton(
+                  onPressed: _markAllRead,
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF86A788),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: Size.zero,
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('모두 읽기'),
+                ),
+            ],
           ),
         ),
+        const Divider(height: 1, color: Color(0xFFEEEEEE)),
+        // ── 목록 ─────────────────────────────────────
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.notifications_none, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      Text(
+                        _tabIndex == 1 ? '읽지 않은 알림이 없어요.' : _tabIndex == 2 ? '읽은 알림이 없어요.' : '알림이 없어요.',
+                        style: TextStyle(color: Colors.grey.shade500, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _NotificationCard(
+                      alert: filtered[i],
+                      onRead: () => _markRead(filtered[i]),
+                      onReply: filtered[i]['type'] == 'CHECK_IN_MESSAGE'
+                          ? () => _replyToCheckIn(filtered[i])
+                          : null,
+                      onAction: filtered[i]['type'] == 'CONSENT_REQUEST'
+                          ? () {
+                              _markRead(filtered[i]);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SettingsScreen(seniorId: widget.seniorId),
+                                ),
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                ),
+        ),
       ],
+    );
+  }
+}
+
+class _SegTab extends StatelessWidget {
+  const _SegTab({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.fromLTRB(0, 14, 0, 10),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? const Color(0xFF86A788) : Colors.transparent,
+                width: 2.5,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? const Color(0xFF1F2A20) : const Color(0xFFAAAAAA),
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 5),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? const Color(0xFF86A788) : const Color(0xFFCCCCCC),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -356,11 +487,13 @@ class _NotificationCard extends StatelessWidget {
     required this.alert,
     required this.onRead,
     this.onReply,
+    this.onAction,
   });
 
   final Map<String, dynamic> alert;
   final VoidCallback onRead;
   final VoidCallback? onReply;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -369,135 +502,170 @@ class _NotificationCard extends StatelessWidget {
     final read = _isRead(alert);
     final imageUrl = _imageUrl(alert);
 
-    return InkWell(
-      onTap: onRead,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: read ? Colors.white.withValues(alpha: 0.72) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
+    return Opacity(
+      opacity: read ? 0.55 : 1.0,
+      child: InkWell(
+        onTap: onRead,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          decoration: BoxDecoration(
             color: read
-                ? const Color(0xFFE8E3C8)
-                : meta.color.withValues(alpha: 0.42),
-            width: read ? 1 : 1.4,
+                ? const Color(0xFFF5F5F5)
+                : meta.color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: read
+                  ? const Color(0xFFE0E0E0)
+                  : meta.color.withValues(alpha: 0.35),
+              width: read ? 1 : 1.5,
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 왼쪽 컬러 라인 (읽지 않은 경우만)
+              if (!read)
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 5,
                   decoration: BoxDecoration(
-                    color: meta.color.withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(14),
+                    color: meta.color,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(17),
+                      bottomLeft: Radius.circular(17),
+                    ),
                   ),
-                  child: Icon(meta.icon, color: meta.color, size: 24),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(read ? 16 : 12, 16, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: meta.color.withValues(alpha: 0.13),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(meta.icon, color: meta.color, size: 24),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              _title(alert, meta.label),
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _title(alert, meta.label),
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    if (!read)
+                                      Container(
+                                        width: 9,
+                                        height: 9,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFD94E4E),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  meta.label,
+                                  style: TextStyle(
+                                    color: meta.color,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          if (!read)
-                            Container(
-                              width: 9,
-                              height: 9,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFD94E4E),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
                         ],
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 12),
                       Text(
-                        meta.label,
-                        style: TextStyle(
-                          color: meta.color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                        _message(alert),
+                        style: const TextStyle(
+                          color: Color(0xFF344034),
+                          height: 1.45,
+                          fontSize: 14.5,
                         ),
+                      ),
+                      if (imageUrl.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            imageUrl,
+                            height: 150,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              height: 84,
+                              alignment: Alignment.center,
+                              color: const Color(0xFFF4F0D8),
+                              child: const Text('사진을 불러오지 못했습니다.'),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule,
+                              size: 15, color: Colors.grey.shade600),
+                          const SizedBox(width: 5),
+                          Text(
+                            _time(alert),
+                            style: TextStyle(
+                                color: Colors.grey.shade700, fontSize: 12),
+                          ),
+                          const Spacer(),
+                          if (onAction != null && !read)
+                            FilledButton(
+                              onPressed: onAction,
+                              child: const Text('설정하기'),
+                            )
+                          else if (onReply != null && !read)
+                            FilledButton(
+                              onPressed: onReply,
+                              child: const Text('답장'),
+                            )
+                          else if (read)
+                            const Text(
+                              '확인됨',
+                              style: TextStyle(
+                                color: Color(0xFF86A788),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            )
+                          else
+                            FilledButton.tonal(
+                              onPressed: onRead,
+                              child: const Text('확인'),
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _message(alert),
-              style: const TextStyle(
-                color: Color(0xFF344034),
-                height: 1.45,
-                fontSize: 14.5,
-              ),
-            ),
-            if (imageUrl.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  imageUrl,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 84,
-                    alignment: Alignment.center,
-                    color: const Color(0xFFF4F0D8),
-                    child: const Text('사진을 불러오지 못했습니다.'),
-                  ),
-                ),
               ),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.schedule, size: 15, color: Colors.grey.shade600),
-                const SizedBox(width: 5),
-                Text(
-                  _time(alert),
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                ),
-                const Spacer(),
-                if (onReply != null && !read)
-                  FilledButton(
-                    onPressed: onReply,
-                    child: const Text('답장'),
-                  )
-                else if (read)
-                  const Text(
-                    '확인됨',
-                    style: TextStyle(
-                      color: Color(0xFF86A788),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  )
-                else
-                  FilledButton.tonal(
-                    onPressed: onRead,
-                    child: const Text('확인'),
-                  ),
-              ],
-            ),
-          ],
+          ),
+          ),
         ),
       ),
     );

@@ -18,7 +18,7 @@ import FontSizeControl from "./FontSizeControl.jsx";
 import { fetchUnreadChatCount } from "../api/chatApi.js";
 import "../css/user/UserCommonHeader.css";
 
-const ALERT_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
+const ALERT_TABS = ["전체", "읽지 않음", "긴급", "낙상", "복약", "기후", "요청"];
 const REQUEST_CATEGORIES = new Set(["요청"]);
 
 const formatKoreanDate = () => {
@@ -195,8 +195,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   const [recentlyReadKeys, setRecentlyReadKeys] = useState([]);
   const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
   const [deletingAlerts, setDeletingAlerts] = useState(false);
-  const [infoRequestAlert, setInfoRequestAlert] = useState(null);
-  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const alertTabsRef = useRef(null);
@@ -215,28 +213,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     return value !== null && value !== undefined && String(value).trim() !== "";
   };
 
-  const isInfoRequestResolved = (alert, profile) => {
-    const senior = profile?.senior || {};
-    const message = alert?.message || "";
-
-    if (message.includes("성별") && !isFilled(senior.gender)) {
-      return false;
-    }
-
-    if (message.includes("생년월일") && !isFilled(senior.birthDate)) {
-      return false;
-    }
-
-    if (message.includes("연락처") && !isFilled(senior.phone)) {
-      return false;
-    }
-
-    if (message.includes("주소") && !isFilled(senior.region || senior.address)) {
-      return false;
-    }
-
-    return true;
-  };
 
   const loadAlerts = async ({ silent = false } = {}) => {
     const seniorId = getCurrentSeniorId();
@@ -258,39 +234,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
           .catch(() => null),
       ]);
 
-      const resolvedInfoRequestAlerts = seniorAlerts.filter((alert) =>
-        alert.type === "INFO_UPDATE_REQUEST"
-        && alert.isRead !== true
-        && isInfoRequestResolved(alert, currentProfile)
-      );
-
-      resolvedInfoRequestAlerts.forEach((alert) => {
-        readAlert(alert.id).catch((error) => {
-          console.warn("알림 읽음 처리 실패:", alert.id, error);
-        });
-      });
-
-      const nextInfoRequestAlert = seniorAlerts.find((alert) =>
-        alert.type === "INFO_UPDATE_REQUEST"
-        && alert.isRead !== true
-        && !dismissedInfoRequestIds.includes(String(alert.id))
-        && !isInfoRequestResolved(alert, currentProfile)
-      );
-
-      if (nextInfoRequestAlert) {
-        setInfoRequestAlert(nextInfoRequestAlert);
-      } else {
-        setInfoRequestAlert(null);
-      }
-
-      const resolvedInfoRequestIds = new Set(
-        resolvedInfoRequestAlerts.map((alert) => alert.id)
-      );
-
       const combined = [
         ...seniorAlerts
           .filter((alert) => !["SOS", "SOS_CANCEL"].includes(alert.type))
-          .filter((alert) => !resolvedInfoRequestIds.has(alert.id))
           .filter(shouldShowAlert)
           .map(normalizeUserAlert),
         ...climateAlerts
@@ -563,39 +509,6 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
         onClose={() => setIsChatOpen(false)}
       />
 
-      {infoRequestAlert && (
-        <div className="uch-info-request-backdrop">
-          <section className="uch-info-request-modal">
-            <h2>정보 입력 요청</h2>
-            <p>{infoRequestAlert.message || "미입력 정보를 확인하고 입력해주세요."}</p>
-
-            <div className="uch-info-request-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setDismissedInfoRequestIds((prev) => [
-                    ...prev,
-                    String(infoRequestAlert.id),
-                  ]);
-                  setInfoRequestAlert(null);
-                }}
-              >
-                나중에
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setInfoRequestAlert(null);
-                  navigate(`/profile?section=${getProfileSectionFromInfoRequest(infoRequestAlert.message)}`);
-                }}
-              >
-                정보 입력하기
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
 
       {isAlertPanelOpen && (
         <div className="uch-alert-backdrop" onClick={() => setIsAlertPanelOpen(false)}>
@@ -684,6 +597,17 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     <div className="uch-alert-action">
                       {userAlert.requiresGuardianConfirm ? (
                         <em className="waiting">보호자 확인 대기</em>
+                      ) : userAlert.type === "INFO_UPDATE_REQUEST" && !userAlert.isRead ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleReadAlert(userAlert);
+                            setIsAlertPanelOpen(false);
+                            navigate(`/profile?section=${getProfileSectionFromInfoRequest(userAlert.message)}&alertId=${userAlert.id}`);
+                          }}
+                        >
+                          수정하기
+                        </button>
                       ) : userAlert.canRead ? (
                         userAlert.isRead ? (
                           <em>확인됨</em>

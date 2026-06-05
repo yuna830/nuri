@@ -1263,23 +1263,8 @@ function WelfareSeniorDetail() {
 
                 {senior && (
                     <>
-                        <div className="wsd-status-group">
-                            <span className={getBadgeClass("health", senior.healthStatus)}>{senior.healthStatus}</span>
-                            <span className={getBadgeClass("alert", senior.alertStatus)}>{senior.alertStatus}</span>
-                            <span className={getBadgeClass("decision", senior.welfareDecision)}>{senior.welfareDecision}</span>
-                            <button
-                                type="button"
-                                className="wsd-small-button"
-                                onClick={() => {
-                                    setInfoRequestStatusMessage("");
-                                    setIsInfoRequestModalOpen(true);
-                                }}
-                            >
-                                정보수정 요청
-                            </button>
-                        </div>
-
                         <div className="wsd-category-layout">
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px", position: "sticky", top: "82px", alignSelf: "flex-start" }}>
                             <nav className="wsd-category-sidebar">
                                 <div className="wsd-sidebar-profile-card">
                                     <div className="wsd-sidebar-profile-photo">
@@ -1302,7 +1287,21 @@ function WelfareSeniorDetail() {
                                         {category}
                                     </button>
                                 ))}
+
                             </nav>
+
+                            <button
+                                type="button"
+                                className="wsd-small-button"
+                                style={{ width: "100%" }}
+                                onClick={() => {
+                                    setInfoRequestStatusMessage("");
+                                    setIsInfoRequestModalOpen(true);
+                                }}
+                            >
+                                정보수정 요청
+                            </button>
+                            </div>
 
                             <div className="wsd-category-content">
                                 {renderActiveSection()}
@@ -1336,13 +1335,14 @@ function WelfareSeniorDetail() {
 
                             <div className="wsd-info-request-list">
                                 {INFO_UPDATE_REQUEST_GROUPS.map((group) => (
-                                    <label className="wsd-info-request-option" key={group.key}>
+                                    <label className="wsd-info-request-option" key={group.key} style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "10px" }}>
                                         <input
                                             type="checkbox"
                                             checked={selectedInfoRequestKeys.includes(group.key)}
                                             onChange={() => toggleInfoRequestKey(group.key)}
+                                            style={{ flexShrink: 0, marginTop: "3px", width: "16px", height: "16px", accentColor: "#6f9272", cursor: "pointer" }}
                                         />
-                                        <span>
+                                        <span style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                                             <strong>{group.label}</strong>
                                             <small>{group.fields.join(", ")}</small>
                                         </span>

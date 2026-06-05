@@ -43,7 +43,10 @@ public class AlertController {
 
     @GetMapping("/guardian/{guardianId}")
     public List<Alert> getGuardianAlerts(@PathVariable Long guardianId) {
-        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId);
+        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId)
+                .stream()
+                .filter(alert -> !"CONSENT_REQUEST".equals(alert.getType()))
+                .toList();
     }
 
     @GetMapping("/senior/{seniorId}")
@@ -132,6 +135,43 @@ public class AlertController {
         return alerts;
     }
 
+    @PostMapping("/profile-update-complete")
+    public Alert createProfileUpdateCompleteAlert(@RequestBody ProfileUpdateCompleteRequest request) {
+        Senior senior = findSenior(request.seniorId());
+
+        // 원본 INFO_UPDATE_REQUEST 알림 읽음 처리
+        if (request.alertId() != null) {
+            alertRepository.findById(request.alertId()).ifPresent(orig -> {
+                orig.setIsRead(true);
+                alertRepository.save(orig);
+            });
+        }
+
+        // 복지사에게 완료 알림 생성
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(null);
+        alert.setType("PROFILE_UPDATE");
+        alert.setTitle("정보 수정 완료");
+        alert.setMessage(senior.getName() + "님이 요청하신 정보 수정을 완료했습니다.");
+        alert.setIsRead(false);
+
+        Alert saved = alertRepository.save(alert);
+
+        // 복지사 FCM 푸시 (모바일 앱이 있는 경우)
+        if (senior.getWelfareWorkerId() != null) {
+            fcmPushService.sendToUser(
+                    "WELFARE_WORKER",
+                    senior.getWelfareWorkerId(),
+                    saved.getTitle(),
+                    saved.getMessage(),
+                    saved.getType()
+            );
+        }
+
+        return saved;
+    }
+
     @PostMapping("/consent-request")
     public Alert createConsentRequestAlert(@RequestBody ConsentRequest request) {
         findSenior(request.seniorId());
@@ -152,7 +192,7 @@ public class AlertController {
         alert.setGuardianId(request.guardianId());
         alert.setType("CONSENT_REQUEST");
         alert.setTitle("정보 제공 동의 요청");
-        alert.setMessage(guardianName + " 보호자가 다음 항목에 대한 동의를 요청했습니다: " + requestedItems);
+        alert.setMessage(guardianName + " 보호자가 정보 제공 동의를 요청했습니다.");
         alert.setIsRead(false);
 
         return saveAndPushToSenior(alert);
@@ -316,6 +356,34 @@ public class AlertController {
         alertRepository.deleteAll(oldAlerts);
     }
 
+    @PostMapping("/{id}/consent-confirm")
+    public Alert confirmConsentRequest(@PathVariable Long id) {
+        Alert requestAlert = alertRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+
+        if (!"CONSENT_REQUEST".equals(requestAlert.getType())) {
+            throw new RuntimeException("Not a consent request alert");
+        }
+
+        requestAlert.setIsRead(true);
+        alertRepository.save(requestAlert);
+
+        Senior senior = findSenior(requestAlert.getSeniorId());
+        String seniorName = senior.getName() == null || senior.getName().isBlank()
+                ? "사용자"
+                : senior.getName();
+
+        Alert guardianAlert = new Alert();
+        guardianAlert.setSeniorId(requestAlert.getSeniorId());
+        guardianAlert.setGuardianId(requestAlert.getGuardianId());
+        guardianAlert.setType("CONSENT_CONFIRMED");
+        guardianAlert.setTitle("정보 제공 동의 확인");
+        guardianAlert.setMessage(seniorName + "님이 정보 제공 동의 요청을 확인했습니다.");
+        guardianAlert.setIsRead(false);
+
+        return saveAndPushToGuardian(guardianAlert);
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)
@@ -385,11 +453,26 @@ public class AlertController {
                 ))
                 .toList();
 
+        // 정보 수정 완료 알림 (복지사가 담당하는 시니어만)
+        List<Long> managedSeniorIds = inactiveAlertTargets.stream()
+                .map(Senior::getId)
+                .toList();
+
+        LocalDateTime profileUpdateCutoff = LocalDateTime.now().minusDays(30);
+        List<WelfareAlertResponse> profileUpdateAlerts = managedSeniorIds.isEmpty()
+                ? List.of()
+                : alertRepository.findBySeniorIdInAndTypeAndCreatedAtAfterOrderByCreatedAtDesc(
+                        managedSeniorIds, "PROFILE_UPDATE", profileUpdateCutoff)
+                  .stream()
+                  .map(alert -> toWelfareResponse(alert, "profile-update-", "정보 수정 완료", "PROFILE_UPDATE"))
+                  .toList();
+
         List<WelfareAlertResponse> responses = new ArrayList<>();
         responses.addAll(fallAlerts);
         responses.addAll(sosAlerts);
         responses.addAll(checkInOkAlerts);
         responses.addAll(inactiveAlerts);
+        responses.addAll(profileUpdateAlerts);
 
         return responses.stream()
                 .sorted((first, second) -> second.createdAt().compareTo(first.createdAt()))
@@ -588,6 +671,12 @@ public class AlertController {
             List<String> missingFields,
             Boolean toSenior,
             Boolean toGuardian
+    ) {
+    }
+
+    public record ProfileUpdateCompleteRequest(
+            Long seniorId,
+            Long alertId
     ) {
     }
 

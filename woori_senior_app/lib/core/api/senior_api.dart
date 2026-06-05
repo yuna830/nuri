@@ -199,6 +199,17 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// 정보 수정 완료 알림 (복지사에게)
+  Future<void> notifyProfileUpdateComplete(int seniorId, int alertId) async {
+    try {
+      await http.post(
+        Uri.parse('$apiBaseUrl/api/alerts/profile-update-complete'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'seniorId': seniorId, 'alertId': alertId}),
+      );
+    } catch (_) {}
+  }
+
   /// 일자리 공고 목록
   Future<Map<String, dynamic>> fetchJobList({
     int page = 1,
@@ -294,9 +305,8 @@ class SeniorApi {
   static const _timeout = Duration(seconds: 6);
 
   Future<Map<String, dynamic>> _getJson(String path) async {
-    final response = await http
-        .get(Uri.parse('$apiBaseUrl$path'))
-        .timeout(_timeout);
+    final response =
+        await http.get(Uri.parse('$apiBaseUrl$path')).timeout(_timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('API 요청 실패: $path');
@@ -310,9 +320,8 @@ class SeniorApi {
   }
 
   Future<List<dynamic>> _getJsonList(String path) async {
-    final response = await http
-        .get(Uri.parse('$apiBaseUrl$path'))
-        .timeout(_timeout);
+    final response =
+        await http.get(Uri.parse('$apiBaseUrl$path')).timeout(_timeout);
 
     if (response.statusCode == 204) {
       return [];
@@ -407,5 +416,15 @@ class SeniorApi {
     }
 
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> confirmConsentRequest(int alertId) async {
+    final response = await http.post(
+      Uri.parse('$apiBaseUrl/api/alerts/$alertId/consent-confirm'),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('동의 요청 확인 처리에 실패했습니다.');
+    }
   }
 }

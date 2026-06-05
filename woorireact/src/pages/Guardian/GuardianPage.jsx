@@ -364,11 +364,15 @@ function GuardianPage() {
 
   const unreadAlertsByElder = useMemo(() => {
     const map = {};
-    buildDisplayedAlerts(apiAlerts, reportedAlertIds).forEach((alert) => {
-      if (!alert.seniorId) return;
-      const id = String(alert.seniorId);
-      map[id] = (map[id] || 0) + 1;
-    });
+
+    buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      .filter((alert) => alert.rawAlert?.isRead !== true)
+      .forEach((alert) => {
+        if (!alert.seniorId) return;
+        const id = String(alert.seniorId);
+        map[id] = (map[id] || 0) + 1;
+      });
+
     return map;
   }, [apiAlerts, reportedAlertIds]);
 
@@ -666,20 +670,59 @@ function GuardianPage() {
     ? [location.lat, location.lng]
     : [safeZoneCenter.lat, safeZoneCenter.lng];
 
-  const distance = hasCurrentLocation ? getDistanceMeters(safeZoneCenter, location) : 0;
-  const isOutsideSafeZone = hasCurrentLocation && distance > safeZoneForm.radiusMeters;
+  const getSafeZoneStatus = (zones, currentLocation) => {
+    if (!currentLocation) {
+      return {
+        isOutside: false,
+        nearestDistance: 0,
+        nearestZone: null,
+        matchedZone: null,
+      };
+    }
+
+    const zoneDistances = zones.map((zone) => {
+      const distance = getDistanceMeters(
+        {
+          lat: zone.centerLatitude,
+          lng: zone.centerLongitude,
+        },
+        currentLocation
+      );
+
+      return {
+        zone,
+        distance,
+        isInside: distance <= zone.radiusMeters,
+      };
+    });
+
+    const matchedZone = zoneDistances.find((item) => item.isInside) ?? null;
+
+    const nearest = zoneDistances.reduce((best, item) => {
+      if (!best) return item;
+      return item.distance < best.distance ? item : best;
+    }, null);
+
+    return {
+      isOutside: matchedZone == null,
+      nearestDistance: nearest ? Math.round(nearest.distance) : 0,
+      nearestZone: nearest?.zone ?? null,
+      matchedZone: matchedZone?.zone ?? null,
+    };
+  };
+
+  const safeZoneStatus = getSafeZoneStatus(safeZones, hasCurrentLocation ? location : null);
+
+  const distance = safeZoneStatus.nearestDistance;
+  const isOutsideSafeZone = hasCurrentLocation && safeZoneStatus.isOutside;
 
   const getElderStatus = (elder) => {
-    const form = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
-
     if (!elder.currentLocation) return "unknown";
 
-    const elderDistance = getDistanceMeters(
-      { lat: form.centerLatitude, lng: form.centerLongitude },
-      elder.currentLocation
-    );
+    const zones = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
+    const status = getSafeZoneStatus(zones, elder.currentLocation);
 
-    return elderDistance > form.radiusMeters ? "danger" : "normal";
+    return status.isOutside ? "danger" : "normal";
   };
 
   const handleRouteDateChange = async (dateValue) => {
@@ -1950,6 +1993,7 @@ function GuardianHeader({
       showNotificationButton
       notifications={guardianNotifications}
       notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}
+
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);

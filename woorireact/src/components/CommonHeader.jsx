@@ -4,7 +4,7 @@ import { deleteAlerts } from "../api/userPageApi.js";
 import "../css/user/UserCommonHeader.css";
 import "../css/common/CommonHeader.css";
 
-const DEFAULT_NOTIFICATION_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
+const DEFAULT_NOTIFICATION_TABS = ["전체", "읽지 않음", "긴급", "낙상", "복약", "기후", "요청"];
 const READ_STATUSES = new Set(["확인됨", "읽음", "확인함", "조치완료", "만남 완료", "read", "READ", "resolved", "RESOLVED"]);
 
 function CommonHeader({
