@@ -64,6 +64,12 @@ export function useChatFlow({
         return;
       }
 
+      const jobRecommendationAnswer = getJobRecommendationActionAnswer(text);
+      if (jobRecommendationAnswer) {
+        answer(jobRecommendationAnswer, options);
+        return;
+      }
+
       if (pendingSchedules.length > 0 && isAffirmativeReply(text)) {
         await savePendingSchedules(pendingSchedules, options);
         return;
@@ -346,6 +352,26 @@ export function useChatFlow({
 function isRestoreDeleteRequest(text) {
   const normalized = normalizeScheduleText(text).replace(/\s+/g, "");
   return /(되돌려|돌려줘|복구|다시등록|삭제취소|취소해줘)/.test(normalized);
+}
+
+function getJobRecommendationActionAnswer(text) {
+  const normalized = String(text || "").replace(/\s+/g, "");
+  const asksJob = /(일자리공고|일자리|일할곳|구인|공고|채용|알바|근무)/.test(normalized);
+  if (!asksJob) return "";
+
+  return [
+    "맞춤 일자리 추천은 공고 화면에서 TOP 5로 크게 볼 수 있어요.",
+    "",
+    "[WOORI_ACTION_CARD]",
+    JSON.stringify({
+      type: "job_recommendation",
+      title: "맞춤 추천 TOP 5 보기",
+      description: "건강 정보와 희망 조건을 기준으로 계산한 일자리 추천을 확인해요.",
+      href: "/jobs",
+      buttonLabel: "일자리 공고 보러가기",
+    }),
+    "[/WOORI_ACTION_CARD]",
+  ].join("\n");
 }
 
 function scheduleToSearchText(schedule) {

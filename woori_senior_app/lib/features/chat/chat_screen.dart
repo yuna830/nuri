@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -9,9 +8,13 @@ import 'package:mime/mime.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/config/secrets.dart';
 
-// AI 백엔드 주소 (에뮬레이터에서 호스트 PC 접근)
-const _aiBaseUrl = 'http://10.0.2.2:8001';
+// Gemini API 설정
+const _geminiApiKey = geminiApiKey;
+const _geminiModel = 'gemini-2.5-flash-lite';
+const _geminiUrl =
+    'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.seniorId});
@@ -199,29 +202,11 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
 
     setState(() => _sending = true);
     try {
-      final file = File(picked.path);
-      final bytes = await file.readAsBytes();
+      final bytes = await picked.readAsBytes();
       final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
       final name = picked.name;
-
-      final req = http.MultipartRequest(
-        'POST',
-        Uri.parse('$apiBaseUrl/api/uploads/chat'),
-      );
-      req.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: name,
-      ));
-
-      final streamed = await req.send();
-      final res = await http.Response.fromStream(streamed);
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final url = '${data['fileUrl'] ?? data['imageUrl'] ?? ''}';
-        await _send(attachUrl: url, attachName: name, attachType: mime);
-      }
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      await _send(attachUrl: dataUrl, attachName: name, attachType: mime);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -302,19 +287,21 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   final _api = const SeniorApi();
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _picker = ImagePicker();
 
   final List<_AiMsg> _history = [];
   bool _sending = false;
-  Map<String, dynamic> _profile = {};
+  Map<String, dynamic> _senior = {};
+  Map<String, dynamic> _healthInfo = {};
+  String? _pendingImageBase64;
+  String? _pendingImageMime;
+  int? _conversationId;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _history.add(const _AiMsg(
-      role: 'assistant',
-      text: '안녕하세요! 복지 정보나 건강에 대해 궁금한 것을 물어보세요. 😊',
-    ));
+    _initConversation();
   }
 
   @override
@@ -329,43 +316,287 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       final raw = await _api.fetchProfile(widget.seniorId);
       final s = raw['senior'] as Map<String, dynamic>? ?? {};
       final h = raw['healthInfo'] as Map<String, dynamic>? ?? {};
-      if (mounted) setState(() => _profile = {...s, ...h});
+      if (mounted) setState(() { _senior = s; _healthInfo = h; });
     } catch (_) {}
+  }
+
+  // 가장 최근 대화 불러오거나 없으면 새로 생성
+  Future<void> _initConversation() async {
+    try {
+      final baseUrl = '$apiBaseUrl/api/assistant-conversations';
+      // 최근 대화 목록 조회
+      final listRes = await http.get(
+        Uri.parse('$baseUrl/senior/${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+
+      if (listRes.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(listRes.bodyBytes)) as List;
+        if (list.isNotEmpty) {
+          final conv = list.first as Map<String, dynamic>;
+          _conversationId = conv['id'] as int?;
+          await _loadMessages();
+          return;
+        }
+      }
+      // 대화 없으면 새로 생성
+      await _createConversation();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  Future<void> _createConversation() async {
+    try {
+      final res = await http.post(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/senior/${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        _conversationId = data['id'] as int?;
+      }
+      _addWelcome();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  Future<void> _loadMessages() async {
+    if (_conversationId == null) { _addWelcome(); return; }
+    try {
+      final res = await http.get(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/$_conversationId/messages?seniorId=${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+        if (list.isNotEmpty && mounted) {
+          final msgs = list.map((m) {
+            final raw = m['content'] as String? ?? '';
+            final (text, urls) = _decodeImgUrls(raw);
+            return _AiMsg(
+              role: (m['role'] as String).toLowerCase() == 'user' ? 'user' : 'assistant',
+              text: text,
+              imageUrl: urls.isNotEmpty ? urls.first : null,
+            );
+          }).toList();
+          setState(() => _history.addAll(msgs));
+          _scrollToBottom();
+          return;
+        }
+      }
+      _addWelcome();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  // 이미지를 서버에 업로드하고 URL 반환
+  Future<String?> _uploadImage(List<int> bytes, String mime) async {
+    try {
+      final uri = Uri.parse('$apiBaseUrl/api/uploads/profile');
+      final ext = mime.contains('png') ? 'png' : 'jpg';
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(http.MultipartFile.fromBytes(
+          'image', bytes,
+          filename: 'chat_${DateTime.now().millisecondsSinceEpoch}.$ext',
+        ));
+      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        final url = '${data['fileUrl'] ?? data['imageUrl'] ?? ''}';
+        return url.isNotEmpty ? url : null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _addWelcome() {
+    if (mounted && _history.isEmpty) {
+      setState(() => _history.add(const _AiMsg(
+        role: 'assistant',
+        text: '안녕하세요! 복지 정보나 건강에 대해 궁금한 것을 물어보세요. 😊',
+      )));
+    }
+  }
+
+  Future<void> _saveMessage(String role, String content, {String? imageUrl}) async {
+    if (_conversationId == null) return;
+    try {
+      final encoded = imageUrl != null
+          ? _encodeImgUrls(content, [imageUrl])
+          : content;
+      await http.post(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/$_conversationId/messages?seniorId=${widget.seniorId}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'role': role.toUpperCase(), 'content': encoded}),
+      ).timeout(const Duration(seconds: 6));
+    } catch (_) {}
+  }
+
+  Future<void> _pickAiImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
+    setState(() {
+      _pendingImageBase64 = base64Encode(bytes);
+      _pendingImageMime = mime;
+    });
+  }
+
+  String _buildSystemPrompt() {
+    String sv(String key) {
+      final val = _senior[key];
+      if (val == null) return '';
+      final s = '$val'.trim();
+      return (s.isEmpty || s == 'null') ? '' : s;
+    }
+
+    String hv(String key) {
+      final val = _healthInfo[key];
+      if (val == null) return '';
+      final s = '$val'.trim();
+      return (s.isEmpty || s == 'null') ? '' : s;
+    }
+
+    final name = sv('name').isNotEmpty ? sv('name') : '사용자';
+
+    // 기본 정보
+    final basicParts = <String>[];
+    if (sv('age').isNotEmpty) basicParts.add('나이: ${sv('age')}세');
+    if (sv('gender').isNotEmpty) basicParts.add('성별: ${sv('gender')}');
+    if (sv('region').isNotEmpty) basicParts.add('지역: ${sv('region')}');
+
+    // 건강 정보 (health_info 테이블 전체)
+    final healthParts = <String>[];
+    final fieldLabels = {
+      'healthStatus': '건강상태',
+      'diabetes': '당뇨',
+      'hypertension': '고혈압',
+      'heartDisease': '심장질환',
+      'stroke': '뇌졸중',
+      'dementia': '치매',
+      'jointDisease': '관절질환',
+      'kidneyDisease': '신장질환',
+      'lungDisease': '폐질환',
+      'liverDisease': '간질환',
+      'cancer': '암',
+      'bloodPressure': '혈압',
+      'allergies': '알레르기',
+      'walkingAid': '보행보조도구',
+      'recentFall': '최근낙상',
+      'vision': '시력',
+      'hearing': '청력',
+      'smoking': '흡연',
+      'drinking': '음주',
+      'hasSurgery': '수술이력',
+      'surgeryDetail': '수술상세',
+      'otherDisease': '기타질환',
+      'height': '신장',
+      'weight': '체중',
+      'medicineCount': '복용약수',
+      'householdType': '가구형태',
+      'housingType': '주거형태',
+      'livingCostStatus': '생활비상태',
+      'incomeLevel': '소득수준',
+      'pensionStatus': '연금수급',
+      'currentBenefits': '현재수급',
+      'welfareDecision': '복지결정',
+    };
+
+    for (final entry in fieldLabels.entries) {
+      final val = hv(entry.key);
+      if (val.isNotEmpty && val != '없음' && val != '정상' && val != '비해당') {
+        healthParts.add('${entry.value}: $val');
+      }
+    }
+
+    // 복약 정보 (medicationsJson)
+    final medsRaw = _healthInfo['medicationsJson'];
+    if (medsRaw != null && '$medsRaw'.trim().isNotEmpty && '$medsRaw' != '[]') {
+      try {
+        final meds = jsonDecode('$medsRaw') as List;
+        if (meds.isNotEmpty) {
+          final medNames = meds.map((m) => m is Map ? (m['name'] ?? m['약명'] ?? '$m') : '$m').join(', ');
+          healthParts.add('복용중인약: $medNames');
+        }
+      } catch (_) {
+        healthParts.add('복용중인약: $medsRaw');
+      }
+    }
+
+    final basicContext = basicParts.isEmpty ? '' : basicParts.join(' / ');
+    final healthContext = healthParts.isEmpty ? '(건강 정보 없음)' : healthParts.join('\n');
+
+    return '너는 $name님($basicContext)의 일상을 돕는 한국어 돌봄 챗봇이다.\n\n'
+        '[${name}님 건강·복지 정보 - DB 기준]\n$healthContext\n\n'
+        '규칙:\n'
+        '- 모든 답변은 자연스러운 한국어 존댓말로 한다.\n'
+        '- 위 건강·복지 정보를 반드시 참고하여 개인 상황에 맞게 답변한다.\n'
+        '- 이미 알고 있는 정보는 다시 묻지 않는다.\n'
+        '- 복지 정책, 건강, 일자리에 대해 간결하게 답변한다.\n'
+        '- 이미지가 첨부되면 이미지 내용을 분석하여 답변한다.\n'
+        '- 모르면 지어내지 말고 다시 말해 달라고 한다.\n'
+        '- 반말, 외국어 섞어 쓰기는 하지 않는다.';
   }
 
   Future<void> _ask() async {
     final q = _inputCtrl.text.trim();
-    if (q.isEmpty || _sending) return;
+    final hasImage = _pendingImageBase64 != null;
+    if (q.isEmpty && !hasImage || _sending) return;
 
     _inputCtrl.clear();
+    final sentImageBase64 = _pendingImageBase64;
+    final sentImageMime = _pendingImageMime;
+    // 이미지 업로드 → URL 획득
+    String? uploadedImageUrl;
+    if (sentImageBase64 != null) {
+      final bytes = base64Decode(sentImageBase64);
+      uploadedImageUrl = await _uploadImage(bytes, sentImageMime ?? 'image/jpeg');
+    }
+
+    _saveMessage('USER', q, imageUrl: uploadedImageUrl);
     setState(() {
-      _history.add(_AiMsg(role: 'user', text: q));
+      _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime, imageUrl: uploadedImageUrl));
+      _pendingImageBase64 = null;
+      _pendingImageMime = null;
       _sending = true;
     });
     _scrollToBottom();
 
+    // 프로필 아직 안 불러왔으면 먼저 로드
+    if (_healthInfo.isEmpty && _senior.isEmpty) await _loadProfile();
+
     try {
-      final historyForApi = _history
-          .where((m) => m.role != 'user' || m.text != q)
-          .take(_history.length - 1)
-          .map((m) => {'role': m.role, 'text': m.text})
+      final systemPrompt = _buildSystemPrompt();
+
+      // 이전 대화 히스토리 (이미지 없는 텍스트만)
+      final prevContents = _history
+          .where((m) => !(m.role == 'user' && m.text == q && m.imageBase64 == sentImageBase64))
+          .map((m) => {
+                'role': m.role == 'assistant' ? 'model' : 'user',
+                'parts': [{'text': m.text}],
+              })
           .toList();
 
+      // 현재 메시지 파트 (텍스트 + 이미지)
+      final userParts = <Map<String, dynamic>>[];
+      if (q.isNotEmpty) userParts.add({'text': q});
+      if (sentImageBase64 != null) {
+        userParts.add({'inlineData': {'mimeType': sentImageMime ?? 'image/jpeg', 'data': sentImageBase64}});
+      }
+
+      final contents = [...prevContents, {'role': 'user', 'parts': userParts}];
+
       final res = await http.post(
-        Uri.parse('$_aiBaseUrl/api/chat'),
+        Uri.parse('$_geminiUrl?key=$_geminiApiKey'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
         body: jsonEncode({
-          'question': q,
-          'mode': 'qa',
-          'audience': 'worker',
-          'history': historyForApi,
-          'profile': {
-            'name': _profile['name'] ?? '',
-            'age': _profile['age'],
-            'gender': _profile['gender'] ?? '',
-            'region': _profile['region'] ?? _profile['address'] ?? '',
-            'incomeLevel': _profile['incomeLevel'] ?? '',
-            'householdType': _profile['householdType'] ?? '',
+          'system_instruction': {'parts': [{'text': systemPrompt}]},
+          'contents': contents,
+          'generationConfig': {
+            'maxOutputTokens': 400,
+            'temperature': 0.5,
           },
         }),
       ).timeout(const Duration(seconds: 30));
@@ -374,17 +605,23 @@ class _AiChatRoomState extends State<_AiChatRoom> {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-        final answer = data['answer']?.toString() ?? '답변을 가져오지 못했습니다.';
+        final answer = (data['candidates'] as List?)
+                ?.first['content']['parts']?.first['text']
+                ?.toString()
+                .trim() ??
+            '답변을 가져오지 못했습니다.';
         setState(() => _history.add(_AiMsg(role: 'assistant', text: answer)));
+        _saveMessage('ASSISTANT', answer);
       } else {
+        // ignore: avoid_print
+        print('[Gemini] status=${res.statusCode} body=${res.body}');
         setState(() => _history.add(const _AiMsg(
             role: 'assistant', text: 'AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.')));
       }
     } catch (_) {
       if (mounted) {
         setState(() => _history.add(const _AiMsg(
-            role: 'assistant',
-            text: 'AI 서버에 연결할 수 없습니다.\n(AI 백엔드 서버가 실행 중인지 확인하세요)')));
+            role: 'assistant', text: '응답을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.')));
       }
     } finally {
       if (mounted) {
@@ -455,38 +692,61 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                     const SizedBox(width: 8),
                   ],
                   Flexible(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isMine
-                            ? const Color(0xFF86A788)
-                            : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(16),
-                          topRight: const Radius.circular(16),
-                          bottomLeft: Radius.circular(isMine ? 16 : 4),
-                          bottomRight: Radius.circular(isMine ? 4 : 16),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
+                    child: Column(
+                      crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        if (m.imageBase64 != null || m.imageUrl != null) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: m.imageBase64 != null
+                                ? Image.memory(
+                                    base64Decode(m.imageBase64!),
+                                    width: 200, fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    m.imageUrl!.startsWith('/')
+                                        ? '$apiBaseUrl${m.imageUrl}'
+                                        : m.imageUrl!,
+                                    width: 200, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const Icon(Icons.broken_image, size: 48),
+                                  ),
                           ),
+                          const SizedBox(height: 4),
                         ],
-                      ),
-                      child: Text(
-                        m.text,
-                        style: TextStyle(
-                          color: isMine ? Colors.white : const Color(0xFF1F2A20),
-                          fontSize: 14,
-                          height: 1.5,
-                        ),
-                      ),
+                        if (m.text.isNotEmpty)
+                          Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isMine ? const Color(0xFF86A788) : Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(isMine ? 16 : 4),
+                                bottomRight: Radius.circular(isMine ? 4 : 16),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              m.text,
+                              style: TextStyle(
+                                color: isMine ? Colors.white : const Color(0xFF1F2A20),
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -495,21 +755,76 @@ class _AiChatRoomState extends State<_AiChatRoom> {
           },
         ),
       ),
+      if (_pendingImageBase64 != null)
+        Stack(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                image: DecorationImage(
+                  image: MemoryImage(base64Decode(_pendingImageBase64!)),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => setState(() { _pendingImageBase64 = null; _pendingImageMime = null; }),
+                child: const CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.black54,
+                  child: Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
       _InputBar(
         controller: _inputCtrl,
         sending: _sending,
         onSend: _ask,
-        onAttach: null, // AI는 파일 첨부 불필요
+        onAttach: _pickAiImage,
         hintText: '복지 · 건강 · 일자리에 대해 질문하세요',
       ),
     ]);
   }
 }
 
+// 웹앱과 동일한 이미지 URL 인코딩 마커
+const _imgStart = '[WOORI_IMAGE_URLS]';
+const _imgEnd = '[/WOORI_IMAGE_URLS]';
+
+String _encodeImgUrls(String content, List<String> urls) {
+  if (urls.isEmpty) return content;
+  return '$content\n\n$_imgStart${jsonEncode(urls)}$_imgEnd';
+}
+
+(String, List<String>) _decodeImgUrls(String raw) {
+  final pattern = RegExp(
+    RegExp.escape(_imgStart) + r'([\s\S]*?)' + RegExp.escape(_imgEnd) + r'\s*$',
+  );
+  final match = pattern.firstMatch(raw);
+  if (match == null) return (raw.trim(), []);
+  try {
+    final urls = (jsonDecode(match.group(1)!) as List).cast<String>();
+    final content = raw.replaceFirst(pattern, '').trim();
+    return (content, urls);
+  } catch (_) {
+    return (raw.trim(), []);
+  }
+}
+
 class _AiMsg {
-  const _AiMsg({required this.role, required this.text});
+  const _AiMsg({required this.role, required this.text, this.imageBase64, this.imageMime, this.imageUrl});
   final String role;
   final String text;
+  final String? imageBase64; // 즉시 표시용 (전송 직후)
+  final String? imageMime;
+  final String? imageUrl;    // 서버 저장 URL (히스토리 복원용)
 }
 
 // ─── 공통 위젯 ────────────────────────────────────────────────────────────────
@@ -650,6 +965,19 @@ class _AttachmentBubble extends StatelessWidget {
     final fullUrl = url.startsWith('http') ? url : '$apiBaseUrl$url';
 
     if (_isImage) {
+      if (url.startsWith('data:')) {
+        // Base64 data URL 처리
+        final base64Str = url.contains(',') ? url.split(',').last : url;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(
+            base64Decode(base64Str),
+            width: 200,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fileTile(),
+          ),
+        );
+      }
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.network(

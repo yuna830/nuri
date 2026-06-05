@@ -1,4 +1,5 @@
 import { forwardRef, Fragment } from "react";
+import { Link } from "react-router-dom";
 
 const FALLBACK_MESSAGE_TIME = Date.now();
 
@@ -11,9 +12,10 @@ function formatMessageTime(value) {
 }
 
 function parseFoodAnalysis(content) {
-  if (!content?.startsWith("성분표 분석이 끝났어요.")) return null;
+  const normalizedContent = String(content || "").replace(/^\d+번째 사진\s*\n/, "");
+  if (!normalizedContent.startsWith("성분표 분석이 끝났어요.")) return null;
 
-  const lines = content.split("\n").map((line) => line.trim());
+  const lines = normalizedContent.split("\n").map((line) => line.trim());
   const nutrientsStart = lines.indexOf("영양성분");
   const warningsStart = lines.indexOf("주의사항");
   if (nutrientsStart < 0 || warningsStart < 0) return null;
@@ -88,7 +90,7 @@ function FoodAnalysisMessage({ analysis }) {
 }
 
 function parseFoodSafetyAdvice(content) {
-  const lines = String(content || "").split("\n").map((line) => line.trim());
+  const lines = String(content || "").replace(/^\d+번째 사진\s*\n/, "").split("\n").map((line) => line.trim());
   const cautionStart = lines.indexOf("주의할 점");
   if (cautionStart < 0) return null;
 
@@ -110,6 +112,36 @@ function parseFoodSafetyAdvice(content) {
     : [];
 
   return cautions.length ? { title, cautions, tips } : null;
+}
+
+function parseActionCard(content) {
+  const text = String(content || "");
+  const match = text.match(/\[WOORI_ACTION_CARD\]([\s\S]*?)\[\/WOORI_ACTION_CARD\]/);
+  if (!match) return null;
+
+  try {
+    return {
+      intro: text.replace(match[0], "").trim(),
+      action: JSON.parse(match[1]),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function ActionCardMessage({ card }) {
+  return (
+    <div className="chat-action-card">
+      {card.intro && <p className="chat-action-card-intro">{card.intro}</p>}
+      <div className="chat-action-card-box">
+        <strong>{card.action.title}</strong>
+        {card.action.description && <span>{card.action.description}</span>}
+        <Link className="chat-action-card-button" to={card.action.href || "/"}>
+          {card.action.buttonLabel || "바로가기"}
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function FoodSafetyAdviceMessage({ advice }) {
@@ -149,28 +181,42 @@ const MessageList = forwardRef(function MessageList(
         const messageKey = `${message.role}-${index}`;
         const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
+        const imageUrls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
         const foodAnalysis = parseFoodAnalysis(message.content);
         const foodSafetyAdvice = foodAnalysis ? null : parseFoodSafetyAdvice(message.content);
+        const actionCard = foodAnalysis || foodSafetyAdvice ? null : parseActionCard(message.content);
+        const specialMessageClass = foodAnalysis || foodSafetyAdvice
+          ? "food-analysis"
+          : actionCard
+            ? "action-card-message"
+            : "";
 
         return (
           <Fragment key={messageKey}>
-            {message.imageUrl && (
+            {imageUrls.length > 0 && (
               <div className={`chat-message-row image ${message.role}`}>
-                <img
-                  className="chat-message-image"
-                  src={message.imageUrl}
-                  alt="첨부한 사진"
-                />
+                <div className="chat-message-images">
+                  {imageUrls.map((imageUrl, imageIndex) => (
+                    <img
+                      className="chat-message-image"
+                      src={imageUrl}
+                      alt={`첨부한 사진 ${imageIndex + 1}`}
+                      key={imageUrl}
+                    />
+                  ))}
+                </div>
                 {!hasVisibleContent && <time className="chat-message-time">{formattedTime}</time>}
               </div>
             )}
             {hasVisibleContent && (
               <div className={`chat-message-row ${message.role}`}>
-                <div className={`chat-message ${message.role} ${foodAnalysis || foodSafetyAdvice ? "food-analysis" : ""}`}>
+                <div className={`chat-message ${message.role} ${specialMessageClass}`}>
                   {foodAnalysis ? (
                     <FoodAnalysisMessage analysis={foodAnalysis} />
                   ) : foodSafetyAdvice ? (
                     <FoodSafetyAdviceMessage advice={foodSafetyAdvice} />
+                  ) : actionCard ? (
+                    <ActionCardMessage card={actionCard} />
                   ) : (
                     message.content
                   )}

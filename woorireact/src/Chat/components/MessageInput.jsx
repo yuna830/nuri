@@ -9,20 +9,30 @@ export default function MessageInput({
   onSend,
   onStartRecording,
   onStopRecording,
-  pendingImageUrl,
+  pendingImageUrls = [],
   onImageSelect,
   onImageRemove,
 }) {
   const fileInputRef = useRef(null);
+  const hasPendingImages = pendingImageUrls.length > 0;
 
   return (
     <div className="chatbot-input-area">
-      {pendingImageUrl && (
-        <div className="chat-pending-image">
-          <img src={pendingImageUrl} alt="첨부할 사진 미리보기" />
-          <button type="button" onClick={onImageRemove} aria-label="첨부 사진 삭제" title="첨부 사진 삭제">
-            <X size={18} />
-          </button>
+      {hasPendingImages && (
+        <div className="chat-pending-images">
+          {pendingImageUrls.map((pendingImageUrl, index) => (
+            <div className="chat-pending-image" key={pendingImageUrl}>
+              <img src={pendingImageUrl} alt={`첨부할 사진 ${index + 1} 미리보기`} />
+              <button
+                type="button"
+                onClick={() => onImageRemove(index)}
+                aria-label={`첨부 사진 ${index + 1} 삭제`}
+                title="첨부 사진 삭제"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -32,10 +42,11 @@ export default function MessageInput({
           type="file"
           accept="image/*"
           capture="environment"
+          multiple
           className="chat-photo-input"
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onImageSelect(file);
+            const files = Array.from(event.target.files || []);
+            if (files.length > 0) onImageSelect(files);
             event.target.value = "";
           }}
         />
@@ -54,7 +65,7 @@ export default function MessageInput({
         <input
           type="text"
           value={input}
-          placeholder={pendingImageUrl ? "사진과 함께 보낼 내용을 입력하세요" : "예: 내일 오후 5시 치과 예약"}
+          placeholder={hasPendingImages ? "사진과 함께 보낼 내용을 입력하세요" : "예: 내일 오후 5시 치과 예약"}
           onChange={(event) => onInputChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") onSend();

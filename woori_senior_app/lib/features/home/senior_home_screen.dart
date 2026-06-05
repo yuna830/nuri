@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
@@ -565,6 +566,8 @@ class _HomeBody extends StatelessWidget {
 
     final guardianSummary = _guardianSummary(profile);
     final workerSummary = _workerSummary(profile);
+    final guardianPhone = _textFrom(profile, ['guardianPhone'], '');
+    final workerPhone = _textFrom(profile, ['socialWorkerPhone'], '');
     final medicineCount = _medicineCount(data.alerts);
 
     return RefreshIndicator(
@@ -589,8 +592,7 @@ class _HomeBody extends StatelessWidget {
                     icon: Icons.call,
                     title: '보호자 전화',
                     subtitle: guardianSummary,
-                    onTap: () => _showInfo(context, '보호자 전화',
-                        '전화 앱에서 보호자에게 연락해주세요.'),
+                    onTap: () => _callPhone(context, guardianPhone, '보호자'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -599,8 +601,7 @@ class _HomeBody extends StatelessWidget {
                     icon: Icons.support_agent,
                     title: '복지사 전화',
                     subtitle: workerSummary,
-                    onTap: () => _showInfo(context, '복지사 전화',
-                        '담당 복지사에게 상담을 요청할 수 있어요.'),
+                    onTap: () => _callPhone(context, workerPhone, '복지사'),
                   ),
                 ),
               ],
@@ -656,6 +657,21 @@ class _HomeBody extends StatelessWidget {
     );
   }
 
+  Future<void> _callPhone(BuildContext context, String phone, String label) async {
+    final number = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (number.isEmpty) {
+      _showInfo(context, '$label 전화', '전화번호가 등록되어 있지 않아요.');
+      return;
+    }
+    try {
+      await const MethodChannel('com.woori/phone').invokeMethod('dial', number);
+    } catch (_) {
+      if (context.mounted) {
+        _showInfo(context, '$label 전화', '전화 앱을 열 수 없어요. ($number)');
+      }
+    }
+  }
+
   void _showInfo(BuildContext context, String title, String message) {
     showDialog(
       context: context,
@@ -673,7 +689,6 @@ class _HomeBody extends StatelessWidget {
   }
 
   String _guardianSummary(Map<String, dynamic> profile) {
-    // Spring SeniorProfileResponse: flat 필드 guardianName, guardianPhone
     final name = _textFrom(profile, ['guardianName'], '');
     if (name.isNotEmpty) {
       final rel = _textFrom(profile, ['relation'], '');

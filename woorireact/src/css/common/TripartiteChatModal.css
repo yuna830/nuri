@@ -335,9 +335,8 @@
 
 .tcm-compose-attachment {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 40px;
+  flex-direction: column;
+  gap: 0.3rem;
   border-bottom: 1px solid #d4e8d6;
   padding: 0.4rem 1.2rem;
   background: #f4faf5;
@@ -346,11 +345,19 @@
   font-weight: 800;
 }
 
+.tcm-compose-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+}
+
 .tcm-compose-attachment img {
   width: 34px;
   height: 34px;
   border-radius: 8px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .tcm-compose-attachment span {
@@ -364,9 +371,15 @@
 .tcm-compose-attachment button {
   min-height: 28px;
   width: 28px;
+  flex-shrink: 0;
   border-radius: 999px;
   background: #ffffff;
   color: #48694b;
+}
+
+.tcm-file-button-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .tcm-compose button {

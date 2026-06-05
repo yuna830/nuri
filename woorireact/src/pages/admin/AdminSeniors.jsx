@@ -6,10 +6,10 @@ import AdminLayout from "./AdminLayout";
 import { useAdminData } from "./useAdminData";
 
 const TEXT = {
-  title: "\uc5b4\ub974\uc2e0 \uad00\ub9ac",
-  description: "\uc804\uccb4 \uc5b4\ub974\uc2e0 \ubaa9\ub85d\uacfc \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac, \uc5f0\uacb0 \ubcf4\ud638\uc790, \uacc4\uc815 \uc0c1\ud0dc\ub97c \uad00\ub9ac\ud569\ub2c8\ub2e4.",
+  title: "보호대상자 관리",
+  description: "전체 보호대상자 목록과 담당 복지사, 연결 보호자, 계정 상태를 관리합니다.",
   searchPlaceholder: "\uc774\ub984, \uc8fc\uc18c, \ubcf5\uc9c0\uc0ac \uac80\uc0c9",
-  loading: "\uc5b4\ub974\uc2e0 \ubaa9\ub85d\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.",
+  loading: "보호대상자 목록을 불러오는 중입니다.",
   name: "\uc774\ub984",
   age: "\ub098\uc774",
   welfare: "\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac",
@@ -75,7 +75,7 @@ function AdminSeniors() {
           placeholder={TEXT.searchPlaceholder}
           onChange={(event) => setKeyword(event.target.value)}
         />
-        <div className="admin-filter-tabs" aria-label="\uc5b4\ub974\uc2e0 \ud544\ud130">
+        <div className="admin-filter-tabs" aria-label="보호대상자 필터">
           {filterOptions.map((option) => (
             <button
               key={option.value}

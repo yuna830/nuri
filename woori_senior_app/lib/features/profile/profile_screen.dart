@@ -343,8 +343,8 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'maxHours': f.maxHours == _none ? '' : f.maxHours,
     'maxDistance': f.maxDistance == _none ? '' : f.maxDistance,
     'disabledWork': f.disabledWork,
-    'restNeeds': f.restNeeds == _none ? '' : f.restNeeds,
-    'avoidEnvironments': f.avoidEnvironments,
+    'restNeed': f.restNeeds == _none ? '' : f.restNeeds,
+    'avoidEnvironment': f.avoidEnvironments,
     'incomeLevel': f.incomeLevel == _none ? '' : f.incomeLevel,
     'livingCostStatus': f.livingCostStatus == _none ? '' : f.livingCostStatus,
     'householdType': f.householdType == _none ? '' : f.householdType,
@@ -357,7 +357,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'hopeDays': f.hopeDays,
     'hopeJobType': f.hopeJobType,
     'hopeCondition': f.hopeCondition,
-    'jobMemo': f.jobMemo,
+    'memo': f.jobMemo,
   };
 }
 
@@ -399,11 +399,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _tabController = TabController(length: _sections.length, vsync: this);
     _load();
-    widget.onRegisterAction?.call(
-      action: _save,
-      icon: Icons.save_outlined,
-      tooltip: '저장',
-    );
   }
 
   @override
@@ -494,23 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(
                     color: Color(0xFF1F2A20), fontWeight: FontWeight.w900),
               ),
-        actions: [
-          if (!_loading && !widget.hideAppBar)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: TextButton(
-                onPressed: _saving ? null : _save,
-                child: Text(
-                  _saving ? '저장 중...' : '저장',
-                  style: const TextStyle(
-                    color: Color(0xFF86A788),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-        ],
+        actions: const [],
         bottom: _loading
             ? null
             : TabBar(
@@ -534,7 +513,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _PersonalSection(
                       form: _form,
                       onChanged: () => setState(() {}),
-                      onLogout: _logout,
                     ),
                     _BodySection(form: _form, onChanged: () => setState(() {})),
                     _MedicationSection(form: _form, onChanged: () => setState(() {})),
@@ -545,6 +523,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _JobSection(form: _form, onChanged: () => setState(() {})),
                   ],
                 ),
+
+      persistentFooterButtons: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: (_loading || _saving) ? null : _save,
+            child: Text(
+              _saving ? '저장 중...' : '저장하기',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF86A788),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -555,11 +550,9 @@ class _PersonalSection extends StatefulWidget {
   const _PersonalSection({
     required this.form,
     required this.onChanged,
-    required this.onLogout,
   });
   final _ProfileForm form;
   final VoidCallback onChanged;
-  final VoidCallback onLogout;
 
   @override
   State<_PersonalSection> createState() => _PersonalSectionState();
@@ -821,20 +814,6 @@ class _PersonalSectionState extends State<_PersonalSection> {
             widget.form.disabilityType = v;
             widget.onChanged();
           }),
-      const SizedBox(height: 16),
-      OutlinedButton.icon(
-        onPressed: widget.onLogout,
-        icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
-        label: const Text(
-          '로그아웃',
-          style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.redAccent),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
     ]);
   }
 }

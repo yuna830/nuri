@@ -530,11 +530,6 @@ export default function JobPage() {
         return false;
       }
 
-      if (!job.jobId || !job.recrtTitle) {
-        alert("일자리 정보가 올바르지 않습니다.");
-        return false;
-      }
-
       const response = await fetch("/api/job-interests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

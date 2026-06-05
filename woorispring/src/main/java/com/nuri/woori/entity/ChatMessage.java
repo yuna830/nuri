@@ -19,6 +19,7 @@ public class ChatMessage {
     @Column(length = 1000)
     private String message;
 
+    @Column(columnDefinition = "LONGTEXT")
     private String attachmentUrl;
     private String attachmentType;
     private String attachmentName;

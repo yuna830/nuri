@@ -175,7 +175,7 @@ class _LocationScreenState extends State<LocationScreen>
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
+      ).timeout(const Duration(seconds: 10));
       if (!mounted) return;
       final address = await _reverseGeocode(pos.latitude, pos.longitude);
       await _maybeAutoSave(pos.latitude, pos.longitude, address,

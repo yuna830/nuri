@@ -87,17 +87,17 @@ function AdminSeniorDetail() {
   return (
     <AdminLayout>
       <header className="admin-page-header">
-        <h1>{"\uc5b4\ub974\uc2e0 \uc0c1\uc138"}</h1>
+        <h1>{"보호대상자 상세"}</h1>
         <p>{"\uc5f0\uacb0\ub41c \ubcf4\ud638\uc790\uc640 \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\ub97c \ud655\uc778\ud558\uace0 \ubcf5\uc9c0\uc0ac\ub97c \uc7ac\ubc30\uc815\ud569\ub2c8\ub2e4."}</p>
       </header>
 
       {loadError ? (
         <p className="admin-error-note">{loadError}</p>
       ) : isLoading ? (
-        <p className="admin-empty">{"\uc5b4\ub974\uc2e0 \uc815\ubcf4\ub97c \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4."}</p>
+        <p className="admin-empty">{"보호대상자 정보를 불러오는 중입니다."}</p>
       ) : !displayedSenior ? (
         <div className="admin-panel">
-          <p className="admin-empty">{"\ud574\ub2f9 \uc5b4\ub974\uc2e0\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4."}</p>
+          <p className="admin-empty">{"해당 보호대상자를 찾을 수 없습니다."}</p>
           <Link className="admin-button" to="/admin/seniors">{"\ubaa9\ub85d\uc73c\ub85c"}</Link>
         </div>
       ) : (
