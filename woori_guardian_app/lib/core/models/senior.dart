@@ -213,22 +213,8 @@ class Senior {
       ], fallback: '-'),
       hopeDays: _readString(jobPreferenceObj, ['hopeDays'], fallback: '-'),
       keyDiseases: diseases,
-      cautionItems: _parseStringList(
-        healthObj['cautionItems'] ??
-            healthObj['careNotes'] ??
-            healthObj['warningItems'] ??
-            healthObj['attentionItems'] ??
-            json['cautionItems'],
-      ),
-      activityCondition: _readString(
-        healthObj,
-        ['activityCondition', 'activityLevel', 'mobilityCondition'],
-        fallback: _readString(json, [
-          'activityCondition',
-          'activityLevel',
-          'mobilityCondition',
-        ], fallback: '-'),
-      ),
+      cautionItems: _buildCautionItems(healthObj),
+      activityCondition: _buildActivityCondition(healthObj),
     );
   }
 
@@ -287,6 +273,53 @@ class Senior {
         text == '1' ||
         text == 'yes' ||
         text == 'y';
+  }
+
+  static bool _hasHealthValue(dynamic value) {
+    if (value == null) return false;
+    final text = value.toString().trim();
+    if (text.isEmpty) return false;
+    return text != '없음' && text != '미입력' && text != '-';
+  }
+
+  static List<String> _buildCautionItems(Map<String, dynamic> healthObj) {
+    final items = <String>[];
+
+    void addIfPresent(String label, String key) {
+      if (_hasHealthValue(healthObj[key])) items.add(label);
+    }
+
+    addIfPresent('당뇨', 'diabetes');
+    addIfPresent('고혈압', 'hypertension');
+    addIfPresent('심장질환', 'heartDisease');
+    addIfPresent('관절질환', 'jointDisease');
+    addIfPresent('뇌졸중', 'stroke');
+    addIfPresent('신장질환', 'kidneyDisease');
+    addIfPresent('호흡기질환', 'lungDisease');
+    addIfPresent('간질환', 'liverDisease');
+    addIfPresent('암', 'cancer');
+    addIfPresent('보행 보조기구', 'walkingAid');
+    addIfPresent('기억/판단', 'dementia');
+    addIfPresent('시야', 'vision');
+    addIfPresent('청각', 'hearing');
+    addIfPresent('최근 낙상', 'recentFall');
+    addIfPresent('수술 이력', 'hasSurgery');
+    addIfPresent('수술 내용', 'surgeryDetail');
+    addIfPresent('기타 참고사항', 'otherDisease');
+
+    return items;
+  }
+
+  static String _buildActivityCondition(Map<String, dynamic> healthObj) {
+    final maxHours = _readString(healthObj, ['maxHours']);
+    final maxDistance = _readString(healthObj, ['maxDistance']);
+
+    final lines = [
+      if (_hasHealthValue(maxHours)) '하루 $maxHours시간 이내',
+      if (_hasHealthValue(maxDistance)) maxDistance,
+    ];
+
+    return lines.isEmpty ? '-' : lines.join('\n');
   }
 
   static List<String> _parseStringList(dynamic value) {

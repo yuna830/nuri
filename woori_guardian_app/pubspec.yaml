@@ -19,6 +19,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   image_picker: ^1.1.2
   kakao_map_sdk: ^1.2.6
+  camera: ^0.11.0+2
 
 dev_dependencies:
   flutter_test:

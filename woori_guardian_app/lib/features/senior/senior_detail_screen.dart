@@ -212,17 +212,19 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
       return const [_InfoTile(label: '내역', value: '-')];
     }
 
-    return _consultRequests.map((alert) {
+    return _consultRequests.asMap().entries.map((entry) {
+      final index = entry.key;
+      final alert = entry.value;
       final createdAt = alert.createdAt == null
           ? ''
           : alert.createdAt.toString().substring(0, 16);
+      final message = alert.message.isEmpty ? alert.title : alert.message;
 
-      return _InfoTile(
-        label: alert.isRead ? '응답 완료' : '응답 대기',
-        value: [
-          alert.message.isEmpty ? alert.title : alert.message,
-          if (createdAt.isNotEmpty) createdAt,
-        ].join('\n'),
+      return _ConsultRequestTile(
+        message: message,
+        status: alert.isRead ? '응답 완료' : '응답 대기',
+        createdAt: createdAt,
+        showDivider: index < _consultRequests.length - 1,
       );
     }).toList();
   }
@@ -541,6 +543,66 @@ class _StatusPill extends StatelessWidget {
           fontWeight: FontWeight.w800,
           height: 1.1,
         ),
+      ),
+    );
+  }
+}
+
+class _ConsultRequestTile extends StatelessWidget {
+  final String message;
+  final String status;
+  final String createdAt;
+  final bool showDivider;
+
+  const _ConsultRequestTile({
+    required this.message,
+    required this.status,
+    required this.createdAt,
+    this.showDivider = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: _kTextTitle,
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _StatusPill(text: status),
+            ],
+          ),
+          if (createdAt.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              createdAt,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: _kTextSub,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ],
+          if (showDivider) ...[
+            const SizedBox(height: 10),
+            const Divider(color: _kDivider, height: 1),
+          ],
+        ],
       ),
     );
   }

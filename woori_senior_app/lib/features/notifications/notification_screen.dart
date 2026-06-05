@@ -42,7 +42,8 @@ class _NotificationScreenState extends State<NotificationScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadAlerts();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _loadAlerts(silent: true));
+    _timer = Timer.periodic(
+        const Duration(seconds: 10), (_) => _loadAlerts(silent: true));
     widget.onRegisterAction?.call(
       action: _loadAlerts,
       icon: Icons.refresh,
@@ -559,22 +560,29 @@ _AlertMeta _metaForType(String type) {
       return const _AlertMeta('긴급', Icons.sos, Color(0xFFD94E4E));
     case 'FALL_DETECTED':
     case 'FALL_RISK':
-      return const _AlertMeta('낙상', Icons.personal_injury_outlined, Color(0xFFD94E4E));
+      return const _AlertMeta(
+          '낙상', Icons.personal_injury_outlined, Color(0xFFD94E4E));
     case 'MEDICINE':
-      return const _AlertMeta('복약', Icons.medication_outlined, Color(0xFF5E7CE2));
+      return const _AlertMeta(
+          '복약', Icons.medication_outlined, Color(0xFF5E7CE2));
     case 'CALL_REQUEST':
       return const _AlertMeta('전화 요청', Icons.call_outlined, Color(0xFF4F9CC9));
     case 'CHECK_IN_MESSAGE':
     case 'CHECK_IN_REPLY':
       return const _AlertMeta('안부', Icons.forum_outlined, Color(0xFF86A788));
     case 'INFO_UPDATE_REQUEST':
-      return const _AlertMeta('정보 요청', Icons.assignment_outlined, Color(0xFFB07A2A));
+      return const _AlertMeta(
+          '정보 요청', Icons.assignment_outlined, Color(0xFFB07A2A));
     case 'CLIMATE':
     case 'HEATWAVE':
     case 'COLDWAVE':
       return const _AlertMeta('기후', Icons.wb_sunny_outlined, Color(0xFFF0A500));
+    case 'CONSENT_REQUEST':
+      return const _AlertMeta(
+          '동의 요청', Icons.assignment_turned_in_outlined, Color(0xFF86A788));
     default:
-      return const _AlertMeta('알림', Icons.notifications_outlined, Color(0xFF86A788));
+      return const _AlertMeta(
+          '알림', Icons.notifications_outlined, Color(0xFF86A788));
   }
 }
 

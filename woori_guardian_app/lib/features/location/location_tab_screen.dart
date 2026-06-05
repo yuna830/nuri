@@ -10,7 +10,7 @@ import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
-// ── 색상 토큰 ─────────────────────────────────────────────────────────────────
+// ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kSafe = Color(0xFF4A7A4C);
 const _kSafeBg = Color(0xFFEEF5EE);
@@ -186,6 +186,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   final _sessionStorage = GuardianSessionStorage();
   final _sheetController = DraggableScrollableController();
   kakao.KakaoMapController? _mapController;
+  kakao.Poi? _seniorPoi;
   final List<kakao.Polygon> _zonePolygons = [];
 
   List<Senior> _seniors = [];
@@ -202,6 +203,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   List<SafeZone> _zones = [];
   bool _zonesLoading = false;
   String? _zonesError;
+
+  List<Map<String, dynamic>> _routeHistory = [];
+  bool _routeHistoryLoading = false;
+  String? _routeHistoryError;
+  DateTime _routeHistoryDate = DateTime.now();
 
   // ── 생명주기 ──────────────────────────────────────────────────────────────
 
@@ -271,9 +277,16 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       _longitude = null;
       _zones = [];
       _zonesError = null;
+      _routeHistory = [];
+      _routeHistoryError = null;
+      _routeHistoryDate = DateTime.now();
     });
 
-    await Future.wait([_fetchLocation(senior), _fetchZones(senior.id)]);
+    await Future.wait([
+      _fetchLocation(senior),
+      _fetchZones(senior.id),
+      _fetchRouteHistory(senior.id, _routeHistoryDate),
+    ]);
   }
 
   Future<void> _fetchLocation(Senior senior) async {
@@ -332,6 +345,63 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     }
   }
 
+  Future<void> _fetchRouteHistory(int seniorId, DateTime date) async {
+    setState(() {
+      _routeHistoryLoading = true;
+      _routeHistoryError = null;
+    });
+    try {
+      final history = await _api.fetchLocationHistoryByDate(seniorId, date);
+      if (!mounted) return;
+      setState(() {
+        _routeHistory = history;
+        _routeHistoryDate = date;
+        _routeHistoryLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _routeHistoryError = e.toString().replaceAll('Exception: ', '');
+        _routeHistoryLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickRouteHistoryDate() async {
+    final senior = _selectedSenior;
+    if (senior == null) return;
+
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _routeHistoryDate,
+      firstDate: DateTime(now.year - 2, 1, 1),
+      lastDate: now,
+      helpText: '',
+      cancelText: '취소',
+      confirmText: '적용',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: _kGreen,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: Center(
+            child: Transform.scale(
+              scale: 0.74,
+              child: child!,
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null) return;
+
+    await _fetchRouteHistory(senior.id, picked);
+  }
+
   Future<void> _moveMap(double lat, double lng) async {
     final controller = _mapController;
     if (controller == null) return;
@@ -344,6 +414,17 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Future<void> _clearMapOverlays() async {
+    if (_seniorPoi != null) {
+      try {
+        await _seniorPoi!.remove();
+      } on PlatformException catch (e) {
+        debugPrint('[KAKAO] senior poi remove ignored: ${e.message ?? e.code}');
+      } catch (e) {
+        debugPrint('[KAKAO] senior poi remove ignored: $e');
+      }
+      _seniorPoi = null;
+    }
+
     final polygons = List<kakao.Polygon>.from(_zonePolygons);
     _zonePolygons.clear();
 
@@ -388,6 +469,13 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     if (controller == null || !mounted) return;
 
     await _clearMapOverlays();
+
+    if (_latitude != null && _longitude != null) {
+      _seniorPoi = await controller.labelLayer.addPoi(
+        kakao.LatLng(_latitude!, _longitude!),
+        style: kakao.PoiStyle(),
+      );
+    }
 
     for (final zone in _zones) {
       final points = _buildCirclePoints(
@@ -1071,6 +1159,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
               zones: _zones,
               zonesLoading: _zonesLoading,
               zonesError: _zonesError,
+              routeHistory: _routeHistory,
+              routeHistoryLoading: _routeHistoryLoading,
+              routeHistoryError: _routeHistoryError,
+              routeHistoryDate: _routeHistoryDate,
+              onPickRouteHistoryDate: _pickRouteHistoryDate,
               onAddZone: _onAddZone,
               onEditZone: _onEditZone,
               onDeleteZone: _onDeleteZone,
@@ -1197,6 +1290,11 @@ class _SheetContent extends StatelessWidget {
   final List<SafeZone> zones;
   final bool zonesLoading;
   final String? zonesError;
+  final List<Map<String, dynamic>> routeHistory;
+  final bool routeHistoryLoading;
+  final String? routeHistoryError;
+  final DateTime routeHistoryDate;
+  final VoidCallback onPickRouteHistoryDate;
   final VoidCallback onAddZone;
   final void Function(SafeZone) onEditZone;
   final void Function(SafeZone) onDeleteZone;
@@ -1213,6 +1311,11 @@ class _SheetContent extends StatelessWidget {
     required this.zones,
     required this.zonesLoading,
     required this.zonesError,
+    required this.routeHistory,
+    required this.routeHistoryLoading,
+    required this.routeHistoryError,
+    required this.routeHistoryDate,
+    required this.onPickRouteHistoryDate,
     required this.onAddZone,
     required this.onEditZone,
     required this.onDeleteZone,
@@ -1436,29 +1539,215 @@ class _SheetContent extends StatelessWidget {
             for (var i = 0; i < zones.length; i++) ...[
               _ZoneCard(
                 zone: zones[i],
-                color: _kZoneColor,
                 onEdit: () => onEditZone(zones[i]),
                 onDelete: () => onDeleteZone(zones[i]),
               ),
               if (i < zones.length - 1) const SizedBox(height: 8),
             ],
+
+          const SizedBox(height: 16),
+          const Divider(color: _kDivider, height: 1),
+          const SizedBox(height: 14),
+          _buildRouteHistorySection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteHistorySection() {
+    final rows = routeHistory.reversed.toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '이동 경로',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextMain,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: onPickRouteHistoryDate,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8F3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _dateLabel(routeHistoryDate),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextSub,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 14,
+                      color: _kTextSub,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (routeHistoryLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: CircularProgressIndicator(color: _kGreen, strokeWidth: 2),
+            ),
+          )
+        else if (routeHistoryError != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              routeHistoryError!,
+              style: const TextStyle(fontSize: 12, color: Color(0xFFB85252)),
+            ),
+          )
+        else if (rows.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              '선택한 날짜의 이동 경로가 없습니다.',
+              style: TextStyle(fontSize: 13, color: _kTextHint),
+            ),
+          )
+        else
+          for (var i = 0; i < rows.length; i++) ...[
+            _RouteHistoryCard(
+              meridiem: _routeMeridiem(rows[i]),
+              time: _routeTime(rows[i]),
+              address: _routeAddress(rows[i]),
+            ),
+            if (i < rows.length - 1) const SizedBox(height: 8),
+          ],
+      ],
+    );
+  }
+
+  String _dateLabel(DateTime date) {
+    return '${date.year}-${_twoDigits(date.month)}-${_twoDigits(date.day)}';
+  }
+
+  String _routeMeridiem(Map<String, dynamic> item) {
+    final parsed = _parseRouteDateTime(item);
+    if (parsed == null) return '';
+    return parsed.hour < 12 ? '오전' : '오후';
+  }
+
+  String _routeTime(Map<String, dynamic> item) {
+    final parsed = _parseRouteDateTime(item);
+    if (parsed == null) return '--:--';
+    return '${_twoDigits(parsed.hour)}:${_twoDigits(parsed.minute)}';
+  }
+
+  DateTime? _parseRouteDateTime(Map<String, dynamic> item) {
+    final raw = item['receivedAt']?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toLocal();
+  }
+
+  String _routeAddress(Map<String, dynamic> item) {
+    final address = item['address'] ?? item['roadAddress'];
+    final text = address?.toString().trim() ?? '';
+    return text.isEmpty ? '주소 정보 없음' : text;
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+}
+
+// ── 안전 구역 카드 ─────────────────────────────────────────────────────────────
+
+class _RouteHistoryCard extends StatelessWidget {
+  final String meridiem;
+  final String time;
+  final String address;
+
+  const _RouteHistoryCard({
+    required this.meridiem,
+    required this.time,
+    required this.address,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8F3),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 48,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  meridiem,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _kSafe,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _kSafe,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              address,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _kTextMain,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── 안전 구역 카드 ─────────────────────────────────────────────────────────────
-
 class _ZoneCard extends StatelessWidget {
   final SafeZone zone;
-  final Color color;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _ZoneCard({
     required this.zone,
-    required this.color,
     required this.onEdit,
     required this.onDelete,
   });
@@ -1467,20 +1756,14 @@ class _ZoneCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasAddr = zone.address.isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: const Color(0xFFF7F8F3),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1510,20 +1793,37 @@ class _ZoneCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            color: _kTextSub,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            onPressed: onEdit,
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: onEdit,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Text(
+                '수정',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            color: const Color(0xFFB85252),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            onPressed: onDelete,
+          GestureDetector(
+            onTap: onDelete,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Text(
+                '삭제',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFB85252),
+                ),
+              ),
+            ),
           ),
         ],
       ),

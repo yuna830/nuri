@@ -3,10 +3,9 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart' as kakao;
 
 import '../../core/api/senior_api.dart';
 
@@ -71,7 +70,7 @@ class LocationScreen extends StatefulWidget {
 class _LocationScreenState extends State<LocationScreen>
     with WidgetsBindingObserver {
   final _api = const SeniorApi();
-  final _mapController = MapController();
+  kakao.KakaoMapController? _mapController;
 
   double? _lat;
   double? _lon;
@@ -121,7 +120,6 @@ class _LocationScreenState extends State<LocationScreen>
   void dispose() {
     _locationTimer?.cancel();
     _safeZoneTimer?.cancel();
-    _mapController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -165,7 +163,7 @@ class _LocationScreenState extends State<LocationScreen>
         _loading = false;
       });
       try {
-        _mapController.move(LatLng(lat, lon), 15);
+        _moveMap(lat, lon);
       } catch (_) {}
     } catch (_) {}
   }
@@ -188,7 +186,7 @@ class _LocationScreenState extends State<LocationScreen>
         _lastUpdate = _nowHm();
         _error = null;
       });
-      _mapController.move(LatLng(pos.latitude, pos.longitude), 15);
+      _moveMap(pos.latitude, pos.longitude);
     } catch (_) {}
   }
 
@@ -252,7 +250,7 @@ class _LocationScreenState extends State<LocationScreen>
 
       // 지도 이동
       try {
-        _mapController.move(LatLng(lat, lon), 15);
+        _moveMap(lat, lon);
       } catch (_) {}
 
       // 50m 이상 이동 시 서버 저장 (accuracy 포함)
@@ -373,6 +371,13 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
+  void _moveMap(double lat, double lon) {
+    try {
+      _mapController?.setCenter(kakao.LatLng(lat, lon));
+      _mapController?.setLevel(3);
+    } catch (_) {}
+  }
+
   // ── computed: 안전반경 거리 목록 ───────────────
   List<({Map<String, dynamic> zone, int distance})> get _zoneDistances {
     if (_lat == null || _lon == null) return [];
@@ -476,9 +481,16 @@ class _LocationScreenState extends State<LocationScreen>
               loading: _loading,
               error: _error,
               safeZones: _safeZones,
-              mapController: _mapController,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                final lat = _lat;
+                final lon = _lon;
+                if (lat != null && lon != null) {
+                  _moveMap(lat, lon);
+                }
+              },
               onRecenter: _lat != null
-                  ? () => _mapController.move(LatLng(_lat!, _lon!), 15)
+                  ? () => _moveMap(_lat!, _lon!)
                   : null,
             ),
             const SizedBox(height: 12),
@@ -595,13 +607,35 @@ class _LocationStatusCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '마지막 업데이트 $lastUpdate',
-                  style: const TextStyle(
-                    color: Color(0xFF6D766A),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '마지막 업데이트 $lastUpdate',
+                        style: const TextStyle(
+                          color: Color(0xFF6D766A),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: safeBg,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isInRange ? '안전 반경 내' : '반경 이탈',
+                        style: TextStyle(
+                          color: safeColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -621,22 +655,6 @@ class _LocationStatusCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: safeBg,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              isInRange ? '안전 반경 내' : '반경 이탈',
-              style: TextStyle(
-                color: safeColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -653,7 +671,7 @@ class _LocationMapCard extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.safeZones,
-    required this.mapController,
+    required this.onMapCreated,
     this.onRecenter,
   });
 
@@ -662,7 +680,7 @@ class _LocationMapCard extends StatelessWidget {
   final bool loading;
   final String? error;
   final List<Map<String, dynamic>> safeZones;
-  final MapController mapController;
+  final void Function(kakao.KakaoMapController controller) onMapCreated;
   final VoidCallback? onRecenter;
 
   @override
@@ -723,88 +741,57 @@ class _LocationMapCard extends StatelessWidget {
               ),
             )
           else
-            FlutterMap(
-              mapController: mapController,
-              options: MapOptions(
-                initialCenter: LatLng(mapLat, mapLon),
-                initialZoom: 15,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.woori.senior_app',
-                ),
-                // 안전반경 원형 표시
-                CircleLayer(
-                  circles: safeZones
-                      .map((zone) => CircleMarker(
-                            point: LatLng(
-                              (zone['centerLatitude'] as num?)?.toDouble() ??
-                                  _defaultLat,
-                              (zone['centerLongitude'] as num?)?.toDouble() ??
-                                  _defaultLon,
-                            ),
-                            radius:
-                                (zone['radiusMeters'] as num?)?.toDouble() ??
-                                    _defaultRadius.toDouble(),
-                            useRadiusInMeter: true,
-                            color: const Color(0x1F86A788),
-                            borderColor: const Color(0xFF86A788),
-                            borderStrokeWidth: 2,
-                          ))
-                      .toList(),
-                ),
-                // 안전반경 중심 마커
-                MarkerLayer(
-                  markers: safeZones.map((zone) {
-                    final zLat =
-                        (zone['centerLatitude'] as num?)?.toDouble() ??
-                            _defaultLat;
-                    final zLon =
-                        (zone['centerLongitude'] as num?)?.toDouble() ??
-                            _defaultLon;
-                    return Marker(
-                      point: LatLng(zLat, zLon),
-                      width: 32,
-                      height: 32,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF86A788),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.home,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                // 현재 위치 마커
+            kakao.KakaoMap(
+              center: kakao.LatLng(mapLat, mapLon),
+              currentLevel: 3,
+              onMapCreated: onMapCreated,
+              markers: [
+                ...safeZones.map((zone) {
+                  final zLat =
+                      (zone['centerLatitude'] as num?)?.toDouble() ??
+                          _defaultLat;
+                  final zLon =
+                      (zone['centerLongitude'] as num?)?.toDouble() ??
+                          _defaultLon;
+
+                  return kakao.Marker(
+                    markerId: 'safe-zone-${zone['id'] ?? '$zLat-$zLon'}',
+                    latLng: kakao.LatLng(zLat, zLon),
+                    infoWindowContent: zone['name']?.toString() ?? '안전 구역',
+                    width: 32,
+                    height: 32,
+                  );
+                }),
                 if (lat != null && lon != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: LatLng(lat!, lon!),
-                        width: 44,
-                        height: 44,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFD94E4E),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ],
+                  kakao.Marker(
+                    markerId: 'current-location',
+                    latLng: kakao.LatLng(lat!, lon!),
+                    infoWindowContent: '현재 위치',
+                    width: 36,
+                    height: 36,
+                    zIndex: 10,
                   ),
               ],
+              circles: safeZones.map((zone) {
+                final zLat =
+                    (zone['centerLatitude'] as num?)?.toDouble() ??
+                        _defaultLat;
+                final zLon =
+                    (zone['centerLongitude'] as num?)?.toDouble() ??
+                        _defaultLon;
+
+                return kakao.Circle(
+                  circleId: 'safe-zone-circle-${zone['id'] ?? '$zLat-$zLon'}',
+                  center: kakao.LatLng(zLat, zLon),
+                  radius: (zone['radiusMeters'] as num?)?.toDouble() ??
+                      _defaultRadius.toDouble(),
+                  strokeWidth: 2,
+                  strokeColor: const Color(0xFF86A788),
+                  strokeOpacity: 0.9,
+                  fillColor: const Color(0xFF86A788),
+                  fillOpacity: 0.12,
+                );
+              }).toList(),
             ),
           // 내 위치로 버튼
           if (!loading && error == null && onRecenter != null)
@@ -932,6 +919,7 @@ class _LocationInfoCard extends StatelessWidget {
             icon: Icons.location_on,
             label: '현재 주소',
             value: loading ? '불러오는 중...' : address,
+            singleLine: true,
           ),
           if (lat != null && lon != null) ...[
             _InfoRow(
@@ -964,12 +952,14 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor = const Color(0xFF1F2A20),
+    this.singleLine = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final Color valueColor;
+  final bool singleLine;
 
   @override
   Widget build(BuildContext context) {
@@ -987,11 +977,13 @@ class _InfoRow extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const Spacer(),
-          Flexible(
+          const SizedBox(width: 12),
+          Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
+              maxLines: singleLine ? 1 : null,
+              overflow: singleLine ? TextOverflow.ellipsis : null,
               style: TextStyle(
                 color: valueColor,
                 fontSize: 13,
