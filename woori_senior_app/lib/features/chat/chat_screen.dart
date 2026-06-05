@@ -369,10 +369,15 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       if (res.statusCode == 200) {
         final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
         if (list.isNotEmpty && mounted) {
-          final msgs = list.map((m) => _AiMsg(
-            role: (m['role'] as String).toLowerCase() == 'user' ? 'user' : 'assistant',
-            text: m['content'] as String? ?? '',
-          )).toList();
+          final msgs = list.map((m) {
+            final raw = m['content'] as String? ?? '';
+            final (text, urls) = _decodeImgUrls(raw);
+            return _AiMsg(
+              role: (m['role'] as String).toLowerCase() == 'user' ? 'user' : 'assistant',
+              text: text,
+              imageUrl: urls.isNotEmpty ? urls.first : null,
+            );
+          }).toList();
           setState(() => _history.addAll(msgs));
           _scrollToBottom();
           return;
@@ -384,6 +389,27 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     }
   }
 
+  // 이미지를 서버에 업로드하고 URL 반환
+  Future<String?> _uploadImage(List<int> bytes, String mime) async {
+    try {
+      final uri = Uri.parse('$apiBaseUrl/api/uploads/profile');
+      final ext = mime.contains('png') ? 'png' : 'jpg';
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(http.MultipartFile.fromBytes(
+          'image', bytes,
+          filename: 'chat_${DateTime.now().millisecondsSinceEpoch}.$ext',
+        ));
+      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        final url = '${data['fileUrl'] ?? data['imageUrl'] ?? ''}';
+        return url.isNotEmpty ? url : null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   void _addWelcome() {
     if (mounted && _history.isEmpty) {
       setState(() => _history.add(const _AiMsg(
@@ -393,13 +419,16 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     }
   }
 
-  Future<void> _saveMessage(String role, String content) async {
+  Future<void> _saveMessage(String role, String content, {String? imageUrl}) async {
     if (_conversationId == null) return;
     try {
+      final encoded = imageUrl != null
+          ? _encodeImgUrls(content, [imageUrl])
+          : content;
       await http.post(
         Uri.parse('$apiBaseUrl/api/assistant-conversations/$_conversationId/messages?seniorId=${widget.seniorId}'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'role': role.toUpperCase(), 'content': content}),
+        body: jsonEncode({'role': role.toUpperCase(), 'content': encoded}),
       ).timeout(const Duration(seconds: 6));
     } catch (_) {}
   }
@@ -519,9 +548,16 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     _inputCtrl.clear();
     final sentImageBase64 = _pendingImageBase64;
     final sentImageMime = _pendingImageMime;
-    if (q.isNotEmpty) _saveMessage('USER', q);
+    // 이미지 업로드 → URL 획득
+    String? uploadedImageUrl;
+    if (sentImageBase64 != null) {
+      final bytes = base64Decode(sentImageBase64);
+      uploadedImageUrl = await _uploadImage(bytes, sentImageMime ?? 'image/jpeg');
+    }
+
+    _saveMessage('USER', q, imageUrl: uploadedImageUrl);
     setState(() {
-      _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime));
+      _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime, imageUrl: uploadedImageUrl));
       _pendingImageBase64 = null;
       _pendingImageMime = null;
       _sending = true;
@@ -659,14 +695,22 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                     child: Column(
                       crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
-                        if (m.imageBase64 != null) ...[
+                        if (m.imageBase64 != null || m.imageUrl != null) ...[
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.memory(
-                              base64Decode(m.imageBase64!),
-                              width: 200,
-                              fit: BoxFit.cover,
-                            ),
+                            child: m.imageBase64 != null
+                                ? Image.memory(
+                                    base64Decode(m.imageBase64!),
+                                    width: 200, fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    m.imageUrl!.startsWith('/')
+                                        ? '$apiBaseUrl${m.imageUrl}'
+                                        : m.imageUrl!,
+                                    width: 200, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const Icon(Icons.broken_image, size: 48),
+                                  ),
                           ),
                           const SizedBox(height: 4),
                         ],
@@ -750,12 +794,37 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   }
 }
 
+// 웹앱과 동일한 이미지 URL 인코딩 마커
+const _imgStart = '[WOORI_IMAGE_URLS]';
+const _imgEnd = '[/WOORI_IMAGE_URLS]';
+
+String _encodeImgUrls(String content, List<String> urls) {
+  if (urls.isEmpty) return content;
+  return '$content\n\n$_imgStart${jsonEncode(urls)}$_imgEnd';
+}
+
+(String, List<String>) _decodeImgUrls(String raw) {
+  final pattern = RegExp(
+    RegExp.escape(_imgStart) + r'([\s\S]*?)' + RegExp.escape(_imgEnd) + r'\s*$',
+  );
+  final match = pattern.firstMatch(raw);
+  if (match == null) return (raw.trim(), []);
+  try {
+    final urls = (jsonDecode(match.group(1)!) as List).cast<String>();
+    final content = raw.replaceFirst(pattern, '').trim();
+    return (content, urls);
+  } catch (_) {
+    return (raw.trim(), []);
+  }
+}
+
 class _AiMsg {
-  const _AiMsg({required this.role, required this.text, this.imageBase64, this.imageMime});
+  const _AiMsg({required this.role, required this.text, this.imageBase64, this.imageMime, this.imageUrl});
   final String role;
   final String text;
-  final String? imageBase64;
+  final String? imageBase64; // 즉시 표시용 (전송 직후)
   final String? imageMime;
+  final String? imageUrl;    // 서버 저장 URL (히스토리 복원용)
 }
 
 // ─── 공통 위젯 ────────────────────────────────────────────────────────────────
