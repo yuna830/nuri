@@ -27,6 +27,7 @@ import {
   sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
@@ -1176,7 +1177,6 @@ export default function UserPage() {
     const alertId = incomingCallAlert?.id;
     setIncomingCallAlert(null);
     markCallAlertHandled(alertId);
-    if (alertId) readAlert(alertId).catch(() => {});
   };
 
   const handleReadMedicineAlert = async () => {
@@ -1194,14 +1194,7 @@ export default function UserPage() {
   const handleGoToInfoUpdateRequest = () => {
     const text = String(infoUpdateRequestAlert?.message || "");
     const alertId = infoUpdateRequestAlert?.id;
-    let section = "personal";
-
-    if (/복약|약|medicine/i.test(text)) section = "medication";
-    else if (/질환|건강|수술|chronic/i.test(text)) section = "chronic";
-    else if (/거동|인지|감각|보행|시력|청력|mobility/i.test(text)) section = "mobility";
-    else if (/활동|이동|쉬는|activity/i.test(text)) section = "activity";
-    else if (/복지|혜택|welfare/i.test(text)) section = "welfare";
-    else if (/일자리|근무|직종|job/i.test(text)) section = "job";
+    const section = getProfileSectionFromInfoRequest(text);
 
     setInfoUpdateRequestAlert(null);
     navigate(`/profile?section=${section}${alertId ? `&alertId=${alertId}` : ""}`);

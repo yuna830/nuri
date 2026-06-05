@@ -263,6 +263,29 @@
   justify-self: stretch;
 }
 
+.uch-alert-item.common-alert-item .uch-alert-action > button {
+  width: 100%;
+  min-height: 46px;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-action > em {
+  width: 100%;
+  max-width: none;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #f7f8f5;
+  text-align: center;
+  white-space: normal;
+}
+
+.uch-alert-item.common-alert-item .uch-alert-action > em.waiting {
+  border: 0;
+  background: #e05252;
+  color: #ffffff;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .uch-alert-meta {
   display: flex;
   align-items: center;
@@ -331,9 +354,13 @@
 
 .uch-alert-time-inline {
   flex-shrink: 0;
-  color: #789277;
+  border-radius: 999px;
+  background: #fff1dc;
+  color: #c87514;
   font-size: 14px;
   font-weight: 800;
+  line-height: 1;
+  padding: 0.38rem 0.62rem;
   white-space: nowrap;
 }
 
@@ -465,6 +492,17 @@
 }
 
 .uch-alert-item.common-alert-item:not(.read) .uch-alert-meta span.category.danger {
+  background: #fde8e8 !important;
+  color: #c74747 !important;
+}
+
+.uch-alert-item.common-alert-item:not(.read):not(.danger) .uch-alert-meta span.category,
+.uch-alert-item.common-alert-item:not(.read):not(.danger) .uch-alert-time-inline {
+  background: #fff1dc !important;
+  color: #c87514 !important;
+}
+
+.uch-alert-item.common-alert-item.danger:not(.read) .uch-alert-meta span.category {
   background: #fde8e8 !important;
   color: #c74747 !important;
 }
