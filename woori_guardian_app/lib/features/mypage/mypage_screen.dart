@@ -66,16 +66,48 @@ class _MypageScreenState extends State<MypageScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('로그아웃 하시겠습니까?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        content: const Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: Text(
+            '로그아웃 하시겠습니까?',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: _kTextSub),
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _kRed),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('로그아웃')),
+          SizedBox(
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: _kTextSub,
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('취소'),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: _kRed,
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('로그아웃'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

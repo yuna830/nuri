@@ -26,7 +26,8 @@ void main() async {
 
   final sessionStorage = GuardianSessionStorage();
   final userInfo = await sessionStorage.getGuardianInfo();
-  final hasSession = userInfo['guardianId'] != null;
+  final guardianId = userInfo['guardianId'];
+  final hasSession = guardianId != null && guardianId.trim().isNotEmpty;
 
   runApp(WooriGuardianApp(hasSession: hasSession));
 }

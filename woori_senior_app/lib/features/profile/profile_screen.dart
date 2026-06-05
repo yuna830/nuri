@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:kakao_map_plugin/kakao_map_plugin.dart' as kakao;
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
@@ -186,6 +187,36 @@ List<String> _parseList(dynamic v) {
   return [s];
 }
 
+List<Map<String, String>> _parseMedications(dynamic raw) {
+  dynamic source = raw;
+  if (source is String) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty || trimmed == '[]') return [];
+    try {
+      source = jsonDecode(trimmed);
+    } catch (_) {
+      return [];
+    }
+  }
+  if (source is! List) return [];
+
+  return source.whereType<Map>().map((m) {
+    final name = m['name'] ??
+        m['medicineName'] ??
+        m['medicationName'] ??
+        m['drugName'] ??
+        m['disease'] ??
+        '';
+    final dose = m['dose'] ?? m['dosage'] ?? m['amount'] ?? '';
+    return {
+      'name': '$name',
+      'dose': '$dose',
+    };
+  }).where((m) {
+    return m['name']!.trim().isNotEmpty || m['dose']!.trim().isNotEmpty;
+  }).toList();
+}
+
 _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   // Spring SeniorProfileResponse: { senior:{}, healthInfo:{}, jobPreference:{}, ... }
   final s = raw['senior'] as Map<String, dynamic>? ?? raw;
@@ -213,17 +244,9 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   // ── 복약정보 ──────────────────────────────────────
   form.medicineCount = _orNone(h['medicineCount']);
 
-  final medsJson = h['medicationsJson'];
-  if (medsJson is String && medsJson.isNotEmpty && medsJson != '[]') {
-    try {
-      final parsed = jsonDecode(medsJson);
-      if (parsed is List) {
-        form.medications = parsed
-            .whereType<Map>()
-            .map((m) => {'name': '${m['name'] ?? ''}', 'dose': '${m['dose'] ?? ''}'})
-            .toList();
-      }
-    } catch (_) {}
+  form.medications = _parseMedications(h['medications']);
+  if (form.medications.isEmpty) {
+    form.medications = _parseMedications(h['medicationsJson']);
   }
 
   // ── 만성질환 (HealthInfo 필드명: heartDisease, jointDisease …) ──
@@ -304,7 +327,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'allergies': f.allergies,
     'medicineCount': f.medicineCount == _none ? '' : f.medicineCount,
     'medications': f.medications,
-    'medicationsJson': f.medications.toString(),
+    'medicationsJson': jsonEncode(f.medications),
     for (final d in _chronicDiseases)
       d['key']!: f.chronic[d['key']] == _none ? '' : f.chronic[d['key']],
     'walkingAid': f.walkingAid == _none ? '' : f.walkingAid,
@@ -460,6 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
+        toolbarHeight: widget.hideAppBar ? 0 : null,
         automaticallyImplyLeading: !widget.hideAppBar,
         title: widget.hideAppBar
             ? null
@@ -505,7 +529,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               : TabBarView(
                   controller: _tabController,
                   children: [
-                    _PersonalSection(form: _form, onChanged: () => setState(() {})),
+                    _PersonalSection(
+                      form: _form,
+                      onChanged: () => setState(() {}),
+                      onLogout: _logout,
+                    ),
                     _BodySection(form: _form, onChanged: () => setState(() {})),
                     _MedicationSection(form: _form, onChanged: () => setState(() {})),
                     _ChronicSection(form: _form, onChanged: () => setState(() {})),
@@ -515,23 +543,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _JobSection(form: _form, onChanged: () => setState(() {})),
                   ],
                 ),
-      persistentFooterButtons: [
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
-            label: const Text(
-              '로그아웃',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.redAccent),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -539,9 +550,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 // ─── 인적사항 ─────────────────────────────────────────────────────────────────
 
 class _PersonalSection extends StatefulWidget {
-  const _PersonalSection({required this.form, required this.onChanged});
+  const _PersonalSection({
+    required this.form,
+    required this.onChanged,
+    required this.onLogout,
+  });
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final VoidCallback onLogout;
 
   @override
   State<_PersonalSection> createState() => _PersonalSectionState();
@@ -625,6 +641,22 @@ class _PersonalSectionState extends State<_PersonalSection> {
     widget.onChanged();
   }
 
+  Future<void> _openAddressSearch() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _AddressSearchSheet(initialValue: _region.text),
+    );
+    if (selected == null || selected.isEmpty) return;
+    _region.text = selected;
+    widget.form.region = selected;
+    widget.onChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
     final imageUrl = widget.form.profileImageUrl.isNotEmpty
@@ -634,46 +666,94 @@ class _PersonalSectionState extends State<_PersonalSection> {
         : '';
 
     return _SectionScroll(children: [
-      Center(
-        child: GestureDetector(
-          onTap: _uploadingPhoto ? null : _pickAndUploadPhoto,
-          child: Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFD4E8D6),
-                  image: imageUrl.isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(imageUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: imageUrl.isEmpty
-                    ? const Icon(Icons.person, size: 44, color: Color(0xFF86A788))
-                    : null,
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5E8),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: _uploadingPhoto ? null : _pickAndUploadPhoto,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 82,
+                    height: 82,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFD4E8D6),
+                      image: imageUrl.isNotEmpty
+                          ? DecorationImage(
+                              image: NetworkImage(imageUrl),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: imageUrl.isEmpty
+                        ? const Icon(Icons.person,
+                            size: 42, color: Color(0xFF86A788))
+                        : null,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF86A788),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _uploadingPhoto
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.camera_alt,
+                            size: 16, color: Colors.white),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF86A788),
-                  shape: BoxShape.circle,
-                ),
-                child: _uploadingPhoto
-                    ? const SizedBox(
-                        width: 16, height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.form.name.isEmpty ? '이름 없음' : widget.form.name,
+                    style: const TextStyle(
+                      color: Color(0xFF1F2A20),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.form.phone.isEmpty ? '전화번호 미입력' : widget.form.phone,
+                    style: const TextStyle(
+                      color: Color(0xFF6D766A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.form.region.isEmpty ? '주소 미입력' : widget.form.region,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF6D766A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 16),
       const _FieldLabel('이름'),
       _FormField(controller: _name, hint: '예: 김나리', onChanged: (v) {
         widget.form.name = v;
@@ -717,10 +797,12 @@ class _PersonalSectionState extends State<_PersonalSection> {
                 })),
       ]),
       const _FieldLabel('주소'),
-      _FormField(controller: _region, hint: '예: 서울 광진구 자양동', onChanged: (v) {
-        widget.form.region = v;
-        widget.onChanged();
-      }),
+      TextField(
+        controller: _region,
+        readOnly: true,
+        onTap: _openAddressSearch,
+        decoration: _deco(hint: '주소를 검색해 선택하세요', suffix: Icons.search),
+      ),
       const _FieldLabel('장애 등급'),
       _Dropdown(
           value: widget.form.disabilityGrade,
@@ -737,11 +819,247 @@ class _PersonalSectionState extends State<_PersonalSection> {
             widget.form.disabilityType = v;
             widget.onChanged();
           }),
+      const SizedBox(height: 16),
+      OutlinedButton.icon(
+        onPressed: widget.onLogout,
+        icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
+        label: const Text(
+          '로그아웃',
+          style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.redAccent),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
     ]);
   }
 }
 
 // ─── 신체정보 ─────────────────────────────────────────────────────────────────
+
+class _AddressSearchSheet extends StatefulWidget {
+  const _AddressSearchSheet({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_AddressSearchSheet> createState() => _AddressSearchSheetState();
+}
+
+class _AddressSearchSheetState extends State<_AddressSearchSheet> {
+  late final TextEditingController _queryController;
+  kakao.KakaoMapController? _mapController;
+  List<kakao.SearchAddress> _results = [];
+  bool _loading = false;
+  bool _mapReady = false;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _queryController = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    FocusScope.of(context).unfocus();
+
+    final query = _queryController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _message = '검색할 주소를 입력해주세요.');
+      return;
+    }
+
+    final controller = _mapController;
+    if (controller == null) {
+      setState(() => _message = '주소 검색을 준비하고 있어요. 잠시 후 다시 눌러주세요.');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+
+    try {
+      final response = await controller.addressSearch(
+        kakao.AddressSearchRequest(addr: query, size: 10),
+      );
+      if (!mounted) return;
+      setState(() {
+        _results = response.list;
+        _message = _results.isEmpty ? '검색 결과가 없습니다.' : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _results = [];
+        _message = '주소 검색에 실패했습니다.';
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _primaryAddress(kakao.SearchAddress item) {
+    final road = item.roadAddress?.addressName ?? '';
+    if (road.isNotEmpty) return road;
+    return item.address?.addressName ?? item.addressName ?? '';
+  }
+
+  String _secondaryAddress(kakao.SearchAddress item) {
+    final road = item.roadAddress?.addressName ?? '';
+    final jibun = item.address?.addressName ?? item.addressName ?? '';
+    if (road.isNotEmpty && jibun.isNotEmpty && road != jibun) {
+      return '지번 $jibun';
+    }
+    final zoneNo = item.roadAddress?.zoneNo ?? '';
+    return zoneNo.isNotEmpty ? '우편번호 $zoneNo' : '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 18, 20, bottom + 20),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '주소 검색',
+                    style: TextStyle(
+                      color: Color(0xFF1F2A20),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _queryController,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _search(),
+              decoration: _deco(
+                hint: '도로명 또는 지번 주소를 입력하세요',
+                suffix: Icons.search,
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _loading || !_mapReady ? null : _search,
+              icon: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.search),
+              label: Text(_mapReady ? '검색' : '지도 준비 중'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF86A788),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+            SizedBox(
+              height: 1,
+              child: Opacity(
+                opacity: 0,
+                child: kakao.KakaoMap(
+                  center: kakao.LatLng(37.5665, 126.9780),
+                  currentLevel: 3,
+                  onMapCreated: (controller) {
+                    _mapController = controller;
+                    if (!mounted) return;
+                    setState(() => _mapReady = true);
+                  },
+                ),
+              ),
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _message!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF6D766A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (_results.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 360),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = _results[index];
+                    final primary = _primaryAddress(item);
+                    final secondary = _secondaryAddress(item);
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.location_on_outlined,
+                        color: Color(0xFF86A788),
+                      ),
+                      title: Text(
+                        primary,
+                        style: const TextStyle(
+                          color: Color(0xFF1F2A20),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      subtitle: secondary.isEmpty
+                          ? null
+                          : Text(
+                              secondary,
+                              style: const TextStyle(
+                                color: Color(0xFF6D766A),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                      onTap: primary.isEmpty
+                          ? null
+                          : () => Navigator.pop(context, primary),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _BodySection extends StatefulWidget {
   const _BodySection({required this.form, required this.onChanged});
@@ -876,8 +1194,16 @@ class _MedicationSectionState extends State<_MedicationSection> {
     setState(() {});
   }
 
+  List<String> get _medicineNames {
+    return widget.form.medications
+        .map((m) => (m['name'] ?? '').trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final names = _medicineNames;
     return _SectionScroll(children: [
       const _FieldLabel('복용 약품 수'),
       _Dropdown(
@@ -887,6 +1213,44 @@ class _MedicationSectionState extends State<_MedicationSection> {
             widget.form.medicineCount = v;
             widget.onChanged();
           }),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5E8),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.medication_outlined, color: Color(0xFF86A788)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '복용 중인 약',
+                    style: TextStyle(
+                      color: Color(0xFF1F2A20),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    names.isEmpty ? '아래에서 약 이름을 추가해주세요.' : names.join(', '),
+                    style: const TextStyle(
+                      color: Color(0xFF6D766A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: 8),
       Row(children: [
         const Expanded(

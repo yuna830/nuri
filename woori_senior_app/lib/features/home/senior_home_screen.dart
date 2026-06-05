@@ -565,6 +565,7 @@ class _HomeBody extends StatelessWidget {
 
     final guardianSummary = _guardianSummary(profile);
     final workerSummary = _workerSummary(profile);
+    final medicineCount = _medicineCount(data.alerts);
 
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -624,10 +625,14 @@ class _HomeBody extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _SmallStatusCard(
-                  title: '오늘 일정',
-                  value: '${data.schedules.length}건',
-                  description: _nextScheduleSummary(data.schedules),
-                  icon: Icons.event_note_outlined,
+                  title: '오늘 복약',
+                  value: '$medicineCount건',
+                  description:
+                      medicineCount > 0 ? '복용 알림을 확인해주세요.' : '복용 알림이 없어요.',
+                  icon: Icons.medication_outlined,
+                  valueColor: medicineCount > 0
+                      ? const Color(0xFF5E7CE2)
+                      : const Color(0xFF1F2A20),
                 ),
               ),
             ],
@@ -684,6 +689,15 @@ class _HomeBody extends StatelessWidget {
       return center.isEmpty ? name : '$name\n$center';
     }
     return '복지사 매칭 전';
+  }
+
+  int _medicineCount(List<dynamic> alerts) {
+    return alerts.where((alert) {
+      if (alert is! Map<String, dynamic>) return false;
+      return alert['type'] == 'MEDICINE' &&
+          alert['isRead'] != true &&
+          _isToday(alert['createdAt']);
+    }).length;
   }
 
   String _nextScheduleSummary(List<dynamic> schedules) {
@@ -1061,30 +1075,55 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitleLines = subtitle.split('\n');
+    final primarySubtitle = subtitleLines.first;
+    final secondarySubtitle = subtitleLines.skip(1).join('\n');
+
     return _BaseCard(
       onTap: onTap,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, color: const Color(0xFF6F9271), size: 30),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1F2A20))),
-                const SizedBox(height: 4),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6D766A))),
-              ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Icon(icon, color: const Color(0xFF6F9271), size: 28),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1F2A20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            primarySubtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.35,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF6D766A),
             ),
           ),
+          if (secondarySubtitle.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              secondarySubtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6D766A),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -70,7 +70,7 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
       );
     } catch (_) {
       setState(() {
-        _errorMessage = '로그인에 실패했습니다. 이름과 연락처를 확인해주세요.';
+        _errorMessage = '이름과 연락처를 확인해주세요.';
       });
     } finally {
       if (mounted) {

@@ -6,6 +6,8 @@ import '../notification/notification_center_screen.dart';
 import '../report/report_screen.dart';
 import '../contact/contact_senior_screen.dart';
 import '../mypage/mypage_screen.dart';
+import '../auth/guardian_login_screen.dart';
+import '../face/face_check_camera_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
@@ -75,15 +77,34 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   Future<void> _loadSessionInfo() async {
     try {
       final info = await _sessionStorage.getGuardianInfo();
+      final idStr = info['guardianId'];
+      if (idStr == null || idStr.trim().isEmpty) {
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const GuardianLoginScreen()),
+          (_) => false,
+        );
+        return;
+      }
+      final guardianId = int.tryParse(idStr);
+      if (guardianId == null) {
+        await _sessionStorage.clearSession();
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const GuardianLoginScreen()),
+          (_) => false,
+        );
+        return;
+      }
+
       if (mounted)
         setState(() {
           _guardianName = info['name'] ?? '';
           _guardianEmail = info['email'] ?? '';
         });
-      final idStr = info['guardianId'];
-      if (idStr != null && idStr.isNotEmpty) {
-        await _refreshUnreadCount(int.parse(idStr));
-      }
+      await _refreshUnreadCount(guardianId);
     } catch (_) {}
   }
 
@@ -301,29 +322,114 @@ class _HomeTabState extends State<_HomeTab> {
     return RefreshIndicator(
       onRefresh: _loadSeniors,
       color: _C.green,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        itemCount: _seniors.length,
-        separatorBuilder: (context, i) => const SizedBox(height: 12),
-        itemBuilder: (context, i) => _SeniorCard(
-          senior: _seniors[i],
-          onViewLocation: widget.onViewLocation,
-          onReport: widget.onReport,
-          onOpenDetail: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SeniorDetailScreen(senior: _seniors[i]),
-              ),
-            );
-          },
-        ),
+        children: [
+          _FaceCheckCard(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FaceCheckCameraScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < _seniors.length; i++) ...[
+            _SeniorCard(
+              senior: _seniors[i],
+              onViewLocation: widget.onViewLocation,
+              onReport: widget.onReport,
+              onOpenDetail: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SeniorDetailScreen(senior: _seniors[i]),
+                  ),
+                );
+              },
+            ),
+            if (i < _seniors.length - 1) const SizedBox(height: 12),
+          ],
+        ],
       ),
     );
   }
 }
 
 // _SeniorCard
+
+class _FaceCheckCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _FaceCheckCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE0E8E0), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _C.safeBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.camera_alt_outlined,
+                  color: _C.safe,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '얼굴 확인',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _C.textTitle,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '사진을 촬영해 어르신 상태를 확인합니다.',
+                      style: TextStyle(fontSize: 12, color: _C.textSub),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 22, color: _C.textHint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
@@ -388,146 +494,154 @@ class _SeniorCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            // ── 헤더: 이름 + 나이 / 상태 배지 ──────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  senior.name,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: _C.textTitle,
-                  ),
+                // ── 헤더: 이름 + 나이 / 상태 배지 ──────────────────
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      senior.name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: _C.textTitle,
+                      ),
+                    ),
+                    if (senior.age != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '${senior.age}세',
+                        style: const TextStyle(fontSize: 13, color: _C.textSub),
+                      ),
+                    ],
+                    const Spacer(),
+                    _StatusBadge(status: senior.status),
+                  ],
                 ),
-                if (senior.age != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    '${senior.age}세',
-                    style: const TextStyle(fontSize: 13, color: _C.textSub),
+
+                const SizedBox(height: 12),
+                const Divider(color: _C.divider, height: 1),
+                const SizedBox(height: 10),
+
+                // ── 정보 행들 ─────────────────────────────────────
+                _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  label: senior.lastLocationAddress,
+                  sub: '마지막 확인 ${senior.lastLocationTime}',
+                ),
+
+                if (senior.keyDiseases.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  _InfoRow(
+                    icon: Icons.local_hospital_outlined,
+                    label: senior.keyDiseases.join(' · '),
                   ),
                 ],
-                const Spacer(),
-                _StatusBadge(status: senior.status),
-              ],
-            ),
 
-            const SizedBox(height: 12),
-            const Divider(color: _C.divider, height: 1),
-            const SizedBox(height: 10),
+                if (senior.medicineCount != null &&
+                    senior.medicineCount!.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  _InfoRow(
+                    icon: Icons.medication_outlined,
+                    label: '복약 중 ${senior.medicineCount}',
+                  ),
+                ],
 
-            // ── 정보 행들 ─────────────────────────────────────
-            _InfoRow(
-              icon: Icons.location_on_outlined,
-              label: senior.lastLocationAddress,
-              sub: '마지막 확인 ${senior.lastLocationTime}',
-            ),
+                // 질환 없을 때만 healthStatus 표시
+                if (senior.keyDiseases.isEmpty &&
+                    senior.healthStatus != null &&
+                    senior.healthStatus!.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  _InfoRow(
+                    icon: Icons.favorite_outline,
+                    label: senior.healthStatus!,
+                  ),
+                ],
 
-            if (senior.keyDiseases.isNotEmpty) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.local_hospital_outlined,
-                label: senior.keyDiseases.join(' · '),
-              ),
-            ],
+                const SizedBox(height: 14),
 
-            if (senior.medicineCount != null &&
-                senior.medicineCount!.isNotEmpty) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.medication_outlined,
-                label: '복약 중 ${senior.medicineCount}',
-              ),
-            ],
-
-            // 질환 없을 때만 healthStatus 표시
-            if (senior.keyDiseases.isEmpty &&
-                senior.healthStatus != null &&
-                senior.healthStatus!.isNotEmpty) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.favorite_outline,
-                label: senior.healthStatus!,
-              ),
-            ],
-
-            const SizedBox(height: 14),
-
-            // ── 버튼 영역 ─────────────────────────────────────
-            // 위치: 메인(filled) / 전화: 보조(outlined) / 신고: 위험(text)
-            Row(
-              children: [
-                // 전화 — 보조 액션 (outlined, 아이콘만)
-                SizedBox(
-                  width: 44,
-                  height: 40,
-                  child: OutlinedButton(
-                    onPressed: senior.phone.isNotEmpty
-                        ? () => _callPhone(context, senior.phone)
-                        : null,
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      side: BorderSide(
-                        color: senior.phone.isNotEmpty
-                            ? _C.divider
-                            : _C.textHint.withValues(alpha: 0.3),
-                      ),
-                      foregroundColor: _C.textSub,
-                      disabledForegroundColor: _C.textHint,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                // ── 버튼 영역 ─────────────────────────────────────
+                // 위치: 메인(filled) / 전화: 보조(outlined) / 신고: 위험(text)
+                Row(
+                  children: [
+                    // 전화 — 보조 액션 (outlined, 아이콘만)
+                    SizedBox(
+                      width: 44,
+                      height: 40,
+                      child: OutlinedButton(
+                        onPressed: senior.phone.isNotEmpty
+                            ? () => _callPhone(context, senior.phone)
+                            : null,
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          side: BorderSide(
+                            color: senior.phone.isNotEmpty
+                                ? _C.divider
+                                : _C.textHint.withValues(alpha: 0.3),
+                          ),
+                          foregroundColor: _C.textSub,
+                          disabledForegroundColor: _C.textHint,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Icon(Icons.call_outlined, size: 18),
                       ),
                     ),
-                    child: const Icon(Icons.call_outlined, size: 18),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                    const SizedBox(width: 8),
 
-                // 위치 보기 — 메인 액션 (filled, 확장, 텍스트 유지)
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: FilledButton.icon(
-                      onPressed: () => onViewLocation(senior.id),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _C.green,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: const Icon(Icons.location_on_outlined, size: 16),
-                      label: const Text(
-                        '위치 보기',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                    // 위치 보기 — 메인 액션 (filled, 확장, 텍스트 유지)
+                    Expanded(
+                      child: SizedBox(
+                        height: 40,
+                        child: FilledButton.icon(
+                          onPressed: () => onViewLocation(senior.id),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _C.green,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.location_on_outlined,
+                            size: 16,
+                          ),
+                          label: const Text(
+                            '위치 보기',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                    const SizedBox(width: 8),
 
-                // 신고 — 위험 액션 (아이콘만, 빨간 테두리)
-                SizedBox(
-                  width: 44,
-                  height: 40,
-                  child: OutlinedButton(
-                    onPressed: onReport,
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      foregroundColor: _C.danger,
-                      side: BorderSide(color: _C.danger.withValues(alpha: 0.4)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    // 신고 — 위험 액션 (아이콘만, 빨간 테두리)
+                    SizedBox(
+                      width: 44,
+                      height: 40,
+                      child: OutlinedButton(
+                        onPressed: onReport,
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          foregroundColor: _C.danger,
+                          side: BorderSide(
+                            color: _C.danger.withValues(alpha: 0.4),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.report_problem_outlined,
+                          size: 18,
+                        ),
                       ),
                     ),
-                    child: const Icon(Icons.report_problem_outlined, size: 18),
-                  ),
+                  ],
                 ),
-              ],
-            ),
               ],
             ),
           ),

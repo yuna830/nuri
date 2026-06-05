@@ -50,7 +50,7 @@ class _FallHistoryScreenState extends State<FallHistoryScreen> {
   bool _serverOnline = false;
   bool _fallDetected = false;
   int _fallScore = 0;
-  static const String _fallServerUrl = fallServerBaseUrl;
+  static String get _fallServerUrl => fallServerBaseUrl;
 
   Timer? _refreshTimer;
   Timer? _serverTimer;
