@@ -13,6 +13,7 @@ import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/widgets/app_header.dart';
+import '../../core/push/fcm_service.dart';
 import '../senior/senior_detail_screen.dart';
 
 // 한 곳에서 색상을 관리해 변경 시 전체가 일관되게 반영됩니다.
@@ -99,11 +100,16 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
         return;
       }
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _guardianName = info['name'] ?? '';
           _guardianEmail = info['email'] ?? '';
         });
+      }
+
+      // FCM 초기화 및 토큰 등록
+      await FcmService.init(role: 'GUARDIAN', userId: guardianId);
+
       await _refreshUnreadCount(guardianId);
     } catch (_) {}
   }
@@ -445,19 +451,21 @@ class _SeniorCard extends StatelessWidget {
   });
 
   Future<void> _callPhone(BuildContext context, String phone) async {
-    // 연락처 사용 동의 확인
     final consents = await ConsentStorage().load();
-    if (!(consents[ConsentStorage.contactKey] ?? true)) {
+
+    if (!(consents[ConsentStorage.guardianContactShareKey] ?? true)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('연락처 사용이 비활성화되어 있습니다. 마이페이지 > 정보 제공 동의에서 켜주세요.'),
+            content: Text('내 연락처 공개가 비활성화되어 있습니다. 마이페이지 > 내 정보 제공 설정에서 켜주세요.'),
           ),
         );
       }
       return;
     }
+
     final uri = Uri(scheme: 'tel', path: phone);
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {

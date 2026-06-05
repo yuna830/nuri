@@ -11,6 +11,8 @@ import '../../core/config/app_config.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const _none = '없음';
@@ -966,7 +968,8 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: _loading || !_mapReady ? null : _search,
+              onPressed:
+                  _loading || !_mapReady || _disableKakaoMap ? null : _search,
               icon: _loading
                   ? const SizedBox(
                       width: 18,
@@ -983,7 +986,7 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 13),
               ),
             ),
-            SizedBox(
+            if (!_disableKakaoMap) SizedBox(
               height: 1,
               child: Opacity(
                 opacity: 0,

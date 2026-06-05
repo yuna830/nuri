@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/storage/senior_session_storage.dart';
+import '../../core/push/fcm_service.dart';
 import '../shell/app_shell.dart';
 import 'sign_up_screen.dart';
 
@@ -62,6 +63,12 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
       if (_rememberMe) {
         await SeniorSessionStorage.saveSeniorId(seniorId);
       }
+
+      // 로그인 성공 후 FCM 토큰 등록 및 알림 설정
+      await FcmService.init(
+        role: 'SENIOR',
+        userId: seniorId,
+      );
 
       if (!mounted) return;
 
@@ -211,7 +218,8 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                         height: 22,
                         child: Checkbox(
                           value: _rememberMe,
-                          onChanged: (_) => setState(() => _rememberMe = !_rememberMe),
+                          onChanged: (_) =>
+                              setState(() => _rememberMe = !_rememberMe),
                           activeColor: const Color(0xFF86A788),
                         ),
                       ),

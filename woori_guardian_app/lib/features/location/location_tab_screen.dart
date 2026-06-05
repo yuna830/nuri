@@ -10,6 +10,8 @@ import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
+
 // ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kSafe = Color(0xFF4A7A4C);
@@ -111,6 +113,17 @@ class _MapPickScreenState extends State<_MapPickScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_disableKakaoMap) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('위치 선택'),
+          backgroundColor: _kGreen,
+          foregroundColor: Colors.white,
+        ),
+        body: const _KakaoMapDisabledView(),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('위치 선택'),
@@ -1081,6 +1094,10 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Widget _buildMapWithSheet() {
+    if (_disableKakaoMap) {
+      return const _KakaoMapDisabledView();
+    }
+
     final centerLat = _latitude ?? _defaultLat;
     final centerLng = _longitude ?? _defaultLng;
     final hasLocation = _latitude != null && _longitude != null;
@@ -1913,6 +1930,29 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _KakaoMapDisabledView extends StatelessWidget {
+  const _KakaoMapDisabledView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          '에뮬레이터에서는 카카오맵을 비활성화했습니다.\n실제 기기에서 지도를 확인해주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF6C6C70),
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -9,6 +9,8 @@ import 'package:kakao_map_plugin/kakao_map_plugin.dart' as kakao;
 
 import '../../core/api/senior_api.dart';
 
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
+
 // ─────────────────────────────────────────────
 //  helpers (top-level)
 // ─────────────────────────────────────────────
@@ -740,6 +742,8 @@ class _LocationMapCard extends StatelessWidget {
                 ),
               ),
             )
+          else if (_disableKakaoMap)
+            const _KakaoMapDisabledView()
           else
             kakao.KakaoMap(
               center: kakao.LatLng(mapLat, mapLon),
@@ -817,6 +821,29 @@ class _LocationMapCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _KakaoMapDisabledView extends StatelessWidget {
+  const _KakaoMapDisabledView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          '에뮬레이터에서는 카카오맵을 비활성화했습니다.\n실제 기기에서 지도를 확인해주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF6C6C70),
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

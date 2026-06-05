@@ -92,7 +92,8 @@ class _AppShellState extends State<AppShell> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        title:
+            const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
         content: const Text('로그아웃 하시겠어요?'),
         actions: [
           TextButton(
@@ -101,8 +102,8 @@ class _AppShellState extends State<AppShell> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('로그아웃',
-                style: TextStyle(color: Colors.redAccent)),
+            child:
+                const Text('로그아웃', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -161,8 +162,8 @@ class _AppShellState extends State<AppShell> {
             ),
           // 채팅
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline,
-                color: Color(0xFF86A788)),
+            icon:
+                const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
             tooltip: '채팅',
             onPressed: _openChat,
           ),
@@ -182,37 +183,7 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(width: 4),
         ],
       ),
-      body: IndexedStack(
-        index: _index,
-        children: [
-          SeniorHomeScreen(
-            seniorId: widget.seniorId,
-            onTabSwitch: _go,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          LocationScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          WeatherScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          JobScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-          ProfileScreen(
-            seniorId: widget.seniorId,
-            hideAppBar: true,
-            onRegisterAction: _registerAction,
-          ),
-        ],
-      ),
+      body: _buildCurrentPage(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _go,
@@ -223,12 +194,55 @@ class _AppShellState extends State<AppShell> {
         destinations: List.generate(_tabTitles.length, (i) {
           return NavigationDestination(
             icon: Icon(_tabIcons[i]),
-            selectedIcon: Icon(_tabSelectedIcons[i],
-                color: const Color(0xFF86A788)),
+            selectedIcon:
+                Icon(_tabSelectedIcons[i], color: const Color(0xFF86A788)),
             label: _tabTitles[i],
           );
         }),
       ),
     );
+  }
+
+  Widget _buildCurrentPage() {
+    switch (_index) {
+      case 0:
+        return SeniorHomeScreen(
+          seniorId: widget.seniorId,
+          onTabSwitch: _go,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 1:
+        return LocationScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 2:
+        return WeatherScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 3:
+        return JobScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      case 4:
+        return ProfileScreen(
+          seniorId: widget.seniorId,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+      default:
+        return SeniorHomeScreen(
+          seniorId: widget.seniorId,
+          onTabSwitch: _go,
+          hideAppBar: true,
+          onRegisterAction: _registerAction,
+        );
+    }
   }
 }

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "17772484625",
+    "project_id": "woori-949fb",
+    "storage_bucket": "woori-949fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17772484625:android:15adc83318cedbaaa879b0",
+        "android_client_info": {
+          "package_name": "com.example.woori_senior_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBKsnVbGIKpXNVLingi6_FOM2mpdaigNw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17772484625:android:11f51c092c4f58fba879b0",
+        "android_client_info": {
+          "package_name": "com.woori.woori_guardian_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCBKsnVbGIKpXNVLingi6_FOM2mpdaigNw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

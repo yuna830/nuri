@@ -7,14 +7,18 @@ import 'core/storage/senior_session_storage.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/app_shell.dart';
 
+const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
 
-  AuthRepository.initialize(
-    appKey: kakaoJavaScriptKey,
-    baseUrl: 'http://localhost',
-  );
+  if (!_disableKakaoMap) {
+    AuthRepository.initialize(
+      appKey: kakaoJavaScriptKey,
+      baseUrl: 'http://localhost',
+    );
+  }
 
   runApp(const WooriSeniorApp());
 }
