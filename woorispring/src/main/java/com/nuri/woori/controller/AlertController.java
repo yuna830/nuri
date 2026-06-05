@@ -43,7 +43,10 @@ public class AlertController {
 
     @GetMapping("/guardian/{guardianId}")
     public List<Alert> getGuardianAlerts(@PathVariable Long guardianId) {
-        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId);
+        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId)
+                .stream()
+                .filter(alert -> !"CONSENT_REQUEST".equals(alert.getType()))
+                .toList();
     }
 
     @GetMapping("/senior/{seniorId}")
@@ -152,7 +155,7 @@ public class AlertController {
         alert.setGuardianId(request.guardianId());
         alert.setType("CONSENT_REQUEST");
         alert.setTitle("정보 제공 동의 요청");
-        alert.setMessage(guardianName + " 보호자가 다음 항목에 대한 동의를 요청했습니다: " + requestedItems);
+        alert.setMessage(guardianName + " 보호자가 정보 제공 동의를 요청했습니다.");
         alert.setIsRead(false);
 
         return saveAndPushToSenior(alert);
@@ -314,6 +317,34 @@ public class AlertController {
         List<Alert> oldAlerts = alertRepository
                 .findBySeniorIdAndTypeInAndCreatedAtBefore(seniorId, requestTypes, cutoff);
         alertRepository.deleteAll(oldAlerts);
+    }
+
+    @PostMapping("/{id}/consent-confirm")
+    public Alert confirmConsentRequest(@PathVariable Long id) {
+        Alert requestAlert = alertRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Alert not found"));
+
+        if (!"CONSENT_REQUEST".equals(requestAlert.getType())) {
+            throw new RuntimeException("Not a consent request alert");
+        }
+
+        requestAlert.setIsRead(true);
+        alertRepository.save(requestAlert);
+
+        Senior senior = findSenior(requestAlert.getSeniorId());
+        String seniorName = senior.getName() == null || senior.getName().isBlank()
+                ? "사용자"
+                : senior.getName();
+
+        Alert guardianAlert = new Alert();
+        guardianAlert.setSeniorId(requestAlert.getSeniorId());
+        guardianAlert.setGuardianId(requestAlert.getGuardianId());
+        guardianAlert.setType("CONSENT_CONFIRMED");
+        guardianAlert.setTitle("정보 제공 동의 확인");
+        guardianAlert.setMessage(seniorName + "님이 정보 제공 동의 요청을 확인했습니다.");
+        guardianAlert.setIsRead(false);
+
+        return saveAndPushToGuardian(guardianAlert);
     }
 
     @PatchMapping("/{id}/read")
