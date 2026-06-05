@@ -2006,7 +2006,7 @@ function GuardianHeader({
       homePath="/guardian"
       showNotificationButton
       notifications={guardianNotifications}
-      notificationTabs={["전체", "긴급", "낙상", "정보", "읽지 않음"]}
+      notificationTabs={["전체", "읽지 않음", "긴급", "낙상", "정보"]}
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);

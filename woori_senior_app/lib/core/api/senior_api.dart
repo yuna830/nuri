@@ -199,6 +199,17 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// 정보 수정 완료 알림 (복지사에게)
+  Future<void> notifyProfileUpdateComplete(int seniorId, int alertId) async {
+    try {
+      await http.post(
+        Uri.parse('$apiBaseUrl/api/alerts/profile-update-complete'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'seniorId': seniorId, 'alertId': alertId}),
+      );
+    } catch (_) {}
+  }
+
   /// 일자리 공고 목록
   Future<Map<String, dynamic>> fetchJobList({
     int page = 1,

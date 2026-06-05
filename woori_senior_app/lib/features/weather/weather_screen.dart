@@ -29,7 +29,7 @@ class _Level {
 }
 
 const _levels = <String, _Level>{
-  'safe': _Level(key: 'safe', label: '안전', icon: '✅', desc: '외출 가능', color: Color(0xFF86A788)),
+  'safe': _Level(key: 'safe', label: '안전', icon: '☀️', desc: '외출 가능', color: Color(0xFF86A788)),
   'normal': _Level(key: 'normal', label: '보통', icon: 'ℹ️', desc: '확인 필요', color: Color(0xFF4F9CC9)),
   'caution': _Level(key: 'caution', label: '주의', icon: '⚠️', desc: '주의 필요', color: Color(0xFFF0A500)),
   'warning': _Level(key: 'warning', label: '경고', icon: '🚨', desc: '외출 자제', color: Color(0xFFE05252)),
