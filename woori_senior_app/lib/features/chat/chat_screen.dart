@@ -8,9 +8,10 @@ import 'package:mime/mime.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/config/secrets.dart';
 
 // Gemini API 설정
-const _geminiApiKey = 'AIzaSyBfkhXevFXhiNxsjbgieQiP35e2Iwuptd8';
+const _geminiApiKey = geminiApiKey;
 const _geminiModel = 'gemini-2.5-flash-lite';
 const _geminiUrl =
     'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent';
@@ -290,18 +291,17 @@ class _AiChatRoomState extends State<_AiChatRoom> {
 
   final List<_AiMsg> _history = [];
   bool _sending = false;
-  Map<String, dynamic> _profile = {};
+  Map<String, dynamic> _senior = {};
+  Map<String, dynamic> _healthInfo = {};
   String? _pendingImageBase64;
   String? _pendingImageMime;
+  int? _conversationId;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _history.add(const _AiMsg(
-      role: 'assistant',
-      text: '안녕하세요! 복지 정보나 건강에 대해 궁금한 것을 물어보세요. 😊',
-    ));
+    _initConversation();
   }
 
   @override
@@ -316,7 +316,91 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       final raw = await _api.fetchProfile(widget.seniorId);
       final s = raw['senior'] as Map<String, dynamic>? ?? {};
       final h = raw['healthInfo'] as Map<String, dynamic>? ?? {};
-      if (mounted) setState(() => _profile = {...s, ...h});
+      if (mounted) setState(() { _senior = s; _healthInfo = h; });
+    } catch (_) {}
+  }
+
+  // 가장 최근 대화 불러오거나 없으면 새로 생성
+  Future<void> _initConversation() async {
+    try {
+      final baseUrl = '$apiBaseUrl/api/assistant-conversations';
+      // 최근 대화 목록 조회
+      final listRes = await http.get(
+        Uri.parse('$baseUrl/senior/${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+
+      if (listRes.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(listRes.bodyBytes)) as List;
+        if (list.isNotEmpty) {
+          final conv = list.first as Map<String, dynamic>;
+          _conversationId = conv['id'] as int?;
+          await _loadMessages();
+          return;
+        }
+      }
+      // 대화 없으면 새로 생성
+      await _createConversation();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  Future<void> _createConversation() async {
+    try {
+      final res = await http.post(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/senior/${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        _conversationId = data['id'] as int?;
+      }
+      _addWelcome();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  Future<void> _loadMessages() async {
+    if (_conversationId == null) { _addWelcome(); return; }
+    try {
+      final res = await http.get(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/$_conversationId/messages?seniorId=${widget.seniorId}'),
+      ).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+        if (list.isNotEmpty && mounted) {
+          final msgs = list.map((m) => _AiMsg(
+            role: (m['role'] as String).toLowerCase() == 'user' ? 'user' : 'assistant',
+            text: m['content'] as String? ?? '',
+          )).toList();
+          setState(() => _history.addAll(msgs));
+          _scrollToBottom();
+          return;
+        }
+      }
+      _addWelcome();
+    } catch (_) {
+      _addWelcome();
+    }
+  }
+
+  void _addWelcome() {
+    if (mounted && _history.isEmpty) {
+      setState(() => _history.add(const _AiMsg(
+        role: 'assistant',
+        text: '안녕하세요! 복지 정보나 건강에 대해 궁금한 것을 물어보세요. 😊',
+      )));
+    }
+  }
+
+  Future<void> _saveMessage(String role, String content) async {
+    if (_conversationId == null) return;
+    try {
+      await http.post(
+        Uri.parse('$apiBaseUrl/api/assistant-conversations/$_conversationId/messages?seniorId=${widget.seniorId}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'role': role.toUpperCase(), 'content': content}),
+      ).timeout(const Duration(seconds: 6));
     } catch (_) {}
   }
 
@@ -331,6 +415,102 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     });
   }
 
+  String _buildSystemPrompt() {
+    String sv(String key) {
+      final val = _senior[key];
+      if (val == null) return '';
+      final s = '$val'.trim();
+      return (s.isEmpty || s == 'null') ? '' : s;
+    }
+
+    String hv(String key) {
+      final val = _healthInfo[key];
+      if (val == null) return '';
+      final s = '$val'.trim();
+      return (s.isEmpty || s == 'null') ? '' : s;
+    }
+
+    final name = sv('name').isNotEmpty ? sv('name') : '사용자';
+
+    // 기본 정보
+    final basicParts = <String>[];
+    if (sv('age').isNotEmpty) basicParts.add('나이: ${sv('age')}세');
+    if (sv('gender').isNotEmpty) basicParts.add('성별: ${sv('gender')}');
+    if (sv('region').isNotEmpty) basicParts.add('지역: ${sv('region')}');
+
+    // 건강 정보 (health_info 테이블 전체)
+    final healthParts = <String>[];
+    final fieldLabels = {
+      'healthStatus': '건강상태',
+      'diabetes': '당뇨',
+      'hypertension': '고혈압',
+      'heartDisease': '심장질환',
+      'stroke': '뇌졸중',
+      'dementia': '치매',
+      'jointDisease': '관절질환',
+      'kidneyDisease': '신장질환',
+      'lungDisease': '폐질환',
+      'liverDisease': '간질환',
+      'cancer': '암',
+      'bloodPressure': '혈압',
+      'allergies': '알레르기',
+      'walkingAid': '보행보조도구',
+      'recentFall': '최근낙상',
+      'vision': '시력',
+      'hearing': '청력',
+      'smoking': '흡연',
+      'drinking': '음주',
+      'hasSurgery': '수술이력',
+      'surgeryDetail': '수술상세',
+      'otherDisease': '기타질환',
+      'height': '신장',
+      'weight': '체중',
+      'medicineCount': '복용약수',
+      'householdType': '가구형태',
+      'housingType': '주거형태',
+      'livingCostStatus': '생활비상태',
+      'incomeLevel': '소득수준',
+      'pensionStatus': '연금수급',
+      'currentBenefits': '현재수급',
+      'welfareDecision': '복지결정',
+    };
+
+    for (final entry in fieldLabels.entries) {
+      final val = hv(entry.key);
+      if (val.isNotEmpty && val != '없음' && val != '정상' && val != '비해당') {
+        healthParts.add('${entry.value}: $val');
+      }
+    }
+
+    // 복약 정보 (medicationsJson)
+    final medsRaw = _healthInfo['medicationsJson'];
+    if (medsRaw != null && '$medsRaw'.trim().isNotEmpty && '$medsRaw' != '[]') {
+      try {
+        final meds = jsonDecode('$medsRaw') as List;
+        if (meds.isNotEmpty) {
+          final medNames = meds.map((m) => m is Map ? (m['name'] ?? m['약명'] ?? '$m') : '$m').join(', ');
+          healthParts.add('복용중인약: $medNames');
+        }
+      } catch (_) {
+        healthParts.add('복용중인약: $medsRaw');
+      }
+    }
+
+    final basicContext = basicParts.isEmpty ? '' : basicParts.join(' / ');
+    final healthContext = healthParts.isEmpty ? '(건강 정보 없음)' : healthParts.join('\n');
+
+    return '너는 $name님($basicContext)의 일상을 돕는 한국어 돌봄 챗봇이다.\n\n'
+        '[${name}님 건강·복지 정보 - DB 기준]\n$healthContext\n\n'
+        '규칙:\n'
+        '- 모든 답변은 자연스러운 한국어 존댓말로 한다.\n'
+        '- 위 건강·복지 정보를 반드시 참고하여 개인 상황에 맞게 답변한다.\n'
+        '- 이미 알고 있는 정보는 다시 묻지 않는다.\n'
+        '- 복지 정책, 건강, 일자리에 대해 간결하게 답변한다.\n'
+        '- 이미지가 첨부되면 이미지 내용을 분석하여 답변한다.\n'
+        '- 모르면 지어내지 말고 다시 말해 달라고 한다.\n'
+        '- 반말, 외국어 섞어 쓰기는 하지 않는다.';
+  }
+
   Future<void> _ask() async {
     final q = _inputCtrl.text.trim();
     final hasImage = _pendingImageBase64 != null;
@@ -339,6 +519,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     _inputCtrl.clear();
     final sentImageBase64 = _pendingImageBase64;
     final sentImageMime = _pendingImageMime;
+    if (q.isNotEmpty) _saveMessage('USER', q);
     setState(() {
       _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime));
       _pendingImageBase64 = null;
@@ -347,15 +528,11 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     });
     _scrollToBottom();
 
+    // 프로필 아직 안 불러왔으면 먼저 로드
+    if (_healthInfo.isEmpty && _senior.isEmpty) await _loadProfile();
+
     try {
-      final systemPrompt =
-          '너는 ${_profile['name'] ?? '사용자'}님의 일상을 돕는 한국어 돌봄 챗봇이다.\n'
-          '규칙:\n'
-          '- 모든 답변은 자연스러운 한국어 존댓말로 한다.\n'
-          '- 복지 정책, 건강, 일자리에 대해 간결하게 답변한다.\n'
-          '- 이미지가 첨부되면 이미지 내용을 분석하여 답변한다.\n'
-          '- 모르면 지어내지 말고 다시 말해 달라고 한다.\n'
-          '- 반말, 외국어 섞어 쓰기는 하지 않는다.';
+      final systemPrompt = _buildSystemPrompt();
 
       // 이전 대화 히스토리 (이미지 없는 텍스트만)
       final prevContents = _history
@@ -398,7 +575,10 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                 .trim() ??
             '답변을 가져오지 못했습니다.';
         setState(() => _history.add(_AiMsg(role: 'assistant', text: answer)));
+        _saveMessage('ASSISTANT', answer);
       } else {
+        // ignore: avoid_print
+        print('[Gemini] status=${res.statusCode} body=${res.body}');
         setState(() => _history.add(const _AiMsg(
             role: 'assistant', text: 'AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.')));
       }

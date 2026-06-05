@@ -265,12 +265,14 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        '처음 사용하시나요?',
-                        style: TextStyle(
-                          color: Color(0xFF6D766A),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                      const Flexible(
+                        child: Text(
+                          '처음 사용하시나요?',
+                          style: TextStyle(
+                            color: Color(0xFF6D766A),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       TextButton(

@@ -374,7 +374,7 @@ function GuardianPage() {
 
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
-    relation: previousElder?.relation || freshElder.relation,
+    relation: freshElder.relation || previousElder?.relation,
     currentLocation: previousElder?.currentLocation ?? freshElder.currentLocation,
     lastNormalLocation: previousElder?.lastNormalLocation ?? freshElder.lastNormalLocation,
     routeHistory: previousElder?.routeHistory ?? freshElder.routeHistory,

@@ -668,7 +668,6 @@ class _HomeBody extends StatelessWidget {
   }
 
   String _guardianSummary(Map<String, dynamic> profile) {
-    // Spring SeniorProfileResponse: flat 필드 guardianName, guardianPhone
     final name = _textFrom(profile, ['guardianName'], '');
     if (name.isNotEmpty) {
       final rel = _textFrom(profile, ['relation'], '');

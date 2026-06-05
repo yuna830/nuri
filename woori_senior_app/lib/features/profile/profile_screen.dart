@@ -304,7 +304,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'allergies': f.allergies,
     'medicineCount': f.medicineCount == _none ? '' : f.medicineCount,
     'medications': f.medications,
-    'medicationsJson': f.medications.toString(),
+    'medicationsJson': jsonEncode(f.medications),
     for (final d in _chronicDiseases)
       d['key']!: f.chronic[d['key']] == _none ? '' : f.chronic[d['key']],
     'walkingAid': f.walkingAid == _none ? '' : f.walkingAid,
@@ -318,8 +318,8 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'maxHours': f.maxHours == _none ? '' : f.maxHours,
     'maxDistance': f.maxDistance == _none ? '' : f.maxDistance,
     'disabledWork': f.disabledWork,
-    'restNeeds': f.restNeeds == _none ? '' : f.restNeeds,
-    'avoidEnvironments': f.avoidEnvironments,
+    'restNeed': f.restNeeds == _none ? '' : f.restNeeds,
+    'avoidEnvironment': f.avoidEnvironments,
     'incomeLevel': f.incomeLevel == _none ? '' : f.incomeLevel,
     'livingCostStatus': f.livingCostStatus == _none ? '' : f.livingCostStatus,
     'householdType': f.householdType == _none ? '' : f.householdType,
@@ -332,7 +332,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'hopeDays': f.hopeDays,
     'hopeJobType': f.hopeJobType,
     'hopeCondition': f.hopeCondition,
-    'jobMemo': f.jobMemo,
+    'memo': f.jobMemo,
   };
 }
 
@@ -374,11 +374,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _tabController = TabController(length: _sections.length, vsync: this);
     _load();
-    widget.onRegisterAction?.call(
-      action: _save,
-      icon: Icons.save_outlined,
-      tooltip: '저장',
-    );
   }
 
   @override
@@ -518,16 +513,15 @@ class _ProfileScreenState extends State<ProfileScreen>
       persistentFooterButtons: [
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, size: 18, color: Colors.redAccent),
-            label: const Text(
-              '로그아웃',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+          child: FilledButton(
+            onPressed: (_loading || _saving) ? null : _save,
+            child: Text(
+              _saving ? '저장 중...' : '저장하기',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
             ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.redAccent),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF86A788),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ),
