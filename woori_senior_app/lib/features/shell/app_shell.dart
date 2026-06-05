@@ -165,14 +165,16 @@ class _AppShellState extends State<AppShell> {
         actions: [
           // 채팅
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
+            icon:
+                const Icon(Icons.chat_bubble_outline, color: Color(0xFF86A788)),
             tooltip: '채팅',
             onPressed: _openChat,
             visualDensity: VisualDensity.compact,
           ),
           // 알림
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Color(0xFF86A788)),
+            icon: const Icon(Icons.notifications_outlined,
+                color: Color(0xFF86A788)),
             tooltip: '알림',
             onPressed: _openNotifications,
             visualDensity: VisualDensity.compact,
@@ -223,7 +225,6 @@ class _AppShellState extends State<AppShell> {
           seniorId: widget.seniorId,
           onTabSwitch: _go,
           hideAppBar: true,
-          onRegisterAction: _registerAction,
         );
       case 1:
         return LocationScreen(
@@ -254,7 +255,6 @@ class _AppShellState extends State<AppShell> {
           seniorId: widget.seniorId,
           onTabSwitch: _go,
           hideAppBar: true,
-          onRegisterAction: _registerAction,
         );
     }
   }
