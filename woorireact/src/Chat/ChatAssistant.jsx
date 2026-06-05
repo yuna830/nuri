@@ -9,6 +9,7 @@ import { withUserGreeting } from "./utils/userGreeting";
 import { createAssistantConversation, deleteAssistantConversation, fetchAssistantConversations, fetchAssistantMessages, saveAssistantMessage, updateAssistantConversationTitle, } from "./services/assistantConversationApi";
 
 //=======================상수 함수===========================
+//챗봇 시작말 
 const createWelcomeMessages = () => [
   {
     role: "assistant",
@@ -16,6 +17,7 @@ const createWelcomeMessages = () => [
   },
 ];
 
+//사용자 불러오기 
 const getResolvedSeniorId = () => {
   const fromStorage = getCurrentSeniorId();
   if (fromStorage) return fromStorage;
@@ -28,15 +30,12 @@ const getResolvedSeniorId = () => {
       return id;
     }
   } catch {
-    // ignore
-
-    // Fall back to the stored senior id lookup result.
+    //ignore
   }
   return null;
 };
 
 //=======================상태===========================
-
 export default function ChatAssistant() {
   const [searchParams] = useSearchParams();
 

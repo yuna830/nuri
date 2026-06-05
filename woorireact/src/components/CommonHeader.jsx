@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteAlerts } from "../api/userPageApi.js";
-import "../css/common/CommonHeader.css";
 import "../css/user/UserCommonHeader.css";
+import "../css/common/CommonHeader.css";
 
 const DEFAULT_NOTIFICATION_TABS = ["전체", "긴급", "낙상", "복약", "기후", "요청", "읽지 않음"];
 const READ_STATUSES = new Set(["확인됨", "읽음", "확인함", "조치완료", "만남 완료", "read", "READ", "resolved", "RESOLVED"]);
@@ -137,9 +137,7 @@ function CommonHeader({
   };
 
   const renderDefaultAction = (notification) => (
-    notification.isRead ? (
-      <em>{getReadLabel(notification)}</em>
-    ) : (
+    notification.isRead ? null : (
       <button type="button" onClick={(event) => handleReadClick(event, notification)}>
         {getActionLabel(notification)}
       </button>
@@ -324,8 +322,7 @@ function CommonHeader({
                 filteredNotifications.map((notification) => (
                   <article
                     key={notification.key}
-                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger ? "danger" : ""} ${notification.isRead ? "read" : ""
-                      }`}
+                    className={`uch-alert-item common-alert-item ${onNotificationClick ? "clickable" : ""} ${notification.danger && !notification.isRead ? "danger" : ""} ${notification.isRead ? "read" : ""}`}
                     onClick={onNotificationClick ? () => handleNotificationClick(notification) : undefined}
                   >
                     <label className="uch-alert-select">
@@ -339,7 +336,7 @@ function CommonHeader({
                       />
                     </label>
                     <div className="uch-alert-content">
-                      <div className="uch-alert-meta">
+                      {/* <div className="uch-alert-meta">
                         {notification.statusLabel !== null && (
                           <span className={notification.isRead ? "read" : "unread"}>
                             {notification.statusLabel || (notification.isRead ? getReadLabel(notification) : "확인 필요")}
@@ -352,7 +349,26 @@ function CommonHeader({
                         {notification.time && (
                           <span className="uch-alert-time-inline">{notification.time}</span>
                         )}
+                      </div> */}
+                      <div className="uch-alert-meta">
+                        <div className="uch-alert-meta-tags">
+                          {notification.isRead && notification.statusLabel !== null && (
+                            <span className="read">
+                              {notification.statusLabel || getReadLabel(notification)}
+                            </span>
+                          )}
+                          <span className={`category ${notification.category === "긴급" ? "danger" : ""}`}>
+                            {notification.category}
+                          </span>
+                        </div>
+                        {notification.time && (
+                          <span className="uch-alert-time-inline">{notification.time}</span>
+                        )}
                       </div>
+                      <div className="uch-alert-title-row">
+                        <strong>{notification.title}</strong>
+                      </div>
+                    
                       <p>{notification.message}</p>
                       {notification.raw?.imageUrl && (
                         <img

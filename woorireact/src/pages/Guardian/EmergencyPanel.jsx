@@ -113,7 +113,9 @@ function EmergencyPanel({
   onOpenChat,
   onOpenUserChat,
 }) {
-
+  const selectedElderDisplayName = selectedElder?.name
+    ? `${selectedElder.name}${selectedElder.name.endsWith("님") ? "" : "님"}`
+    : "보호 대상자님";
   const [policeIndex, setPoliceIndex] = useState(0);
   const [isPoliceSearchOpen, setIsPoliceSearchOpen] = useState(false);
   const [policeSearchKeyword, setPoliceSearchKeyword] = useState("");
@@ -918,20 +920,21 @@ function EmergencyPanel({
             </div>
 
             <p className="call-result-text">
-              보호 대상자와 연락이 되었나요?
+              {selectedElderDisplayName}에게 전화를 요청했습니다.
               <br />
-              추가 조치가 필요 없다면 확인됨으로 처리하고, 연락이 닿지 않거나 위험 상황이면 긴급 신고를 진행하세요.
+              연락이 되었거나 추가 조치가 필요 없다면 {selectedElderDisplayName}에게 전화하기를 누르고, 위험 상황이면 긴급 신고를 진행하세요.
             </p>
 
             <div className="call-result-actions">
               <button className="call-resolved-button" type="button" onClick={onCallResolved}>
-                확인됨
+                {selectedElderDisplayName}에게 전화하기
               </button>
 
               <button className="call-report-button" type="button" onClick={onCallNeedsReport}>
                 긴급 신고
               </button>
             </div>
+
           </section>
         </div>
       )}
