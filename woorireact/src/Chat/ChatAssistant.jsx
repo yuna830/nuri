@@ -3,31 +3,13 @@ import { useSearchParams } from "react-router-dom";
 import "./ChatAssistant.css";
 import ChatView from "./components/ChatView";
 import ScheduleRegister from "./components/ScheduleRegister";
-import {
-  createSchedule,
-  deleteSchedule,
-  fetchSchedulesByDate,
-  fetchSeniorSchedules,
-  getCurrentSeniorId,
-  updateSchedule,
-} from "./services/scheduleApi";
-import {
-  formatScheduleBrief,
-  isPastSchedule,
-  pad,
-  scheduleToText,
-  todayValue,
-} from "./utils/scheduleText";
+import { createSchedule, deleteSchedule, fetchSchedulesByDate, fetchSeniorSchedules, getCurrentSeniorId, updateSchedule, } from "./services/scheduleApi";
+import { formatScheduleBrief, isPastSchedule, pad, scheduleToText, todayValue, } from "./utils/scheduleText";
 import { withUserGreeting } from "./utils/userGreeting";
-import {
-  createAssistantConversation,
-  deleteAssistantConversation,
-  fetchAssistantConversations,
-  fetchAssistantMessages,
-  saveAssistantMessage,
-  updateAssistantConversationTitle,
-} from "./services/assistantConversationApi";
+import { createAssistantConversation, deleteAssistantConversation, fetchAssistantConversations, fetchAssistantMessages, saveAssistantMessage, updateAssistantConversationTitle, } from "./services/assistantConversationApi";
 
+//=======================상수 함수===========================
+//챗봇 시작말 
 const createWelcomeMessages = () => [
   {
     role: "assistant",
@@ -35,6 +17,7 @@ const createWelcomeMessages = () => [
   },
 ];
 
+//사용자 불러오기 
 const getResolvedSeniorId = () => {
   const fromStorage = getCurrentSeniorId();
   if (fromStorage) return fromStorage;
@@ -47,29 +30,42 @@ const getResolvedSeniorId = () => {
       return id;
     }
   } catch {
-    // ignore
-
-    // Fall back to the stored senior id lookup result.
+    //ignore
   }
   return null;
 };
 
+//=======================상태===========================
 export default function ChatAssistant() {
   const [searchParams] = useSearchParams();
+
+  // 화면 상태
   const [mode, setMode] = useState("chat");
   const [editingSchedule, setEditingSchedule] = useState(null);
+
+  // 일정 상태
   const [savedSchedules, setSavedSchedules] = useState([]);
   const [chatSchedules, setChatSchedules] = useState([]);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
+
+  // 채팅 상태
+  const [messages, setMessages] = useState(createWelcomeMessages);
+
+  // 대화방 상태
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
   const [isConversationLoading, setIsConversationLoading] = useState(true);
-  const persistedMessageCountRef = useRef(0);
-  const saveQueueRef = useRef(Promise.resolve());
-  const didShowBriefingRef = useRef(false);
-  const [selectedScheduleDate, setSelectedScheduleDate] = useState(todayValue());
-  const [messages, setMessages] = useState(createWelcomeMessages);
 
+  // 이미 DB에 저장된 메시지 개수
+  const persistedMessageCountRef = useRef(0);
+  // 메시지 저장 순서 보장용 큐
+  const saveQueueRef = useRef(Promise.resolve());
+  // 오늘 일정 안내 중복 방지
+  const didShowBriefingRef = useRef(false);
+
+  //=======================대화방 함수===========================
+  // 대화방 목록 조회 
   async function refreshConversations(seniorId = getResolvedSeniorId()) {
     if (!seniorId) return [];
     const recentConversations = await fetchAssistantConversations(seniorId);
@@ -77,6 +73,19 @@ export default function ChatAssistant() {
     return recentConversations;
   }
 
+  // 전체 일정 조회 
+  async function refreshAllSchedules() {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId) return [];
+
+    const allSchedules = await fetchSeniorSchedules(seniorId);
+    const normalized = allSchedules.map(scheduleFromApi);
+    setChatSchedules(normalized);
+    return normalized;
+  }
+
+  //================================================
+  // 선택한 대화방 열기 
   async function openConversation(conversationId, { closePanel = true } = {}) {
     const seniorId = getResolvedSeniorId();
     if (!seniorId) return;
@@ -102,6 +111,7 @@ export default function ChatAssistant() {
     }
   }
 
+  // 새 대화방 생성 
   async function createConversation({ closePanel = true } = {}) {
     const seniorId = getResolvedSeniorId();
     if (!seniorId) return;
@@ -121,6 +131,7 @@ export default function ChatAssistant() {
     }
   }
 
+  // 대화방 삭제 
   async function removeConversation(conversationId) {
     const seniorId = getResolvedSeniorId();
     if (!seniorId) return;
@@ -141,6 +152,7 @@ export default function ChatAssistant() {
     }
   }
 
+  // 대화방 제목 수정 
   async function renameConversation(conversationId, title) {
     const seniorId = getResolvedSeniorId();
     if (!seniorId) return;
@@ -155,117 +167,21 @@ export default function ChatAssistant() {
     }
   }
 
-  useEffect(() => {
-    async function initializeConversations() {
-      const seniorId = getResolvedSeniorId();
-      if (!seniorId) {
-        setIsConversationLoading(false);
-        return;
-      }
-
-      try {
-        const recentConversations = await refreshConversations(seniorId);
-        if (recentConversations.length > 0) {
-          await openConversation(recentConversations[0].id);
-        } else {
-          await createConversation();
-        }
-      } catch (error) {
-        console.error("최근 대화 초기화 오류:", error);
-        setIsConversationLoading(false);
-      }
-    }
-
-    initializeConversations();
-  }, []);
-
-  useEffect(() => {
-    const seniorId = getResolvedSeniorId();
-    if (!seniorId || !activeConversationId) return;
-
-    const newMessages = messages.slice(persistedMessageCountRef.current);
-    persistedMessageCountRef.current = messages.length;
-    const visibleMessages = newMessages.filter((message) => !message.hidden && message.content);
-
-    if (visibleMessages.length === 0) return;
-
-    saveQueueRef.current = saveQueueRef.current
-      .then(async () => {
-        for (const message of visibleMessages) {
-          await saveAssistantMessage(seniorId, activeConversationId, message);
-        }
-        await refreshConversations(seniorId);
-      })
-      .catch((error) => {
-        console.error("대화 메시지 저장 오류:", error);
-      });
-  }, [activeConversationId, messages]);
-
-  function showTodayBriefing(schedules) {
-    if (didShowBriefingRef.current) return;
-
-    const todaySchedules = schedules.filter((schedule) => schedule.date === todayValue());
-    if (todaySchedules.length === 0) return;
-
-    didShowBriefingRef.current = true;
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: `오늘 일정은 ${todaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
-      },
-    ]);
-  }
-
-  async function refreshAllSchedules() {
-    const seniorId = getResolvedSeniorId();
-    if (!seniorId) return [];
-
-    const allSchedules = await fetchSeniorSchedules(seniorId);
-    const normalized = allSchedules.map(scheduleFromApi);
-    setChatSchedules(normalized);
-    return normalized;
-  }
-
-  useEffect(() => {
-    if (searchParams.get("mode") === "schedule") {
-      setEditingSchedule(null);
-      setMode("schedule");
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    async function loadSchedules() {
-      const seniorId = getResolvedSeniorId();
-      if (!seniorId) return;
-      try {
-        const [dateSchedules, allSchedules] = await Promise.all([
-          fetchSchedulesByDate(seniorId, selectedScheduleDate),
-          fetchSeniorSchedules(seniorId),
-        ]);
-        const normalizedDateSchedules = dateSchedules.map(scheduleFromApi);
-        const normalizedAllSchedules = allSchedules.map(scheduleFromApi);
-
-        setSavedSchedules(normalizedDateSchedules);
-        setChatSchedules(normalizedAllSchedules);
-        showTodayBriefing(normalizedAllSchedules);
-      } catch (error) {
-        console.error("일정 조회 오류:", error);
-      }
-    }
-    loadSchedules();
-  }, [selectedScheduleDate]);
-
+  //=======================일정 함수===========================
+  // 일정 등록 화면 열기 
   function openScheduleCreate() {
     setEditingSchedule(null);
     setMode("schedule");
   }
 
+  //일정 수정 화면 열기 
   function openScheduleEdit(schedule) {
     setEditingSchedule(schedule);
     setMode("schedule");
   }
 
+  //================================================
+  //일정 저장
   async function handleScheduleSave(schedule) {
     const seniorId = getResolvedSeniorId();
     const isEditing = Boolean(editingSchedule);
@@ -300,6 +216,7 @@ export default function ChatAssistant() {
     }
   }
 
+  //일정 수정
   async function handleScheduleUpdate(schedule) {
     const seniorId = getResolvedSeniorId();
 
@@ -328,6 +245,7 @@ export default function ChatAssistant() {
     }
   }
 
+  //일정 삭제 
   async function handleScheduleDelete(scheduleId) {
     const target =
       chatSchedules.find((schedule) => schedule.id === scheduleId) ||
@@ -349,6 +267,7 @@ export default function ChatAssistant() {
     }
   }
 
+  // 저장된 일정 상태 반영
   function applySavedSchedule(savedSchedule, isEditing) {
     setChatSchedules((prev) => {
       const withoutCurrent = prev.filter((item) => item.id !== savedSchedule.id);
@@ -362,9 +281,108 @@ export default function ChatAssistant() {
     });
   }
 
+  //챗봇 메시지 추가 
   function addAssistantMessage(content) {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
   }
+
+  //오늘 일정 자동 안내 
+  function showTodayBriefing(schedules) {
+    if (didShowBriefingRef.current) return;
+
+    const todaySchedules = schedules.filter((schedule) => schedule.date === todayValue());
+    if (todaySchedules.length === 0) return;
+
+    didShowBriefingRef.current = true;
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `오늘 일정은 ${todaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
+      },
+    ]);
+  }
+
+
+  //=======================useEffect===========================
+  // 최초 진입 시 최근 대화 불러오기 
+  useEffect(() => {
+    async function initializeConversations() {
+      const seniorId = getResolvedSeniorId();
+      if (!seniorId) {
+        setIsConversationLoading(false);
+        return;
+      }
+
+      try {
+        const recentConversations = await refreshConversations(seniorId);
+        if (recentConversations.length > 0) {
+          await openConversation(recentConversations[0].id);
+        } else {
+          await createConversation();
+        }
+      } catch (error) {
+        console.error("최근 대화 초기화 오류:", error);
+        setIsConversationLoading(false);
+      }
+    }
+
+    initializeConversations();
+  }, []);
+
+  // 메시지 변경 시 자동 저장
+  useEffect(() => {
+    const seniorId = getResolvedSeniorId();
+    if (!seniorId || !activeConversationId) return;
+
+    const newMessages = messages.slice(persistedMessageCountRef.current);
+    persistedMessageCountRef.current = messages.length;
+    const visibleMessages = newMessages.filter((message) => !message.hidden && message.content);
+
+    if (visibleMessages.length === 0) return;
+
+    saveQueueRef.current = saveQueueRef.current
+      .then(async () => {
+        for (const message of visibleMessages) {
+          await saveAssistantMessage(seniorId, activeConversationId, message);
+        }
+        await refreshConversations(seniorId);
+      })
+      .catch((error) => {
+        console.error("대화 메시지 저장 오류:", error);
+      });
+  }, [activeConversationId, messages]);
+
+  // URL 파라미터에 따른 화면 전환
+  useEffect(() => {
+    if (searchParams.get("mode") === "schedule") {
+      setEditingSchedule(null);
+      setMode("schedule");
+    }
+  }, [searchParams]);
+
+  // 선택한 날짜의 일정 조회
+  useEffect(() => {
+    async function loadSchedules() {
+      const seniorId = getResolvedSeniorId();
+      if (!seniorId) return;
+      try {
+        const [dateSchedules, allSchedules] = await Promise.all([
+          fetchSchedulesByDate(seniorId, selectedScheduleDate),
+          fetchSeniorSchedules(seniorId),
+        ]);
+        const normalizedDateSchedules = dateSchedules.map(scheduleFromApi);
+        const normalizedAllSchedules = allSchedules.map(scheduleFromApi);
+
+        setSavedSchedules(normalizedDateSchedules);
+        setChatSchedules(normalizedAllSchedules);
+        showTodayBriefing(normalizedAllSchedules);
+      } catch (error) {
+        console.error("일정 조회 오류:", error);
+      }
+    }
+    loadSchedules();
+  }, [selectedScheduleDate]);
 
   if (mode === "schedule") {
     return (
@@ -409,6 +427,8 @@ export default function ChatAssistant() {
   );
 }
 
+//=======================변환용 유틸 함수===========================
+// API 요청용 일정 데이터 변환
 function scheduleToApiPayload(schedule, seniorId) {
   const title = schedule.detail || schedule.title || "일정";
   const scheduleTime = Object.prototype.hasOwnProperty.call(schedule, "time")
@@ -427,6 +447,7 @@ function scheduleToApiPayload(schedule, seniorId) {
   };
 }
 
+// API 응답 데이터를 화면용 일정 객체로 변환
 function scheduleFromApi(schedule) {
   const time = schedule.scheduleTime?.slice(0, 5) || "";
   const timeFields = timeToFields(time);
@@ -447,6 +468,7 @@ function scheduleFromApi(schedule) {
   };
 }
 
+// 오전/오후 시각을 24시간 형식으로 변환
 function fieldsToTime(schedule) {
   const hour = Number(schedule.hour || 9);
   const minute = schedule.minute || "00";
@@ -456,6 +478,7 @@ function fieldsToTime(schedule) {
   return `${pad(hour24)}:${minute}`;
 }
 
+// 24시간 형식을 오전/오후 시각으로 변환
 function timeToFields(time) {
   if (!time) return { period: "오전", hour: 9, minute: "00" };
   const [rawHour, rawMinute = "00"] = time.split(":");

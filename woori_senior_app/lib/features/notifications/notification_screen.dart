@@ -112,8 +112,13 @@ class _NotificationScreenState extends State<NotificationScreen>
     if (id == null || _isRead(alert)) return;
 
     setState(() => alert['isRead'] = true);
+
     try {
-      await _api.readAlert(id);
+      if (alert['type'] == 'CONSENT_REQUEST') {
+        await _api.confirmConsentRequest(id);
+      } else {
+        await _api.readAlert(id);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => alert['isRead'] = false);

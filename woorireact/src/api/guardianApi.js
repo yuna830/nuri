@@ -51,10 +51,22 @@ export function readAlert(alertId) {
   });
 }
 
-export function createCallRequestAlert({ seniorId, latitude, longitude }) {
+// export function createCallRequestAlert({ seniorId, latitude, longitude }) {
+//   return request(API_BASE_URL, "/api/alerts/call", {
+//     method: "POST",
+//     body: JSON.stringify({ seniorId, latitude, longitude }),
+//   });
+// }
+export function createCallRequestAlert({ seniorId, guardianId, message, latitude, longitude }) {
   return request(API_BASE_URL, "/api/alerts/call", {
     method: "POST",
-    body: JSON.stringify({ seniorId, latitude, longitude }),
+    body: JSON.stringify({
+      seniorId,
+      guardianId,
+      message,
+      latitude,
+      longitude,
+    }),
   });
 }
 

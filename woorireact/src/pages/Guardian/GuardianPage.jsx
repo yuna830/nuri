@@ -364,11 +364,15 @@ function GuardianPage() {
 
   const unreadAlertsByElder = useMemo(() => {
     const map = {};
-    buildDisplayedAlerts(apiAlerts, reportedAlertIds).forEach((alert) => {
-      if (!alert.seniorId) return;
-      const id = String(alert.seniorId);
-      map[id] = (map[id] || 0) + 1;
-    });
+
+    buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      .filter((alert) => alert.rawAlert?.isRead !== true)
+      .forEach((alert) => {
+        if (!alert.seniorId) return;
+        const id = String(alert.seniorId);
+        map[id] = (map[id] || 0) + 1;
+      });
+
     return map;
   }, [apiAlerts, reportedAlertIds]);
 
@@ -666,20 +670,59 @@ function GuardianPage() {
     ? [location.lat, location.lng]
     : [safeZoneCenter.lat, safeZoneCenter.lng];
 
-  const distance = hasCurrentLocation ? getDistanceMeters(safeZoneCenter, location) : 0;
-  const isOutsideSafeZone = hasCurrentLocation && distance > safeZoneForm.radiusMeters;
+  const getSafeZoneStatus = (zones, currentLocation) => {
+    if (!currentLocation) {
+      return {
+        isOutside: false,
+        nearestDistance: 0,
+        nearestZone: null,
+        matchedZone: null,
+      };
+    }
+
+    const zoneDistances = zones.map((zone) => {
+      const distance = getDistanceMeters(
+        {
+          lat: zone.centerLatitude,
+          lng: zone.centerLongitude,
+        },
+        currentLocation
+      );
+
+      return {
+        zone,
+        distance,
+        isInside: distance <= zone.radiusMeters,
+      };
+    });
+
+    const matchedZone = zoneDistances.find((item) => item.isInside) ?? null;
+
+    const nearest = zoneDistances.reduce((best, item) => {
+      if (!best) return item;
+      return item.distance < best.distance ? item : best;
+    }, null);
+
+    return {
+      isOutside: matchedZone == null,
+      nearestDistance: nearest ? Math.round(nearest.distance) : 0,
+      nearestZone: nearest?.zone ?? null,
+      matchedZone: matchedZone?.zone ?? null,
+    };
+  };
+
+  const safeZoneStatus = getSafeZoneStatus(safeZones, hasCurrentLocation ? location : null);
+
+  const distance = safeZoneStatus.nearestDistance;
+  const isOutsideSafeZone = hasCurrentLocation && safeZoneStatus.isOutside;
 
   const getElderStatus = (elder) => {
-    const form = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
-
     if (!elder.currentLocation) return "unknown";
 
-    const elderDistance = getDistanceMeters(
-      { lat: form.centerLatitude, lng: form.centerLongitude },
-      elder.currentLocation
-    );
+    const zones = safeZoneForms[elder.id] ?? getDefaultSafeZones(elder);
+    const status = getSafeZoneStatus(zones, elder.currentLocation);
 
-    return elderDistance > form.radiusMeters ? "danger" : "normal";
+    return status.isOutside ? "danger" : "normal";
   };
 
   const handleRouteDateChange = async (dateValue) => {
@@ -1123,10 +1166,14 @@ function GuardianPage() {
   };
 
   const handleCallAlert = async (targetAlert) => {
-    const targetElder = targetAlert?.seniorId
-      ? elders.find((elder) => String(elder.id) === String(targetAlert.seniorId))
-      : selectedElder;
+    setCallingAlert(targetAlert);
+    setIsCallResultOpen(true);
+  };
 
+  const handleCallResolved = async () => {
+    const targetElder = callingAlert?.seniorId
+      ? elders.find((elder) => String(elder.id) === String(callingAlert.seniorId))
+      : selectedElder;
     const phone = targetElder?.phone;
 
     if (!phone) {
@@ -1134,11 +1181,13 @@ function GuardianPage() {
       return;
     }
 
-    setCallingAlert(targetAlert);
-
     if (targetElder?.id) {
+      const guardianId = getCurrentGuardianId();
+
       const created = await createCallRequestAlert({
         seniorId: targetElder.id,
+        guardianId,
+        message: `보호자가 ${targetElder.name}님에게 전화를 요청했습니다.`,
         latitude: targetElder.currentLocation?.lat,
         longitude: targetElder.currentLocation?.lng,
       }).catch(() => null);
@@ -1148,17 +1197,13 @@ function GuardianPage() {
       }
     }
 
-    setIsCallResultOpen(true);
-    window.location.href = `tel:${phone}`;
-  };
-
-  const handleCallResolved = async () => {
     if (callingAlert?.id) {
       await handleReadAlert(callingAlert.id);
     }
 
     setCallingAlert(null);
     setIsCallResultOpen(false);
+    window.location.href = `tel:${phone}`;
   };
 
   const handleCallNeedsReport = () => {
@@ -1891,23 +1936,21 @@ function GuardianHeader({
       };
     });
 
-  const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
+    const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
     if (isCheckInRequestAlert(alert)) {
       if (isRead) return null;
       return (
         <div className="guardian-alert-actions-below two">
-          {!isRead && (
-            <button
-              type="button"
-              className="guardian-alert-secondary-action"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCheckInOk?.(alert);
-              }}
-            >
-              이상 없음
-            </button>
-          )}
+          <button
+            type="button"
+            className="guardian-alert-secondary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onCheckInOk?.(alert);
+            }}
+          >
+            이상 없음
+          </button>
           <button
             type="button"
             className="guardian-alert-primary-action"
@@ -1926,15 +1969,13 @@ function GuardianHeader({
       return defaultAction;
     }
 
+    if (isRead) return null;
+
     return (
-      <div className="guardian-alert-actions">
-        {!isRead && (
-          <button type="button" onClick={onRead}>
-            확인
-          </button>
-        )}
+      <div className="guardian-alert-actions-below">
         <button
           type="button"
+          className="guardian-alert-primary-action"
           onClick={(event) => {
             event.stopPropagation();
             onCallAlert?.(alert);
@@ -1942,18 +1983,6 @@ function GuardianHeader({
         >
           전화
         </button>
-        {(alert.isFall || alert.isSos) && (
-          <button
-            className="danger"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenEmergencyReport?.(alert);
-            }}
-          >
-            신고
-          </button>
-        )}
       </div>
     );
   };
@@ -1963,7 +1992,8 @@ function GuardianHeader({
       homePath="/guardian"
       showNotificationButton
       notifications={guardianNotifications}
-      notificationTabs={["전체", "읽지 않음", "긴급", "낙상", "정보"]}
+      notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}
+
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);
