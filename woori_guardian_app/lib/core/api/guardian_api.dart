@@ -173,6 +173,32 @@ class GuardianApi {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchLocationHistoryByDate(
+    int seniorId,
+    DateTime date,
+  ) async {
+    final dateText =
+        '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/locations/senior/$seniorId/date',
+    ).replace(queryParameters: {'date': dateText});
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data.map((item) => item as Map<String, dynamic>).toList();
+      }
+      throw Exception('이동 경로를 불러오지 못했습니다. (${response.statusCode})');
+    } catch (e) {
+      if (e.toString().contains('이동 경로')) rethrow;
+      throw Exception('이동 경로 조회 중 오류가 발생했습니다: $e');
+    }
+  }
+
   Future<List<AlertModel>> fetchGuardianAlerts(int guardianId) async {
     final url = Uri.parse(
       '${AppConfig.apiBaseUrl}/alerts/guardian/$guardianId',
@@ -309,5 +335,31 @@ class GuardianApi {
     }
 
     throw Exception('일자리 신청 내역을 불러오지 못했습니다.');
+  }
+
+  Future<void> sendConsentRequest({
+    required int guardianId,
+    required int seniorId,
+    required String guardianName,
+    required List<String> items,
+  }) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/consent-request');
+
+    final response = await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'guardianId': guardianId,
+            'seniorId': seniorId,
+            'guardianName': guardianName,
+            'items': items,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('동의 요청 전송에 실패했습니다. (${response.statusCode})');
+    }
   }
 }

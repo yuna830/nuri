@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
+import 'core/config/app_config.dart';
 import 'core/storage/senior_session_storage.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/app_shell.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+
+  AuthRepository.initialize(
+    appKey: kakaoJavaScriptKey,
+    baseUrl: 'http://localhost',
+  );
+
   runApp(const WooriSeniorApp());
 }
 

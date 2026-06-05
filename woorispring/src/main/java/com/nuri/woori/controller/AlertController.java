@@ -159,6 +159,42 @@ public class AlertController {
     ) {
     }
 
+    @PostMapping("/consent-request")
+    public Alert createConsentRequestAlert(@RequestBody ConsentRequest request) {
+        seniorRepository.findById(request.seniorId())
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+
+        if (!guardianSeniorRepository.existsByGuardianIdAndSeniorId(request.guardianId(), request.seniorId())) {
+            throw new RuntimeException("Guardian is not connected to senior");
+        }
+
+        String guardianName = request.guardianName() == null || request.guardianName().isBlank()
+                ? "보호자"
+                : request.guardianName().trim();
+
+        String requestedItems = request.items() == null || request.items().isEmpty()
+                ? "필요한 정보 제공 항목"
+                : String.join(", ", request.items());
+
+        Alert alert = new Alert();
+        alert.setSeniorId(request.seniorId());
+        alert.setGuardianId(request.guardianId());
+        alert.setType("CONSENT_REQUEST");
+        alert.setTitle("정보 제공 동의 요청");
+        alert.setMessage(guardianName + " 보호자가 다음 항목에 대한 동의를 요청했습니다: " + requestedItems + ". 알림을 확인한 뒤 수락 또는 거절해 주세요.");
+        alert.setIsRead(false);
+
+        return alertRepository.save(alert);
+    }
+
+    public record ConsentRequest(
+            Long guardianId,
+            Long seniorId,
+            String guardianName,
+            List<String> items
+    ) {
+    }
+
     @PostMapping("/welfare-consult-request")
     public List<Alert> createWelfareConsultRequest(@RequestBody WelfareConsultRequest request) {
         Senior senior = seniorRepository.findById(request.seniorId())
