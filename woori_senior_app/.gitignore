@@ -45,6 +45,7 @@ app.*.map.json
 /android/app/release
 
 # Secrets (API keys - never commit)
+.env
 lib/core/config/secrets.dart
 
 # Local environment
