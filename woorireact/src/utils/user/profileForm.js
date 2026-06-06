@@ -129,6 +129,47 @@ export const SECTIONS = [
   { id: "job", label: "일자리" },
 ];
 
+const INFO_REQUEST_SECTION_RULES = [
+  {
+    section: "personal",
+    pattern: /인적사항|이름|생년월일|성별|연락처|전화번호|주소/,
+  },
+  {
+    section: "body",
+    pattern: /신체정보|키|몸무게|BMI|흡연|음주|알레르기|신체/,
+  },
+  {
+    section: "medication",
+    pattern: /복약정보|복약|복용|약|복용 시작일|복용 간격|하루 복용 횟수|medicine/i,
+  },
+  {
+    section: "chronic",
+    pattern: /만성질환|만성|질환|당뇨|고혈압|심장질환|관절질환|수술|건강|chronic/i,
+  },
+  {
+    section: "mobility",
+    pattern: /거동\/인지\/감각|거동|인지|감각|보행|기억|판단|시력|청력|낙상|mobility/i,
+  },
+  {
+    section: "welfare",
+    pattern: /복지정보|복지|소득|가구|혜택|참고사항|welfare/i,
+  },
+  {
+    section: "activity",
+    pattern: /활동 조건|활동|이동 가능 거리|이동|쉬는 시간|쉬는|하기 어려운 작업|작업|환경|activity/i,
+  },
+  {
+    section: "job",
+    pattern: /일자리 희망조건|일자리|희망 급여|희망 요일|희망 직종|희망 근무|근무 형태|급여|직종|job/i,
+  },
+];
+
+export const getProfileSectionFromInfoRequest = (message = "") => {
+  const text = String(message);
+  const matchedRule = INFO_REQUEST_SECTION_RULES.find((rule) => rule.pattern.test(text));
+  return matchedRule?.section || "personal";
+};
+
 export const createMedicine = () => ({
   name: "",
   startDate: "",
@@ -294,7 +335,10 @@ export const profileToForm = (profile = {}) => {
   const senior = profile.senior ?? {};
   const healthInfo = profile.healthInfo ?? {};
   const jobPreference = profile.jobPreference ?? {};
-  const medications = readMedications(healthInfo);
+  const flatInfo = { ...profile, ...senior };
+  const mergedHealthInfo = { ...flatInfo, ...healthInfo };
+  const mergedJobPreference = { ...flatInfo, ...jobPreference };
+  const medications = readMedications(mergedHealthInfo);
   const savedRegion = senior.region ?? senior.address ?? "";
   const splitAddress = splitRegion(savedRegion);
   const city = senior.city ?? splitAddress.city;
@@ -324,47 +368,47 @@ export const profileToForm = (profile = {}) => {
     socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
     disabilityGrade: senior.disabilityGrade ?? NONE,
     disabilityType: senior.disabilityType ?? NONE,
-    height: healthInfo.height ? String(healthInfo.height) : "",
-    weight: healthInfo.weight ? String(healthInfo.weight) : "",
-    smoking: healthInfo.smoking ?? NONE,
-    drinking: healthInfo.drinking ?? NONE,
-    allergies: healthInfo.allergies ?? "",
-    livingCostStatus: healthInfo.livingCostStatus ?? "",
-    householdType: healthInfo.householdType ?? senior.householdType ?? "",
-    currentBenefits: splitCsv(healthInfo.currentBenefits),
-    pensionStatus: healthInfo.pensionStatus ?? "",
-    housingType: healthInfo.housingType ?? "",
-    careNeeds: splitCsv(healthInfo.careNeeds),
-    welfareMemo: healthInfo.welfareMemo ?? "",
-    medicineCount: healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
-    medications: syncMedicationsWithCount(medications, healthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
-    diabetes: healthInfo.diabetes ?? NONE,
-    hypertension: healthInfo.hypertension ?? NONE,
-    heart: healthInfo.heartDisease ?? NONE,
-    joint: healthInfo.jointDisease ?? NONE,
-    stroke: healthInfo.stroke ?? NONE,
-    kidney: healthInfo.kidneyDisease ?? NONE,
-    lung: healthInfo.lungDisease ?? NONE,
-    liver: healthInfo.liverDisease ?? NONE,
-    cancer: healthInfo.cancer ?? NONE,
-    walkingAid: healthInfo.walkingAid ?? NONE,
-    dementia: healthInfo.dementia ?? NONE,
-    vision: healthInfo.vision ?? NONE,
-    hearing: healthInfo.hearing ?? NONE,
-    recentFall: healthInfo.recentFall ?? NONE,
-    hasSurgery: healthInfo.hasSurgery ?? NONE,
-    surgeryDetail: healthInfo.surgeryDetail ?? "",
-    otherDisease: healthInfo.otherDisease ?? "",
-    maxHours: healthInfo.maxHours ?? "",
-    maxDistance: healthInfo.maxDistance ?? "",
-    disabledWork: splitCsv(healthInfo.disabledWork),
-    restNeed: healthInfo.restNeed ?? NONE,
-    avoidEnvironment: splitCsv(healthInfo.avoidEnvironment),
-    payType: jobPreference.payType ?? "무관",
-    hopeDays: splitCsv(jobPreference.hopeDays),
-    hopeJobType: splitCsv(jobPreference.hopeJobType),
-    hopeCondition: splitCsv(jobPreference.hopeCondition),
-    memo: jobPreference.memo ?? "",
+    height: mergedHealthInfo.height ? String(mergedHealthInfo.height) : "",
+    weight: mergedHealthInfo.weight ? String(mergedHealthInfo.weight) : "",
+    smoking: mergedHealthInfo.smoking ?? NONE,
+    drinking: mergedHealthInfo.drinking ?? NONE,
+    allergies: mergedHealthInfo.allergies ?? "",
+    livingCostStatus: mergedHealthInfo.livingCostStatus ?? "",
+    householdType: mergedHealthInfo.householdType ?? "",
+    currentBenefits: splitCsv(mergedHealthInfo.currentBenefits),
+    pensionStatus: mergedHealthInfo.pensionStatus ?? "",
+    housingType: mergedHealthInfo.housingType ?? "",
+    careNeeds: splitCsv(mergedHealthInfo.careNeeds),
+    welfareMemo: mergedHealthInfo.welfareMemo ?? "",
+    medicineCount: mergedHealthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
+    medications: syncMedicationsWithCount(medications, mergedHealthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
+    diabetes: mergedHealthInfo.diabetes ?? NONE,
+    hypertension: mergedHealthInfo.hypertension ?? NONE,
+    heart: mergedHealthInfo.heartDisease ?? mergedHealthInfo.heart ?? NONE,
+    joint: mergedHealthInfo.jointDisease ?? mergedHealthInfo.joint ?? NONE,
+    stroke: mergedHealthInfo.stroke ?? NONE,
+    kidney: mergedHealthInfo.kidneyDisease ?? mergedHealthInfo.kidney ?? NONE,
+    lung: mergedHealthInfo.lungDisease ?? mergedHealthInfo.respiratoryDisease ?? mergedHealthInfo.lung ?? NONE,
+    liver: mergedHealthInfo.liverDisease ?? mergedHealthInfo.liver ?? NONE,
+    cancer: mergedHealthInfo.cancer ?? NONE,
+    walkingAid: mergedHealthInfo.walkingAid ?? NONE,
+    dementia: mergedHealthInfo.dementia ?? NONE,
+    vision: mergedHealthInfo.vision ?? NONE,
+    hearing: mergedHealthInfo.hearing ?? NONE,
+    recentFall: mergedHealthInfo.recentFall ?? NONE,
+    hasSurgery: mergedHealthInfo.hasSurgery ?? NONE,
+    surgeryDetail: mergedHealthInfo.surgeryDetail ?? "",
+    otherDisease: mergedHealthInfo.otherDisease ?? "",
+    maxHours: mergedHealthInfo.maxHours ?? "",
+    maxDistance: mergedHealthInfo.maxDistance ?? "",
+    disabledWork: splitCsv(mergedHealthInfo.disabledWork),
+    restNeed: mergedHealthInfo.restNeed ?? NONE,
+    avoidEnvironment: splitCsv(mergedHealthInfo.avoidEnvironment),
+    payType: mergedJobPreference.payType ?? "무관",
+    hopeDays: splitCsv(mergedJobPreference.hopeDays),
+    hopeJobType: splitCsv(mergedJobPreference.hopeJobType),
+    hopeCondition: splitCsv(mergedJobPreference.hopeCondition),
+    memo: mergedJobPreference.memo ?? "",
   };
 };
 
@@ -398,6 +442,12 @@ export const normalizeForm = (form) => {
     livingAlone: welfareRag.livingAlone ?? "",
     needsGuardianCheck: welfareRag.needsGuardianCheck ?? false,
     guardianCheckFields: (welfareRag.guardianCheckFields || []).join(","),
+    heartDisease: form.heart,
+    jointDisease: form.joint,
+    kidneyDisease: form.kidney,
+    lungDisease: form.lung,
+    respiratoryDisease: form.lung,
+    liverDisease: form.liver,
   };
 };
 

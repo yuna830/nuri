@@ -16,6 +16,7 @@ import CommonHeader from "./CommonHeader.jsx";
 import TripartiteChatModal from "./TripartiteChatModal.jsx";
 import FontSizeControl from "./FontSizeControl.jsx";
 import { fetchUnreadChatCount } from "../api/chatApi.js";
+import { getProfileSectionFromInfoRequest } from "../utils/user/profileForm.js";
 import "../css/user/UserCommonHeader.css";
 
 const ALERT_TABS = ["전체", "읽지 않음", "긴급", "낙상", "복약", "기후", "요청"];
@@ -170,18 +171,32 @@ const normalizeClimateAlert = (alert, index) => ({
   sortTime: toDate(alert.createdAt || alert.baseTime || alert.time)?.getTime() || 0,
 });
 
-const getProfileSectionFromInfoRequest = (message = "") => {
-  const text = String(message);
+const getLocalCareTeam = (seniorId) => {
+  if (!seniorId) return null;
 
-  if (/복약|약|복용/.test(text)) return "medication";
-  if (/만성|질환|수술|건강/.test(text)) return "chronic";
-  if (/거동|인지|감각|보행|시력|청력|낙상/.test(text)) return "mobility";
-  if (/활동|이동|쉬는|작업|환경/.test(text)) return "activity";
-  if (/복지|소득|가구|혜택/.test(text)) return "welfare";
-  if (/일자리|희망|근무|급여|직종/.test(text)) return "job";
-  if (/키|몸무게|BMI|흡연|음주|알레르기|신체/.test(text)) return "body";
+  try {
+    const careTeamMap = JSON.parse(localStorage.getItem("seniorCareTeamMap") || "{}");
+    return careTeamMap[String(seniorId)] || null;
+  } catch {
+    return null;
+  }
+};
 
-  return "personal";
+const getGuardianPhoneFromProfile = (profile, seniorId) => {
+  const localCareTeam = getLocalCareTeam(seniorId);
+
+  return (
+    profile?.guardian?.phone
+    || profile?.guardianPhone
+    || profile?.senior?.guardianPhone
+    || localCareTeam?.guardianPhone
+    || ""
+  );
+};
+
+const toTelHref = (phone = "") => {
+  const digits = String(phone).replace(/[^0-9+]/g, "");
+  return digits ? `tel:${digits}` : "";
 };
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
@@ -208,6 +223,9 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       return null;
     }
   }, []);
+  const [guardianPhone, setGuardianPhone] = useState(() =>
+    getGuardianPhoneFromProfile(currentSeniorForChat, getCurrentSeniorId())
+  );
 
   const isFilled = (value) => {
     return value !== null && value !== undefined && String(value).trim() !== "";
@@ -233,6 +251,8 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
           .then((response) => (response.ok ? response.json() : null))
           .catch(() => null),
       ]);
+      const nextGuardianPhone = getGuardianPhoneFromProfile(currentProfile, seniorId);
+      setGuardianPhone((previousPhone) => nextGuardianPhone || previousPhone);
 
       const combined = [
         ...seniorAlerts
@@ -372,6 +392,19 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       console.error("알림 확인 실패:", error);
       window.alert("알림 확인 처리에 실패했습니다.");
     }
+  };
+
+  const handleCallGuardianFromAlert = async (targetAlert) => {
+    const telHref = toTelHref(guardianPhone);
+
+    if (!telHref) {
+      window.alert("보호자 연락처가 없습니다.");
+      return;
+    }
+
+    await handleReadAlert(targetAlert);
+    setIsAlertPanelOpen(false);
+    window.location.href = telHref;
   };
 
   const removeAlertsFromList = (keys) => {
@@ -576,7 +609,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                 <p className="uch-alert-empty">도착한 알림이 없습니다.</p>
               ) : (
                 filteredAlerts.map((userAlert) => (
-                  <article key={userAlert.key} className={`uch-alert-item ${userAlert.danger ? "danger" : ""} ${userAlert.isRead ? "read" : ""}`}>
+                  <article key={userAlert.key} className={`uch-alert-item common-alert-item ${userAlert.danger ? "danger" : ""} ${userAlert.isRead ? "read" : ""}`}>
                     <label className="uch-alert-select">
                       <input
                         type="checkbox"
@@ -588,15 +621,35 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                     </label>
                     <div className="uch-alert-content">
                       <div className="uch-alert-meta">
-                        <span>{userAlert.category}</span>
+                        <div className="uch-alert-meta-tags">
+                          {userAlert.isRead && (
+                            <span className="read">{"확인됨"}</span>
+                          )}
+                          <span className={`category ${userAlert.danger ? "danger" : ""}`}>
+                            {userAlert.category}
+                          </span>
+                        </div>
+                        {userAlert.time && (
+                          <span className="uch-alert-time-inline">{userAlert.time}</span>
+                        )}
                       </div>
-                      {userAlert.type !== "CHECK_IN_REPLY" && <strong>{userAlert.title}</strong>}
+                      {userAlert.type !== "CHECK_IN_REPLY" && (
+                        <div className="uch-alert-title-row">
+                          <strong>{userAlert.title}</strong>
+                        </div>
+                      )}
                       <p>{userAlert.message}</p>
-                      {userAlert.time && <span>{userAlert.time}</span>}
                     </div>
                     <div className="uch-alert-action">
                       {userAlert.requiresGuardianConfirm ? (
                         <em className="waiting">보호자 확인 대기</em>
+                      ) : userAlert.type === "CALL_REQUEST" && !userAlert.isRead ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCallGuardianFromAlert(userAlert)}
+                        >
+                          보호자에게 전화
+                        </button>
                       ) : userAlert.type === "INFO_UPDATE_REQUEST" && !userAlert.isRead ? (
                         <button
                           type="button"

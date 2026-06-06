@@ -46,6 +46,21 @@ const EMERGENCY_FILTER_VALUES = [
     "위험 알림",
 ];
 
+const MISSING_INFO_NOTIFICATION_CATEGORY = "정보 미입력";
+const INFO_UPDATE_COMPLETE_TYPES = new Set([
+    "PROFILE_UPDATE_COMPLETE",
+    "INFO_UPDATE_COMPLETE",
+    "PROFILE_UPDATED",
+    "PROFILE_UPDATE",
+]);
+const INFO_UPDATE_REQUEST_TYPES = new Set([
+    "INFO_UPDATE_REQUEST",
+    "PROFILE_UPDATE_REQUEST",
+]);
+
+const isInfoUpdateCompleteAlert = (alert) => INFO_UPDATE_COMPLETE_TYPES.has(alert?.type);
+const isInfoUpdateRequestAlert = (alert) => INFO_UPDATE_REQUEST_TYPES.has(alert?.type);
+
 const getKeywordTokens = (keyword) =>
     keyword
         .toLowerCase()
@@ -101,6 +116,7 @@ function WelfareDashboard() {
     const [addSeniorStatus, setAddSeniorStatus] = useState("");
     const [isAddingSenior, setIsAddingSenior] = useState(false);
     const [checkInRequestedNotificationIds, setCheckInRequestedNotificationIds] = useState([]);
+    const [infoUpdateRequestedSeniorIds, setInfoUpdateRequestedSeniorIds] = useState([]);
     const [agencyLinkTarget, setAgencyLinkTarget] = useState(null);
     const [agencyPlaces, setAgencyPlaces] = useState([]);
     const [isAgencyLoading, setIsAgencyLoading] = useState(false);
@@ -425,6 +441,31 @@ function WelfareDashboard() {
         };
     });
 
+    const normalizedDbWelfareNotifications = dbWelfareNotifications.map((notification) => {
+        const rawAlert = notification.raw || notification;
+        const isInfoRequestAlert = isInfoUpdateRequestAlert(rawAlert);
+        const isInfoCompleteAlert = isInfoUpdateCompleteAlert(rawAlert);
+
+        if (!isInfoRequestAlert && !isInfoCompleteAlert) {
+            return notification;
+        }
+
+        const seniorName = rawAlert.seniorName || notification.seniorName || "대상자";
+
+        return {
+            ...notification,
+            title: isInfoCompleteAlert ? "정보 수정 완료" : "정보 입력 요청",
+            message: rawAlert.message || (
+                isInfoCompleteAlert
+                    ? `${seniorName}님이 요청받은 정보를 수정했습니다. 변경 내용을 확인해주세요.`
+                    : `${seniorName}님에게 보낸 정보 입력 요청이 아직 확인 대상입니다.`
+            ),
+            category: MISSING_INFO_NOTIFICATION_CATEGORY,
+            detailCategory: "기본 정보",
+            danger: false,
+        };
+    });
+
     const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
 
@@ -451,16 +492,34 @@ function WelfareDashboard() {
             });
         }
 
+        const missingFields = getMissingSeniorInfoFields(senior);
+        if (missingFields.length > 0) {
+            const isInfoUpdateRequested = infoUpdateRequestedSeniorIds.includes(String(senior.id));
+
+            notifications.push({
+                id: `${senior.id}-missing-info`,
+                seniorId: senior.id,
+                seniorName: senior.name,
+                title: isInfoUpdateRequested ? "정보 입력 요청 대기" : "정보 입력 필요",
+                message: isInfoUpdateRequested
+                    ? `${senior.name} 대상자에게 ${missingFields.join(", ")} 정보 입력을 요청했습니다. 아직 수정이 완료되지 않았습니다.`
+                    : `${senior.name} 대상자의 ${missingFields.join(", ")} 정보가 비어 있습니다. 사용자 또는 보호자에게 정보 입력을 요청해주세요.`,
+                category: MISSING_INFO_NOTIFICATION_CATEGORY,
+                detailCategory: "기본 정보",
+                danger: false,
+            });
+        }
+
         return notifications;
     });
 
     const checkInRepliedSeniorIds = new Set(
-        dbWelfareNotifications
+        normalizedDbWelfareNotifications
             .filter((notification) => notification.type === "CHECK_IN_OK")
             .map((notification) => String(notification.seniorId))
     );
 
-    const activeNotifications = [...dbWelfareNotifications, ...welfareNotifications]
+    const activeNotifications = [...normalizedDbWelfareNotifications, ...welfareNotifications]
         .filter((notification) => {
             if (notification.type !== "LAST_ACCESS") return true;
             return !checkInRepliedSeniorIds.has(String(notification.seniorId));
@@ -764,6 +823,10 @@ function WelfareDashboard() {
                 alert("정보 입력 요청을 보냈습니다.");
             }
 
+            setInfoUpdateRequestedSeniorIds((previousIds) => {
+                const nextId = String(infoRequestTarget.id);
+                return previousIds.includes(nextId) ? previousIds : [...previousIds, nextId];
+            });
             setInfoRequestTarget(null);
         } catch (error) {
             console.error("정보 입력 요청 실패:", error);

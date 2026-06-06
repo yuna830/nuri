@@ -142,6 +142,12 @@ export default function ProfilePage() {
     const payload = {
       ...normalizeForm(nextForm),
       profileImageUrl: resolveUploadUrl(nextForm.profileImageUrl),
+      heartDisease: nextForm.heart,
+      jointDisease: nextForm.joint,
+      kidneyDisease: nextForm.kidney,
+      lungDisease: nextForm.lung,
+      respiratoryDisease: nextForm.lung,
+      liverDisease: nextForm.liver,
       // 백엔드가 List<String>으로 받는 필드 — normalizeForm이 CSV로 변환하므로 배열로 덮어쓰기
       currentBenefits: nextForm.currentBenefits || [],
       careNeeds: nextForm.careNeeds || [],

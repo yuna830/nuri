@@ -511,37 +511,23 @@ class _JobScreenState extends State<JobScreen> {
               // 관심공고 / 신청공고 버튼
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child: Row(children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _showInterestJobs,
-                      icon: const Icon(Icons.bookmark_outline, size: 16),
-                      label: Text('관심공고${_interestCount > 0 ? " ($_interestCount)" : ""}'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF86A788),
-                        side: const BorderSide(color: Color(0xFF86A788)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _showApplications,
-                      icon: const Icon(Icons.list_alt_outlined, size: 16),
-                      label: Text('신청공고${_appliedCount > 0 ? " ($_appliedCount)" : ""}'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4C9ED9),
-                        side: const BorderSide(color: Color(0xFF4C9ED9)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
+                  Expanded(child: _ShortcutCard(
+                    icon: Icons.bookmark_rounded,
+                    label: '관심공고',
+                    count: _interestCount,
+                    color: const Color(0xFF86A788),
+                    onTap: _showInterestJobs,
+                  )),
+                  const SizedBox(width: 10),
+                  Expanded(child: _ShortcutCard(
+                    icon: Icons.send_rounded,
+                    label: '신청공고',
+                    count: _appliedCount,
+                    color: const Color(0xFF4C9ED9),
+                    onTap: _showApplications,
+                  )),
                 ]),
               ),
               if (_error != null)
@@ -670,6 +656,58 @@ class _JobScreenState extends State<JobScreen> {
   }
 }
 
+// ─── ShortcutCard ────────────────────────────────────────────────────────────
+
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final int count;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 13, fontWeight: FontWeight.w800)),
+          if (count > 0) ...[
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('$count',
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
 // ─── SearchBar ────────────────────────────────────────────────────────────────
 
 class _SearchBar extends StatelessWidget {
@@ -743,44 +781,108 @@ class _SearchBar extends StatelessWidget {
 
 // ─── CategoryChips ────────────────────────────────────────────────────────────
 
-class _CategoryChips extends StatelessWidget {
+class _CategoryChips extends StatefulWidget {
   const _CategoryChips({required this.selected, required this.onChanged});
   final String selected;
   final ValueChanged<String> onChanged;
 
   @override
+  State<_CategoryChips> createState() => _CategoryChipsState();
+}
+
+class _CategoryChipsState extends State<_CategoryChips> {
+  final _scrollCtrl = ScrollController();
+  final _keys = List.generate(_categories.length, (_) => GlobalKey());
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _shift(int direction) {
+    final currentIndex = _categories.indexWhere((c) => c.value == widget.selected);
+    final nextIndex = (currentIndex + direction).clamp(0, _categories.length - 1);
+    if (nextIndex == currentIndex) return;
+    widget.onChanged(_categories[nextIndex].value);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _keys[nextIndex].currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx,
+            alignment: 0.1,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentIndex = _categories.indexWhere((c) => c.value == widget.selected);
+    final canPrev = currentIndex > 0;
+    final canNext = currentIndex < _categories.length - 1;
+
     return Container(
       color: Colors.white,
       height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (_, i) {
-          final cat = _categories[i];
-          final active = selected == cat.value;
-          return GestureDetector(
-            onTap: () => onChanged(cat.value),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: active ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                cat.label,
-                style: TextStyle(
-                  color: active ? Colors.white : const Color(0xFF1F2A20),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+      child: Row(children: [
+        // 이전 버튼
+        GestureDetector(
+          onTap: canPrev ? () => _shift(-1) : null,
+          child: Container(
+            width: 32,
+            alignment: Alignment.center,
+            child: Icon(Icons.chevron_left,
+                size: 20,
+                color: canPrev ? const Color(0xFF86A788) : const Color(0xFFCCCCCC)),
+          ),
+        ),
+        // 칩 목록
+        Expanded(
+          child: ListView.separated(
+            controller: _scrollCtrl,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: _categories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (_, i) {
+              final cat = _categories[i];
+              final active = widget.selected == cat.value;
+              return GestureDetector(
+                key: _keys[i],
+                onTap: () => widget.onChanged(cat.value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: active ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    cat.label,
+                    style: TextStyle(
+                      color: active ? Colors.white : const Color(0xFF1F2A20),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+        // 다음 버튼
+        GestureDetector(
+          onTap: canNext ? () => _shift(1) : null,
+          child: Container(
+            width: 32,
+            alignment: Alignment.center,
+            child: Icon(Icons.chevron_right,
+                size: 20,
+                color: canNext ? const Color(0xFF86A788) : const Color(0xFFCCCCCC)),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -948,41 +1050,88 @@ class _ProfileConditionCardState extends State<_ProfileConditionCard> {
 
 // ─── 맞춤 추천 ────────────────────────────────────────────────────────────────
 
-class _RecommendSection extends StatelessWidget {
+class _RecommendSection extends StatefulWidget {
   const _RecommendSection({required this.jobs, required this.onTap});
   final List<Map<String, dynamic>> jobs;
   final ValueChanged<Map<String, dynamic>> onTap;
 
   @override
+  State<_RecommendSection> createState() => _RecommendSectionState();
+}
+
+class _RecommendSectionState extends State<_RecommendSection> {
+  final _scrollCtrl = ScrollController();
+  int _index = 0;
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _shift(int direction) {
+    final next = (_index + direction).clamp(0, widget.jobs.length - 1);
+    if (next == _index) return;
+    setState(() => _index = next);
+    _scrollCtrl.animateTo(
+      next * 180.0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
+    final canPrev = _index > 0;
+    final canNext = _index < widget.jobs.length - 1;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(children: [
           Text('맞춤 추천 TOP 5',
-              style: TextStyle(
-                  color: Color(0xFF1F2A20),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900)),
+              style: TextStyle(color: Color(0xFF1F2A20), fontSize: 15, fontWeight: FontWeight.w900)),
           SizedBox(width: 6),
           Text('내 조건 기준 참고 점수',
               style: TextStyle(color: Color(0xFF6D766A), fontSize: 12)),
         ]),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 150,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: jobs.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => _CompactJobCard(
-              job: jobs[i],
-              onTap: () => onTap(jobs[i]),
+      ),
+      SizedBox(
+        height: 150,
+        child: Row(children: [
+          // 왼쪽 화살표 — 패딩 영역 안에 위치
+          SizedBox(
+            width: 28,
+            child: GestureDetector(
+              onTap: canPrev ? () => _shift(-1) : null,
+              child: Icon(Icons.chevron_left, size: 26,
+                  color: canPrev ? const Color(0xFF86A788) : const Color(0xFFDDDDDD)),
             ),
           ),
-        ),
-      ]),
-    );
+          Expanded(
+            child: ListView.separated(
+              controller: _scrollCtrl,
+              scrollDirection: Axis.horizontal,
+              itemCount: widget.jobs.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (_, i) => _CompactJobCard(
+                job: widget.jobs[i],
+                onTap: () => widget.onTap(widget.jobs[i]),
+              ),
+            ),
+          ),
+          // 오른쪽 화살표 — 패딩 영역 안에 위치
+          SizedBox(
+            width: 28,
+            child: GestureDetector(
+              onTap: canNext ? () => _shift(1) : null,
+              child: Icon(Icons.chevron_right, size: 26,
+                  color: canNext ? const Color(0xFF86A788) : const Color(0xFFDDDDDD)),
+            ),
+          ),
+        ]),
+      ),
+    ]);
   }
 }
 
@@ -999,50 +1148,46 @@ class _CompactJobCard extends StatelessWidget {
     return GestureDetector(
       onTap: expired ? null : onTap,
       child: Container(
-        width: 180,
-        padding: const EdgeInsets.all(12),
+        width: 170,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: expired ? const Color(0xFFFAFAFA) : const Color(0xFFFFFBF0),
-          borderRadius: BorderRadius.circular(12),
+          color: expired ? const Color(0xFFF5F5F5) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: expired
-                ? const Color(0xFFE5E7EB)
-                : const Color(0xFFF0B429).withValues(alpha: 0.6),
-            width: expired ? 1 : 1.5,
+            color: expired ? const Color(0xFFE5E7EB) : const Color(0xFFE8D9A0),
+            width: 1.5,
           ),
+          boxShadow: expired ? null : [
+            BoxShadow(color: const Color(0xFFF0B429).withValues(alpha: 0.12),
+                blurRadius: 8, offset: const Offset(0, 3)),
+          ],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0B429).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                score > 0 ? '⭐ 추천 $score점' : '⭐ 추천',
-                style: const TextStyle(
-                    color: Color(0xFF92400E),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800),
+                score > 0 ? '★ $score점' : '★ 추천',
+                style: const TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.w800),
               ),
             ),
-            if (expired) ...[
-              const SizedBox(width: 4),
-              const _ExpiredBadge(),
-            ],
+            if (expired) ...[const SizedBox(width: 4), const _ExpiredBadge()],
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             job['recrtTitle']?.toString() ?? '',
-            style: const TextStyle(
-                color: Color(0xFF1F2A20),
-                fontSize: 13,
-                fontWeight: FontWeight.w800),
+            style: TextStyle(
+                color: expired ? const Color(0xFF9CA3AF) : const Color(0xFF1F2A20),
+                fontSize: 13, fontWeight: FontWeight.w800),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           const Spacer(),
+          const Divider(height: 12, color: Color(0xFFF0EDD0)),
           Text(
             job['oranNm']?.toString() ?? '',
             style: const TextStyle(color: Color(0xFF6D766A), fontSize: 11),
@@ -1076,88 +1221,72 @@ class _JobCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: expired ? const Color(0xFFFAFAFA) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          color: expired ? const Color(0xFFF9F9F9) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: expired ? const Color(0xFFE9E9E9) : const Color(0xFFDDE9D8),
+          ),
+          boxShadow: expired ? null : [
+            BoxShadow(color: const Color(0xFF86A788).withValues(alpha: 0.06),
+                blurRadius: 8, offset: const Offset(0, 2)),
+          ],
         ),
-        child: IntrinsicHeight(
-          child: Row(children: [
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: barColor,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
-              ),
-            ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(
-                        job['recrtTitle']?.toString() ?? '',
-                        style: TextStyle(
-                          color: expired
-                              ? const Color(0xFF9CA3AF)
-                              : const Color(0xFF1F2A20),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    // 의미있는 점수(10점 이상)만 표시
-                    if (score >= 10)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF86A788).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '매칭 $score점',
-                            style: const TextStyle(
-                                color: Color(0xFF2D5A2E),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    job['oranNm']?.toString() ?? '기업명 미공개',
-                    style: TextStyle(
-                      color: expired ? const Color(0xFFD1D5DB) : const Color(0xFF6D766A),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 4, runSpacing: 4, children: [
-                    if (expired) const _ExpiredBadge(),
-                    _Chip(label: job['source']?.toString() ?? ''),
-                    _Chip(label: category),
-                    _Chip(label: empl),
-                    if (job['workPlcNm'] != null)
-                      _Chip(label: job['workPlcNm'].toString(), maxWidth: 100),
-                    if (job['weekHours'] != null)
-                      _Chip(label: '주 ${job['weekHours']}시간'),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_fmtDate(job['frDd'])} ~ ${_fmtDate(job['toDd'])}',
-                    style: const TextStyle(color: Color(0xFFD1D5DB), fontSize: 11),
-                  ),
-                ]),
+              child: Text(
+                job['recrtTitle']?.toString() ?? '',
+                style: TextStyle(
+                  color: expired ? const Color(0xFFAAAAAA) : const Color(0xFF1F2A20),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (score >= 10) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF86A788).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('$score점',
+                    style: const TextStyle(
+                        color: Color(0xFF2D5A2E), fontSize: 11, fontWeight: FontWeight.w800)),
+              ),
+            ],
           ]),
-        ),
+          const SizedBox(height: 5),
+          Text(
+            job['oranNm']?.toString() ?? '기업명 미공개',
+            style: TextStyle(
+              color: expired ? const Color(0xFFCCCCCC) : const Color(0xFF86A788),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 5, runSpacing: 5, children: [
+            if (expired) const _ExpiredBadge(),
+            _Chip(label: category),
+            _Chip(label: empl),
+            if (job['workPlcNm'] != null)
+              _Chip(label: job['workPlcNm'].toString(), maxWidth: 90),
+            if (job['weekHours'] != null)
+              _Chip(label: '주 ${job['weekHours']}시간'),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+            '${_fmtDate(job['frDd'])} ~ ${_fmtDate(job['toDd'])}',
+            style: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 11),
+          ),
+        ]),
       ),
     );
   }
