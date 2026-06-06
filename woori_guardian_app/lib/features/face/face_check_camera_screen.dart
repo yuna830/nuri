@@ -39,6 +39,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   DateTime? _lastAutoCaptureAt;
   XFile? _capturedImage;
   XFile? _matchedImage;
+  bool _hasMatchedFace = false;
 
   static const _kGreen = Color(0xFF86A788);
   static const _pythonServerUrl = 'http://172.28.6.164:8000';
@@ -97,7 +98,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
   Future<void> _processCameraImage(CameraImage image) async {
     final controller = _controller;
-    if (controller == null || _isDetecting || _isUploading) return;
+    if (controller == null || _isDetecting || _isUploading || _hasMatchedFace) {
+      return;
+    }
 
     _isDetecting = true;
 
@@ -221,6 +224,8 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
     setState(() {
       _capturedImage = null;
+      _matchedImage = null;
+      _hasMatchedFace = false;
       _guideText = '얼굴을 화면에 맞춰주세요.';
     });
 
@@ -286,6 +291,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   Future<void> _captureCropAndUpload() async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
+    if (_hasMatchedFace) return;
 
     setState(() {
       _isUploading = true;
@@ -293,7 +299,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     });
 
     try {
-      await controller.stopImageStream();
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
 
       final picture = await controller.takePicture().timeout(
         const Duration(seconds: 5),
@@ -312,8 +320,12 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       );
 
       if (faceFiles.isEmpty) {
+        if (!mounted) return;
         setState(() => _guideText = '얼굴을 찾지 못했습니다. 다시 맞춰주세요.');
-        await controller.startImageStream(_processCameraImage);
+
+        if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+          await controller.startImageStream(_processCameraImage);
+        }
         return;
       }
 
@@ -328,12 +340,25 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       if (!mounted) return;
 
+      if (result.matched) {
+        setState(() {
+          _hasMatchedFace = true;
+          _capturedImage = picture;
+          _matchedImage = picture;
+          _guideText = result.message;
+          _isUploading = false;
+        });
+
+        return;
+      }
+
       setState(() {
         _guideText = result.message;
       });
 
       await Future.delayed(const Duration(seconds: 2));
-      if (mounted) {
+
+      if (mounted && !_hasMatchedFace && !controller.value.isStreamingImages) {
         await controller.startImageStream(_processCameraImage);
       }
     } on TimeoutException catch (e) {
@@ -341,18 +366,24 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       final message = e.message ?? '얼굴 확인 시간이 초과되었습니다.';
       setState(() => _guideText = message);
 
-      try {
-        await controller.startImageStream(_processCameraImage);
-      } catch (_) {}
+      if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+        try {
+          await controller.startImageStream(_processCameraImage);
+        } catch (_) {}
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _guideText = '얼굴 확인에 실패했습니다. 서버 상태를 확인해주세요.');
 
-      try {
-        await controller.startImageStream(_processCameraImage);
-      } catch (_) {}
+      if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+        try {
+          await controller.startImageStream(_processCameraImage);
+        } catch (_) {}
+      }
     } finally {
-      if (mounted) setState(() => _isUploading = false);
+      if (mounted && !_hasMatchedFace) {
+        setState(() => _isUploading = false);
+      }
     }
   }
 

@@ -142,6 +142,13 @@ async def verify_faces(
         image = read_image(temp_path)
         os.remove(temp_path)
 
+        os.makedirs("debug_uploads", exist_ok=True)
+
+        debug_path = os.path.join("debug_uploads", f"received_face_{index}.jpg")
+        cv2.imwrite(debug_path, image)
+
+        print(f"received face saved: {debug_path}")
+
         if image is None:
             results.append({
                 "index": index,
