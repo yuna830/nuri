@@ -12,6 +12,13 @@ public interface JobPostingCacheRepository extends JpaRepository<JobPostingCache
     Optional<JobPostingCache> findByCacheKey(String cacheKey);
     List<JobPostingCache> findTop3000ByOrderByUpdatedAtDesc();
 
+    @Query("SELECT j FROM JobPostingCache j WHERE " +
+           "(:keyword IS NULL OR j.payload LIKE %:keyword%) " +
+           "ORDER BY j.updatedAt DESC")
+    List<JobPostingCache> findByKeywordOrderByUpdatedAtDesc(
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
+
     @Query("SELECT MAX(j.updatedAt) FROM JobPostingCache j")
     Optional<LocalDateTime> findLatestUpdatedAt();
 }

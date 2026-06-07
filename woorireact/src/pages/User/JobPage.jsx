@@ -451,12 +451,10 @@ export default function JobPage() {
       let nextJobs = replace ? [] : jobs;
       let nextTotal = totalCount;
       let shouldContinue = true;
-      let startPageWasDbCache = false;
 
       while (shouldContinue) {
         const currentPage = nextPage;
         const result = await fetchJobList(currentPage, "", API_PAGE_SIZE);
-        if (currentPage === startPage && result.fromDbCache) startPageWasDbCache = true;
         if (!result.fromDbCache) nextTotal = result.total || nextTotal;
 
         const merged = new Map(nextJobs.map((job) => [`${job.source}-${job.jobId}`, job]));
@@ -467,9 +465,9 @@ export default function JobPage() {
         const loadedAll = nextTotal > 0 && nextJobs.length >= nextTotal;
         const emptyPage = result.list.length === 0;
         const reachedSafetyLimit = currentPage >= 60;
-        const needsFreshPage = startPageWasDbCache && currentPage <= startPage;
 
-        shouldContinue = (needsFreshPage || !enoughForCategory) && !loadedAll && !emptyPage && !reachedSafetyLimit;
+        // DB 캐시에서 충분한 데이터가 왔으면 추가 호출 없이 종료
+        shouldContinue = !enoughForCategory && !loadedAll && !emptyPage && !reachedSafetyLimit;
         nextPage += 1;
       }
 

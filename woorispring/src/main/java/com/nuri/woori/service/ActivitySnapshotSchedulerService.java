@@ -49,19 +49,38 @@ public class ActivitySnapshotSchedulerService {
         String base = senior.getFallApiUrl().replaceAll("/+$", "");
         LocalDate today = LocalDate.now();
 
+        // 오늘 스냅샷이 없으면 가장 최근 것을 복사해서 시작 (날짜 바뀌어도 데이터 유지)
         SeniorActivitySnapshot snapshot = snapshotRepository
                 .findBySeniorIdAndSnapshotDate(senior.getId(), today)
-                .orElseGet(SeniorActivitySnapshot::new);
+                .orElseGet(() -> {
+                    SeniorActivitySnapshot fresh = new SeniorActivitySnapshot();
+                    snapshotRepository.findTopBySeniorIdOrderBySnapshotDateDesc(senior.getId())
+                            .ifPresent(prev -> {
+                                fresh.setBaselineJson(prev.getBaselineJson());
+                                fresh.setFallPatternJson(prev.getFallPatternJson());
+                                fresh.setActivityTodayJson(prev.getActivityTodayJson());
+                                fresh.setActivitySlotsJson(prev.getActivitySlotsJson());
+                                fresh.setActivityTrendJson(prev.getActivityTrendJson());
+                            });
+                    return fresh;
+                });
 
         snapshot.setSeniorId(senior.getId());
         snapshot.setSnapshotDate(today);
         snapshot.setUpdatedAt(LocalDateTime.now());
 
-        snapshot.setBaselineJson(fetchSafe(base + "/health/activity/baseline?days=14"));
-        snapshot.setFallPatternJson(fetchSafe(base + "/health/activity/fall-pattern"));
-        snapshot.setActivityTodayJson(fetchSafe(base + "/health/activity/today"));
-        snapshot.setActivitySlotsJson(fetchSafe(base + "/health/activity/slots"));
-        snapshot.setActivityTrendJson(fetchSafe(base + "/health/activity/trend?days=7"));
+        // FastAPI가 꺼져 있으면 null 반환 → 기존 데이터 유지 (덮어쓰지 않음)
+        String baseline    = fetchSafe(base + "/health/activity/baseline?days=14");
+        String fallPattern = fetchSafe(base + "/health/activity/fall-pattern");
+        String actToday    = fetchSafe(base + "/health/activity/today");
+        String slots       = fetchSafe(base + "/health/activity/slots");
+        String trend       = fetchSafe(base + "/health/activity/trend?days=7");
+
+        if (baseline    != null) snapshot.setBaselineJson(baseline);
+        if (fallPattern != null) snapshot.setFallPatternJson(fallPattern);
+        if (actToday    != null) snapshot.setActivityTodayJson(actToday);
+        if (slots       != null) snapshot.setActivitySlotsJson(slots);
+        if (trend       != null) snapshot.setActivityTrendJson(trend);
 
         snapshotRepository.save(snapshot);
         log.debug("Activity snapshot saved for senior {}", senior.getId());

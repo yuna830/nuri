@@ -9,6 +9,8 @@ import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.service.FcmPushService;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.PageRequest;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,16 +44,24 @@ public class AlertController {
     }
 
     @GetMapping("/guardian/{guardianId}")
-    public List<Alert> getGuardianAlerts(@PathVariable Long guardianId) {
-        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId)
+    public List<Alert> getGuardianAlerts(
+            @PathVariable Long guardianId,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        return alertRepository.findByGuardianIdOrderByCreatedAtDesc(
+                        guardianId, PageRequest.of(0, Math.min(size, 200)))
                 .stream()
                 .filter(alert -> !"CONSENT_REQUEST".equals(alert.getType()))
                 .toList();
     }
 
     @GetMapping("/senior/{seniorId}")
-    public List<Alert> getSeniorAlerts(@PathVariable Long seniorId) {
-        return alertRepository.findBySeniorIdOrderByCreatedAtDesc(seniorId);
+    public List<Alert> getSeniorAlerts(
+            @PathVariable Long seniorId,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        return alertRepository.findBySeniorIdOrderByCreatedAtDesc(
+                seniorId, PageRequest.of(0, Math.min(size, 200)));
     }
 
     @PostMapping("/sos")
@@ -412,21 +422,23 @@ public class AlertController {
     public List<WelfareAlertResponse> getWelfareAlerts(
             @RequestParam(required = false) Long welfareWorkerId
     ) {
+        PageRequest recentPage = PageRequest.of(0, 30);
+
         List<WelfareAlertResponse> fallAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED")
+                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED", recentPage)
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "fall-", "낙상 감지 알림", "FALL_DETECTED"))
                 .toList();
 
         List<WelfareAlertResponse> sosAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
+                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "sos-", "SOS 요청 미응답", "SOS"))
                 .toList();
 
         LocalDateTime checkInOkCutoff = LocalDateTime.now().minusDays(7);
         List<WelfareAlertResponse> checkInOkAlerts = alertRepository
-                .findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff)
+                .findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff, recentPage)
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "check-in-ok-", "안부 확인 완료", "CHECK_IN_OK"))
                 .toList();

@@ -24,6 +24,13 @@ const FALL_API_BASE = (
 const FALL_API_COOLDOWN_MS = 3 * 60 * 1000;
 let fallApiUnavailableUntil = 0;
 
+// Spring Boot 폴백 패턴에서 타임아웃 초과 시 빠르게 실패
+const fetchWithTimeout = (url, timeoutMs = 3000, options = {}) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal, ...options }).finally(() => clearTimeout(timer));
+};
+
 const fetchFallApi = async (path, options = {}) => {
   if (Date.now() < fallApiUnavailableUntil) {
     throw new Error("Fall detection server unavailable");
@@ -537,65 +544,72 @@ export const fetchSensorBattery = async (seniorId) => {
   return null;
 };
 
-export const fetchActivityToday = async (seniorId) => {
-  if (seniorId) {
+// Spring Boot가 status:"pending" 을 반환하면 FastAPI 폴백 필요
+// (OCI 클라우드에서 로컬 FastAPI IP에 접근 불가 → 항상 pending 반환)
+const isRealData = (data) => data && data.status !== "pending" && data.scores !== undefined
+  || (data && data.slots !== undefined)
+  || (data && data.baseline !== undefined)
+  || (data && data.pattern !== undefined)
+  || (data && Array.isArray(data.daily));
+
+const trySpringThenFall = async (springUrl, fallPath) => {
+  if (springUrl) {
     try {
-      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/today`);
-      if (response.ok) return response.json();
+      const response = await fetchWithTimeout(springUrl);
+      if (response.ok) {
+        const data = await response.json();
+        // pending 상태면 FastAPI로 폴백 (Spring Boot가 로컬 FastAPI에 접근 못한 경우)
+        if (data?.status !== "pending") return data;
+      }
     } catch { /* Fall API 폴백 */ }
   }
-  const response = await fetchFallApi("/health/activity/today");
+  const response = await fetchFallApi(fallPath);
   return response.json();
+};
+
+export const fetchActivityToday = async (seniorId) => {
+  return trySpringThenFall(
+    seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/today` : null,
+    "/health/activity/today"
+  );
 };
 
 export const fetchActivityTrend = async (days = 7, seniorId) => {
-  if (seniorId) {
-    try {
-      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/trend?days=${encodeURIComponent(days)}`);
-      if (response.ok) return response.json();
-    } catch { /* Fall API 폴백 */ }
-  }
-  const response = await fetchFallApi(`/health/activity/trend?days=${encodeURIComponent(days)}`);
-  return response.json();
+  return trySpringThenFall(
+    seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/trend?days=${encodeURIComponent(days)}` : null,
+    `/health/activity/trend?days=${encodeURIComponent(days)}`
+  );
 };
 
 export const fetchFallEvents = async (days = 1) => {
-  const response = await fetchFallApi(`/health/activity/falls?days=${encodeURIComponent(days)}`);
-  const data = await response.json();
-  return Array.isArray(data?.events) ? data.events : [];
+  try {
+    const response = await fetchFallApi(`/health/activity/falls?days=${encodeURIComponent(days)}`);
+    const data = await response.json();
+    return Array.isArray(data?.events) ? data.events : [];
+  } catch {
+    return [];
+  }
 };
 
 export const fetchActivitySlots = async (seniorId) => {
-  if (seniorId) {
-    try {
-      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/slots`);
-      if (response.ok) return response.json();
-    } catch { /* Fall API 폴백 */ }
-  }
-  const response = await fetchFallApi("/health/activity/slots");
-  return response.json();
+  return trySpringThenFall(
+    seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/slots` : null,
+    "/health/activity/slots"
+  );
 };
 
 export const fetchActivityBaseline = async (days = 14, seniorId) => {
-  if (seniorId) {
-    try {
-      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/baseline?days=${encodeURIComponent(days)}`);
-      if (response.ok) return response.json();
-    } catch { /* Fall API 폴백 */ }
-  }
-  const response = await fetchFallApi(`/health/activity/baseline?days=${encodeURIComponent(days)}`);
-  return response.json();
+  return trySpringThenFall(
+    seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/baseline?days=${encodeURIComponent(days)}` : null,
+    `/health/activity/baseline?days=${encodeURIComponent(days)}`
+  );
 };
 
 export const fetchFallPattern = async (seniorId) => {
-  if (seniorId) {
-    try {
-      const response = await fetch(`${API_BASE}/api/seniors/${seniorId}/activity/fall-pattern`);
-      if (response.ok) return response.json();
-    } catch { /* Fall API 폴백 */ }
-  }
-  const response = await fetchFallApi("/health/activity/fall-pattern");
-  return response.json();
+  return trySpringThenFall(
+    seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/fall-pattern` : null,
+    "/health/activity/fall-pattern"
+  );
 };
 
 export const fetchSeniorAlerts = async (seniorId) => {
