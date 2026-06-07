@@ -63,6 +63,8 @@ export default function ChatAssistant() {
   const saveQueueRef = useRef(Promise.resolve());
   // 오늘 일정 안내 중복 방지
   const didShowBriefingRef = useRef(false);
+  // 늦게 도착한 일정 조회가 최신 목록을 덮어쓰지 않도록 요청 순서를 보관
+  const scheduleLoadRequestRef = useRef(0);
 
   //=======================대화방 함수===========================
   // 대화방 목록 조회 
@@ -71,17 +73,6 @@ export default function ChatAssistant() {
     const recentConversations = await fetchAssistantConversations(seniorId);
     setConversations(recentConversations);
     return recentConversations;
-  }
-
-  // 전체 일정 조회 
-  async function refreshAllSchedules() {
-    const seniorId = getResolvedSeniorId();
-    if (!seniorId) return [];
-
-    const allSchedules = await fetchSeniorSchedules(seniorId);
-    const normalized = allSchedules.map(scheduleFromApi);
-    setChatSchedules(normalized);
-    return normalized;
   }
 
   //================================================
@@ -204,8 +195,13 @@ export default function ChatAssistant() {
       const savedSchedule = scheduleFromApi(saved);
 
       setSelectedScheduleDate(savedSchedule.date);
-      applySavedSchedule(savedSchedule, isEditing);
-      await refreshAllSchedules();
+      scheduleLoadRequestRef.current += 1;
+      const [dateSchedules, allSchedules] = await Promise.all([
+        fetchSchedulesByDate(seniorId, savedSchedule.date),
+        fetchSeniorSchedules(seniorId),
+      ]);
+      setSavedSchedules(dateSchedules.map(scheduleFromApi));
+      setChatSchedules(allSchedules.map(scheduleFromApi));
 
       addAssistantMessage(`${savedSchedule.text} 일정이 ${isEditing ? "수정" : "등록"}됐어요.`);
       setEditingSchedule(null);
@@ -236,8 +232,13 @@ export default function ChatAssistant() {
       const savedSchedule = scheduleFromApi(saved);
 
       setSelectedScheduleDate(savedSchedule.date);
-      applySavedSchedule(savedSchedule, true);
-      await refreshAllSchedules();
+      scheduleLoadRequestRef.current += 1;
+      const [dateSchedules, allSchedules] = await Promise.all([
+        fetchSchedulesByDate(seniorId, savedSchedule.date),
+        fetchSeniorSchedules(seniorId),
+      ]);
+      setSavedSchedules(dateSchedules.map(scheduleFromApi));
+      setChatSchedules(allSchedules.map(scheduleFromApi));
       addAssistantMessage(`${savedSchedule.text} 일정으로 수정됐어요.`);
     } catch (error) {
       console.error("일정 수정 오류:", error);
@@ -267,20 +268,6 @@ export default function ChatAssistant() {
     }
   }
 
-  // 저장된 일정 상태 반영
-  function applySavedSchedule(savedSchedule, isEditing) {
-    setChatSchedules((prev) => {
-      const withoutCurrent = prev.filter((item) => item.id !== savedSchedule.id);
-      return [savedSchedule, ...withoutCurrent];
-    });
-
-    setSavedSchedules((prev) => {
-      const withoutCurrent = prev.filter((item) => item.id !== savedSchedule.id);
-      if (savedSchedule.date !== selectedScheduleDate) return withoutCurrent;
-      return isEditing ? [savedSchedule, ...withoutCurrent] : [savedSchedule, ...prev];
-    });
-  }
-
   //챗봇 메시지 추가 
   function addAssistantMessage(content) {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
@@ -289,11 +276,11 @@ export default function ChatAssistant() {
   //오늘 일정 자동 안내 
   function showTodayBriefing(schedules) {
     if (didShowBriefingRef.current) return;
+    didShowBriefingRef.current = true;
 
     const todaySchedules = schedules.filter((schedule) => schedule.date === todayValue());
     if (todaySchedules.length === 0) return;
 
-    didShowBriefingRef.current = true;
     setMessages((prev) => [
       ...prev,
       {
@@ -366,11 +353,14 @@ export default function ChatAssistant() {
     async function loadSchedules() {
       const seniorId = getResolvedSeniorId();
       if (!seniorId) return;
+      const requestId = ++scheduleLoadRequestRef.current;
       try {
         const [dateSchedules, allSchedules] = await Promise.all([
           fetchSchedulesByDate(seniorId, selectedScheduleDate),
           fetchSeniorSchedules(seniorId),
         ]);
+        if (requestId !== scheduleLoadRequestRef.current) return;
+
         const normalizedDateSchedules = dateSchedules.map(scheduleFromApi);
         const normalizedAllSchedules = allSchedules.map(scheduleFromApi);
 

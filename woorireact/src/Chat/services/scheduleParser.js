@@ -172,6 +172,7 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
   if (hasNonScheduleQuestion && !hasIntent && !hasCommand) return false;
   if (date && !title && /일정/.test(text)) return false;
   if (hasIntent && (date || time)) return true;
+  if (date && time && title) return true;
 
   return false;
 }
