@@ -957,6 +957,7 @@
   display: block;
   font-size: 0.78rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .up-slot-item span,

@@ -20,8 +20,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   final TextEditingController _regionController = TextEditingController();
 
   String _gender = '여성';
-  String _incomeLevel = '없음';
-  String _householdType = '없음';
+  String _incomeLevel = '';
+  String _householdType = '';
   bool _agreedToPrivacy = false;
   bool _isLoading = false;
   String _errorMessage = '';
@@ -87,9 +87,13 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
         MaterialPageRoute(builder: (_) => AppShell(seniorId: seniorId)),
         (_) => false,
       );
-    } catch (_) {
+    } catch (e) {
       setState(() {
-        _errorMessage = '회원가입에 실패했습니다. 입력 정보를 확인해주세요.';
+        if (e.toString().contains('이미 등록된 전화번호')) {
+          _errorMessage = '이미 등록된 전화번호입니다. 다른 번호를 입력해주세요.';
+        } else {
+          _errorMessage = '회원가입에 실패했습니다. 입력 정보를 확인해주세요.';
+        }
       });
     } finally {
       if (mounted) {
@@ -410,7 +414,8 @@ class _OptionSelector extends StatelessWidget {
       children: [
         _SignUpLabel(label),
         DropdownButtonFormField<String>(
-          value: value,
+          value: value.isEmpty ? null : value,
+          hint: const Text('선택 안 함'),
           items: options
               .map((option) => DropdownMenuItem<String>(
                     value: option,
@@ -418,7 +423,7 @@ class _OptionSelector extends StatelessWidget {
                   ))
               .toList(),
           onChanged: (next) {
-            if (next != null) onChanged(next);
+            onChanged(next ?? '');
           },
           decoration: _inputDecoration(hintText: label),
         ),

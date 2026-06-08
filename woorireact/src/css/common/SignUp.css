@@ -216,6 +216,28 @@
   white-space: nowrap;
 }
 
+.su-btn-skip {
+  background: #86a788;
+  border: none;
+  border-radius: 20px;
+  padding: 0.38rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: "Noto Sans KR", sans-serif;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.su-btn-skip:hover {
+  opacity: 0.88;
+}
+
+.su-btn-skip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .su-field {
   margin-bottom: 1rem;
 }
@@ -656,6 +678,7 @@
   border-radius: 10px;
   padding: 0.9rem 1.1rem;
   margin-top: 0.8rem;
+  margin-bottom: 1.2rem;
   display: flex;
   align-items: center;
   gap: 1rem 2rem;

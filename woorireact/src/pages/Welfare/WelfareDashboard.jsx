@@ -36,7 +36,7 @@ import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 import "../../css/welfare/WelfareDashboard.css";
 
-const ITEM_PER_PAGE = 6;
+const ITEM_PER_PAGE = 5;
 
 const EMERGENCY_FILTER_VALUES = [
     "미응답 SOS",
@@ -207,7 +207,7 @@ function WelfareDashboard() {
         let ignore = false;
         const load = async () => {
             try {
-                const data = await fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: currentWorker.id });
+                const data = await fetchWelfareSeniors({ welfareWorkerId: currentWorker.id });
                 const raw = Array.isArray(data) ? data : data.content || [];
                 if (!ignore) setNotificationSeniors(raw.map(mapWelfareSenior));
             } catch { /* silent */ }
@@ -254,8 +254,9 @@ function WelfareDashboard() {
 
     const filteredSeniors = useMemo(() => {
         const keywordTokens = getKeywordTokens(searchKeyword);
+        const sourceSeniors = summaryFilter === "all" ? seniors : notificationSeniors;
 
-        return seniors.filter((senior) => {
+        return sourceSeniors.filter((senior) => {
             const isMatchedByFilters = FILTER_GROUPS.every((group) =>
                 isFilterMatched(group.key, filters[group.key], senior)
             );
@@ -291,7 +292,7 @@ function WelfareDashboard() {
 
             return isMatchedByFilters && isMatchedByKeyword && isMatchedBySummary;
         });
-    }, [filters, searchKeyword, seniors, summaryFilter]);
+    }, [filters, searchKeyword, seniors, notificationSeniors, summaryFilter]);
 
     const getPriorityRank = (senior) => {
         if (senior.alertStatus === "미응답 SOS") return 1;
@@ -301,19 +302,25 @@ function WelfareDashboard() {
         return 4;
     };
 
-    const totalPages = Math.max(1, serverTotalPages);
-    const seniorSummaryCounts = {
-        ...getSeniorSummaryCounts(seniors),
-        totalSeniors: serverTotalSeniors || seniors.length,
-    };
-
-    const currentSeniors = filteredSeniors
+    const isClientMode = summaryFilter !== "all";
+    const sortedSeniors = filteredSeniors
         .slice()
         .sort(
             (first, second) =>
                 getPriorityRank(first) - getPriorityRank(second) ||
-                Number(first.id) - Number(second.id)
+                Number(second.id) - Number(first.id)
         );
+    const totalPages = isClientMode
+        ? Math.max(1, Math.ceil(sortedSeniors.length / ITEM_PER_PAGE))
+        : Math.max(1, serverTotalPages);
+    const currentSeniors = isClientMode
+        ? sortedSeniors.slice((currentPage - 1) * ITEM_PER_PAGE, currentPage * ITEM_PER_PAGE)
+        : sortedSeniors;
+
+    const seniorSummaryCounts = {
+        ...getSeniorSummaryCounts(notificationSeniors.length > 0 ? notificationSeniors : seniors),
+        totalSeniors: serverTotalSeniors || seniors.length,
+    };
 
     const toggleDraftFilter = (filterKey, option) => {
         setDraftFilters((previousFilters) => {
@@ -1152,9 +1159,8 @@ function WelfareDashboard() {
                             <button
                                 type="button"
                                 key={pageNumber}
-                                className="wd-small-button"
+                                className={`wd-small-button${currentPage === pageNumber ? " wd-pager-current" : ""}`}
                                 onClick={() => setCurrentPage(pageNumber)}
-                                disabled={currentPage === pageNumber}
                             >
                                 {pageNumber}
                             </button>
