@@ -241,7 +241,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
             onReport: _navigateToReportTab,
           ),
           LocationTabScreen(initialSeniorId: _selectedSeniorId),
-          const ReportScreen(),
+          ReportScreen(onCompleted: () => setState(() => _selectedIndex = 0)),
           const ContactSeniorScreen(),
           const MypageScreen(),
         ],
