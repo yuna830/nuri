@@ -47,25 +47,51 @@ const normalizeActive = (value) => {
   return true;
 };
 
+const maybeMojibakePattern = /[\u0080-\u009F]|[ÃÂÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîï]/;
+
+const fixTextEncoding = (value) => {
+  if (typeof value !== "string" || !maybeMojibakePattern.test(value)) return value || "";
+
+  try {
+    const bytes = Uint8Array.from([...value].map((char) => char.charCodeAt(0) & 0xff));
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+
+    if (decoded.includes("\ufffd")) return value;
+    if (!/[가-힣]/.test(decoded)) return value;
+
+    return decoded;
+  } catch {
+    return value;
+  }
+};
+
 const normalizeGuardianSummary = (guardian) => ({
   id: guardian.id,
-  name: guardian.name || guardian.guardianName || "No name",
+  name: fixTextEncoding(guardian.name || guardian.guardianName || "No name"),
   phone: guardian.phone || "",
   email: guardian.email || "",
-  relation: guardian.relation || guardian.guardianRelation || "",
+  relation: fixTextEncoding(guardian.relation || guardian.guardianRelation || ""),
   active: normalizeActive(guardian.active ?? guardian.enabled ?? guardian.status),
+  createdAt: guardian.createdAt || guardian.created_at || "",
   seniorIds: guardian.seniorIds || guardian.seniors?.map((senior) => senior.id) || [],
 });
 
 const normalizeWelfareWorker = (worker) => ({
   id: worker.id,
   workerId: worker.workerId || "",
-  name: worker.name || worker.workerName || worker.socialWorkerName || "No name",
+  name: fixTextEncoding(worker.name || worker.workerName || worker.socialWorkerName || "No name"),
   phone: worker.phone || "",
   email: worker.email || "",
-  center: worker.center || worker.organization || worker.office || "No center",
-  region: worker.region || "",
+  center: fixTextEncoding(worker.center || worker.organization || worker.office || "No center"),
+  region: fixTextEncoding(worker.region || ""),
   active: normalizeActive(worker.active ?? worker.enabled ?? worker.status),
+  createdAt: worker.createdAt || worker.created_at || "",
+});
+
+const normalizeLinkedSeniorSummary = (senior) => ({
+  ...senior,
+  name: fixTextEncoding(senior.name || senior.seniorName || ""),
+  relation: fixTextEncoding(senior.relation || ""),
 });
 
 const normalizeSenior = (profile) => {
@@ -76,9 +102,9 @@ const normalizeSenior = (profile) => {
       ? [
           {
             id: profile.guardianId,
-            name: profile.guardianName,
+            name: fixTextEncoding(profile.guardianName),
             phone: profile.guardianPhone,
-            relation: profile.relation,
+            relation: fixTextEncoding(profile.relation),
           },
         ]
       : [];
@@ -95,17 +121,18 @@ const normalizeSenior = (profile) => {
 
   return {
     id: senior.id,
-    name: senior.name || senior.seniorName || "No name",
+    name: fixTextEncoding(senior.name || senior.seniorName || "No name"),
     age: senior.age || senior.seniorAge || "",
-    gender: senior.gender || "",
+    gender: fixTextEncoding(senior.gender || ""),
     phone: senior.phone || "",
-    address: senior.address || senior.region || "",
+    address: fixTextEncoding(senior.address || senior.region || ""),
     active: normalizeActive(senior.active ?? senior.enabled ?? senior.status),
     welfareId: senior.welfareWorkerId ?? senior.welfareId ?? senior.socialWorkerId ?? senior.workerId ?? null,
     guardianIds: [...new Set(guardianIds.map(String))],
     guardians,
     welfareWorker: welfareWorker ? normalizeWelfareWorker(welfareWorker) : null,
     fallApiUrl: senior.fallApiUrl || null,
+    createdAt: senior.createdAt || senior.created_at || profile?.createdAt || profile?.created_at || "",
   };
 };
 
@@ -115,7 +142,7 @@ const normalizeGuardian = (guardian) => {
   return {
     ...normalizeGuardianSummary(guardian),
     seniorIds: guardian.seniorIds || seniors.map((senior) => senior.id) || [],
-    seniors,
+    seniors: seniors.map(normalizeLinkedSeniorSummary),
   };
 };
 
@@ -243,8 +270,11 @@ export const buildAdminLookups = ({ welfareWorkers, guardians }) => {
   return { welfareById, guardianById };
 };
 
-export const getSeniorWelfareWorker = (senior, welfareById) =>
-  senior?.welfareWorker || (senior?.welfareId ? welfareById.get(String(senior.welfareId)) : null);
+export const getSeniorWelfareWorker = (senior, welfareById) => {
+  const worker = senior?.welfareWorker || (senior?.welfareId ? welfareById.get(String(senior.welfareId)) : null);
+
+  return worker?.active ? worker : null;
+};
 
 export const getSeniorGuardians = (senior, guardianById) => {
   const linkedGuardians = (senior?.guardianIds || []).map((id) => guardianById.get(String(id))).filter(Boolean);
