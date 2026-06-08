@@ -357,6 +357,23 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// 7단계 전체 데이터로 회원가입
+  Future<Map<String, dynamic>> signUpSeniorFull(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$apiBaseUrl/api/seniors'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    if (response.statusCode == 409) {
+      throw Exception('이미 등록된 전화번호입니다.');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('회원가입 실패');
+    }
+    return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  /// 기존 호환용 (간단 회원가입)
   Future<Map<String, dynamic>> signUpSenior({
     required String name,
     required String phone,
@@ -365,65 +382,53 @@ class SeniorApi {
     required String region,
     String incomeLevel = '',
     String householdType = '',
+  }) => signUpSeniorFull({
+    'name': name, 'phone': phone, 'birthDate': birthDate,
+    'gender': gender, 'region': region,
+    'incomeLevel': incomeLevel, 'householdType': householdType,
+    'age': '', 'disabilityGrade': '', 'disabilityType': '',
+    'profileImageUrl': '', 'height': '', 'weight': '',
+    'smoking': '', 'drinking': '', 'allergies': '',
+    'medicineCount': '', 'medicationsJson': '[]',
+    'diabetes': '', 'hypertension': '', 'heartDisease': '',
+    'jointDisease': '', 'stroke': '', 'kidneyDisease': '',
+    'lungDisease': '', 'liverDisease': '', 'cancer': '',
+    'walkingAid': '', 'dementia': '', 'vision': '', 'hearing': '', 'recentFall': '',
+    'hasSurgery': '', 'surgeryDetail': '', 'otherDisease': '',
+    'maxHours': '', 'maxDistance': '', 'disabledWork': [],
+    'payType': '', 'hopeDays': [], 'hopeJobType': [], 'hopeCondition': [], 'memo': '',
+  });
+
+  /// 보호자 이름+전화번호로 검색
+  Future<Map<String, dynamic>?> searchGuardian({
+    required String name,
+    required String phone,
+  }) async {
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final uri = Uri.parse('$apiBaseUrl/api/guardians/search')
+        .replace(queryParameters: {'name': name.trim(), 'phone': digits});
+    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('보호자 검색 실패');
+    }
+    return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  /// 보호자 ↔ 어르신 연결
+  Future<void> connectGuardian({
+    required int guardianId,
+    required int seniorId,
+    required String relation,
   }) async {
     final response = await http.post(
-      Uri.parse('$apiBaseUrl/api/seniors'),
+      Uri.parse('$apiBaseUrl/api/guardians/$guardianId/seniors'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'name': name,
-        'phone': phone,
-        'birthDate': birthDate,
-        'gender': gender,
-        'region': region,
-        'incomeLevel': incomeLevel,
-        'householdType': householdType,
-        'age': '',
-        'disabilityGrade': '',
-        'disabilityType': '',
-        'profileImageUrl': '',
-        'height': '',
-        'weight': '',
-        'smoking': '',
-        'drinking': '',
-        'allergies': '',
-        'medicineCount': '',
-        'medicationsJson': '[]',
-        'diabetes': '',
-        'hypertension': '',
-        'heart': '',
-        'joint': '',
-        'stroke': '',
-        'kidney': '',
-        'lung': '',
-        'liver': '',
-        'cancer': '',
-        'walkingAid': '',
-        'dementia': '',
-        'vision': '',
-        'hearing': '',
-        'recentFall': '',
-        'hasSurgery': '',
-        'surgeryDetail': '',
-        'otherDisease': '',
-        'maxHours': '',
-        'maxDistance': '',
-        'disabledWork': [],
-        'payType': '',
-        'hopeDays': [],
-        'hopeJobType': [],
-        'hopeCondition': [],
-        'memo': '',
-      }),
+      body: jsonEncode({'seniorId': seniorId, 'relation': relation}),
     );
-
-    if (response.statusCode == 409) {
-      throw Exception('이미 등록된 전화번호입니다.');
-    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('회원가입 실패');
+      throw Exception('보호자 연동 실패');
     }
-
-    return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
   Future<void> confirmConsentRequest(int alertId) async {

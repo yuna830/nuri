@@ -83,6 +83,20 @@ public class GuardianController {
         return ResponseEntity.ok(toResponse(guardian));
     }
 
+    /// 이름 + 전화번호로 보호자 검색 (어르신 앱에서 연동 시 사용)
+    @GetMapping("/search")
+    public ResponseEntity<GuardianResponse> searchGuardian(
+            @RequestParam String name,
+            @RequestParam String phone) {
+        String normalizedPhone = normalizePhone(phone);
+        if (name.isBlank() || normalizedPhone.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return guardianRepository.findByNameAndNormalizedPhone(name.trim(), normalizedPhone)
+                .map(g -> ResponseEntity.ok(toResponse(g)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/find-email")
     public ResponseEntity<FindEmailResponse> findEmail(@RequestBody FindEmailRequest request) {
         String name = request.name() == null ? "" : request.name().trim();

@@ -91,6 +91,7 @@ class _LocationScreenState extends State<LocationScreen>
   double? _lastSavedLon;
   DateTime? _lastSavedAt;
   String? _serverReceivedAt; // 서버 마지막 수신 시각
+  int _mapLevel = 3; // 카카오맵 줌 레벨 (1=최대확대, 14=최대축소)
 
   Timer? _locationTimer;
   Timer? _safeZoneTimer;
@@ -376,8 +377,20 @@ class _LocationScreenState extends State<LocationScreen>
   void _moveMap(double lat, double lon) {
     try {
       _mapController?.setCenter(kakao.LatLng(lat, lon));
-      _mapController?.setLevel(3);
+      _mapController?.setLevel(_mapLevel);
     } catch (_) {}
+  }
+
+  void _zoomIn() {
+    final next = (_mapLevel - 1).clamp(1, 14);
+    setState(() => _mapLevel = next);
+    try { _mapController?.setLevel(next); } catch (_) {}
+  }
+
+  void _zoomOut() {
+    final next = (_mapLevel + 1).clamp(1, 14);
+    setState(() => _mapLevel = next);
+    try { _mapController?.setLevel(next); } catch (_) {}
   }
 
   // ── computed: 안전반경 거리 목록 ───────────────
@@ -483,6 +496,7 @@ class _LocationScreenState extends State<LocationScreen>
               loading: _loading,
               error: _error,
               safeZones: _safeZones,
+              mapLevel: _mapLevel,
               onMapCreated: (controller) {
                 _mapController = controller;
                 final lat = _lat;
@@ -494,6 +508,8 @@ class _LocationScreenState extends State<LocationScreen>
               onRecenter: _lat != null
                   ? () => _moveMap(_lat!, _lon!)
                   : null,
+              onZoomIn: _zoomIn,
+              onZoomOut: _zoomOut,
             ),
             const SizedBox(height: 12),
 
@@ -674,7 +690,10 @@ class _LocationMapCard extends StatelessWidget {
     required this.error,
     required this.safeZones,
     required this.onMapCreated,
+    required this.mapLevel,
     this.onRecenter,
+    this.onZoomIn,
+    this.onZoomOut,
   });
 
   final double? lat;
@@ -683,7 +702,10 @@ class _LocationMapCard extends StatelessWidget {
   final String? error;
   final List<Map<String, dynamic>> safeZones;
   final void Function(kakao.KakaoMapController controller) onMapCreated;
+  final int mapLevel;
   final VoidCallback? onRecenter;
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
 
   @override
   Widget build(BuildContext context) {
@@ -747,7 +769,7 @@ class _LocationMapCard extends StatelessWidget {
           else
             kakao.KakaoMap(
               center: kakao.LatLng(mapLat, mapLon),
-              currentLevel: 3,
+              currentLevel: mapLevel,
               onMapCreated: onMapCreated,
               markers: [
                 ...safeZones.map((zone) {
@@ -797,30 +819,66 @@ class _LocationMapCard extends StatelessWidget {
                 );
               }).toList(),
             ),
+          // 줌 인/아웃 버튼
+          if (!loading && error == null)
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Column(
+                children: [
+                  _MapIconButton(
+                    icon: Icons.add,
+                    tooltip: '확대',
+                    onTap: onZoomIn,
+                  ),
+                  const SizedBox(height: 4),
+                  _MapIconButton(
+                    icon: Icons.remove,
+                    tooltip: '축소',
+                    onTap: onZoomOut,
+                  ),
+                ],
+              ),
+            ),
           // 내 위치로 버튼
           if (!loading && error == null && onRecenter != null)
             Positioned(
               right: 10,
               bottom: 10,
-              child: Material(
-                color: Colors.white,
-                elevation: 3,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: onRecenter,
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(
-                      Icons.my_location,
-                      color: Color(0xFF86A788),
-                      size: 22,
-                    ),
-                  ),
-                ),
+              child: _MapIconButton(
+                icon: Icons.my_location,
+                tooltip: '내 위치',
+                onTap: onRecenter,
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _MapIconButton extends StatelessWidget {
+  const _MapIconButton({required this.icon, required this.tooltip, this.onTap});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(10),
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, color: const Color(0xFF86A788), size: 22),
+          ),
+        ),
       ),
     );
   }

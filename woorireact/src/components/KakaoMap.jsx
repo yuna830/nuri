@@ -52,14 +52,8 @@ const toLatLng = (maps, point) =>
 
 const clearOverlay = (overlay) => {
   if (!overlay) return;
-
-  if (typeof overlay.setMap === "function") {
-    overlay.setMap(null);
-  }
-
-  if (typeof overlay.close === "function") {
-    overlay.close();
-  }
+  if (typeof overlay.setMap === "function") overlay.setMap(null);
+  if (typeof overlay.close === "function") overlay.close();
 };
 
 const isValidPoint = (point) =>
@@ -76,10 +70,8 @@ const getSafeZoneBoundsPoints = (maps, zone) => {
   const radius = Number(zone.radiusMeters || 500);
   const lat = Number(zone.centerLatitude);
   const lng = Number(zone.centerLongitude);
-
   const latOffset = radius / 111000;
   const lngOffset = radius / (111000 * Math.cos((lat * Math.PI) / 180));
-
   return [
     new maps.LatLng(lat + latOffset, lng),
     new maps.LatLng(lat - latOffset, lng),
@@ -108,58 +100,45 @@ export default function KakaoMap({
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const overlaysRef = useRef([]);
+  const safeZoneOverlaysRef = useRef([]);  // 안전 반경용 오버레이 (드물게 변경)
+  const currentMarkerRef = useRef(null);   // 현재 위치 마커 (위치만 업데이트)
+  const currentInfoRef = useRef(null);
   const [failed, setFailed] = useState(false);
 
   const normalizedCenter = useMemo(() => {
-    if (Array.isArray(center)) {
-      return {
-        lat: center[0],
-        lng: center[1],
-      };
-    }
-
+    if (Array.isArray(center)) return { lat: center[0], lng: center[1] };
     return center;
   }, [center]);
 
+  // 지도 초기 생성
   useEffect(() => {
     let cancelled = false;
 
     loadKakaoMapSdk()
       .then((maps) => {
-        if (cancelled || !containerRef.current || !isValidPoint(normalizedCenter)) {
-          return;
-        }
-
-        const mapCenter = toLatLng(maps, normalizedCenter);
+        if (cancelled || !containerRef.current || !isValidPoint(normalizedCenter)) return;
 
         if (!mapRef.current) {
           mapRef.current = new maps.Map(containerRef.current, {
-            center: mapCenter,
+            center: toLatLng(maps, normalizedCenter),
             level: zoom,
           });
         }
 
         setFailed(false);
       })
-      .catch(() => {
-        setFailed(true);
-      });
+      .catch(() => setFailed(true));
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [normalizedCenter, zoom]);
 
+  // 안전 반경 원 + 마커 — safeZone/safeZones 변경 시에만 재렌더
   useEffect(() => {
-    if (failed || !mapRef.current || !window.kakao?.maps) {
-      return;
-    }
-
+    if (failed || !mapRef.current || !window.kakao?.maps) return;
     const maps = window.kakao.maps;
 
-    overlaysRef.current.forEach(clearOverlay);
-    overlaysRef.current = [];
+    safeZoneOverlaysRef.current.forEach(clearOverlay);
+    safeZoneOverlaysRef.current = [];
 
     const zonesToRender =
       Array.isArray(safeZones) && safeZones.length > 0
@@ -176,7 +155,6 @@ export default function KakaoMap({
         lat: Number(zone.centerLatitude),
         lng: Number(zone.centerLongitude),
       });
-
       const radius = Number(zone.radiusMeters || 500);
       const isActive = safeZone && String(zone.id) === String(safeZone.id);
 
@@ -190,59 +168,24 @@ export default function KakaoMap({
         fillColor: isActive ? "#5F8F65" : "#F4A261",
         fillOpacity: isActive ? 0.14 : 0.11,
       });
-
       circle.setMap(mapRef.current);
-      overlaysRef.current.push(circle);
+      safeZoneOverlaysRef.current.push(circle);
 
-      const marker = new maps.Marker({
-        position: zoneCenter,
-      });
-
+      const marker = new maps.Marker({ position: zoneCenter });
       const zoneName = zone.name || zone.placeName || safeZoneLabel;
       const suffix = index === 0 && zonesToRender.length === 1 ? "" : " 안전 반경";
-
       const info = new maps.InfoWindow({
         content: `<div style="padding:6px 10px;font-size:12px;">${zoneName}${suffix}</div>`,
       });
-
       marker.setMap(mapRef.current);
-      maps.event.addListener(marker, "click", () => {
-        info.open(mapRef.current, marker);
-      });
+      maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
+      safeZoneOverlaysRef.current.push(marker, info);
 
-      overlaysRef.current.push(marker, info);
-
-      getSafeZoneBoundsPoints(maps, zone).forEach((point) => {
-        bounds.extend(point);
-      });
-
+      getSafeZoneBoundsPoints(maps, zone).forEach((point) => bounds.extend(point));
       hasBounds = true;
     });
 
-    if (isValidPoint(currentLocation)) {
-      const position = toLatLng(maps, currentLocation);
-
-      bounds.extend(position);
-      hasBounds = true;
-
-      const marker = new maps.Marker({
-        position,
-      });
-
-      const info = new maps.InfoWindow({
-        content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>`,
-      });
-
-      marker.setMap(mapRef.current);
-      maps.event.addListener(marker, "click", () => {
-        info.open(mapRef.current, marker);
-      });
-
-      overlaysRef.current.push(marker, info);
-    }
-
     const validRoute = Array.isArray(route) ? route.filter(isValidPoint) : [];
-
     if (showRoute && validRoute.length > 1) {
       const polyline = new maps.Polyline({
         path: validRoute.map((point) => toLatLng(maps, point)),
@@ -250,38 +193,43 @@ export default function KakaoMap({
         strokeColor: "#C93A32",
         strokeOpacity: 0.85,
       });
-
       polyline.setMap(mapRef.current);
-      overlaysRef.current.push(polyline);
-
-      validRoute.forEach((point) => {
-        bounds.extend(toLatLng(maps, point));
-      });
-
+      safeZoneOverlaysRef.current.push(polyline);
+      validRoute.forEach((point) => bounds.extend(toLatLng(maps, point)));
       hasBounds = true;
     }
 
     if (autoFit && hasBounds) {
+      if (isValidPoint(currentLocation)) bounds.extend(toLatLng(maps, currentLocation));
       mapRef.current.setBounds(bounds);
-
-      if (mapRef.current.getLevel() > 5) {
-        mapRef.current.setLevel(5);
-      }
+      if (mapRef.current.getLevel() > 5) mapRef.current.setLevel(5);
     }
-  }, [
-    currentLabel,
-    currentLocation,
-    failed,
-    route,
-    safeZone,
-    safeZones,
-    safeZoneLabel,
-    showRoute,
-    autoFit,
-  ]);
+  }, [failed, safeZone, safeZones, safeZoneLabel, route, showRoute, autoFit]);
 
+  // 현재 위치 마커 — 위치만 업데이트 (깜빡임 없음)
+  useEffect(() => {
+    if (failed || !mapRef.current || !window.kakao?.maps) return;
+    if (!isValidPoint(currentLocation)) return;
+    const maps = window.kakao.maps;
+    const position = toLatLng(maps, currentLocation);
+
+    if (currentMarkerRef.current) {
+      // 마커가 이미 있으면 위치만 이동 → 깜빡임 없음
+      currentMarkerRef.current.setPosition(position);
+    } else {
+      const marker = new maps.Marker({ position });
+      marker.setMap(mapRef.current);
+      const info = new maps.InfoWindow({
+        content: `<div style="padding:6px 10px;font-size:12px;">${currentLabel}</div>`,
+      });
+      maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
+      currentMarkerRef.current = marker;
+      currentInfoRef.current = info;
+    }
+  }, [failed, currentLocation, currentLabel]);
+
+  // 포커스 이동
   const lastFocusKeyRef = useRef("");
-
   useEffect(() => {
     if (
       failed ||
@@ -290,9 +238,7 @@ export default function KakaoMap({
       !isValidPoint(focusLocation) ||
       !focusKey ||
       lastFocusKeyRef.current === focusKey
-    ) {
-      return;
-    }
+    ) return;
 
     const maps = window.kakao.maps;
     mapRef.current.setCenter(toLatLng(maps, focusLocation));
@@ -300,9 +246,7 @@ export default function KakaoMap({
     lastFocusKeyRef.current = focusKey;
   }, [failed, focusKey, focusLevel]);
 
-  if (failed && fallback) {
-    return fallback;
-  }
+  if (failed && fallback) return fallback;
 
   return <div ref={containerRef} className={className} style={style} />;
 }

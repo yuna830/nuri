@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/config/secrets.dart';
+import '../job/job_screen.dart';
 
 // Gemini API 설정
 const _geminiApiKey = geminiApiKey;
@@ -27,6 +30,8 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final Set<int> _unreadTabIndices = {};
+  Timer? _unreadTimer;
 
   static const _tabs = [
     _Tab('보호자', 'SENIOR_GUARDIAN'),
@@ -38,10 +43,47 @@ class _ChatScreenState extends State<ChatScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(_onTabChanged);
+    _checkUnread();
+    _unreadTimer = Timer.periodic(const Duration(seconds: 10), (_) => _checkUnread());
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      setState(() => _unreadTabIndices.remove(_tabController.index));
+    }
+  }
+
+  Future<void> _checkUnread() async {
+    for (int i = 0; i < _tabs.length - 1; i++) {
+      if (_tabController.index == i) continue; // 현재 보고 있는 탭은 건너뜀
+      final roomType = _tabs[i].roomType;
+      try {
+        final res = await http.get(Uri.parse(
+          '$apiBaseUrl/api/chat/senior/${widget.seniorId}?roomType=$roomType&size=10',
+        )).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final list = jsonDecode(utf8.decode(res.bodyBytes));
+          if (list is List && mounted) {
+            final hasUnread = list.any((m) =>
+              m is Map && m['unreadForSenior'] == true);
+            setState(() {
+              if (hasUnread) {
+                _unreadTabIndices.add(i);
+              } else {
+                _unreadTabIndices.remove(i);
+              }
+            });
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   @override
   void dispose() {
+    _unreadTimer?.cancel();
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -64,33 +106,56 @@ class _ChatScreenState extends State<ChatScreen>
           indicatorColor: const Color(0xFF86A788),
           labelStyle:
               const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-          tabs: _tabs
-              .map((t) => Tab(
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(
-                        t.roomType == 'AI'
-                            ? Icons.smart_toy_outlined
-                            : Icons.chat_bubble_outline,
-                        size: 16,
+          tabs: List.generate(_tabs.length, (i) {
+            final t = _tabs[i];
+            final hasUnread = _unreadTabIndices.contains(i);
+            return Tab(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(
+                      t.roomType == 'AI'
+                          ? Icons.smart_toy_outlined
+                          : Icons.chat_bubble_outline,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(t.label),
+                  ]),
+                  if (hasUnread)
+                    Positioned(
+                      top: -4,
+                      right: -8,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFD94E4E),
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                      const SizedBox(width: 4),
-                      Text(t.label),
-                    ]),
-                  ))
-              .toList(),
+                    ),
+                ],
+              ),
+            );
+          }),
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: _tabs.map((t) {
-          if (t.roomType == 'AI') {
-            return _AiChatRoom(seniorId: widget.seniorId);
-          }
+        children: List.generate(_tabs.length, (i) {
+          final t = _tabs[i];
+          if (t.roomType == 'AI') return _AiChatRoom(seniorId: widget.seniorId);
           return _HumanChatRoom(
             seniorId: widget.seniorId,
             roomType: t.roomType,
+            isActive: _tabController.index == i,
+            onRead: () {
+              if (mounted) setState(() => _unreadTabIndices.remove(i));
+            },
           );
-        }).toList(),
+        }),
       ),
     );
   }
@@ -105,9 +170,16 @@ class _Tab {
 // ─── 인간 채팅방 (보호자/복지사) ─────────────────────────────────────────────
 
 class _HumanChatRoom extends StatefulWidget {
-  const _HumanChatRoom({required this.seniorId, required this.roomType});
+  const _HumanChatRoom({
+    required this.seniorId,
+    required this.roomType,
+    required this.isActive,
+    required this.onRead,
+  });
   final int seniorId;
   final String roomType;
+  final bool isActive;
+  final VoidCallback onRead;
 
   @override
   State<_HumanChatRoom> createState() => _HumanChatRoomState();
@@ -125,8 +197,23 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
   @override
   void initState() {
     super.initState();
-    _load();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load());
+    _load(markRead: widget.isActive);
+    if (widget.isActive) {
+      _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load(markRead: true));
+    }
+  }
+
+  @override
+  void didUpdateWidget(_HumanChatRoom old) {
+    super.didUpdateWidget(old);
+    if (widget.isActive && !old.isActive) {
+      _load(markRead: true);
+      _pollTimer?.cancel();
+      _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load(markRead: true));
+    } else if (!widget.isActive && old.isActive) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
   }
 
   @override
@@ -137,11 +224,12 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool markRead = false}) async {
     try {
+      final viewerParam = markRead ? '&viewerRole=SENIOR' : '';
       final res = await http.get(Uri.parse(
           '$apiBaseUrl/api/chat/senior/${widget.seniorId}'
-          '?roomType=${widget.roomType}&viewerRole=SENIOR&size=100'));
+          '?roomType=${widget.roomType}$viewerParam&size=100'));
       if (!mounted) return;
       if (res.statusCode == 200) {
         final list = jsonDecode(utf8.decode(res.bodyBytes));
@@ -151,6 +239,7 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
             _loading = false;
           });
           _scrollToBottom();
+          if (markRead) widget.onRead();
         }
       }
     } catch (_) {
@@ -180,7 +269,7 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
           if (attachName != null) 'attachmentName': attachName,
         }),
       );
-      await _load();
+      await _load(markRead: true);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -205,8 +294,28 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
       final bytes = await picked.readAsBytes();
       final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
       final name = picked.name;
-      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-      await _send(attachUrl: dataUrl, attachName: name, attachType: mime);
+
+      // 서버에 업로드 후 URL 받아서 전송
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$apiBaseUrl/api/uploads/chat'),
+      )..files.add(http.MultipartFile.fromBytes(
+          'image',
+          bytes,
+          filename: name,
+        ));
+      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      final body = await streamed.stream.bytesToString();
+
+      if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+        throw Exception('업로드 실패');
+      }
+
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final fileUrl = data['fileUrl'] as String? ?? data['imageUrl'] as String? ?? '';
+      final fileName = data['fileName'] as String? ?? name;
+
+      await _send(attachUrl: fileUrl, attachName: fileName, attachType: mime);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -288,13 +397,19 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _picker = ImagePicker();
+  final FlutterTts _tts = FlutterTts();
+  final SpeechToText _stt = SpeechToText();
 
   final List<_AiMsg> _history = [];
   bool _sending = false;
+  bool _ttsEnabled = true;
+  bool _isListening = false;
+  bool _sttAvailable = false;
   Map<String, dynamic> _senior = {};
   Map<String, dynamic> _healthInfo = {};
   String? _pendingImageBase64;
   String? _pendingImageMime;
+  String? _pendingOcrContext;
   int? _conversationId;
 
   @override
@@ -302,10 +417,81 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     super.initState();
     _loadProfile();
     _initConversation();
+    _initTts();
+    _initStt();
+  }
+
+  Future<void> _initTts() async {
+    await _tts.setLanguage('ko-KR');
+    await _tts.setSpeechRate(0.9);
+    await _tts.setVolume(1.0);
+  }
+
+  Future<void> _initStt() async {
+    _sttAvailable = await _stt.initialize();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _stt.stop();
+      setState(() => _isListening = false);
+    } else if (_sttAvailable) {
+      setState(() => _isListening = true);
+      await _stt.listen(
+        onResult: (result) {
+          setState(() {
+            _inputCtrl.text = result.recognizedWords;
+            _inputCtrl.selection = TextSelection.fromPosition(
+              TextPosition(offset: _inputCtrl.text.length),
+            );
+            if (result.finalResult) _isListening = false;
+          });
+        },
+        localeId: 'ko_KR',
+      );
+    }
+  }
+
+  Future<void> _speak(String text) async {
+    if (!_ttsEnabled || !mounted) return;
+    final clean = text
+        .replaceAll(RegExp(r'\[WOORI_ACTION_CARD\][\s\S]*?\[/WOORI_ACTION_CARD\]'), '')
+        .replaceAll(RegExp(r'\[.*?\]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (clean.isEmpty) return;
+    await _tts.stop();
+    await _tts.speak(clean);
+  }
+
+  // OCR: 음식 이미지 → 백엔드 분석 (서버 없으면 null 반환)
+  Future<String?> _analyzeFood(List<int> bytes, String mime) async {
+    try {
+      final ext = mime.contains('png') ? 'png' : 'jpg';
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$chatApiBaseUrl/food/analyze-image'),
+      )..files.add(http.MultipartFile.fromBytes(
+          'image', bytes, filename: 'food.$ext'));
+      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      if (streamed.statusCode == 200) {
+        final body = await streamed.stream.bytesToString();
+        final data = jsonDecode(body) as Map<String, dynamic>;
+        final sb = StringBuffer('[식품 분석 결과]\n');
+        if (data['product_name'] != null) sb.writeln('제품명: ${data['product_name']}');
+        if (data['ocr_text'] != null) sb.writeln('인식 텍스트:\n${data['ocr_text']}');
+        if (data['nutrients'] != null) sb.writeln('영양성분: ${data['nutrients']}');
+        if (data['allergens'] != null) sb.writeln('알레르기: ${data['allergens']}');
+        return sb.toString().trim();
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
   void dispose() {
+    _tts.stop();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -438,9 +624,12 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     final mime = lookupMimeType(picked.path) ?? 'image/jpeg';
+    // OCR 분석 시도 (백엔드 없으면 null)
+    final ocrResult = await _analyzeFood(bytes, mime);
     setState(() {
       _pendingImageBase64 = base64Encode(bytes);
       _pendingImageMime = mime;
+      _pendingOcrContext = ocrResult;
     });
   }
 
@@ -555,14 +744,38 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       uploadedImageUrl = await _uploadImage(bytes, sentImageMime ?? 'image/jpeg');
     }
 
+    final ocrContext = _pendingOcrContext;
     _saveMessage('USER', q, imageUrl: uploadedImageUrl);
     setState(() {
       _history.add(_AiMsg(role: 'user', text: q, imageBase64: sentImageBase64, imageMime: sentImageMime, imageUrl: uploadedImageUrl));
       _pendingImageBase64 = null;
       _pendingImageMime = null;
+      _pendingOcrContext = null;
       _sending = true;
     });
     _scrollToBottom();
+
+    // 일자리 관련 질문이면 Gemini 대신 액션 카드 바로 반환
+    if (_isJobRelated(q) && sentImageBase64 == null) {
+      final actionCardJson = jsonEncode({
+        'type': 'job_recommendation',
+        'title': '맞춤 추천 TOP 5 보기',
+        'description': '건강 정보와 희망 조건을 기준으로 계산한 일자리 추천을 확인해요.',
+        'href': '/jobs',
+        'buttonLabel': '일자리 공고 보러가기',
+      });
+      const intro = '맞춤 일자리 추천은 공고 화면에서 TOP 5로 크게 볼 수 있어요.';
+      final answer = '$intro\n\n[WOORI_ACTION_CARD]\n$actionCardJson\n[/WOORI_ACTION_CARD]';
+      _saveMessage('ASSISTANT', answer);
+      if (mounted) {
+        setState(() {
+          _history.add(_AiMsg(role: 'assistant', text: answer));
+          _sending = false;
+        });
+        _scrollToBottom();
+      }
+      return;
+    }
 
     // 프로필 아직 안 불러왔으면 먼저 로드
     if (_healthInfo.isEmpty && _senior.isEmpty) await _loadProfile();
@@ -579,9 +792,14 @@ class _AiChatRoomState extends State<_AiChatRoom> {
               })
           .toList();
 
-      // 현재 메시지 파트 (텍스트 + 이미지)
+      // 현재 메시지 파트 (OCR 컨텍스트 + 텍스트 + 이미지)
       final userParts = <Map<String, dynamic>>[];
-      if (q.isNotEmpty) userParts.add({'text': q});
+      if (ocrContext != null) {
+        // OCR 분석 결과를 시스템 컨텍스트로 앞에 추가
+        userParts.add({'text': '$ocrContext\n\n위 분석 결과를 참고하여 답해주세요. 사용자 질문: ${q.isEmpty ? '이 음식 먹어도 될까요?' : q}'});
+      } else if (q.isNotEmpty) {
+        userParts.add({'text': q});
+      }
       if (sentImageBase64 != null) {
         userParts.add({'inlineData': {'mimeType': sentImageMime ?? 'image/jpeg', 'data': sentImageBase64}});
       }
@@ -612,6 +830,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
             '답변을 가져오지 못했습니다.';
         setState(() => _history.add(_AiMsg(role: 'assistant', text: answer)));
         _saveMessage('ASSISTANT', answer);
+        _speak(answer);
       } else {
         // ignore: avoid_print
         print('[Gemini] status=${res.statusCode} body=${res.body}');
@@ -649,16 +868,30 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       // AI 안내 배너
       Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         color: const Color(0xFF86A788).withValues(alpha: 0.1),
-        child: const Text(
-          '🤖 복지 정책 · 건강 · 일자리에 대해 질문해보세요',
-          style: TextStyle(
-              color: Color(0xFF2D5A2E),
-              fontSize: 12,
-              fontWeight: FontWeight.w700),
-          textAlign: TextAlign.center,
-        ),
+        child: Row(children: [
+          const Expanded(
+            child: Text(
+              '🤖 건강 · 일자리 · 음식에 대해 질문해보세요',
+              style: TextStyle(
+                  color: Color(0xFF2D5A2E),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() {
+              _ttsEnabled = !_ttsEnabled;
+              if (!_ttsEnabled) _tts.stop();
+            }),
+            child: Icon(
+              _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+              color: const Color(0xFF86A788),
+              size: 20,
+            ),
+          ),
+        ]),
       ),
       Expanded(
         child: ListView.builder(
@@ -679,6 +912,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
             }
             final m = _history[i];
             final isMine = m.role == 'user';
+            final actionCard = !isMine ? _parseActionCard(m.text) : null;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
@@ -715,37 +949,45 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                           const SizedBox(height: 4),
                         ],
                         if (m.text.isNotEmpty)
-                          Container(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.75,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isMine ? const Color(0xFF86A788) : Colors.white,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(16),
-                                topRight: const Radius.circular(16),
-                                bottomLeft: Radius.circular(isMine ? 16 : 4),
-                                bottomRight: Radius.circular(isMine ? 4 : 16),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.06),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
+                          actionCard != null
+                              ? _ActionCardWidget(
+                                  intro: actionCard.intro,
+                                  title: actionCard.title,
+                                  description: actionCard.description,
+                                  buttonLabel: actionCard.buttonLabel,
+                                  seniorId: widget.seniorId,
+                                )
+                              : Container(
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isMine ? const Color(0xFF86A788) : Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(16),
+                                      topRight: const Radius.circular(16),
+                                      bottomLeft: Radius.circular(isMine ? 16 : 4),
+                                      bottomRight: Radius.circular(isMine ? 4 : 16),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.06),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    m.text,
+                                    style: TextStyle(
+                                      color: isMine ? Colors.white : const Color(0xFF1F2A20),
+                                      fontSize: 14,
+                                      height: 1.5,
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ),
-                            child: Text(
-                              m.text,
-                              style: TextStyle(
-                                color: isMine ? Colors.white : const Color(0xFF1F2A20),
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -788,7 +1030,9 @@ class _AiChatRoomState extends State<_AiChatRoom> {
         sending: _sending,
         onSend: _ask,
         onAttach: _pickAiImage,
-        hintText: '복지 · 건강 · 일자리에 대해 질문하세요',
+        onMic: _sttAvailable ? _toggleListening : null,
+        isListening: _isListening,
+        hintText: '건강 · 일자리 · 음식에 대해 질문하세요',
       ),
     ]);
   }
@@ -818,6 +1062,32 @@ String _encodeImgUrls(String content, List<String> urls) {
   }
 }
 
+// ─── 일자리 액션 카드 ─────────────────────────────────────────────────────────
+
+bool _isJobRelated(String text) {
+  final normalized = text.replaceAll(RegExp(r'\s+'), '');
+  return RegExp(r'일자리공고|일자리|일할곳|구인|공고|채용|알바|근무').hasMatch(normalized);
+}
+
+({String intro, String title, String description, String buttonLabel})?
+    _parseActionCard(String text) {
+  final match = RegExp(r'\[WOORI_ACTION_CARD\]([\s\S]*?)\[\/WOORI_ACTION_CARD\]')
+      .firstMatch(text);
+  if (match == null) return null;
+  try {
+    final intro = text.replaceFirst(match.group(0)!, '').trim();
+    final data = jsonDecode(match.group(1)!.trim()) as Map<String, dynamic>;
+    return (
+      intro: intro,
+      title: data['title'] as String? ?? '일자리 추천',
+      description: data['description'] as String? ?? '',
+      buttonLabel: data['buttonLabel'] as String? ?? '바로가기',
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 class _AiMsg {
   const _AiMsg({required this.role, required this.text, this.imageBase64, this.imageMime, this.imageUrl});
   final String role;
@@ -828,6 +1098,132 @@ class _AiMsg {
 }
 
 // ─── 공통 위젯 ────────────────────────────────────────────────────────────────
+
+class _ActionCardWidget extends StatelessWidget {
+  const _ActionCardWidget({
+    required this.intro,
+    required this.title,
+    required this.description,
+    required this.buttonLabel,
+    required this.seniorId,
+  });
+  final String intro;
+  final String title;
+  final String description;
+  final String buttonLabel;
+  final int seniorId;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.of(context).size.width * 0.78;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (intro.isNotEmpty) ...[
+          Container(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+                bottomLeft: Radius.circular(4),
+                bottomRight: Radius.circular(16),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Text(
+              intro,
+              style: const TextStyle(
+                color: Color(0xFF1F2A20),
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2F5D3A),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => JobScreen(
+                        seniorId: seniorId,
+                        hideAppBar: false,
+                      ),
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF2F5D3A),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    buttonLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({required this.msg, required this.isMine});
@@ -1027,12 +1423,16 @@ class _InputBar extends StatelessWidget {
     required this.sending,
     required this.onSend,
     required this.onAttach,
+    this.onMic,
+    this.isListening = false,
     this.hintText = '메시지를 입력하세요...',
   });
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
+  final VoidCallback? onMic;
+  final bool isListening;
   final String hintText;
 
   @override
@@ -1061,7 +1461,7 @@ class _InputBar extends StatelessWidget {
             onSubmitted: (_) => onSend(),
             decoration: InputDecoration(
               hintText: hintText,
-              hintStyle: const TextStyle(fontSize: 14, color: Color(0xFFBDBDBD)),
+              hintStyle: const TextStyle(fontSize: 14, color: Color(0xFFCECECE)),
               filled: true,
               fillColor: const Color(0xFFF7F5E8),
               contentPadding:
@@ -1094,6 +1494,27 @@ class _InputBar extends StatelessWidget {
                 : const Icon(Icons.send, color: Colors.white, size: 20),
           ),
         ),
+        if (onMic != null) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onMic,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isListening
+                    ? const Color(0xFFD94E4E)
+                    : const Color(0xFF86A788).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isListening ? Icons.mic : Icons.mic_none,
+                color: isListening ? Colors.white : const Color(0xFF86A788),
+                size: 20,
+              ),
+            ),
+          ),
+        ],
       ]),
     );
   }

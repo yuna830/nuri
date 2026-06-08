@@ -1,5 +1,7 @@
 package com.nuri.woori.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nuri.woori.entity.Senior;
 import com.nuri.woori.entity.SeniorActivitySnapshot;
 import com.nuri.woori.repository.SeniorActivitySnapshotRepository;
@@ -22,6 +24,7 @@ public class ActivitySnapshotSchedulerService {
     private final SeniorRepository seniorRepository;
     private final SeniorActivitySnapshotRepository snapshotRepository;
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ActivitySnapshotSchedulerService(
             SeniorRepository seniorRepository,
@@ -49,18 +52,23 @@ public class ActivitySnapshotSchedulerService {
         String base = senior.getFallApiUrl().replaceAll("/+$", "");
         LocalDate today = LocalDate.now();
 
-        // 오늘 스냅샷이 없으면 가장 최근 것을 복사해서 시작 (날짜 바뀌어도 데이터 유지)
+        // 오늘 스냅샷이 없으면 이전 스냅샷에서 실제 데이터(pending이 아닌)만 복사
         SeniorActivitySnapshot snapshot = snapshotRepository
-                .findBySeniorIdAndSnapshotDate(senior.getId(), today)
+                .findTopBySeniorIdAndSnapshotDateOrderByIdDesc(senior.getId(), today)
                 .orElseGet(() -> {
                     SeniorActivitySnapshot fresh = new SeniorActivitySnapshot();
                     snapshotRepository.findTopBySeniorIdOrderBySnapshotDateDesc(senior.getId())
                             .ifPresent(prev -> {
-                                fresh.setBaselineJson(prev.getBaselineJson());
-                                fresh.setFallPatternJson(prev.getFallPatternJson());
-                                fresh.setActivityTodayJson(prev.getActivityTodayJson());
-                                fresh.setActivitySlotsJson(prev.getActivitySlotsJson());
-                                fresh.setActivityTrendJson(prev.getActivityTrendJson());
+                                if (prev.getBaselineJson()       != null && !isPending(prev.getBaselineJson()))
+                                    fresh.setBaselineJson(prev.getBaselineJson());
+                                if (prev.getFallPatternJson()    != null && !isPending(prev.getFallPatternJson()))
+                                    fresh.setFallPatternJson(prev.getFallPatternJson());
+                                if (prev.getActivityTodayJson()  != null && !isPending(prev.getActivityTodayJson()))
+                                    fresh.setActivityTodayJson(prev.getActivityTodayJson());
+                                if (prev.getActivitySlotsJson()  != null && !isPending(prev.getActivitySlotsJson()))
+                                    fresh.setActivitySlotsJson(prev.getActivitySlotsJson());
+                                if (prev.getActivityTrendJson()  != null && !isPending(prev.getActivityTrendJson()))
+                                    fresh.setActivityTrendJson(prev.getActivityTrendJson());
                             });
                     return fresh;
                 });
@@ -76,11 +84,11 @@ public class ActivitySnapshotSchedulerService {
         String slots       = fetchSafe(base + "/health/activity/slots");
         String trend       = fetchSafe(base + "/health/activity/trend?days=7");
 
-        if (baseline    != null) snapshot.setBaselineJson(baseline);
-        if (fallPattern != null) snapshot.setFallPatternJson(fallPattern);
-        if (actToday    != null) snapshot.setActivityTodayJson(actToday);
-        if (slots       != null) snapshot.setActivitySlotsJson(slots);
-        if (trend       != null) snapshot.setActivityTrendJson(trend);
+        if (baseline    != null && !isPending(baseline))    snapshot.setBaselineJson(baseline);
+        if (fallPattern != null && !isPending(fallPattern)) snapshot.setFallPatternJson(fallPattern);
+        if (actToday    != null && !isPending(actToday))    snapshot.setActivityTodayJson(actToday);
+        if (slots       != null && !isPending(slots))       snapshot.setActivitySlotsJson(slots);
+        if (trend       != null && !isPending(trend))       snapshot.setActivityTrendJson(trend);
 
         snapshotRepository.save(snapshot);
         log.debug("Activity snapshot saved for senior {}", senior.getId());
@@ -91,6 +99,15 @@ public class ActivitySnapshotSchedulerService {
             return restTemplate.getForObject(url, String.class);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private boolean isPending(String json) {
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            return "pending".equals(node.path("status").asText(null));
+        } catch (Exception e) {
+            return false;
         }
     }
 }

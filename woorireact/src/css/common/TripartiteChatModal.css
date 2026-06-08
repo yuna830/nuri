@@ -67,7 +67,9 @@
   grid-row: 2 / 4;
   grid-column: 1;
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
+  min-height: 0;         /* grid 아이템의 min-height: auto 덮어써서 스크롤 활성화 */
   overflow-x: hidden;
   overflow-y: auto;
   border-right: 1px solid #edf2e8;
@@ -75,10 +77,26 @@
 }
 
 .tcm-shell-welfare .tcm-rooms button {
+  position: relative;    /* 빨간 점 절대 위치용 */
   min-height: 64px;
+  min-width: 0;          /* max-content 기본값 덮어써서 260px 컬럼 안에 들어오게 */
+  width: 100%;
   justify-content: flex-start;
   border-radius: 12px;
   text-align: left;
+  overflow: hidden;
+}
+
+.tcm-unread-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e53e3e;
+  box-shadow: 0 0 0 2px #ffffff;
+  flex-shrink: 0;
 }
 
 .tcm-shell-welfare .tcm-search {

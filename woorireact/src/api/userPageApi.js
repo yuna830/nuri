@@ -21,8 +21,25 @@ const FALL_API_BASE = (
   getSavedFallApiBase() ||
   getDefaultFallApiBase()
 ).replace(/\/$/, "");
-const FALL_API_COOLDOWN_MS = 3 * 60 * 1000;
-let fallApiUnavailableUntil = 0;
+const FALL_API_COOLDOWN_MS = 10 * 60 * 1000;
+const FALL_API_UNAVAILABLE_KEY = "fall_api_unavailable_until";
+
+// 새로고침해도 쿨다운 유지되도록 localStorage에서 초기화
+let fallApiUnavailableUntil = (() => {
+  try { return Number(localStorage.getItem(FALL_API_UNAVAILABLE_KEY) || 0); } catch { return 0; }
+})();
+
+const setFallApiDown = () => {
+  fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;
+  try { localStorage.setItem(FALL_API_UNAVAILABLE_KEY, String(fallApiUnavailableUntil)); } catch {}
+};
+
+const clearFallApiDown = () => {
+  fallApiUnavailableUntil = 0;
+  try { localStorage.removeItem(FALL_API_UNAVAILABLE_KEY); } catch {}
+};
+
+export const isFallApiDown = () => Date.now() < fallApiUnavailableUntil;
 
 // Spring Boot 폴백 패턴에서 타임아웃 초과 시 빠르게 실패
 const fetchWithTimeout = (url, timeoutMs = 3000, options = {}) => {
@@ -43,13 +60,15 @@ const fetchFallApi = async (path, options = {}) => {
     });
 
     if (!response.ok) {
-      fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;
+      setFallApiDown();
       throw new Error(`Fall API failed: ${response.status}`);
     }
-    
+
+    // 연결 성공 시 쿨다운 해제
+    clearFallApiDown();
     return response;
   } catch (error) {
-    fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;
+    if (Date.now() >= fallApiUnavailableUntil) setFallApiDown();
     throw error;
   }
 };
@@ -554,18 +573,34 @@ const isRealData = (data) => data && data.status !== "pending" && data.scores !=
   || (data && Array.isArray(data.daily));
 
 const trySpringThenFall = async (springUrl, fallPath) => {
+  let springData = null;
   if (springUrl) {
     try {
       const response = await fetchWithTimeout(springUrl);
       if (response.ok) {
         const data = await response.json();
-        // pending 상태면 FastAPI로 폴백 (Spring Boot가 로컬 FastAPI에 접근 못한 경우)
-        if (data?.status !== "pending") return data;
+        if (data?.status !== "pending" || isRealData(data)) return data;
+        springData = data;
       }
     } catch { /* Fall API 폴백 */ }
   }
-  const response = await fetchFallApi(fallPath);
-  return response.json();
+  try {
+    const response = await fetchFallApi(fallPath);
+    const data = await response.json();
+    // FastAPI에서 실제 데이터를 받으면 Spring Boot에 백그라운드로 캐시
+    // (OCI 스케줄러가 로컬 IP에 접근 불가한 문제를 프론트가 보완)
+    if (springUrl && isRealData(data)) {
+      fetch(springUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).catch(() => {});
+    }
+    return data;
+  } catch (err) {
+    if (springData) return springData;
+    throw err;
+  }
 };
 
 export const fetchActivityToday = async (seniorId) => {

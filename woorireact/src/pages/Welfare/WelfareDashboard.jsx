@@ -1000,7 +1000,7 @@ function WelfareDashboard() {
 
             <TripartiteChatModal
                 isOpen={isChatOpen}
-                rooms={seniors.flatMap((senior) => [
+                rooms={notificationSeniors.flatMap((senior) => [
                     {
                         roomType: "SENIOR_WELFARE",
                         seniorId: senior.id,

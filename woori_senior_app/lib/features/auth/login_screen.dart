@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/api/senior_api.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../../core/push/fcm_service.dart';
+import '../../core/utils/phone_formatter.dart';
 import '../shell/app_shell.dart';
 import 'sign_up_screen.dart';
 
@@ -313,26 +314,4 @@ class _SeniorLoginScreenState extends State<SeniorLoginScreen> {
   }
 }
 
-class PhoneNumberFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-    String formatted = digits;
-
-    if (digits.length > 3 && digits.length <= 7) {
-      formatted = '${digits.substring(0, 3)}-${digits.substring(3)}';
-    } else if (digits.length > 7) {
-      formatted =
-          '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7, digits.length.clamp(7, 11))}';
-    }
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
+// PhoneNumberFormatter → lib/core/utils/phone_formatter.dart 사용

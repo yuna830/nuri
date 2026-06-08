@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchSeniorChatMessages, sendSeniorChatMessage, uploadChatAttachment } from "../api/chatApi";
 import "../css/common/TripartiteChatModal.css";
 
+const UNREAD_POLL_MS = 15_000;
+
 const ROLE_LABELS = {
   SENIOR: "사용자",
   GUARDIAN: "보호자",
@@ -44,6 +46,7 @@ export default function TripartiteChatModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+  const [unreadRooms, setUnreadRooms] = useState(() => new Set());
   const listRef = useRef(null);
   const attachmentPreviewUrls = useMemo(() =>
     attachments.map((file) =>
@@ -79,6 +82,59 @@ export default function TripartiteChatModal({
       key: room.key || `${room.seniorId || seniorId}-${room.roomType || roomType}`,
     }));
   }, [rooms, roomType, seniorId, seniorName]);
+
+  const chatRoomKeysStr = useMemo(
+    () => chatRooms.map((r) => r.key).join(","),
+    [chatRooms],
+  );
+
+  // 각 채팅방의 최신 메시지 발신자를 확인해 안읽음 여부 판단
+  useEffect(() => {
+    if (!isOpen || senderRole !== "WELFARE" || !chatRooms.length) return;
+    let cancelled = false;
+
+    const checkUnread = async () => {
+      if (cancelled) return;
+      const results = await Promise.allSettled(
+        chatRooms.map(async (room) => {
+          try {
+            const msgs = await fetchSeniorChatMessages(
+              room.seniorId || seniorId,
+              room.roomType || roomType,
+              { viewerRole: senderRole, size: 5, page: 0 },
+            );
+            if (!msgs.length) return { key: room.key, hasUnread: false };
+            // createdAt 기준 정렬로 최신 메시지를 확실히 찾음 (API 정렬 순서 무관)
+            const newest = msgs.reduce((latest, m) => {
+              if (!latest) return m;
+              return new Date(m.createdAt || 0) > new Date(latest.createdAt || 0) ? m : latest;
+            }, null);
+            return {
+              key: room.key,
+              hasUnread: Boolean(newest && newest.senderRole !== "WELFARE"),
+            };
+          } catch {
+            return { key: room.key, hasUnread: false };
+          }
+        }),
+      );
+      if (cancelled) return;
+
+      const next = new Set();
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value.hasUnread) next.add(r.value.key);
+      }
+      setUnreadRooms(next);
+    };
+
+    checkUnread();
+    const timerId = window.setInterval(checkUnread, UNREAD_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timerId);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, senderRole, chatRoomKeysStr]);
 
   const noTabSelected = senderRole === "WELFARE" && roomGroup === "ALL";
 
@@ -131,6 +187,14 @@ export default function TripartiteChatModal({
       setHistoryPage(page);
       onReadChange?.();
       setError("");
+      // 이 방을 열었으므로 안읽음 표시 해제
+      if (activeRoom?.key) {
+        setUnreadRooms((prev) => {
+          const next = new Set(prev);
+          next.delete(activeRoom.key);
+          return next;
+        });
+      }
     } catch (loadError) {
       console.error("채팅 내역 조회 실패:", loadError);
       setError("대화 내역을 불러오지 못했습니다.");
@@ -287,6 +351,9 @@ export default function TripartiteChatModal({
                   >
                     <strong>{room.title}</strong>
                     {room.subtitle && <span>{room.subtitle}</span>}
+                    {unreadRooms.has(room.key) && (
+                      <span className="tcm-unread-dot" aria-label="읽지 않은 메시지" />
+                    )}
                   </button>
                 ))}
               </aside>

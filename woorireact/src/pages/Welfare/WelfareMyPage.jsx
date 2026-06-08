@@ -288,7 +288,7 @@ function WelfareMyPage() {
 
     const handleLogout = () => {
         sessionStorage.removeItem("currentWelfareWorker");
-        navigate("/welfare-login");
+        navigate("/wlogin");
     };
 
     const handleWithdraw = async () => {
@@ -314,7 +314,7 @@ function WelfareMyPage() {
             }
 
             sessionStorage.removeItem("currentWelfareWorker");
-            navigate("/welfare-login");
+            navigate("/wlogin");
         } catch {
             alert("서버에 연결할 수 없습니다.");
         }
@@ -370,7 +370,7 @@ function WelfareMyPage() {
                     <main>
                         <section className="wm-empty-card">
                             <h1 className="wm-empty-title">로그인이 필요합니다</h1>
-                            <Link to="/welfare-login" className="wm-primary-link">
+                            <Link to="/wlogin" className="wm-primary-link">
                                 로그인으로 이동
                             </Link>
                         </section>
