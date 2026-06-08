@@ -131,6 +131,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   Map<String, dynamic>? _weather;
 
   Timer? _alertTimer;
+  bool _isPolling = false;
   List<dynamic> _alerts = [];
   bool _sosPending = false;
 
@@ -194,15 +195,19 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   void _startAlertPolling() {
-    _alertTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollAlerts());
+    _alertTimer = Timer.periodic(const Duration(seconds: 15), (_) => _pollAlerts());
   }
 
   Future<void> _pollAlerts() async {
+    if (_isPolling) return;
+    _isPolling = true;
     try {
       final alerts = await _api.fetchAlerts(widget.seniorId);
       if (!mounted) return;
       _processAlerts(alerts);
-    } catch (_) {}
+    } catch (_) {} finally {
+      _isPolling = false;
+    }
   }
 
   void _processAlerts(List<dynamic> alerts) {
