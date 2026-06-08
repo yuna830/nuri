@@ -1,3 +1,4 @@
+import re
 import time
 from uuid import uuid4
 
@@ -274,3 +275,250 @@ class QdrantService:
                 normalized_document_ids.append(normalized_document_id)
 
         return normalized_document_ids
+    
+    def hybrid_search_chunks(
+        self,
+        query_text: str,
+        query_vector: list[float],
+        limit: int = 5,
+        vector_limit: int = 12,
+        keyword_limit: int = 12,
+    ) -> list[dict]:
+        vector_chunks = self.search_chunks(
+            query_vector=query_vector,
+            limit=vector_limit,
+        )
+
+        keyword_chunks = self.keyword_search_chunks(
+            query_text=query_text,
+            limit=keyword_limit,
+        )
+
+        return self._merge_and_rerank_chunks(
+            query_text=query_text,
+            vector_chunks=vector_chunks,
+            keyword_chunks=keyword_chunks,
+            limit=limit,
+        )
+
+    def keyword_search_chunks(
+        self,
+        query_text: str,
+        limit: int = 12,
+        scan_limit: int = 200,
+    ) -> list[dict]:
+        query_keywords = self._extract_keywords(query_text)
+
+        if not query_keywords:
+            return []
+
+        scroll_result = self.client.scroll(
+            collection_name=settings.qdrant_collection,
+            limit=scan_limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        points = scroll_result[0]
+        chunks = []
+
+        for point in points:
+            payload = point.payload or {}
+
+            chunk = {
+                "score": 0.0,
+                "source_type": payload.get("source_type"),
+                "document_id": payload.get("document_id"),
+                "filename": payload.get("filename"),
+                "service_id": payload.get("service_id"),
+                "service_name": payload.get("service_name"),
+                "region": payload.get("region"),
+                "department": payload.get("department"),
+                "source": payload.get("source"),
+                "chunk_index": payload.get("chunk_index"),
+                "content": payload.get("content"),
+            }
+
+            keyword_score = self._keyword_score(query_keywords, chunk)
+
+            if keyword_score <= 0:
+                continue
+
+            chunk["keyword_score"] = keyword_score
+            chunks.append(chunk)
+
+        chunks.sort(key=lambda chunk: chunk.get("keyword_score", 0), reverse=True)
+
+        return chunks[:limit]
+
+    def _merge_and_rerank_chunks(
+        self,
+        query_text: str,
+        vector_chunks: list[dict],
+        keyword_chunks: list[dict],
+        limit: int,
+    ) -> list[dict]:
+        query_keywords = self._extract_keywords(query_text)
+        merged = {}
+
+        for rank, chunk in enumerate(vector_chunks):
+            key = self._chunk_key(chunk)
+
+            if key not in merged:
+                merged[key] = {
+                    **chunk,
+                    "vector_score": float(chunk.get("score") or 0),
+                    "keyword_score": 0.0,
+                    "vector_rank_score": 1.0 / (rank + 1),
+                    "keyword_rank_score": 0.0,
+                }
+            else:
+                merged[key]["vector_score"] = max(
+                    merged[key].get("vector_score", 0),
+                    float(chunk.get("score") or 0),
+                )
+                merged[key]["vector_rank_score"] = max(
+                    merged[key].get("vector_rank_score", 0),
+                    1.0 / (rank + 1),
+                )
+
+        for rank, chunk in enumerate(keyword_chunks):
+            key = self._chunk_key(chunk)
+            keyword_score = float(chunk.get("keyword_score") or 0)
+
+            if key not in merged:
+                merged[key] = {
+                    **chunk,
+                    "vector_score": 0.0,
+                    "keyword_score": keyword_score,
+                    "vector_rank_score": 0.0,
+                    "keyword_rank_score": 1.0 / (rank + 1),
+                }
+            else:
+                merged[key]["keyword_score"] = max(
+                    merged[key].get("keyword_score", 0),
+                    keyword_score,
+                )
+                merged[key]["keyword_rank_score"] = max(
+                    merged[key].get("keyword_rank_score", 0),
+                    1.0 / (rank + 1),
+                )
+
+        reranked_chunks = []
+
+        for chunk in merged.values():
+            keyword_score = self._keyword_score(query_keywords, chunk)
+            service_name_score = self._keyword_score(
+                query_keywords,
+                {
+                    **chunk,
+                    "content": " ".join(
+                        str(value)
+                        for value in [
+                            chunk.get("service_name"),
+                            chunk.get("filename"),
+                            chunk.get("source"),
+                            chunk.get("department"),
+                        ]
+                        if value
+                    ),
+                },
+            )
+
+            final_score = (
+                chunk.get("vector_rank_score", 0) * 0.45
+                + chunk.get("keyword_rank_score", 0) * 0.25
+                + min(keyword_score / 10, 1.0) * 0.20
+                + min(service_name_score / 5, 1.0) * 0.10
+            )
+
+            chunk["rerank_score"] = final_score
+            chunk["score"] = final_score
+            reranked_chunks.append(chunk)
+
+        reranked_chunks.sort(
+            key=lambda chunk: chunk.get("rerank_score", 0),
+            reverse=True,
+        )
+
+        return reranked_chunks[:limit]
+
+    def _extract_keywords(self, text: str) -> list[str]:
+        normalized = str(text or "").lower()
+
+        synonym_groups = [
+            ["기초연금", "노인연금", "65세지원금", "65세연금"],
+            ["국민연금", "노령연금", "노후연금"],
+            ["중복수급", "같이받", "동시에받", "함께받"],
+            ["감액", "줄어드", "깎이"],
+            ["장기요양보험", "노인장기요양", "장기요양급여"],
+            ["노인맞춤돌봄서비스", "노인맞춤돌봄", "맞춤돌봄"],
+            ["장애인활동지원", "활동지원서비스"],
+            ["의료급여", "의료비지원"],
+            ["주거급여", "주거지원"],
+        ]
+
+        compact = re.sub(r"\s+", "", normalized)
+
+        keywords = set(
+            token
+            for token in re.findall(r"[가-힣a-zA-Z0-9]+", normalized)
+            if len(token) >= 2
+        )
+
+        for group in synonym_groups:
+            if any(word.lower().replace(" ", "") in compact for word in group):
+                keywords.update(word.lower().replace(" ", "") for word in group)
+
+        return list(keywords)
+
+    def _keyword_score(self, query_keywords: list[str], chunk: dict) -> float:
+        content = " ".join(
+            str(value)
+            for value in [
+                chunk.get("service_name"),
+                chunk.get("filename"),
+                chunk.get("source"),
+                chunk.get("department"),
+                chunk.get("content"),
+            ]
+            if value
+        ).lower()
+
+        compact_content = re.sub(r"\s+", "", content)
+
+        score = 0.0
+
+        for keyword in query_keywords:
+            compact_keyword = keyword.lower().replace(" ", "")
+
+            if not compact_keyword:
+                continue
+
+            if compact_keyword in compact_content:
+                score += 3.0
+
+            if compact_content.startswith(compact_keyword):
+                score += 1.0
+
+            score += compact_content.count(compact_keyword) * 0.5
+
+        return score
+
+    def _chunk_key(self, chunk: dict) -> str:
+        document_id = chunk.get("document_id") or ""
+        chunk_index = chunk.get("chunk_index")
+
+        if document_id and chunk_index is not None:
+            return f"{document_id}:{chunk_index}"
+
+        return "|".join(
+            str(value)
+            for value in [
+                chunk.get("service_id"),
+                chunk.get("service_name"),
+                chunk.get("filename"),
+                chunk.get("content"),
+            ]
+            if value
+        )

@@ -236,6 +236,42 @@ class GuardianApi {
     }
   }
 
+  Future<void> deleteAlert(int alertId) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/$alertId');
+
+    try {
+      final response = await http.delete(url);
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('알림 삭제에 실패했습니다. (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e.toString().contains('알림 삭제')) rethrow;
+      throw Exception('알림 삭제 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  Future<void> deleteAlerts(List<int> alertIds) async {
+    if (alertIds.isEmpty) return;
+
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/bulk-delete');
+
+    try {
+      final response = await http.delete(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'ids': alertIds}),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('선택 알림 삭제에 실패했습니다. (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e.toString().contains('선택 알림 삭제')) rethrow;
+      throw Exception('선택 알림 삭제 중 오류가 발생했습니다: $e');
+    }
+  }
+
   // ── 안전 구역 API (/api/safe-zones) ─────────────────────────────────────
 
   Future<List<SafeZone>> fetchSafeZones(int seniorId) async {

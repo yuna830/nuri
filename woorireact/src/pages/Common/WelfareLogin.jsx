@@ -37,6 +37,16 @@ export default function WelfareLogin() {
     password: "",
   });
   const [error, setError] = useState("");
+  const [helpMode, setHelpMode] = useState(null);
+  const [helpForm, setHelpForm] = useState({
+    name: "",
+    center: "",
+    workerId: "",
+    newPassword: "",
+  });
+  const [helpResult, setHelpResult] = useState("");
+  const [helpError, setHelpError] = useState("");
+  const [helpLoading, setHelpLoading] = useState(false);
 
   const set = (key, value) => {
     setForm((previousForm) => ({ ...previousForm, [key]: value }));
@@ -95,75 +105,117 @@ export default function WelfareLogin() {
     }
   };
 
-  const handleFindWorkerId = async () => {
-    const name = window.prompt("가입한 복지사 이름을 입력하세요.");
-    if (!name) return;
+  const openHelpModal = (mode) => {
+    setHelpMode(mode);
+    setHelpForm({
+      name: "",
+      center: "",
+      workerId: "",
+      newPassword: "",
+    });
+    setHelpResult("");
+    setHelpError("");
+  };
 
-    const center = window.prompt("가입한 소속 기관명을 입력하세요.");
-    if (!center) return;
+  const closeHelpModal = () => {
+    setHelpMode(null);
+    setHelpForm({
+      name: "",
+      center: "",
+      workerId: "",
+      newPassword: "",
+    });
+    setHelpResult("");
+    setHelpError("");
+    setHelpLoading(false);
+  };
 
-    try {
-      const response = await fetch(`${API_BASE}/api/welfare-workers/find-id`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          center: center.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        alert("일치하는 복지사 계정을 찾을 수 없습니다.");
-        return;
-      }
-
-      const result = await response.json();
-      alert(`복지사 아이디는 ${result.workerId} 입니다.`);
-    } catch {
-      alert("서버에 연결할 수 없습니다.");
-    }
+  const setHelp = (key, value) => {
+    setHelpForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
 
-  const handleResetWorkerPassword = async () => {
-    const workerId = window.prompt("복지사 아이디를 입력하세요.");
-    if (!workerId) return;
-
-    const name = window.prompt("가입한 복지사 이름을 입력하세요.");
-    if (!name) return;
-
-    const newPassword = window.prompt("새 비밀번호를 입력하세요.");
-    if (!newPassword) return;
-
-    if (!passwordPattern.test(newPassword.trim())) {
-      alert("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
-      return;
-    }
-
+  const handleHelpSubmit = async () => {
     try {
+      setHelpLoading(true);
+      setHelpError("");
+      setHelpResult("");
+
+      if (helpMode === "workerId") {
+        if (!helpForm.name.trim()) {
+          setHelpError("가입한 복지사 이름을 입력해주세요.");
+          return;
+        }
+
+        if (!helpForm.center.trim()) {
+          setHelpError("소속 기관명을 입력해주세요.");
+          return;
+        }
+
+        const response = await fetch(`${API_BASE}/api/welfare-workers/find-id`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: helpForm.name.trim(),
+            center: helpForm.center.trim(),
+          }),
+        });
+
+        if (!response.ok) {
+          setHelpError("일치하는 복지사 계정을 찾을 수 없습니다.");
+          return;
+        }
+
+        const result = await response.json();
+        setHelpResult(`가입된 복지사 아이디는 ${result.workerId} 입니다.`);
+        return;
+      }
+
+      if (!helpForm.workerId.trim()) {
+        setHelpError("복지사 아이디를 입력해주세요.");
+        return;
+      }
+
+      if (!helpForm.name.trim()) {
+        setHelpError("가입한 복지사 이름을 입력해주세요.");
+        return;
+      }
+
+      if (!helpForm.newPassword.trim()) {
+        setHelpError("새 비밀번호를 입력해주세요.");
+        return;
+      }
+
+      if (!passwordPattern.test(helpForm.newPassword.trim())) {
+        setHelpError("비밀번호는 영문과 숫자를 포함해 6자 이상 입력해주세요.");
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/api/welfare-workers/reset-password`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          workerId: workerId.trim(),
-          name: name.trim(),
-          newPassword: newPassword.trim(),
+          workerId: helpForm.workerId.trim(),
+          name: helpForm.name.trim(),
+          newPassword: helpForm.newPassword.trim(),
         }),
       });
 
       if (!response.ok) {
-        alert("일치하는 복지사 계정을 찾을 수 없습니다.");
+        setHelpError("일치하는 복지사 계정을 찾을 수 없습니다.");
         return;
       }
 
-      alert("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.");
+      setHelpResult("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.");
     } catch {
-      alert("서버에 연결할 수 없습니다.");
+      setHelpError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setHelpLoading(false);
     }
   };
 
@@ -252,7 +304,7 @@ export default function WelfareLogin() {
               <button
                 className="login-help-link"
                 type="button"
-                onClick={handleFindWorkerId}
+                onClick={() => openHelpModal("workerId")}
               >
                 아이디 찾기
               </button>
@@ -262,7 +314,7 @@ export default function WelfareLogin() {
               <button
                 className="login-help-link"
                 type="button"
-                onClick={handleResetWorkerPassword}
+                onClick={() => openHelpModal("password")}
               >
                 비밀번호 찾기
               </button>
@@ -270,6 +322,90 @@ export default function WelfareLogin() {
           </div>
         </section>
       </main>
+      {helpMode && (
+        <div className="login-modal-backdrop" onClick={closeHelpModal}>
+          <section className="login-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="login-modal-header">
+              <div>
+                <h2>{helpMode === "workerId" ? "아이디 찾기" : "비밀번호 찾기"}</h2>
+                <p>
+                  {helpMode === "workerId"
+                    ? "가입한 이름과 소속 기관명으로 복지사 아이디를 확인합니다."
+                    : "복지사 아이디와 이름을 확인한 뒤 새 비밀번호로 변경합니다."}
+                </p>
+              </div>
+
+              <button className="login-modal-close" type="button" onClick={closeHelpModal}>
+                ×
+              </button>
+            </div>
+
+            {helpMode === "workerId" ? (
+              <>
+                <label className="login-label">이름</label>
+                <input
+                  className="login-input"
+                  value={helpForm.name}
+                  onChange={(event) => setHelp("name", event.target.value)}
+                  placeholder="예: 박정아"
+                />
+
+                <label className="login-label">소속 기관</label>
+                <input
+                  className="login-input"
+                  value={helpForm.center}
+                  onChange={(event) => setHelp("center", event.target.value)}
+                  placeholder="예: 광진구 복지센터"
+                />
+              </>
+            ) : (
+              <>
+                <label className="login-label">복지사 아이디</label>
+                <input
+                  className="login-input"
+                  value={helpForm.workerId}
+                  onChange={(event) => setHelp("workerId", event.target.value)}
+                  placeholder="예: welfare01"
+                />
+
+                <label className="login-label">이름</label>
+                <input
+                  className="login-input"
+                  value={helpForm.name}
+                  onChange={(event) => setHelp("name", event.target.value)}
+                  placeholder="예: 박정아"
+                />
+
+                <label className="login-label">새 비밀번호</label>
+                <input
+                  className="login-input"
+                  type="password"
+                  value={helpForm.newPassword}
+                  onChange={(event) => setHelp("newPassword", event.target.value)}
+                  placeholder="영문, 숫자 포함 6자 이상"
+                />
+              </>
+            )}
+
+            {helpError && <div className="login-error">{helpError}</div>}
+            {helpResult && <div className="login-help-result">{helpResult}</div>}
+
+            <div className="login-modal-actions">
+              <button className="login-modal-secondary" type="button" onClick={closeHelpModal}>
+                닫기
+              </button>
+              <button
+                className="login-modal-primary"
+                type="button"
+                onClick={handleHelpSubmit}
+                disabled={helpLoading}
+              >
+                {helpLoading ? "확인 중..." : "확인"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

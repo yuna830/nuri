@@ -140,6 +140,45 @@ const shouldShowAlert = (alert) => {
   return isToday(createdAt);
 };
 
+const isCheckInAlert = (alert) => {
+  const text = [
+    alert?.type,
+    alert?.title,
+    alert?.message,
+    alert?.detailMessage,
+    alert?.reply,
+  ].filter(Boolean).join(" ");
+
+  return (
+    text.includes("CHECK_IN_REQUEST") ||
+    text.includes("CHECK_IN_REPLY") ||
+    text.includes("CHECK_IN_OK") ||
+    text.includes("안부 확인 요청") ||
+    text.includes("안부 확인 후") ||
+    text.includes("안부 확인 완료") ||
+    text.includes("안부 확인 결과 이상 없습니다") ||
+    text.includes("이상 없습니다")
+  );
+};
+
+const isWelfareConsultationAlert = (alert) => {
+  const text = [
+    alert?.type,
+    alert?.title,
+    alert?.message,
+    alert?.detailMessage,
+  ].filter(Boolean).join(" ");
+
+  return (
+    text.includes("WELFARE_CONSULT_REQUEST") ||
+    text.includes("WELFARE_CONSULTATION") ||
+    text.includes("CONSULT_REQUEST") ||
+    text.includes("CONSULTATION_REQUEST") ||
+    text.includes("복지사 상담 요청") ||
+    text.includes("복지사와 상담")
+  );
+};
+
 const normalizeUserAlert = (alert) => ({
   id: alert.id,
   key: `alert-${alert.id}`,
@@ -242,7 +281,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     if (!silent) setLoadingAlerts(true);
 
     try {
-      deleteOldRequestAlerts(seniorId).catch(() => {});
+      deleteOldRequestAlerts(seniorId).catch(() => { });
 
       const [seniorAlerts, climateAlerts, currentProfile] = await Promise.all([
         fetchSeniorAlerts(seniorId).catch(() => []),
@@ -257,6 +296,8 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
       const combined = [
         ...seniorAlerts
           .filter((alert) => !["SOS", "SOS_CANCEL"].includes(alert.type))
+          .filter((alert) => !isCheckInAlert(alert))
+          .filter((alert) => !isWelfareConsultationAlert(alert))
           .filter(shouldShowAlert)
           .map(normalizeUserAlert),
         ...climateAlerts
@@ -279,7 +320,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
-     
+
     loadAlerts();
     const timerId = setInterval(() => loadAlerts({ silent: true }), 30000);
     return () => clearInterval(timerId);
@@ -301,7 +342,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   };
 
   useEffect(() => {
-     
+
     loadUnreadChatCount();
     const timerId = setInterval(loadUnreadChatCount, 5000);
     return () => clearInterval(timerId);
@@ -350,7 +391,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
   useEffect(() => {
     const activeTabButton = alertTabsRef.current?.querySelector("[data-active='true']");
     activeTabButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-     
+
     setSelectedAlertKeys([]);
   }, [activeAlertTab]);
 
@@ -633,11 +674,14 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                           <span className="uch-alert-time-inline">{userAlert.time}</span>
                         )}
                       </div>
-                      {userAlert.type !== "CHECK_IN_REPLY" && (
+                      {/* {userAlert.type !== "CHECK_IN_REPLY" && (
                         <div className="uch-alert-title-row">
                           <strong>{userAlert.title}</strong>
                         </div>
-                      )}
+                      )} */}
+                      <div className="uch-alert-title-row">
+                        <strong>{userAlert.title}</strong>
+                      </div>
                       <p>{userAlert.message}</p>
                     </div>
                     <div className="uch-alert-action">

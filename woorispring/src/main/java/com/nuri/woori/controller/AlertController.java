@@ -318,9 +318,10 @@ public class AlertController {
         }
 
         String title = switch (request.type()) {
+            case "AI_CANDIDATE_CONFIRM" -> "실종 후보 확인 요청";
             case "FACE_MATCH" -> "얼굴 감지";
             case "PERSON_DETECTED" -> "사람 감지";
-            case "FALL_RISK" -> "낙상 위험";
+            case "FALL_RISK" -> "영상 위험";
             default -> "카메라 감지 알림";
         };
 
@@ -331,7 +332,10 @@ public class AlertController {
                     alert.setGuardianId(link.getGuardianId());
                     alert.setType(request.type());
                     alert.setTitle(title);
-                    alert.setMessage(senior.getName() + "님 관련 카메라 알림: " + request.message());
+                    alert.setMessage(
+                            senior.getName() + "님과 유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다."
+                    );
+                    alert.setImageUrl(request.imageUrl());
                     alert.setLatitude(request.latitude());
                     alert.setLongitude(request.longitude());
                     alert.setIsRead(false);
@@ -402,6 +406,16 @@ public class AlertController {
         return alertRepository.save(alert);
     }
 
+    @PatchMapping("/senior/{seniorId}/sos/read")
+    public List<Alert> readSeniorSosAlerts(@PathVariable Long seniorId) {
+        List<Alert> alerts = alertRepository
+                .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(seniorId, "SOS");
+
+        alerts.forEach(alert -> alert.setIsRead(true));
+
+        return alertRepository.saveAll(alerts);
+    }
+
     @PatchMapping("/{id}/welfare-consult-response")
     public Alert respondWelfareConsultation(
             @PathVariable Long id,
@@ -430,11 +444,25 @@ public class AlertController {
                 .map(alert -> toWelfareResponse(alert, "fall-", "낙상 감지 알림", "FALL_DETECTED"))
                 .toList();
 
+//        List<WelfareAlertResponse> sosAlerts = alertRepository
+//                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
+//                .stream()
+//                .map(alert -> toWelfareResponse(alert, "sos-", "SOS 요청 미응답", "SOS"))
+//                .toList();
+        // 보호자에게 직접 전달되는 SOS 요청은 복지사 알림함에 바로 노출하지 않습니다.
+        // 복지사에게는 보호자가 아직 확인하지 않은 경우의 "미응답 SOS" 상태 알림만 보여줍니다.
+
         List<WelfareAlertResponse> sosAlerts = alertRepository
                 .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
                 .stream()
-                .map(alert -> toWelfareResponse(alert, "sos-", "SOS 요청 미응답", "SOS"))
+                .map(alert -> toWelfareResponse(
+                        alert,
+                        "sos-",
+                        "미응답 SOS",
+                        "UNANSWERED_SOS"
+                ))
                 .toList();
+
 
         LocalDateTime checkInOkCutoff = LocalDateTime.now().minusDays(7);
         List<WelfareAlertResponse> checkInOkAlerts = alertRepository
@@ -718,7 +746,10 @@ public class AlertController {
             String type,
             String message,
             Double latitude,
-            Double longitude
+            Double longitude,
+            String imageUrl,
+            Double similarityScore,
+            String candidateKind
     ) {
     }
 

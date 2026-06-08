@@ -256,6 +256,8 @@ function GuardianPage() {
   const [chatInitialRoomType, setChatInitialRoomType] = useState("");
   const [unreadChatCountsByElder, setUnreadChatCountsByElder] = useState({});
 
+  const [consultationToOpen, setConsultationToOpen] = useState(null);
+
   const selectedElder = useMemo(
     () => elders.find((elder) => elder.id === selectedElderId) ?? elders[0] ?? null,
     [elders, selectedElderId]
@@ -1422,6 +1424,23 @@ function GuardianPage() {
     window.alert("복지사에게 이상 없음 알림을 보냈습니다.");
   };
 
+  const handleWelfareConsultationSchedule = async (targetAlert, scheduleDate) => {
+    if (!targetAlert?.id || !scheduleDate) return;
+
+    try {
+      await respondWelfareConsultation(targetAlert.id, {
+        responseType: "SCHEDULED",
+        scheduleAt: scheduleDate,
+      });
+
+      await handleReadAlert(targetAlert.id);
+      window.alert("상담 날짜를 복지사에게 보냈습니다.");
+    } catch (error) {
+      console.error("상담 날짜 응답 실패:", error);
+      window.alert("상담 날짜 전송에 실패했습니다.");
+    }
+  };
+
   const activeMedicines = getActiveMedicines(selectedElder);
 
   return (
@@ -1432,6 +1451,16 @@ function GuardianPage() {
         onCallAlert={handleCallAlert}
         onOpenEmergencyReport={handleOpenEmergencyReport}
         onCheckInOk={handleCheckInOk}
+        onOpenConsultationModal={(alert) => {
+          if (alert?.seniorId) {
+            setSelectedElderId(alert.seniorId);
+          }
+
+          setConsultationToOpen({
+            ...alert,
+            openToken: Date.now(),
+          });
+        }}
         onOpenChat={() => {
           setChatInitialRoomType("");
           setIsChatOpen(true);
@@ -1646,6 +1675,7 @@ function GuardianPage() {
             setCallingAlert(null);
             setIsCallResultOpen(false);
           }}
+          consultationToOpen={consultationToOpen}
           onOpenChat={() => {
             setChatInitialRoomType("GUARDIAN_WELFARE");
             setIsChatOpen(true);
@@ -1886,6 +1916,7 @@ function GuardianHeader({
   onOpenChat,
   onOpenWelfareChat,
   onCheckInOk,
+  onOpenConsultationModal,
   unreadChatCount = 0,
 }) {
   const isCheckInRequestAlert = (alert) => {
@@ -1894,6 +1925,9 @@ function GuardianHeader({
       alert?.title,
       alert?.message,
       alert?.detailMessage,
+      alert?.rawAlert?.type,
+      alert?.rawAlert?.title,
+      alert?.rawAlert?.message,
     ].filter(Boolean).join(" ");
 
     return (
@@ -1903,15 +1937,51 @@ function GuardianHeader({
     );
   };
 
+  const isCheckInOkAlert = (alert) => {
+    const text = [
+      alert?.type,
+      alert?.title,
+      alert?.message,
+      alert?.detailMessage,
+      alert?.rawAlert?.type,
+      alert?.rawAlert?.title,
+      alert?.rawAlert?.message,
+      alert?.rawAlert?.reply,
+    ].filter(Boolean).join(" ");
+
+    return (
+      text.includes("CHECK_IN_OK") ||
+      text.includes("안부 확인 완료") ||
+      text.includes("안부 확인 결과 이상 없습니다") ||
+      text.includes("이상 없습니다")
+    );
+  };
+
+  const isWelfareConsultationAlert = (alert) => {
+    const text = [
+      alert?.type,
+      alert?.title,
+      alert?.message,
+      alert?.detailMessage,
+      alert?.rawAlert?.type,
+      alert?.rawAlert?.title,
+      alert?.rawAlert?.message,
+    ].filter(Boolean).join(" ");
+
+    return (
+      text.includes("WELFARE_CONSULT") ||
+      text.includes("CONSULT") ||
+      text.includes("상담")
+    );
+  };
+
   const formatSeniorDisplayName = (name) => {
     const value = String(name || "사용자").trim();
     return value.endsWith("님") ? value : `${value}님`;
   };
 
   const guardianNotifications = displayedAlerts
-    .filter((alert) => alert.type !== "CHECK_IN_OK")
-    // 안부 확인 요청 알림 중 이미 읽은 알림은 제외
-    // .filter((alert) => !(isCheckInRequestAlert(alert) && alert.rawAlert?.isRead === true))
+    .filter((alert) => !isCheckInOkAlert(alert))
     .map((alert) => {
       const isCheckInRequest = isCheckInRequestAlert(alert);
       const seniorDisplayName = formatSeniorDisplayName(alert.seniorName || alert.name);
@@ -1936,7 +2006,10 @@ function GuardianHeader({
       };
     });
 
-    const renderGuardianNotificationActions = (alert, { defaultAction, onRead, isRead }) => {
+  const renderGuardianNotificationActions = (
+    alert,
+    { defaultAction, onRead, isRead, closeNotificationPanel }
+  ) => {
     if (isCheckInRequestAlert(alert)) {
       if (isRead) return null;
       return (
@@ -1960,6 +2033,59 @@ function GuardianHeader({
             }}
           >
             복지사 채팅
+          </button>
+        </div>
+      );
+    }
+
+    if (alert?.type === "AI_CANDIDATE_CONFIRM") {
+      if (isRead) return null;
+
+      return (
+        <div className="guardian-alert-actions-below two">
+          <button
+            type="button"
+            className="guardian-alert-secondary-action"
+            onClick={async (event) => {
+              event.stopPropagation();
+              await onRead?.(event);
+            }}
+          >
+            아니에요
+          </button>
+
+          <button
+            type="button"
+            className="guardian-alert-primary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenEmergencyReport?.(alert);
+              closeNotificationPanel?.();
+            }}
+          >
+            맞는 것 같아요
+          </button>
+        </div>
+      );
+    }
+
+    if (isWelfareConsultationAlert(alert)) {
+      if (isRead) return null;
+
+      return (
+        <div className="guardian-alert-actions-below">
+          <button
+            type="button"
+            className="guardian-alert-secondary-action"
+            onClick={async (event) => {
+              event.stopPropagation();
+
+              await onRead?.(event);
+              onOpenConsultationModal?.(alert);
+              closeNotificationPanel?.();
+            }}
+          >
+            상담 선택
           </button>
         </div>
       );
@@ -1993,7 +2119,6 @@ function GuardianHeader({
       showNotificationButton
       notifications={guardianNotifications}
       notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}
-
       onReadNotification={(alert) => {
         if (alert?.id) {
           onReadAlert?.(alert.id);

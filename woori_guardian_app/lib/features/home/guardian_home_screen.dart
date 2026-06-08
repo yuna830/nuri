@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,11 +13,13 @@ import '../mypage/mypage_screen.dart';
 import '../auth/guardian_login_screen.dart';
 import '../face/face_check_camera_screen.dart';
 import '../../core/api/guardian_api.dart';
+import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/widgets/app_header.dart';
 import '../../core/push/fcm_service.dart';
+import '../chat/guardian_chat_screen.dart';
 import '../senior/senior_detail_screen.dart';
 
 // 한 곳에서 색상을 관리해 변경 시 전체가 일관되게 반영됩니다.
@@ -45,9 +51,7 @@ abstract final class _C {
   static const danger = Color(0xFFB85252);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // GuardianHomeScreen — 탭 셸
-// ═══════════════════════════════════════════════════════════════════════════════
 
 class GuardianHomeScreen extends StatefulWidget {
   const GuardianHomeScreen({super.key});
@@ -64,6 +68,8 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   String _guardianName = '';
   String _guardianEmail = '';
   int _unreadCount = 0;
+  int _unreadChatCount = 0;
+  Timer? _unreadTimer;
 
   int? _selectedSeniorId; // 위치 탭으로 넘길 어르신 ID
 
@@ -73,6 +79,16 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   void initState() {
     super.initState();
     _loadSessionInfo();
+    _unreadTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _refreshUnreadCounts(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _unreadTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadSessionInfo() async {
@@ -110,7 +126,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
       // FCM 초기화 및 토큰 등록
       await FcmService.init(role: 'GUARDIAN', userId: guardianId);
 
-      await _refreshUnreadCount(guardianId);
+      await _refreshUnreadCounts();
     } catch (_) {}
   }
 
@@ -123,6 +139,52 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
         setState(() => _unreadCount = alerts.where((a) => !a.isRead).length);
       }
     } catch (_) {}
+  }
+
+  Future<void> _refreshUnreadCounts() async {
+    final guardianId = await _getGuardianId();
+    if (guardianId == null) return;
+
+    await Future.wait([
+      _refreshUnreadCount(guardianId),
+      _refreshUnreadChatCount(guardianId),
+    ]);
+  }
+
+  Future<void> _refreshUnreadChatCount(int guardianId) async {
+    try {
+      final seniors = await _api.fetchGuardianSeniors(guardianId);
+      var total = 0;
+
+      for (final senior in seniors) {
+        final url = Uri.parse(
+          '${AppConfig.apiBaseUrl}/chat/unread'
+          '?viewerRole=GUARDIAN&seniorId=${senior.id}',
+        );
+
+        final response = await http
+            .get(url)
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode != 200) continue;
+
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data is Map<String, dynamic>) {
+          total += (data['count'] as num?)?.toInt() ?? 0;
+        }
+      }
+
+      if (mounted) {
+        setState(() => _unreadChatCount = total);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openChat() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const GuardianChatScreen()),
+    );
+    _refreshUnreadCounts();
   }
 
   Future<int?> _getGuardianId() async {
@@ -167,7 +229,9 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
       appBar: AppHeader(
         title: _headerTitle,
         unreadCount: _unreadCount,
+        chatUnreadCount: _unreadChatCount,
         onNotificationTap: _openNotificationCenter,
+        onChatTap: _openChat,
       ),
       body: IndexedStack(
         index: _selectedIndex,
@@ -222,9 +286,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // _HomeTab
-// ═══════════════════════════════════════════════════════════════════════════════
 
 class _HomeTab extends StatefulWidget {
   final void Function(int seniorId) onViewLocation;
@@ -422,7 +484,7 @@ class _FaceCheckCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '사진을 촬영해 어르신 상태를 확인합니다.',
+                      '카메라로 얼굴을 촬영해 등록된 실종자 정보와 비교합니다.',
                       style: TextStyle(fontSize: 12, color: _C.textSub),
                     ),
                   ],

@@ -47,4 +47,12 @@ public class MissingReportController {
         report.setStatus("RESOLVED");
         return missingReportRepository.save(report);
     }
+
+    @GetMapping("/face-targets")
+    public List<MissingReport> getFaceTargets() {
+        return missingReportRepository.findByStatus("ACTIVE")
+                .stream()
+                .filter(report -> report.getImageUrl() != null && !report.getImageUrl().isBlank())
+                .toList();
+    }
 }

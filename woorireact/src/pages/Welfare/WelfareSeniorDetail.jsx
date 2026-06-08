@@ -624,6 +624,16 @@ function WelfareSeniorDetail() {
         };
     }, [activeCategory, agencySearchCenter?.lat, agencySearchCenter?.lng]);
 
+    useEffect(() => {
+        const nextCategory = location.state?.agencyLinkNeeded
+            ? AGENCY_LINK_CATEGORY
+            : location.state?.category;
+
+        if (nextCategory && CATEGORY_LIST.includes(nextCategory)) {
+            setActiveCategory(nextCategory);
+        }
+    }, [location.state]);
+
     const handleCounselingDateChange = (date) => {
         const nextRecord = counselingRecords.find((record) => record.date === date);
 
@@ -1212,7 +1222,17 @@ function WelfareSeniorDetail() {
 
                                 <button
                                     type="button"
-                                    onClick={() => setLinkedAgencyId(placeId)}
+                                    onClick={() => {
+                                        if (isLinked) {
+                                            const confirmed = window.confirm("기관 연계를 취소할까요?");
+                                            if (!confirmed) return;
+
+                                            setLinkedAgencyId(null);
+                                            return;
+                                        }
+
+                                        setLinkedAgencyId(placeId);
+                                    }}
                                 >
                                     {isLinked ? "연계 완료됨" : "연계 완료"}
                                 </button>
@@ -1265,42 +1285,42 @@ function WelfareSeniorDetail() {
                     <>
                         <div className="wsd-category-layout">
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px", position: "sticky", top: "82px", alignSelf: "flex-start" }}>
-                            <nav className="wsd-category-sidebar">
-                                <div className="wsd-sidebar-profile-card">
-                                    <div className="wsd-sidebar-profile-photo">
-                                        {senior.profileImageUrl ? (
-                                            <img src={resolveUploadUrl(senior.profileImageUrl)} alt={`${senior.name} 프로필`} />
-                                        ) : (
-                                            <span>{senior.name?.slice(0, 1) || "?"}</span>
-                                        )}
+                                <nav className="wsd-category-sidebar">
+                                    <div className="wsd-sidebar-profile-card">
+                                        <div className="wsd-sidebar-profile-photo">
+                                            {senior.profileImageUrl ? (
+                                                <img src={resolveUploadUrl(senior.profileImageUrl)} alt={`${senior.name} 프로필`} />
+                                            ) : (
+                                                <span>{senior.name?.slice(0, 1) || "?"}</span>
+                                            )}
+                                        </div>
+                                        <strong>{senior.name}</strong>
                                     </div>
-                                    <strong>{senior.name}</strong>
-                                </div>
 
-                                {CATEGORY_LIST.map((category) => (
-                                    <button
-                                        type="button"
-                                        key={category}
-                                        className={`wsd-category-item${activeCategory === category ? " wsd-category-item-active" : ""}`}
-                                        onClick={() => setActiveCategory(category)}
-                                    >
-                                        {category}
-                                    </button>
-                                ))}
+                                    {CATEGORY_LIST.map((category) => (
+                                        <button
+                                            type="button"
+                                            key={category}
+                                            className={`wsd-category-item${activeCategory === category ? " wsd-category-item-active" : ""}`}
+                                            onClick={() => setActiveCategory(category)}
+                                        >
+                                            {category}
+                                        </button>
+                                    ))}
 
-                            </nav>
+                                </nav>
 
-                            <button
-                                type="button"
-                                className="wsd-small-button"
-                                style={{ width: "100%" }}
-                                onClick={() => {
-                                    setInfoRequestStatusMessage("");
-                                    setIsInfoRequestModalOpen(true);
-                                }}
-                            >
-                                정보수정 요청
-                            </button>
+                                <button
+                                    type="button"
+                                    className="wsd-small-button"
+                                    style={{ width: "100%" }}
+                                    onClick={() => {
+                                        setInfoRequestStatusMessage("");
+                                        setIsInfoRequestModalOpen(true);
+                                    }}
+                                >
+                                    정보수정 요청
+                                </button>
                             </div>
 
                             <div className="wsd-category-content">

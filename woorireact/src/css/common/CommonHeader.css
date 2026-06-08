@@ -315,18 +315,32 @@
   min-height: 52px;
   border: 0;
   border-radius: 10px;
-  color: #ffffff;
+  color: #222222;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .guardian-alert-secondary-action {
-  background: #7f9b7c !important;
+  background: #f3f5ef !important;
+  color: #222222 !important;
 }
 
 .guardian-alert-primary-action {
   background: #c95b57 !important;
+}
+
+.guardian-alert-date-action {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #e1e6dc;
+  border-radius: 10px;
+  background: #f3f5ef;
+  color: #222222;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 0 16px;
 }
 
 
@@ -400,8 +414,8 @@
 
 .uch-alert-item .welfare-alert-secondary-action {
     border: 0;
-    color: #ffffff;
-    background: #7f9b7c;
+    color: #222222;
+    background: #f3f5ef;
 }
 
 .uch-alert-item.common-alert-item .uch-alert-action:has(.guardian-alert-actions-below) {
@@ -424,28 +438,6 @@
   gap: 12px;
 }
 
-.guardian-alert-actions-below .guardian-alert-primary-action,
-.guardian-alert-actions-below .guardian-alert-secondary-action {
-  flex: 1;
-  min-height: 42px;
-  border: 0;
-  border-radius: 10px;
-  color: #ffffff;
-  font-family: "Noto Sans KR", sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0 0.9rem;
-}
-
-.guardian-alert-secondary-action {
-  background: #86a788 !important;
-}
-
-.guardian-alert-primary-action {
-  background: #e05252 !important;
-}
-
 @media (max-width: 900px) {
   .common-app-header-inner {
     padding-left: 1rem;
@@ -466,18 +458,42 @@
   }
 }
 
+/* 공통 알림 카드 상태 색상
+   - 일반 미확인 알림: 흰색 카드로 차분하게 표시
+   - 읽은 알림: 저채도 회색/그린 톤으로 비중 낮춤
+   - 긴급/낙상 알림: 빨간 계열로만 강조 */
+.uch-alert-item.common-alert-item:not(.danger):not(.read) {
+  background: #ffffff !important;
+  border-color: #d8e1d3 !important;
+  border-left-color: #aebfac !important;
+  box-shadow: 0 4px 14px rgba(34, 45, 34, 0.06) !important;
+}
+
 .uch-alert-item.common-alert-item.read,
 .uch-alert-item.common-alert-item.read.danger {
-  background: #f7f8f5 !important;
-  border-color: #dde4da !important;
-  border-left-color: #9aa39a !important;
+  background: #f8f9f6 !important;
+  border-color: #e7ebe3 !important;
+  border-left-color: #d5ddd1 !important;
   box-shadow: none !important;
   opacity: 1 !important;
+}
+
+.uch-alert-item.common-alert-item.danger:not(.read) {
+  background: #fff8f6 !important;
+  border-color: #efc7c3 !important;
+  border-left-color: #c95b57 !important;
+  box-shadow: 0 6px 18px rgba(201, 91, 87, 0.12) !important;
 }
 
 .uch-alert-item.common-alert-item.read .uch-alert-title-row strong,
 .uch-alert-item.common-alert-item.read p {
   color: #596458 !important;
+}
+
+.uch-alert-item.common-alert-item:not(.danger):not(.read) .uch-alert-meta span.category,
+.uch-alert-item.common-alert-item:not(.danger):not(.read) .uch-alert-time-inline {
+  background: #f7f8f5 !important;
+  color: #6f7f70 !important;
 }
 
 .uch-alert-item.common-alert-item.read .uch-alert-meta span,
@@ -487,19 +503,27 @@
   color: #7c897b !important;
 }
 
+.uch-alert-item.common-alert-item.danger:not(.read) .uch-alert-meta span.category,
+.uch-alert-item.common-alert-item.danger:not(.read) .uch-alert-time-inline {
+  background: #fde8e8 !important;
+  color: #c74747 !important;
+}
+
 .uch-alert-item.common-alert-item.read .uch-alert-action {
   display: none !important;
 }
 
-.uch-alert-item.common-alert-item:not(.read) .uch-alert-meta span.category.danger {
+/* 기존 알림 배지 상태 색상 규칙입니다.
+   위의 공통 알림 카드 상태 규칙으로 통합되어 참고용으로 남겨둡니다. */
+/* .uch-alert-item.common-alert-item:not(.read) .uch-alert-meta span.category.danger {
   background: #fde8e8 !important;
   color: #c74747 !important;
 }
 
 .uch-alert-item.common-alert-item:not(.read):not(.danger) .uch-alert-meta span.category,
 .uch-alert-item.common-alert-item:not(.read):not(.danger) .uch-alert-time-inline {
-  background: #fff1dc !important;
-  color: #c87514 !important;
+  background: #f7f8f5 !important;
+  color: #6f7f70 !important;
 }
 
 .uch-alert-item.common-alert-item.danger:not(.read) .uch-alert-meta span.category {
@@ -510,4 +534,5 @@
 .uch-alert-item.common-alert-item.danger:not(.read) .uch-alert-time-inline {
   background: #fde8e8 !important;
   color: #c74747 !important;
-}
+} */
+

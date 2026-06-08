@@ -167,7 +167,7 @@ export default function WelfareSignup() {
             <button
               className="su-nav-login"
               type="button"
-              onClick={() => navigate("/welfare-login")}
+              onClick={() => navigate("/wlogin")}
             >
               로그인
             </button>

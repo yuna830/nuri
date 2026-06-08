@@ -80,6 +80,56 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[ChatSource]
 
+def infer_question_mode(question: str, requested_mode: str) -> str:
+    normalized = question.replace(" ", "")
+
+    relation_patterns = [
+        "중복수급",
+        "중복으로받",
+        "같이받",
+        "동시에받",
+        "함께받",
+        "받고있는데",
+        "받는중인데",
+        "이미받고",
+        "감액",
+        "줄어드",
+        "깎이",
+        "제외되",
+        "탈락",
+        "유지되",
+    ]
+
+    if any(pattern in normalized for pattern in relation_patterns):
+        return "qa"
+
+    recommend_patterns = [
+        "추천",
+        "받을수있는복지",
+        "받을만한복지",
+        "가능한복지",
+        "지원받을수있는",
+        "혜택알려",
+        "제도알려",
+        "뭐가있",
+        "목록",
+    ]
+
+    if any(pattern in normalized for pattern in recommend_patterns):
+        return "recommend"
+
+    yes_no_patterns = [
+        "받아도돼",
+        "가능해",
+        "가능한가",
+        "되나요",
+        "되나",
+    ]
+
+    if any(pattern in normalized for pattern in yes_no_patterns):
+        return "qa"
+
+    return requested_mode
 
 @router.post("", response_model=ChatResponse)
 def chat(request: ChatRequest):
@@ -88,10 +138,12 @@ def chat(request: ChatRequest):
     if not question:
         raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
 
+    resolved_mode = infer_question_mode(question, request.mode)
+
     rag_service = RagService()
     result = rag_service.ask(
         question=question,
-        mode=request.mode,
+        mode=resolved_mode,
         audience=request.audience,
         profile=request.profile.model_dump() if request.profile else None,
         history=[message.model_dump() for message in request.history],

@@ -125,15 +125,73 @@ function CommonHeader({
   };
 
   const getActionLabel = (notification) => {
-    if (notification.raw?.isSosCancel) return "확인함";
-    if (notification.raw?.isSafeZone) return "만남";
-    return "조치완료";
+    const type = notification.raw?.type || notification.type;
+    const title = notification.title || notification.raw?.title || "";
+    const category = notification.category || notification.raw?.category || "";
+
+    if (notification.raw?.isSosCancel || type === "SOS_CANCEL") {
+      return "확인함";
+    }
+
+    if (notification.raw?.isSafeZone || type === "SAFE_ZONE" || type === "SAFE_ZONE_EXIT") {
+      return "만남";
+    }
+
+    if (type === "INFO_UPDATE_REQUEST") {
+      return "정보 입력";
+    }
+
+    if (type === "INFO_UPDATE_COMPLETE" || type === "PROFILE_UPDATE") {
+      return "확인";
+    }
+
+    if (type === "CHECK_IN_OK") {
+      return "확인";
+    }
+
+    if (
+      type === "WELFARE_CONSULT_REQUEST" ||
+      type === "WELFARE_CONSULTATION" ||
+      type === "CONSULT_REQUEST" ||
+      type === "CONSULTATION_REQUEST" ||
+      title.includes("상담")
+    ) {
+      return "상담 선택";
+    }
+
+    if (
+      type === "SOS" ||
+      title.includes("SOS") ||
+      category === "긴급"
+    ) {
+      return "긴급 확인";
+    }
+
+    return "확인";
   };
 
   const getReadLabel = (notification) => {
-    if (notification.raw?.isSosCancel) return "확인함";
-    if (notification.raw?.isSafeZone) return "만남 완료";
-    return "조치완료";
+    const type = notification.raw?.type || notification.type;
+    const title = notification.title || notification.raw?.title || "";
+    const category = notification.category || notification.raw?.category || "";
+
+    if (notification.raw?.isSosCancel || type === "SOS_CANCEL") {
+      return "확인됨";
+    }
+
+    if (notification.raw?.isSafeZone || type === "SAFE_ZONE" || type === "SAFE_ZONE_EXIT") {
+      return "만남 완료";
+    }
+
+    if (
+      type === "SOS" ||
+      title.includes("SOS") ||
+      category === "긴급"
+    ) {
+      return "긴급 확인됨";
+    }
+
+    return "확인됨";
   };
 
   const renderDefaultAction = (notification) => (
@@ -368,7 +426,7 @@ function CommonHeader({
                       <div className="uch-alert-title-row">
                         <strong>{notification.title}</strong>
                       </div>
-                    
+
                       <p>{notification.message}</p>
                       {notification.raw?.imageUrl && (
                         <img
@@ -385,6 +443,7 @@ function CommonHeader({
                           defaultAction: renderDefaultAction(notification),
                           onRead: (event) => handleReadClick(event, notification),
                           isRead: notification.isRead,
+                          closeNotificationPanel: () => setIsNotificationOpen(false),
                         })
                         : renderDefaultAction(notification)}
                     </div>

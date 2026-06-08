@@ -102,3 +102,31 @@
     justify-content: center;
     gap: 7px;
 }
+
+.wpc-loading-message {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+}
+
+.wpc-loading-char {
+    display: inline-block;
+    animation: wpc-loading-char-bounce 1.1s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes wpc-loading-char-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    35% {
+        transform: translateY(-5px);
+    }
+
+    70% {
+        transform: translateY(0);
+    }
+}

@@ -272,7 +272,9 @@
   min-width: 86px;
 }
 
-.uch-alert-item:not(.read) {
+/* 알림 카드 상태 색상은 CommonHeader.css의 common-alert-item 규칙에서 통합 관리합니다.
+   아래 기존 사용자 알림 전용 상태 스타일은 참고용으로 남겨둡니다. */
+/* .uch-alert-item:not(.read) {
   background: #fffaf0;
   border-color: #efd9aa;
   box-shadow: 0 6px 18px rgba(216, 155, 43, 0.12);
@@ -286,7 +288,7 @@
 .uch-alert-item.read {
   background: #ffffff;
   opacity: 0.78;
-}
+} */
 
 .uch-alert-meta {
   display: flex;

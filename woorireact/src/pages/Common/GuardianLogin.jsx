@@ -305,7 +305,7 @@ export default function GuardianLogin() {
               </div>
 
               <button className="login-modal-close" type="button" onClick={closeHelpModal}>
-                X
+                x
               </button>
             </div>
 
