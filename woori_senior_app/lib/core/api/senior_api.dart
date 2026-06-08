@@ -210,38 +210,32 @@ class SeniorApi {
     } catch (_) {}
   }
 
-  /// 일자리 공고 목록
+  /// 일자리 공고 목록 — 서버에서 한 번에 전체 캐시를 받아 반환
+  /// keyword: 카테고리 키워드 (서버에서 사전 필터링)
   Future<Map<String, dynamic>> fetchJobList({
     int page = 1,
     String keyword = '',
     int size = 20,
   }) async {
-    // Spring은 /api/job-cache (flat list) 로 캐싱된 공고를 제공
-    final uri = Uri.parse('$apiBaseUrl/api/job-cache');
-    final response = await http.get(uri);
+    // 서버가 keyword + size 파라미터를 지원하므로 서버에서 필터링
+    final params = <String, String>{'size': '3000'};
+    if (keyword.isNotEmpty) params['keyword'] = keyword;
+
+    final uri = Uri.parse('$apiBaseUrl/api/job-cache')
+        .replace(queryParameters: params);
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return {'list': [], 'total': 0};
     }
 
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    List<dynamic> all = decoded is List ? decoded : [];
+    final all = decoded is List
+        ? decoded.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
 
-    // 키워드 필터 (서버에서 안 해주므로 클라이언트에서 처리)
-    if (keyword.isNotEmpty) {
-      final kw = keyword.toLowerCase();
-      all = all.where((j) {
-        if (j is! Map) return false;
-        return ['recrtTitle', 'oranNm', 'workPlcNm', 'jobclsNm', 'source']
-            .any((k) => '${j[k] ?? ''}'.toLowerCase().contains(kw));
-      }).toList();
-    }
-
-    final total = all.length;
-    final start = ((page - 1) * size).clamp(0, total);
-    final end = (start + size).clamp(0, total);
-
-    return {'list': all.sublist(start, end), 'total': total};
+    // 전체를 한 번에 반환 — _loadJobs 에서 루프 없이 한 번만 호출
+    return {'list': all, 'total': all.length};
   }
 
   /// 일자리 신청 목록 (관심/신청 모두)

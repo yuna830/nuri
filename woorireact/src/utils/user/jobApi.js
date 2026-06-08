@@ -100,8 +100,11 @@ const writeJobCache = (cacheKey, data) => {
   }
 };
 
-const fetchCachedJobPostings = async () => {
-  const response = await fetch("/api/job-cache");
+const fetchCachedJobPostings = async (keywords = []) => {
+  const url = keywords.length > 0
+    ? `/api/job-cache?keyword=${encodeURIComponent(keywords[0])}&size=5000`
+    : "/api/job-cache";
+  const response = await fetch(url);
   if (!response.ok) return [];
   const data = await response.json();
   return Array.isArray(data) ? data : [];
@@ -314,6 +317,19 @@ const fetchSeoulJobInfoWithKey = async (key, pageNo, numOfRows) => {
 const fetchSeoulJobInfo = (pageNo, numOfRows) =>
   fetchSeoulJobInfoWithKey(SEOUL_JOB_KEYS[0] || "", pageNo, numOfRows);
 
+// DB 캐시에서 전체 목록 불러와서 클라이언트 필터링
+const fetchFilteredFromDbCache = (dbJobs, emplymShp, pageNo, numOfRows) => {
+  const filtered = emplymShp
+    ? dbJobs.filter((job) => job.emplymShp === emplymShp || job.employmentType === emplymShp)
+    : dbJobs;
+  const start = (pageNo - 1) * numOfRows;
+  return {
+    list: filtered.slice(start, start + numOfRows),
+    total: filtered.length,
+    fromDbCache: true,
+  };
+};
+
 export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) => {
   const cacheKey = `combined-v3-${pageNo}-${emplymShp}-${numOfRows}`;
   const cached = readJobCache(cacheKey);
@@ -321,24 +337,40 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
 
   const lastDbRefreshAt = Number(localStorage.getItem("job-db-cache-refreshed-at") || 0);
   const shouldRefreshDbCache = Date.now() - lastDbRefreshAt > JOB_DB_REFRESH_TTL_MS;
-  const dbCachedJobs = pageNo === 1 && !emplymShp
-    ? await fetchCachedJobPostings().catch(() => [])
-    : [];
-  const cachedSources = new Set(dbCachedJobs.map((job) => job?.source).filter(Boolean));
-  const hasMixedDbCache = cachedSources.has("노인일자리") && cachedSources.has("서울일자리");
 
-  if (pageNo === 1 && !emplymShp && hasMixedDbCache && !shouldRefreshDbCache && dbCachedJobs.length >= Math.min(numOfRows, 100)) {
-    if (dbCachedJobs.length > 0) {
-      const data = {
-        list: dbCachedJobs,
-        total: dbCachedJobs.length,
-        fromDbCache: true,
-      };
-      writeJobCache(cacheKey, data);
-      return data;
+  // 카테고리 필터 시 해당 키워드로 DB에서 직접 검색
+  const categoryFilter = JOB_CATEGORY_FILTERS.find((f) => f.value === emplymShp);
+  const keywords = categoryFilter?.keywords || [];
+
+  // DB 캐시를 항상 먼저 시도 (필터 여부 무관)
+  const dbCachedJobs = await fetchCachedJobPostings(keywords).catch(() => []);
+
+  if (dbCachedJobs.length > 0) {
+    const data = fetchFilteredFromDbCache(dbCachedJobs, emplymShp, pageNo, numOfRows);
+    writeJobCache(cacheKey, data);
+
+    // 24시간 지났으면 백그라운드에서 조용히 갱신
+    if (shouldRefreshDbCache) {
+      Promise.allSettled([
+        fetchSenuriJobList(1, "", numOfRows),
+        fetchSeoulJobInfo(1, numOfRows),
+      ]).then(([senuri, seoul]) => {
+        const newJobs = [
+          ...(senuri.status === "fulfilled" ? senuri.value.list : []),
+          ...(seoul.status === "fulfilled" ? seoul.value.list : []),
+        ];
+        if (newJobs.length > 0) {
+          saveJobPostingsToCache(newJobs);
+          localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
+          jobListCache.clear(); // 메모리 캐시 무효화
+        }
+      }).catch(() => {});
     }
+
+    return data;
   }
 
+  // DB 캐시가 비어있을 때만 외부 API 직접 호출
   const [senuri, seoul] = await Promise.allSettled([
     fetchSenuriJobList(pageNo, emplymShp, numOfRows),
     fetchSeoulJobInfo(pageNo, numOfRows),
@@ -348,24 +380,17 @@ export const fetchJobList = async (pageNo = 1, emplymShp = "", numOfRows = 60) =
   const seoulData = seoul.status === "fulfilled" ? seoul.value : { list: [], total: 0 };
   const merged = new Map();
 
-  [...dbCachedJobs, ...senuriData.list, ...seoulData.list].forEach((job) => {
+  [...senuriData.list, ...seoulData.list].forEach((job) => {
     if (!job.jobId) return;
     merged.set(`${job.source}-${job.jobId}`, job);
   });
 
   const data = {
     list: Array.from(merged.values()),
-    total: Math.max(
-      merged.size,
-      dbCachedJobs.length,
-      (senuriData.total || 0) + (seoulData.total || 0),
-    ),
+    total: merged.size,
   };
 
   saveJobPostingsToCache([...senuriData.list, ...seoulData.list]);
-  if (pageNo === 1 && !emplymShp) {
-    warmJobPostingDbCache(numOfRows);
-  }
   localStorage.setItem("job-db-cache-refreshed-at", String(Date.now()));
   writeJobCache(cacheKey, data);
   return data;

@@ -61,19 +61,25 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       try {
         const savedCurrentSenior = sessionStorage.getItem("currentSenior");
+
+        // 캐시가 있으면 즉시 렌더링 후 백그라운드에서 갱신
         if (savedCurrentSenior) {
           const cachedProfile = JSON.parse(savedCurrentSenior);
+          setForm(profileToForm(cachedProfile));
+          setIsLoaded(true);
+
           const seniorId = cachedProfile?.senior?.id;
           if (seniorId) {
-            const response = await fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`);
-            if (response.ok) {
-              const freshProfile = await response.json();
-              sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
-              setForm(profileToForm(freshProfile));
-              setIsLoaded(true);
-              return;
-            }
+            fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`)
+              .then((r) => r.ok ? r.json() : null)
+              .then((freshProfile) => {
+                if (!freshProfile) return;
+                sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+                setForm(profileToForm(freshProfile));
+              })
+              .catch(() => {});
           }
+          return;
         }
 
         const response = await fetch(`${SPRING_API_BASE}/api/seniors`);

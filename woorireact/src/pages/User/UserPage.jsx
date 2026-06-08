@@ -506,8 +506,8 @@ export default function UserPage() {
     const loadActivityCondition = async () => {
       const seniorId = getCurrentSeniorId(initialSenior);
       try {
-        const today = await fetchActivityToday(seniorId);
-        const [trend, slots, baseline, fallPattern] = await Promise.all([
+        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
+          fetchActivityToday(seniorId),
           fetchActivityTrend(1, seniorId),
           fetchActivitySlots(seniorId),
           fetchActivityBaseline(14, seniorId),

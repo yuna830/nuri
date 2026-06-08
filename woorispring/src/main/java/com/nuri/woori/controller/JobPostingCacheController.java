@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nuri.woori.entity.JobPostingCache;
 import com.nuri.woori.repository.JobPostingCacheRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -27,10 +28,23 @@ public class JobPostingCacheController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> getCachedJobs() {
-        List<Map<String, Object>> jobs = new ArrayList<>();
+    public List<Map<String, Object>> getCachedJobs(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "3000") int size
+    ) {
+        List<JobPostingCache> caches;
 
-        for (JobPostingCache cache : jobPostingCacheRepository.findTop3000ByOrderByUpdatedAtDesc()) {
+        if (keyword != null && !keyword.isBlank()) {
+            // 키워드가 있으면 DB에서 직접 필터링 (카테고리별 전체 조회)
+            caches = jobPostingCacheRepository.findByKeywordOrderByUpdatedAtDesc(
+                    keyword, PageRequest.of(0, Math.min(size, 5000))
+            );
+        } else {
+            caches = jobPostingCacheRepository.findTop3000ByOrderByUpdatedAtDesc();
+        }
+
+        List<Map<String, Object>> jobs = new ArrayList<>();
+        for (JobPostingCache cache : caches) {
             try {
                 jobs.add(objectMapper.readValue(cache.getPayload(), new TypeReference<>() {}));
             } catch (Exception ignored) {

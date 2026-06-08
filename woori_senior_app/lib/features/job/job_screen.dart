@@ -237,42 +237,29 @@ class _JobScreenState extends State<JobScreen> {
     });
 
     try {
-      int page = startPage;
+      // 서버에서 전체 캐시를 한 번에 받아 로컬에서 필터링
+      // (기존 while 루프는 같은 3000건을 페이지마다 재다운로드하는 버그였음)
+      final result = await _api.fetchJobList();
+      final incoming = (result['list'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
       final merged = <String, Map<String, dynamic>>{};
       if (!replace) {
         for (final j in _jobs) {
           merged['${j['source']}-${j['jobId']}'] = j;
         }
       }
-      int total = _totalCount;
-      bool cont = true;
-
-      while (cont) {
-        final result = await _api.fetchJobList(page: page, size: 100);
-        final list = (result['list'] as List? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
-        total = (result['total'] as num?)?.toInt() ?? total;
-
-        for (final j in list) {
-          merged['${j['source']}-${j['jobId']}'] = j;
-        }
-
-        final filtered = _applyFilters(merged.values.toList());
-        final enough = filtered.length >= _visibleCount + 5;
-        final loadedAll = total > 0 && merged.length >= total;
-        // total==0이고 list가 비어있으면 더 이상 데이터 없음
-        final noMoreData = list.isEmpty || (total == 0 && list.length < 100);
-        cont = !enough && !loadedAll && !noMoreData && page < 15;
-        page++;
+      for (final j in incoming) {
+        merged['${j['source']}-${j['jobId']}'] = j;
       }
 
       if (mounted) {
         setState(() {
           _jobs = merged.values.toList();
-          _totalCount = total;
-          _loadedPage = page - 1;
-          _hasMoreSource = total <= 0 || _jobs.length < total;
+          _totalCount = _jobs.length;
+          _loadedPage = 1;
+          _hasMoreSource = false; // 한 번에 전체 로드 완료
           _loading = false;
           _loadingMore = false;
         });

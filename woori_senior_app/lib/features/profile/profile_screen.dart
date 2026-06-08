@@ -442,13 +442,30 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _load() async {
-    try {
+    setState(() { _error = null; });
+
+    // 캐시 먼저 렌더링 → 즉시 화면 표시
+    final cached = await SeniorSessionStorage.getProfile(widget.seniorId);
+    if (cached != null && mounted) {
       setState(() {
-        _loading = true;
-        _error = null;
+        _form = _apiToForm(cached);
+        _loading = false;
       });
+      // 백그라운드에서 최신 데이터 갱신
+      _api.fetchProfile(widget.seniorId).then((raw) {
+        if (!mounted) return;
+        SeniorSessionStorage.saveProfile(widget.seniorId, raw);
+        setState(() => _form = _apiToForm(raw));
+      }).catchError((_) {});
+      return;
+    }
+
+    // 캐시 없으면 서버에서 로드
+    try {
+      setState(() { _loading = true; });
       final raw = await _api.fetchProfile(widget.seniorId);
       if (!mounted) return;
+      await SeniorSessionStorage.saveProfile(widget.seniorId, raw);
       setState(() {
         _form = _apiToForm(raw);
         _loading = false;
@@ -465,7 +482,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await _api.updateProfile(widget.seniorId, _formToApi(_form));
+      final updated = await _api.updateProfile(widget.seniorId, _formToApi(_form));
+      // 저장 성공 시 캐시 갱신
+      await SeniorSessionStorage.saveProfile(widget.seniorId, updated);
       // 수정 요청 알림이 있었으면 읽음 처리 + 복지사 완료 알림
       if (widget.pendingAlertId != null) {
         await _api.readAlert(widget.pendingAlertId!);
