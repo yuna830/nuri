@@ -17,6 +17,8 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
 
     List<Senior> findByWelfareWorkerIdOrderByIdAsc(Long welfareWorkerId);
 
+    List<Senior> findByWelfareWorkerIdOrderByIdDesc(Long welfareWorkerId);
+
     Page<Senior> findByWelfareWorkerId(Long welfareWorkerId, Pageable pageable);
 
     @Query("""

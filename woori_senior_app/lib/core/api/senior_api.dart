@@ -405,6 +405,9 @@ class SeniorApi {
       }),
     );
 
+    if (response.statusCode == 409) {
+      throw Exception('이미 등록된 전화번호입니다.');
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('회원가입 실패');
     }

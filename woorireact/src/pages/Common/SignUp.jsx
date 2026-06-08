@@ -119,10 +119,6 @@ export default function SignUp() {
       if (!form.weight) return "몸무게를 입력해주세요.";
     }
 
-    if (step === 6) {
-      if (!form.maxHours) return "하루 최대 활동 가능 시간을 선택해주세요.";
-      if (!form.maxDistance) return "이동 가능 거리를 선택해주세요.";
-    }
 
     return "";
   };
@@ -150,6 +146,13 @@ export default function SignUp() {
       });
 
       if (!response.ok) {
+        if (response.status === 409) {
+          setStep(0);
+          setError("이미 등록된 전화번호입니다. 다른 전화번호를 입력해주세요.");
+          window.scrollTo(0, 0);
+          setSaving(false);
+          return;
+        }
         const text = await response.text().catch(() => "");
         throw new Error(`signup failed (${response.status})${text ? `: ${text}` : ""}`);
       }
@@ -397,7 +400,7 @@ export default function SignUp() {
 
         {step === 6 && (
           <section className="su-section">
-            <SectionTitle step={step}>활동 및 일자리 조건</SectionTitle>
+            <SectionTitle step={step} onSkip={submit} skipDisabled={saving || uploadingPhoto}>활동 및 일자리 조건</SectionTitle>
             <div className="su-row">
               <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => set("maxDistance", value)} required />
@@ -427,13 +430,22 @@ export default function SignUp() {
   );
 }
 
-function SectionTitle({ children, step }) {
+function SectionTitle({ children, step, onSkip, skipDisabled }) {
+  const isLast = step === STEPS.length - 1;
   return (
     <div className="su-section-title-row">
       <div className="su-section-title">{children}</div>
       <div className="su-section-progress">
-        <span className="su-section-step-circle">{step + 1}</span>
-        <span className="su-section-step-text">/ {STEPS.length}</span>
+        {isLast && onSkip ? (
+          <button className="su-btn-skip" type="button" onClick={onSkip} disabled={skipDisabled}>
+            건너뛰기
+          </button>
+        ) : (
+          <>
+            <span className="su-section-step-circle">{step + 1}</span>
+            <span className="su-section-step-text">/ {STEPS.length}</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -457,6 +469,7 @@ function SelectField({ label, value, options, optionLabels = {}, onChange, requi
     <div className="su-field">
       <label className="su-label">{label} {required && <span className="su-required">*</span>}</label>
       <select className="su-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">선택</option>
         {options.map((option) => <option key={option} value={option}>{optionLabels[option] ?? option}</option>)}
       </select>
     </div>
@@ -469,7 +482,7 @@ function ChipField({ label, value, options, onSelect }) {
       <label className="su-label">{label}</label>
       <div className="su-check-group">
         {options.map((option) => (
-          <button key={option} className={`su-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(option)}>{option}</button>
+          <button key={option} className={`su-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(value === option ? "" : option)}>{option}</button>
         ))}
       </div>
     </div>

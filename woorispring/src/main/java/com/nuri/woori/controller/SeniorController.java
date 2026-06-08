@@ -76,6 +76,12 @@ public class SeniorController {
 
     @PostMapping
     public SeniorProfileResponse createSenior(@RequestBody SeniorCreateRequest request) {
+        if (request.phone() != null && !request.phone().isBlank()) {
+            String normalizedPhone = normalizePhone(request.phone());
+            seniorRepository.findByNormalizedPhone(normalizedPhone).ifPresent(existing -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 전화번호입니다.");
+            });
+        }
         Senior senior = new Senior();
         senior.setName(request.name());
         senior.setBirthDate(toLocalDate(request.birthDate()));
@@ -275,6 +281,10 @@ public class SeniorController {
 
         Senior senior = seniors.get(0);
         return ResponseEntity.ok(new FindPhoneResponse(maskPhone(senior.getPhone())));
+    }
+
+    private boolean isFilled(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String normalizePhone(String phone) {
@@ -622,8 +632,8 @@ public class SeniorController {
             @RequestParam(required = false) Long welfareWorkerId) {
         if (page == null && size == null) {
             List<Senior> seniors = welfareWorkerId == null
-                    ? seniorRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
-                    : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+                    ? seniorRepository.findAll(Sort.by(Sort.Direction.DESC, "id"))
+                    : seniorRepository.findByWelfareWorkerIdOrderByIdDesc(welfareWorkerId);
 
             return seniors
                     .stream()
@@ -633,7 +643,7 @@ public class SeniorController {
 
         int pageNumber = Math.max(0, page == null ? 0 : page);
         int pageSize = Math.min(50, Math.max(1, size == null ? 6 : size));
-        PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.ASC, "id"));
+        PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "id"));
         Page<Senior> seniorPage = welfareWorkerId == null
                 ? seniorRepository.findAll(pageRequest)
                 : seniorRepository.findByWelfareWorkerId(welfareWorkerId, pageRequest);
@@ -714,7 +724,22 @@ public class SeniorController {
                 latestLocation == null ? null : latestLocation.getLatitude(),
                 latestLocation == null ? null : latestLocation.getLongitude(),
                 latestLocation == null ? null : latestLocation.getReceivedAt(),
-                hasGuardian);
+                hasGuardian,
+                isFilled(senior.getDisabilityGrade()) && isFilled(senior.getDisabilityType()),
+                healthInfo != null && healthInfo.getHeight() != null && healthInfo.getWeight() != null,
+                healthInfo != null &&
+                    isFilled(healthInfo.getSmoking()) && isFilled(healthInfo.getDrinking()) &&
+                    isFilled(healthInfo.getDiabetes()) && isFilled(healthInfo.getHypertension()) &&
+                    isFilled(healthInfo.getHeartDisease()) && isFilled(healthInfo.getJointDisease()) &&
+                    isFilled(healthInfo.getStroke()) && isFilled(healthInfo.getKidneyDisease()) &&
+                    isFilled(healthInfo.getLungDisease()) && isFilled(healthInfo.getLiverDisease()) &&
+                    isFilled(healthInfo.getCancer()) && isFilled(healthInfo.getWalkingAid()) &&
+                    isFilled(healthInfo.getDementia()) && isFilled(healthInfo.getVision()) &&
+                    isFilled(healthInfo.getHearing()) && isFilled(healthInfo.getRecentFall()),
+                healthInfo != null && isFilled(healthInfo.getMedicineCount()),
+                healthInfo != null &&
+                    isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType()) &&
+                    isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()));
     }
 
     public record WelfareSeniorListResponse(
@@ -739,7 +764,12 @@ public class SeniorController {
             Double lastGpsLatitude,
             Double lastGpsLongitude,
             LocalDateTime lastGpsRecordedAt,
-            Boolean hasGuardian) {
+            Boolean hasGuardian,
+            Boolean hasDisabilityInfo,
+            Boolean hasBodyInfo,
+            Boolean hasHealthInfo,
+            Boolean hasMedicationInfo,
+            Boolean hasWelfareInfo) {
     }
 
     public record SeniorWelfareWorkerRequest(

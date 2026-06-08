@@ -142,11 +142,6 @@ function RadarChart({ scores, labels = {}, summaryLabel = "종합 점수", note 
         <div className="up-radar-label">{summaryLabel}</div>
         <div className="up-radar-score" style={{ color: avgColor }}>{avg}</div>
         <div className="up-radar-unit">/ 100점</div>
-        {quality && (
-          <div className={`up-radar-quality ${quality.level || ""}`}>
-            {quality.level === "good" ? "안정 수집" : quality.level === "insufficient" ? "수집 중" : null}
-          </div>
-        )}
         {note && <div className="up-radar-note">{note}</div>}
         {keys.map((key, i) => (
           <div key={key} className="up-radar-row">

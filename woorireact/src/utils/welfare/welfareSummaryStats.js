@@ -62,6 +62,12 @@ export const getMissingSeniorInfoFields = (senior) => {
     if (isBlank(senior.birthDate) && isBlank(senior.age)) fields.push("생년월일/나이");
     if (isBlank(senior.gender)) fields.push("성별");
 
+    if (!senior.hasDisabilityInfo) fields.push("장애 정보");
+    if (!senior.hasBodyInfo) fields.push("신체 정보");
+    if (!senior.hasHealthInfo) fields.push("건강 정보");
+    if (!senior.hasMedicationInfo) fields.push("복약 정보");
+    if (!senior.hasWelfareInfo) fields.push("복지 정보");
+
     return fields;
 };
 

@@ -754,25 +754,34 @@
 .wd-small-button {
     min-width: 34px;
     height: 34px;
-    border: none;
+    border: 1px solid #d4e8d6;
     border-radius: 8px;
-    background: #fffdee;
-    color: #333333;
+    background: #ffffff;
+    color: #4a7a4c;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 700;
     cursor: pointer;
+    transition: background 0.15s;
 }
 
-.wd-small-button:hover:not(:disabled) {
-    background: #f5f1dd;
-    color: #222222;
+.wd-small-button:hover:not(:disabled):not(.wd-pager-current) {
+    background: #eef6ef;
+    color: #2e5c30;
 }
 
 .wd-small-button:disabled {
-    background: #fffdee;
-    color: #777777;
+    background: #f2f2f2;
+    color: #bbbbbb;
+    border-color: #e0e0e0;
     cursor: default;
     opacity: 1;
+}
+
+.wd-small-button.wd-pager-current {
+    background: #86a788;
+    color: #ffffff;
+    border-color: #86a788;
+    cursor: default;
 }
 
 /* 모달 */

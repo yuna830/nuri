@@ -510,7 +510,7 @@ function ChipField({ label, value, options, onSelect }) {
       <label className="pr-label">{label}</label>
       <div className="pr-chip-group">
         {options.map((option) => (
-          <button key={option} className={`pr-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(option)}>{option}</button>
+          <button key={option} className={`pr-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(value === option ? "" : option)}>{option}</button>
         ))}
       </div>
     </div>
