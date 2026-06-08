@@ -2,7 +2,7 @@ import argparse
 import math
 import os
 import time
-from collections import deque
+from collections import defaultdict, deque
 
 import cv2
 import numpy as np
@@ -28,7 +28,15 @@ MIN_FACE_SIZE = 100
 MATCH_HISTORY_SIZE = 10
 MATCH_HISTORY_REQUIRED = 6
 FACE_ANALYSIS_EVERY_N_FRAMES = 8
-YOLO_EVERY_N_FRAMES = 15
+YOLO_EVERY_N_FRAMES = 10
+
+KNOWN_FACE_QUALITY_MIN_SCORE = 0.45
+LIVE_FACE_QUALITY_MIN_SCORE = 0.55
+PERSON_TRACK_IOU_THRESHOLD = 0.35
+FULL_BODY_CANDIDATE_DIR = "body_candidates"
+FULL_BODY_SAVE_COOLDOWN_SECONDS = 10
+
+TRACK_EXPIRE_SECONDS = 5
 
 
 def cosine_similarity(left, right):
@@ -79,7 +87,7 @@ def is_face_inside_person_box(face_box, person_box):
 
     return x1 <= face_center_x <= x2 and y1 <= face_center_y <= y2
 
-# YOLO 박스 확장 함수 추가 
+
 def expand_person_box(person_box, frame_width, frame_height, ratio=0.15):
     x1, y1, x2, y2 = person_box
     box_width = x2 - x1
@@ -94,6 +102,206 @@ def expand_person_box(person_box, frame_width, frame_height, ratio=0.15):
         min(frame_width, x2 + padding_x),
         min(frame_height, y2 + padding_y),
     )
+
+
+def bbox_area(box):
+    x1, y1, x2, y2 = box
+    return max(0, x2 - x1) * max(0, y2 - y1)
+
+
+def calculate_iou(left_box, right_box):
+    lx1, ly1, lx2, ly2 = left_box
+    rx1, ry1, rx2, ry2 = right_box
+
+    ix1 = max(lx1, rx1)
+    iy1 = max(ly1, ry1)
+    ix2 = min(lx2, rx2)
+    iy2 = min(ly2, ry2)
+
+    intersection = bbox_area((ix1, iy1, ix2, iy2))
+    union = bbox_area(left_box) + bbox_area(right_box) - intersection
+
+    if union <= 0:
+        return 0.0
+
+    return intersection / union
+
+
+def assign_person_tracks(person_boxes, tracked_persons, next_track_id):
+    assigned_tracks = []
+    used_track_ids = set()
+    updated_tracks = {}
+
+    for person_box in person_boxes:
+        best_track_id = None
+        best_iou = 0.0
+
+        for track_id, previous_box in tracked_persons.items():
+            if track_id in used_track_ids:
+                continue
+
+            iou = calculate_iou(person_box, previous_box)
+
+            if iou > best_iou:
+                best_iou = iou
+                best_track_id = track_id
+
+        if best_track_id is None or best_iou < PERSON_TRACK_IOU_THRESHOLD:
+            best_track_id = next_track_id
+            next_track_id += 1
+
+        used_track_ids.add(best_track_id)
+        updated_tracks[best_track_id] = person_box
+        assigned_tracks.append((best_track_id, person_box))
+
+    return assigned_tracks, updated_tracks, next_track_id
+
+
+def find_person_track_for_face(face_box, person_tracks):
+    matched_track_id = None
+    matched_box = None
+    smallest_area = None
+
+    for track_id, person_box in person_tracks:
+        if not is_face_inside_person_box(face_box, person_box):
+            continue
+
+        area = bbox_area(person_box)
+
+        if smallest_area is None or area < smallest_area:
+            smallest_area = area
+            matched_track_id = track_id
+            matched_box = person_box
+
+    return matched_track_id, matched_box
+
+
+def estimate_face_quality(frame, face, min_face_size=MIN_FACE_SIZE):
+    left, top, right, bottom = map(int, face.bbox)
+    frame_height, frame_width = frame.shape[:2]
+
+    left = max(0, left)
+    top = max(0, top)
+    right = min(frame_width, right)
+    bottom = min(frame_height, bottom)
+
+    face_width = right - left
+    face_height = bottom - top
+
+    if face_width <= 0 or face_height <= 0:
+        return 0.0, ["INVALID_BOX"]
+
+    crop = frame[top:bottom, left:right]
+
+    if crop.size == 0:
+        return 0.0, ["EMPTY_CROP"]
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    blur_value = cv2.Laplacian(gray, cv2.CV_64F).var()
+    brightness = float(np.mean(gray))
+
+    size_score = min(1.0, min(face_width, face_height) / min_face_size)
+    blur_score = min(1.0, blur_value / 120.0)
+    brightness_score = 1.0 if 45 <= brightness <= 210 else 0.0
+
+    landmark_score = 0.5
+    pose_score = 0.5
+
+    kps = getattr(face, "kps", None)
+
+    if kps is not None and len(kps) >= 5:
+        kps = np.array(kps)
+        inside_count = 0
+
+        for x, y in kps:
+            if left <= x <= right and top <= y <= bottom:
+                inside_count += 1
+
+        landmark_score = inside_count / len(kps)
+
+        left_eye = kps[0]
+        right_eye = kps[1]
+        nose = kps[2]
+        eye_distance = np.linalg.norm(right_eye - left_eye)
+
+        if eye_distance > 0:
+            eye_mid_x = (left_eye[0] + right_eye[0]) / 2
+            yaw_ratio = abs(nose[0] - eye_mid_x) / eye_distance
+            eye_level_diff = abs(left_eye[1] - right_eye[1]) / eye_distance
+            pose_score = 1.0 if yaw_ratio <= 0.45 and eye_level_diff <= 0.35 else 0.0
+
+    quality_score = (
+        size_score * 0.30
+        + blur_score * 0.25
+        + brightness_score * 0.20
+        + landmark_score * 0.15
+        + pose_score * 0.10
+    )
+
+    reasons = []
+
+    if size_score < 1.0:
+        reasons.append("SMALL_FACE")
+    if blur_score < 0.5:
+        reasons.append("BLURRY_FACE")
+    if brightness_score == 0.0:
+        reasons.append("BAD_BRIGHTNESS")
+    if landmark_score < 0.8:
+        reasons.append("UNSTABLE_LANDMARKS")
+    if pose_score == 0.0:
+        reasons.append("SIDE_FACE")
+
+    return quality_score, reasons
+
+
+def can_send_face_alert(last_alert_time_by_senior_id, senior_id, now):
+    last_alert_at = last_alert_time_by_senior_id.get(senior_id, 0)
+    return now - last_alert_at >= FACE_ALERT_COOLDOWN_SECONDS
+
+
+def save_body_candidate(frame, senior_id, track_id, person_box, now, last_saved_at_by_track):
+    last_saved_at = last_saved_at_by_track.get(track_id, 0)
+
+    if now - last_saved_at < FULL_BODY_SAVE_COOLDOWN_SECONDS:
+        return None
+
+    x1, y1, x2, y2 = person_box
+    crop = frame[y1:y2, x1:x2]
+
+    if crop.size == 0:
+        return None
+
+    os.makedirs(FULL_BODY_CANDIDATE_DIR, exist_ok=True)
+    file_name = f"senior_{senior_id}_track_{track_id}_{int(now)}.jpg"
+    path = os.path.join(FULL_BODY_CANDIDATE_DIR, file_name)
+
+    cv2.imwrite(path, crop)
+    last_saved_at_by_track[track_id] = now
+
+    return path
+
+def cleanup_expired_tracks(
+    active_track_ids,
+    tracked_persons,
+    match_history_by_track,
+    last_body_candidate_saved_at,
+    track_last_seen_at,
+    now,
+):
+    expired_track_ids = []
+
+    for track_id, last_seen_at in track_last_seen_at.items():
+        if track_id in active_track_ids:
+            continue
+
+        if now - last_seen_at >= TRACK_EXPIRE_SECONDS:
+            expired_track_ids.append(track_id)
+
+    for track_id in expired_track_ids:
+        tracked_persons.pop(track_id, None)
+        match_history_by_track.pop(track_id, None)
+        last_body_candidate_saved_at.pop(track_id, None)
+        track_last_seen_at.pop(track_id, None)
 
 
 def post_location(server_url, senior_id, latitude, longitude):
@@ -115,6 +323,9 @@ def post_location(server_url, senior_id, latitude, longitude):
 
 
 def post_camera_alert(server_url, senior_id, alert_type, message, latitude=None, longitude=None):
+    if alert_type == "AI_CANDIDATE_CONFIRM" and "?" in message:
+        message = "유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다."
+
     try:
         response = requests.post(
             f"{server_url}/api/alerts/camera",
@@ -151,11 +362,8 @@ def create_scrfd_arcface_app():
     if FaceAnalysis is None:
         return None
 
-    # - SCRFD 계열 모델: 얼굴 감지
-    # - ArcFace 계열 모델: 얼굴 임베딩 추출
-    # buffalo_l + det_size 480 적용
     app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-    app.prepare(ctx_id=-1, det_size=(480, 480)) 
+    app.prepare(ctx_id=-1, det_size=(480, 480))
     print("InsightFace initialized: SCRFD face detection + ArcFace recognition")
     return app
 
@@ -181,6 +389,15 @@ def load_arcface_embeddings(app, image_files, show_known_face=False):
             key=lambda face: (face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]),
         )
 
+        quality_score, quality_reasons = estimate_face_quality(image, largest_face)
+
+        if quality_score < KNOWN_FACE_QUALITY_MIN_SCORE:
+            print(
+                f"known face skipped, low quality: {image_file}, "
+                f"quality={quality_score:.2f}, reasons={quality_reasons}"
+            )
+            continue
+
         left, top, right, bottom = map(int, largest_face.bbox)
         height, width = image.shape[:2]
 
@@ -195,12 +412,12 @@ def load_arcface_embeddings(app, image_files, show_known_face=False):
         os.makedirs("debug_faces", exist_ok=True)
         crop_path = os.path.join(
             "debug_faces",
-            f"known_{os.path.splitext(os.path.basename(image_file))[0]}.jpg"
+            f"known_{os.path.splitext(os.path.basename(image_file))[0]}.jpg",
         )
         cv2.imwrite(crop_path, face_crop)
 
         print(f"known face crop saved: {crop_path}")
-        print(f"known face bbox: left={left}, top={top}, right={right}, bottom={bottom}")
+        print(f"known face quality={quality_score:.2f}, bbox={left},{top},{right},{bottom}")
 
         if show_known_face:
             cv2.imshow("Known Face Crop", face_crop)
@@ -268,9 +485,8 @@ def main():
     fallback_encodings = [] if arcface_embeddings else load_face_recognition_encodings(image_files)
 
     if not arcface_embeddings and not fallback_encodings:
-        raise RuntimeError("등록 사진에서 얼굴을 찾지 못했습니다.")
+        raise RuntimeError("등록 사진에서 사용할 수 있는 얼굴을 찾지 못했습니다.")
 
-    # 웹캠 해상도 설정
     camera = cv2.VideoCapture(args.camera_index, cv2.CAP_DSHOW)
 
     if not camera.isOpened():
@@ -281,17 +497,19 @@ def main():
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     camera.set(cv2.CAP_PROP_FPS, 30)
 
-    face_alert_sent = False
-
     last_location_checked_at = 0
-    last_face_alert_at = 0
     last_saved_location = None
 
-    # 프레임 스킵용 변수 추가
-    match_history = deque(maxlen=MATCH_HISTORY_SIZE)
+    tracked_persons = {}
+    next_track_id = 1
+    match_history_by_track = defaultdict(lambda: deque(maxlen=MATCH_HISTORY_SIZE))
+    last_alert_time_by_senior_id = {}
+    last_body_candidate_saved_at = {}
+    track_last_seen_at = {}
+
     tick = 0
     frame_index = 0
-    last_person_boxes = []
+    last_person_tracks = []
     last_arcface_faces = []
     last_fallback_face_locations = []
     last_fallback_face_encodings = []
@@ -301,12 +519,44 @@ def main():
 
     while True:
         now = time.time()
+        tick += 1
 
-        # 매 루프마다 오래된 프레임 버리기 
+        current_latitude, current_longitude = get_mock_location(
+            args.center_lat,
+            args.center_lng,
+            tick,
+            args.simulate_move,
+        )
+
+        if now - last_location_checked_at >= args.interval:
+            should_send_location = False
+
+            if last_saved_location is None:
+                should_send_location = True
+            else:
+                previous_latitude, previous_longitude = last_saved_location
+                distance = get_distance_meters(
+                    previous_latitude,
+                    previous_longitude,
+                    current_latitude,
+                    current_longitude,
+                )
+                should_send_location = distance >= LOCATION_SAVE_DISTANCE_METERS
+
+            if should_send_location:
+                post_location(
+                    args.server,
+                    args.senior_id,
+                    current_latitude,
+                    current_longitude,
+                )
+                last_saved_location = (current_latitude, current_longitude)
+
+            last_location_checked_at = now
+
         for _ in range(2):
             camera.grab()
 
-        # while 루프에서 프레임 카운트 추가
         ok, frame = camera.read()
 
         if not ok:
@@ -318,7 +568,6 @@ def main():
 
         frame_height, frame_width = frame.shape[:2]
 
-        # YOLO를 5프레임마다만 실행
         if should_run_yolo:
             results = yolo.predict(frame, imgsz=416, conf=0.45, verbose=False)
             person_boxes = []
@@ -327,26 +576,50 @@ def main():
                 for box in result.boxes:
                     class_id = int(box.cls[0])
                     class_name = yolo.names[class_id]
-                    confidence = float(box.conf[0])
 
                     if class_name != "person":
                         continue
 
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    expanded_box = expand_person_box((x1, y1, x2, y2), frame_width, frame_height)
-
+                    expanded_box = expand_person_box(
+                        (x1, y1, x2, y2),
+                        frame_width,
+                        frame_height,
+                    )
                     person_boxes.append(expanded_box)
 
-            last_person_boxes = person_boxes
-        else:
-            person_boxes = last_person_boxes
+            person_tracks, tracked_persons, next_track_id = assign_person_tracks(
+                person_boxes,
+                tracked_persons,
+                next_track_id,
+            )
+            last_person_tracks = person_tracks
 
-        # 박스 그리기는 if should_run_yolo 밖에서 항상 하게끔
-        for x1, y1, x2, y2 in person_boxes:
+            active_track_ids = {track_id for track_id, _ in person_tracks}
+
+            for track_id in active_track_ids:
+                track_last_seen_at[track_id] = now
+
+            cleanup_expired_tracks(
+                active_track_ids,
+                tracked_persons,
+                match_history_by_track,
+                last_body_candidate_saved_at,
+                track_last_seen_at,
+                now,
+            )
+        else:
+            person_tracks = last_person_tracks
+
+        current_track_matches = {track_id: False for track_id, _ in person_tracks}
+        current_track_has_face = {track_id: False for track_id, _ in person_tracks}
+        current_track_candidate = {track_id: False for track_id, _ in person_tracks}
+
+        for track_id, (x1, y1, x2, y2) in person_tracks:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 180, 0), 2)
             cv2.putText(
                 frame,
-                "YOLO person",
+                f"YOLO person #{track_id}",
                 (x1, max(y1 - 8, 20)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -354,9 +627,6 @@ def main():
                 2,
             )
 
-        frame_has_match = False
-        
-        # InsightFace를 YOLO 조건 밖으로 빼고 3프레임마다
         if scrfd_arcface_app is not None and arcface_embeddings:
             if should_run_face_analysis:
                 last_arcface_faces = scrfd_arcface_app.get(frame)
@@ -365,17 +635,38 @@ def main():
 
             for face in faces:
                 left, top, right, bottom = map(int, face.bbox)
-                face_width = right - left
-                face_height = bottom - top
+                face_box = (left, top, right, bottom)
 
-                if face_width < MIN_FACE_SIZE or face_height < MIN_FACE_SIZE:
+                track_id, person_box = find_person_track_for_face(face_box, person_tracks)
+                is_inside_person = track_id is not None
+
+                if is_inside_person:
+                    current_track_has_face[track_id] = True
+
+                quality_score, quality_reasons = estimate_face_quality(frame, face)
+
+                if quality_score < LIVE_FACE_QUALITY_MIN_SCORE:
+                    if is_inside_person:
+                        current_track_candidate[track_id] = True
+
+                    cv2.rectangle(frame, (left, top), (right, bottom), (0, 165, 255), 2)
+                    cv2.putText(
+                        frame,
+                        f"LOW QUALITY {quality_score:.2f}",
+                        (left, max(top - 8, 20)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55,
+                        (0, 165, 255),
+                        2,
+                    )
+
+                    if should_run_face_analysis:
+                        print(
+                            f"low quality face: track={track_id}, "
+                            f"quality={quality_score:.2f}, reasons={quality_reasons}"
+                        )
+
                     continue
-                
-                # 박스 안 얼굴 조건 제거 후 참고값으로만 사용 
-                is_inside_person = any(
-                    is_face_inside_person_box((left, top, right, bottom), box)
-                    for box in person_boxes
-                )
 
                 similarities = [
                     cosine_similarity(known_embedding, face.embedding)
@@ -383,26 +674,28 @@ def main():
                 ]
                 best_similarity = max(similarities)
                 accuracy = similarity_to_accuracy(best_similarity)
-                is_match = best_similarity >= ARCFACE_SIMILARITY_THRESHOLD
+
+                is_match = best_similarity >= ARCFACE_SIMILARITY_THRESHOLD and is_inside_person
 
                 if should_run_face_analysis:
                     print(
-                        f"ArcFace similarity={best_similarity:.3f}, "
-                        f"display_score={accuracy:.1f}%, "
-                        f"threshold={ARCFACE_SIMILARITY_THRESHOLD}, "
+                        f"track={track_id}, ArcFace similarity={best_similarity:.3f}, "
+                        f"display_score={accuracy:.1f}%, quality={quality_score:.2f}, "
                         f"match={is_match}"
                     )
 
                 if is_match:
-                    frame_has_match = True
+                    current_track_matches[track_id] = True
+                elif is_inside_person:
+                    current_track_candidate[track_id] = True
 
                 color = (0, 0, 255) if is_match else (80, 80, 80)
-                person_hint = "PERSON" if is_inside_person else "FACE ONLY"
+                person_hint = f"TRACK {track_id}" if is_inside_person else "FACE ONLY"
 
                 label = (
-                    f"ArcFace MATCH {accuracy:.0f}% {person_hint}"
+                    f"ArcFace CANDIDATE {accuracy:.0f}% Q{quality_score:.2f} {person_hint}"
                     if is_match
-                    else f"ArcFace NO MATCH {accuracy:.0f}% {person_hint}"
+                    else f"ArcFace NO MATCH {accuracy:.0f}% Q{quality_score:.2f} {person_hint}"
                 )
 
                 cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
@@ -430,34 +723,38 @@ def main():
 
             for face_location, encoding in zip(face_locations, face_encodings):
                 top, right, bottom, left = face_location
+                face_box = (left, top, right, bottom)
                 face_width = right - left
                 face_height = bottom - top
 
-                if face_width < MIN_FACE_SIZE or face_height < MIN_FACE_SIZE:
-                    continue
+                track_id, person_box = find_person_track_for_face(face_box, person_tracks)
+                is_inside_person = track_id is not None
 
-                is_inside_person = any(
-                    is_face_inside_person_box((left, top, right, bottom), box)
-                    for box in person_boxes
-                )
+                if is_inside_person:
+                    current_track_has_face[track_id] = True
+
+                if face_width < MIN_FACE_SIZE or face_height < MIN_FACE_SIZE:
+                    if is_inside_person:
+                        current_track_candidate[track_id] = True
+                    continue
 
                 distances = face_recognition.face_distance(fallback_encodings, encoding)
                 best_distance = min(distances)
                 accuracy = distance_to_accuracy(best_distance)
-                is_match = best_distance <= FACE_RECOGNITION_TOLERANCE
-
-                print(
-                    f"face_recognition distance={best_distance:.3f}, "
-                    f"display_score={accuracy:.1f}%, "
-                    f"threshold={FACE_RECOGNITION_TOLERANCE}, "
-                    f"match={is_match}"
-                )
+                is_match = best_distance <= FACE_RECOGNITION_TOLERANCE and is_inside_person
 
                 if is_match:
-                    frame_has_match = True
+                    current_track_matches[track_id] = True
+                elif is_inside_person:
+                    current_track_candidate[track_id] = True
+
+                print(
+                    f"track={track_id}, face_recognition distance={best_distance:.3f}, "
+                    f"display_score={accuracy:.1f}%, match={is_match}"
+                )
 
                 color = (0, 0, 255) if is_match else (80, 80, 80)
-                person_hint = "PERSON" if is_inside_person else "FACE ONLY"
+                person_hint = f"TRACK {track_id}" if is_inside_person else "FACE ONLY"
 
                 label = (
                     f"fallback MATCH {accuracy:.0f}% {person_hint}"
@@ -476,25 +773,64 @@ def main():
                     2,
                 )
 
-        match_history.append(frame_has_match)
-        stable_match = sum(match_history) >= MATCH_HISTORY_REQUIRED
+        if should_run_face_analysis:
+            for track_id, person_box in person_tracks:
+                track_matched = current_track_matches.get(track_id, False)
+                track_has_face = current_track_has_face.get(track_id, False)
+                track_candidate = current_track_candidate.get(track_id, False)
 
-        if stable_match and not face_alert_sent:
-            post_camera_alert(
-                args.server,
-                args.senior_id,
-                "FACE_MATCH",
-                "등록된 실종자 얼굴과 일치하는 인물이 카메라에 감지되었습니다.",
-                None,
-                None,
-            )
-            face_alert_sent = True
-            match_history.clear()
+                match_history_by_track[track_id].append(track_matched)
+                stable_match = sum(match_history_by_track[track_id]) >= MATCH_HISTORY_REQUIRED
+
+                if stable_match and can_send_face_alert(
+                    last_alert_time_by_senior_id,
+                    args.senior_id,
+                    now,
+                ):
+                    post_camera_alert(
+                        args.server,
+                        args.senior_id,
+                        "AI_CANDIDATE_CONFIRM",
+                        "유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다.",
+                        current_latitude,
+                        current_longitude,
+                    )
+                    last_alert_time_by_senior_id[args.senior_id] = now
+                    match_history_by_track[track_id].clear()
+
+                should_save_body_candidate = not track_has_face or track_candidate
+
+                if should_save_body_candidate and not track_matched:
+                    candidate_path = save_body_candidate(
+                        frame,
+                        args.senior_id,
+                        track_id,
+                        person_box,
+                        now,
+                        last_body_candidate_saved_at,
+                    )
+
+                    if candidate_path:
+                        print(f"body candidate saved: {candidate_path}")
+                        if can_send_face_alert(
+                            last_alert_time_by_senior_id,
+                            args.senior_id,
+                            now,
+                        ):
+                            post_camera_alert(
+                                args.server,
+                                args.senior_id,
+                                "AI_CANDIDATE_CONFIRM",
+                                "얼굴이 명확하지 않아 전신 후보를 저장했습니다. 보호자 확인이 필요합니다.",
+                                current_latitude,
+                                current_longitude,
+                            )
+                            last_alert_time_by_senior_id[args.senior_id] = now
 
         cv2.imshow("Nuri YOLO Camera Prototype", frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
-            break  
+            break
 
     camera.release()
     cv2.destroyAllWindows()

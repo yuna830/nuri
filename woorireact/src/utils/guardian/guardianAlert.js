@@ -78,6 +78,7 @@ const isWithinDays = (value, days) => {
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
   const today = new Date();
   const seenIds = new Set();
+  const isCandidateConfirm = alert.type === "AI_CANDIDATE_CONFIRM";
 
   return apiAlerts
     .filter((alert) => {
@@ -116,15 +117,16 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
         longitude: alert.longitude,
         address: alert.address,
         score: alert.score ?? alert.fallDetails?.score,
-        imageUrl: isFall ? getFallAlertImageUrl(alert) : "",
+        imageUrl: isFall ? getFallAlertImageUrl(alert) : alert.imageUrl || "",
+        isCandidateConfirm,
         rawAlert: alert,
         time: alert.createdAt
           ? new Date(alert.createdAt).toLocaleString("ko-KR", {
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
           : "",
         message: formatAlertMessage(alert),
         detailMessage: isFall
@@ -133,8 +135,8 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
         status: isReported
           ? "신고 완료"
           : alert.isRead
-            ? isSafeZone ? "만남 완료" : "확인됨"
-            : "미확인",
+            ? isCandidateConfirm ? "확인 완료" : isSafeZone ? "만남 완료" : "확인됨"
+            : isCandidateConfirm ? "확인 필요" : "미확인",
         isSos: alert.type === "SOS",
         isSafeZone,
         isFall,

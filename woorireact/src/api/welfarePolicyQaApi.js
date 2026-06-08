@@ -1,6 +1,6 @@
-import { AI_API_BASE, SPRING_API_BASE } from "../config/api.js";
+import { RAG_API_BASE, SPRING_API_BASE } from "../config/api.js";
 
-const FASTAPI_BASE_URL = AI_API_BASE;
+const FASTAPI_BASE_URL = RAG_API_BASE;
 const SPRING_API_BASE_URL = SPRING_API_BASE;
 
 function valueOrNull(value) {

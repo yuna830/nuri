@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
 
-const double _defaultLat   = 37.5665;
-const double _defaultLng   = 126.9780;
+const double _defaultLat = 37.5665;
+const double _defaultLng = 126.9780;
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
 class SeniorLocationScreen extends StatefulWidget {
-  final int    seniorId;
+  final int seniorId;
   final String name;
   final String status;
 
@@ -23,15 +23,15 @@ class SeniorLocationScreen extends StatefulWidget {
 }
 
 class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
-  final _api           = GuardianApi();
+  final _api = GuardianApi();
   kakao.KakaoMapController? _mapController;
   kakao.Poi? _seniorPoi;
 
-  bool    _isLoading    = true;
+  bool _isLoading = true;
   String? _errorMessage;
 
-  String  _address  = '-';
-  String  _time     = '-';
+  String _address = '-';
+  String _time = '-';
   double? _latitude;
   double? _longitude;
 
@@ -42,7 +42,10 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
   }
 
   Future<void> _loadLocation() async {
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final data = await _api.fetchLatestLocation(widget.seniorId);
@@ -53,13 +56,13 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
           ? receivedAt.substring(0, 16).replaceAll('T', ' ')
           : receivedAt.replaceAll('T', ' ');
 
-      final lat = (data['latitude']  as num?)?.toDouble();
+      final lat = (data['latitude'] as num?)?.toDouble();
       final lng = (data['longitude'] as num?)?.toDouble();
 
       setState(() {
-        _address   = data['address'] ?? data['roadAddress'] ?? '주소 정보 없음';
-        _time      = timeStr;
-        _latitude  = lat;
+        _address = data['address'] ?? data['roadAddress'] ?? '주소 정보 없음';
+        _time = timeStr;
+        _latitude = lat;
         _longitude = lng;
         _isLoading = false;
       });
@@ -72,7 +75,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading    = false;
+        _isLoading = false;
       });
     }
   }
@@ -111,8 +114,8 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final centerLat  = _latitude  ?? _defaultLat;
-    final centerLng  = _longitude ?? _defaultLng;
+    final centerLat = _latitude ?? _defaultLat;
+    final centerLng = _longitude ?? _defaultLng;
     final hasLocation = _latitude != null && _longitude != null;
 
     return Scaffold(
@@ -121,10 +124,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
         backgroundColor: const Color(0xFF86A788),
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadLocation,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadLocation),
         ],
       ),
       body: Column(
@@ -135,52 +135,76 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
             child: _disableKakaoMap
                 ? const _KakaoMapDisabledView()
                 : Stack(
-              children: [
-                kakao.KakaoMap(
-                  option: kakao.KakaoMapOption(
-                    position: kakao.LatLng(centerLat, centerLng),
-                    zoomLevel: 15,
-                  ),
-                  onMapReady: (controller) async {
-                    _mapController = controller;
-                    if (hasLocation) {
-                      await _moveMap(centerLat, centerLng);
-                    }
-                    await _syncMapOverlays();
-                  },
-                ),
-                if (_isLoading)
-                  Container(
-                    color: Colors.grey.shade300.withValues(alpha: 0.8),
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Color(0xFF86A788)),
-                          SizedBox(height: 12),
-                          Text('위치 정보 불러오는 중...',
-                              style: TextStyle(color: Colors.black54)),
-                        ],
+                    children: [
+                      kakao.KakaoMap(
+                        option: kakao.KakaoMapOption(
+                          position: kakao.LatLng(centerLat, centerLng),
+                          zoomLevel: 15,
+                        ),
+                        onMapReady: (controller) async {
+                          _mapController = controller;
+                          if (hasLocation) {
+                            await _moveMap(centerLat, centerLng);
+                          }
+                          await _syncMapOverlays();
+                        },
                       ),
-                    ),
+                      if (hasLocation)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 36),
+                            child: Icon(
+                              Icons.location_pin,
+                              size: 52,
+                              color: Color(0xFF4A90E2),
+                            ),
+                          ),
+                        ),
+                      if (_isLoading)
+                        Container(
+                          color: Colors.grey.shade300.withValues(alpha: 0.8),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: Color(0xFF86A788),
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  '위치 정보 불러오는 중...',
+                                  style: TextStyle(color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (!_isLoading && !hasLocation && _errorMessage == null)
+                        Container(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.location_off,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  '위치 정보가 없습니다',
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                if (!_isLoading && !hasLocation && _errorMessage == null)
-                  Container(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.location_off, size: 40, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('위치 정보가 없습니다',
-                              style: TextStyle(color: Colors.black54, fontSize: 15)),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
           ),
 
           // 정보 패널
@@ -193,16 +217,22 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
-                  BoxShadow(color: Colors.black12, blurRadius: 10,
-                      offset: Offset(0, -2)),
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, -2),
+                  ),
                 ],
               ),
               child: _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF86A788)))
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF86A788),
+                      ),
+                    )
                   : _errorMessage != null
-                      ? _buildError()
-                      : _buildInfo(),
+                  ? _buildError()
+                  : _buildInfo(),
             ),
           ),
         ],
@@ -215,9 +245,11 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(_errorMessage!,
-              style: const TextStyle(color: Color(0xFFB85252), fontSize: 15),
-              textAlign: TextAlign.center),
+          Text(
+            _errorMessage!,
+            style: const TextStyle(color: Color(0xFFB85252), fontSize: 15),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: _loadLocation,
@@ -233,7 +265,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
   }
 
   Widget _buildInfo() {
-    final isSafe     = widget.status == '안전';
+    final isSafe = widget.status == '안전';
     final latLngText = (_latitude != null && _longitude != null)
         ? '$_latitude, $_longitude'
         : '좌표 정보 없음';
@@ -244,13 +276,13 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(widget.name,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(
+              widget.name,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             Chip(
               label: Text(widget.status),
-              backgroundColor:
-                  isSafe ? Colors.green[100] : Colors.orange[100],
+              backgroundColor: isSafe ? Colors.green[100] : Colors.orange[100],
               labelStyle: TextStyle(
                 color: isSafe ? Colors.green[800] : Colors.orange[800],
                 fontWeight: FontWeight.bold,
@@ -259,15 +291,19 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        const Text('마지막 위치',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+        const Text(
+          '마지막 위치',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+        ),
         const SizedBox(height: 4),
         Text(_address, style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 12),
         Text('시간: $_time', style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 4),
-        Text('좌표: $latLngText',
-            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(
+          '좌표: $latLngText',
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
+        ),
       ],
     );
   }

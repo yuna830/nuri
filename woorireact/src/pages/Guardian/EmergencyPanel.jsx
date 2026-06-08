@@ -87,6 +87,7 @@ const getMissingSimilarity = (elder, alert) => {
 
 function EmergencyPanel({
   selectedElder,
+  displayedAlerts = [],
   policeAlerts,
   routeHistory,
   lastNormalLocation,
@@ -112,6 +113,7 @@ function EmergencyPanel({
   onCloseCallResult,
   onOpenChat,
   onOpenUserChat,
+  consultationToOpen,
 }) {
   const selectedElderDisplayName = selectedElder?.name
     ? `${selectedElder.name}${selectedElder.name.endsWith("님") ? "" : "님"}`
@@ -120,6 +122,13 @@ function EmergencyPanel({
   const [isPoliceSearchOpen, setIsPoliceSearchOpen] = useState(false);
   const [policeSearchKeyword, setPoliceSearchKeyword] = useState("");
   const [activePanelTab, setActivePanelTab] = useState("today");
+
+  useEffect(() => {
+    if (consultationToOpen) {
+      setActivePanelTab("welfare");
+    }
+  }, [consultationToOpen?.openToken]);
+
   const [isSafeZoneEditorOpen, setIsSafeZoneEditorOpen] = useState(false);
   const [safeZoneKeyword, setSafeZoneKeyword] = useState("");
   const [safeZoneResults, setSafeZoneResults] = useState([]);
@@ -170,6 +179,10 @@ function EmergencyPanel({
       alert("복약 알림 전송에 실패했습니다.");
     }
   };
+
+  const aiCandidateAlerts = displayedAlerts.filter(
+    (alert) => alert.type === "AI_CANDIDATE_CONFIRM" && !alert.rawAlert?.isRead
+  );
 
   const isTodayRoute = selectedRouteDate === new Date().toISOString().slice(0, 10);
   const lastSeenAddress = selectedElder.lastNormalLocation
@@ -803,7 +816,10 @@ function EmergencyPanel({
         )}
 
         {activePanelTab === "welfare" && (
-          <GuardianWelfarePanel selectedElder={selectedElder} onOpenChat={onOpenChat} />
+          <GuardianWelfarePanel
+            selectedElder={selectedElder}
+            onOpenChat={onOpenChat}
+          />
         )}
 
         {activePanelTab === "safety" && (
@@ -815,9 +831,8 @@ function EmergencyPanel({
 
               <div className="safe182-body">
                 <p>
-                  연락이 되지 않거나 실종이 의심되는 경우 최근 위치를 먼저 확인하고,
-                  경찰청 공공데이터로 실종 경보와 검색 정보를 참고할 수 있습니다. <br />
-                  긴급 상황에서는 즉시 112 신고가 필요합니다.
+                  실종 의심 시 최근 위치와 실종 정보를 확인하세요. <br />
+                  긴급 상황은 즉시 112에 신고하세요.
                 </p>
 
                 <div className="safe182-actions">
@@ -836,6 +851,42 @@ function EmergencyPanel({
                   </button>
                 </div>
               </div>
+            </section>
+
+            <section className="card ai-candidate-card">
+              <div className="card-header">
+                <h2>AI 실종 후보 확인</h2>
+              </div>
+
+              {aiCandidateAlerts.length === 0 ? (
+                <p className="alert-empty">확인할 AI 후보가 없습니다.</p>
+              ) : (
+                <div className="ai-candidate-list">
+                  {aiCandidateAlerts.map((alert) => (
+                    <article key={alert.id} className="ai-candidate-item">
+                      {alert.imageUrl && (
+                        <img src={alert.imageUrl} alt="AI 후보 이미지" />
+                      )}
+
+                      <div>
+                        <strong>{alert.seniorName || selectedElder.name}님과 유사한 후보</strong>
+                        <p>{alert.message}</p>
+                        <span>{alert.time}</span>
+
+                        <div className="ai-candidate-actions">
+                          <button type="button" onClick={() => onReadAlert?.(alert.id)}>
+                            아니에요
+                          </button>
+
+                          <button type="button" onClick={() => onOpenEmergencyReport?.(alert)}>
+                            맞는 것 같아요
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="card police-missing-card">

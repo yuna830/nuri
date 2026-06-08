@@ -36,9 +36,10 @@ const fetchFallApi = async (path, options = {}) => {
     });
 
     if (!response.ok) {
+      fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;
       throw new Error(`Fall API failed: ${response.status}`);
     }
-
+    
     return response;
   } catch (error) {
     fallApiUnavailableUntil = Date.now() + FALL_API_COOLDOWN_MS;

@@ -10,4 +10,13 @@ class AppConfig {
                 defaultValue: 'http://10.0.2.2:8080/api',
               )))
           .trim();
+
+  /// 얼굴 인식 API 베이스 URL
+  static String get faceApiBaseUrl =>
+      ((dotenv.env['FACE_API_BASE_URL'] ??
+              const String.fromEnvironment(
+                'FACE_API_BASE_URL',
+                defaultValue: 'http://10.0.2.2:8000',
+              )))
+          .trim();
 }

@@ -141,9 +141,9 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
         setConsultationItems(
           Array.isArray(alertData)
             ? alertData.filter((item) => (
-                String(item.seniorId) === String(selectedElder.id)
-                && CONSULTATION_ALERT_TYPES.has(item.type)
-              ))
+              String(item.seniorId) === String(selectedElder.id)
+              && CONSULTATION_ALERT_TYPES.has(item.type)
+            ))
             : []
         );
         setIsLoadingJobs(false);
@@ -280,16 +280,16 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
               {pagedJobApplications.map((job) => (
                 <article key={job.id} className="guardian-job-item">
                   <div>
-                      <div className="guardian-job-title-row">
-                          <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
-                          <em>{job.status || "확인 대기"}</em>
-                      </div>
+                    <div className="guardian-job-title-row">
+                      <strong>{job.jobTitle || "일자리 정보 없음"}</strong>
+                      <em>{job.status || "확인 대기"}</em>
+                    </div>
 
-                      <span>{job.organization || "기관 정보 없음"}</span>
+                    <span>{job.organization || "기관 정보 없음"}</span>
                   </div>
 
                   <small>
-                      {[job.location, job.requestedAt].filter(Boolean).join(" · ")}
+                    {[job.location, job.requestedAt].filter(Boolean).join(" · ")}
                   </small>
                 </article>
               ))}

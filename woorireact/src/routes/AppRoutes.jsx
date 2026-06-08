@@ -48,9 +48,7 @@ function AppRoutes() {
 
         {/* Welfare */}
         <Route path="/wlogin" element={<WelfareLogin />} />
-        <Route path="/welfare-login" element={<WelfareLogin />} />
         <Route path="/wsignup" element={<WelfareSignup />} />
-        <Route path="/welfare-signup" element={<WelfareSignup />} />
         <Route path="/welfare" element={<WelfareDashboard />} />
         <Route path="/welfare/seniors/:id" element={<WelfareSeniorDetail />} />
         <Route path="/welfare/jobs" element={<WelfareJobPostings />} />

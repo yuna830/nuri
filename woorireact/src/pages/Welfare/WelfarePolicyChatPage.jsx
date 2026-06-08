@@ -211,8 +211,16 @@ function WelfarePolicyChatPage() {
                             ))}
 
                             {isLoading && (
-                                <article className="wpc-message assistant">
-                                    확인하는 중입니다...
+                                <article className="wpc-message assistant wpc-loading-message">
+                                    {"확인하는 중입니다...".split("").map((char, index) => (
+                                        <span
+                                            key={`${char}-${index}`}
+                                            className="wpc-loading-char"
+                                            style={{ animationDelay: `${index * 0.045}s` }}
+                                        >
+                                            {char === " " ? "\u00A0" : char}
+                                        </span>
+                                    ))}
                                 </article>
                             )}
                         </div>

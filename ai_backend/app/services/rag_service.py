@@ -30,14 +30,17 @@ class RagService:
             query_vector = self.embedding_service.embed_text(retrieval_query)
             self.cache_service.set(retrieval_query, query_vector)
 
-        chunks = self.qdrant_service.search_chunks(
+        chunks = self.qdrant_service.hybrid_search_chunks(
+            query_text=retrieval_query,
             query_vector=query_vector,
             limit=limit,
+            vector_limit=max(limit * 3, 12),
+            keyword_limit=max(limit * 3, 12),
         )
 
         if not chunks:
             return {
-                "answer": "제공된 자료에서 확인하지 못했습니다.",
+                "answer": "현재 자료만으로는 확인이 어렵습니다. 주민센터, 복지로 또는 담당 기관에서 확인이 필요합니다.",
                 "sources": [],
             }
 

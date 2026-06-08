@@ -10,6 +10,7 @@ import {
     assignWelfareSenior,
     sendGuardianCheckInRequest,
     readWelfareAlert,
+    readSeniorSosAlerts,
 } from "../../api/welfareDashboardApi";
 import CommonHeader from "../../components/CommonHeader.jsx";
 import WelfareSidebar from "../../components/welfare/WelfareSidebar";
@@ -474,7 +475,7 @@ function WelfareDashboard() {
                 id: `${senior.id}-sos`,
                 seniorId: senior.id,
                 title: "미응답 SOS",
-                message: `${senior.name} 대상자의 SOS를 보호자가 아직 확인하지 않았습니다.`,
+                message: "보호자 미응답 SOS가 있습니다.",
                 category: "긴급",
                 detailCategory: "안전구역 관리",
                 danger: true,
@@ -519,7 +520,14 @@ function WelfareDashboard() {
             .map((notification) => String(notification.seniorId))
     );
 
+    const isDirectSosNotification = (notification) => {
+        const type = notification?.type || notification?.raw?.type;
+
+        return type === "SOS";
+    };
+
     const activeNotifications = [...normalizedDbWelfareNotifications, ...welfareNotifications]
+        .filter((notification) => !isDirectSosNotification(notification))
         .filter((notification) => {
             if (notification.type !== "LAST_ACCESS") return true;
             return !checkInRepliedSeniorIds.has(String(notification.seniorId));
@@ -712,7 +720,38 @@ function WelfareDashboard() {
         }
     };
 
-    const renderWelfareNotificationActions = (notification, { defaultAction }) => {
+    const handleConfirmUnansweredSosAlert = async (notification, closeNotificationPanel) => {
+        if (!notification?.seniorId) return;
+
+        try {
+            await readSeniorSosAlerts(notification.seniorId);
+
+            setDbWelfareAlerts((previousAlerts) =>
+                previousAlerts.map((alert) =>
+                    alert.seniorId === notification.seniorId && alert.type === "UNANSWERED_SOS"
+                        ? { ...alert, isRead: true }
+                        : alert
+                )
+            );
+
+            navigate(`/welfare/seniors/${notification.seniorId}`, {
+                state: {
+                    category: "기관 연계",
+                    agencyLinkNeeded: true,
+                },
+            });
+
+            closeNotificationPanel?.();
+        } catch (error) {
+            console.error("미응답 SOS 읽음 처리 실패:", error);
+            window.alert("SOS 알림 확인 처리에 실패했습니다.");
+        }
+    };
+
+    const renderWelfareNotificationActions = (
+        notification,
+        { defaultAction, closeNotificationPanel }
+    ) => {
         if (notification?.type === "CHECK_IN_OK") {
             if (notification.isRead) return null;
 
@@ -727,6 +766,23 @@ function WelfareDashboard() {
                         }}
                     >
                         확인
+                    </button>
+                </div>
+            );
+        }
+
+        if (notification?.type === "UNANSWERED_SOS" || notification?.title === "미응답 SOS") {
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-primary-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleConfirmUnansweredSosAlert(notification, closeNotificationPanel);
+                        }}
+                    >
+                        긴급 확인
                     </button>
                 </div>
             );

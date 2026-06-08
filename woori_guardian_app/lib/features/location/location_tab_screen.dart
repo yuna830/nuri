@@ -396,17 +396,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: _kGreen,
-              onPrimary: Colors.white,
-            ),
+            colorScheme: Theme.of(
+              context,
+            ).colorScheme.copyWith(primary: _kGreen, onPrimary: Colors.white),
           ),
-          child: Center(
-            child: Transform.scale(
-              scale: 0.74,
-              child: child!,
-            ),
-          ),
+          child: Center(child: Transform.scale(scale: 0.74, child: child!)),
         );
       },
     );
@@ -1124,6 +1118,18 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         // ── 사용자 선택 floating chip ──────────────────────────────
         Positioned(top: 10, left: 10, right: 56, child: _buildFloatingChips()),
 
+        if (hasLocation)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 36),
+              child: Icon(
+                Icons.location_pin,
+                size: 52,
+                color: Color(0xFF4A90E2),
+              ),
+            ),
+          ),
+          
         if (_locationLoading)
           const Positioned.fill(
             child: ColoredBox(

@@ -262,3 +262,16 @@ export const readWelfareAlert = async (alertId) => {
 
     return response.json();
 };
+
+// 특정 복지 대상자의 SOS 알림 읽음 처리 함수 추가
+export const readSeniorSosAlerts = async (seniorId) => {
+    const response = await fetch(`/api/alerts/senior/${seniorId}/sos/read`, {
+        method: "PATCH",
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to read senior SOS alerts");
+    }
+
+    return response.json();
+};

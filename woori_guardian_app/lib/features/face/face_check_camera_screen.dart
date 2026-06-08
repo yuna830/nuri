@@ -9,6 +9,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../../core/config/app_config.dart';
+
 class FaceCheckCameraScreen extends StatefulWidget {
   const FaceCheckCameraScreen({super.key});
 
@@ -42,7 +44,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   bool _hasMatchedFace = false;
 
   static const _kGreen = Color(0xFF86A788);
-  static const _pythonServerUrl = 'http://172.28.6.164:8000';
+  static String get _pythonServerUrl => AppConfig.faceApiBaseUrl;
 
   @override
   void initState() {
@@ -98,7 +100,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
   Future<void> _processCameraImage(CameraImage image) async {
     final controller = _controller;
-    if (controller == null || _isDetecting || _isUploading || _hasMatchedFace) {
+    if (controller == null || _isDetecting || _hasMatchedFace) {
       return;
     }
 
@@ -117,15 +119,6 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         return;
       }
 
-      setState(() => _guideText = '${faces.length}명 감지됨');
-
-      final now = DateTime.now();
-      final canAutoCapture =
-          _lastAutoCaptureAt == null ||
-          now.difference(_lastAutoCaptureAt!).inSeconds >= 5;
-
-      if (!canAutoCapture) return;
-
       final hasGoodFace = faces.any((face) {
         final box = face.boundingBox;
         final faceArea = box.width * box.height;
@@ -138,10 +131,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         return;
       }
 
-      _lastAutoCaptureAt = now;
-      await _captureCropAndUpload();
+      setState(() => _guideText = '${faces.length}명 감지됨. 촬영해주세요.');
     } catch (_) {
-      // 프레임 분석 중 오류는 다음 프레임에서 다시 시도
+      // 프레임 분석 중 오류가 나도 다음 프레임에서 다시 시도
     } finally {
       _isDetecting = false;
     }
@@ -264,12 +256,12 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       }
 
       if (!mounted) return;
-      setState(() => _guideText = '서버에서 얼굴을 확인하는 중...');
+      setState(() => _guideText = '얼굴 정보를 확인하는 중...');
 
       final result = await _uploadFaceCrops(faceFiles).timeout(
         const Duration(seconds: 12),
         onTimeout: () {
-          throw TimeoutException('서버 응답 시간이 초과되었습니다.');
+          throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
         },
       );
 
@@ -282,110 +274,110 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       setState(() => _guideText = message);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _guideText = '얼굴 확인에 실패했습니다. 서버 상태를 확인해주세요.');
+      setState(() => _guideText = '얼굴 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
   }
 
-  Future<void> _captureCropAndUpload() async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
-    if (_hasMatchedFace) return;
+  // Future<void> _captureCropAndUpload() async {
+  //   final controller = _controller;
+  //   if (controller == null || !controller.value.isInitialized) return;
+  //   if (_hasMatchedFace) return;
 
-    setState(() {
-      _isUploading = true;
-      _guideText = '얼굴 확인 중...';
-    });
+  //   setState(() {
+  //     _isUploading = true;
+  //     _guideText = '얼굴 확인 중...';
+  //   });
 
-    try {
-      if (controller.value.isStreamingImages) {
-        await controller.stopImageStream();
-      }
+  //   try {
+  //     if (controller.value.isStreamingImages) {
+  //       await controller.stopImageStream();
+  //     }
 
-      final picture = await controller.takePicture().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          throw TimeoutException('자동 촬영 시간이 초과되었습니다.');
-        },
-      );
+  //     final picture = await controller.takePicture().timeout(
+  //       const Duration(seconds: 5),
+  //       onTimeout: () {
+  //         throw TimeoutException('자동 촬영 시간이 초과되었습니다.');
+  //       },
+  //     );
 
-      setState(() => _guideText = '얼굴을 찾는 중...');
+  //     setState(() => _guideText = '얼굴을 찾는 중...');
 
-      final faceFiles = await _cropFacesFromImage(File(picture.path)).timeout(
-        const Duration(seconds: 8),
-        onTimeout: () {
-          throw TimeoutException('얼굴 감지 시간이 초과되었습니다.');
-        },
-      );
+  //     final faceFiles = await _cropFacesFromImage(File(picture.path)).timeout(
+  //       const Duration(seconds: 8),
+  //       onTimeout: () {
+  //         throw TimeoutException('얼굴 감지 시간이 초과되었습니다.');
+  //       },
+  //     );
 
-      if (faceFiles.isEmpty) {
-        if (!mounted) return;
-        setState(() => _guideText = '얼굴을 찾지 못했습니다. 다시 맞춰주세요.');
+  //     if (faceFiles.isEmpty) {
+  //       if (!mounted) return;
+  //       setState(() => _guideText = '얼굴을 찾지 못했습니다. 다시 맞춰주세요.');
 
-        if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-          await controller.startImageStream(_processCameraImage);
-        }
-        return;
-      }
+  //       if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+  //         await controller.startImageStream(_processCameraImage);
+  //       }
+  //       return;
+  //     }
 
-      setState(() => _guideText = '서버에서 얼굴을 확인하는 중...');
+  //     setState(() => _guideText = '서버에서 얼굴을 확인하는 중...');
 
-      final result = await _uploadFaceCrops(faceFiles).timeout(
-        const Duration(seconds: 12),
-        onTimeout: () {
-          throw TimeoutException('서버 응답 시간이 초과되었습니다.');
-        },
-      );
+  //     final result = await _uploadFaceCrops(faceFiles).timeout(
+  //       const Duration(seconds: 12),
+  //       onTimeout: () {
+  //         throw TimeoutException('서버 응답 시간이 초과되었습니다.');
+  //       },
+  //     );
 
-      if (!mounted) return;
+  //     if (!mounted) return;
 
-      if (result.matched) {
-        setState(() {
-          _hasMatchedFace = true;
-          _capturedImage = picture;
-          _matchedImage = picture;
-          _guideText = result.message;
-          _isUploading = false;
-        });
+  //     if (result.matched) {
+  //       setState(() {
+  //         _hasMatchedFace = true;
+  //         _capturedImage = picture;
+  //         _matchedImage = picture;
+  //         _guideText = result.message;
+  //         _isUploading = false;
+  //       });
 
-        return;
-      }
+  //       return;
+  //     }
 
-      setState(() {
-        _guideText = result.message;
-      });
+  //     setState(() {
+  //       _guideText = result.message;
+  //     });
 
-      await Future.delayed(const Duration(seconds: 2));
+  //     await Future.delayed(const Duration(seconds: 2));
 
-      if (mounted && !_hasMatchedFace && !controller.value.isStreamingImages) {
-        await controller.startImageStream(_processCameraImage);
-      }
-    } on TimeoutException catch (e) {
-      if (!mounted) return;
-      final message = e.message ?? '얼굴 확인 시간이 초과되었습니다.';
-      setState(() => _guideText = message);
+  //     if (mounted && !_hasMatchedFace && !controller.value.isStreamingImages) {
+  //       await controller.startImageStream(_processCameraImage);
+  //     }
+  //   } on TimeoutException catch (e) {
+  //     if (!mounted) return;
+  //     final message = e.message ?? '얼굴 확인 시간이 초과되었습니다.';
+  //     setState(() => _guideText = message);
 
-      if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-        try {
-          await controller.startImageStream(_processCameraImage);
-        } catch (_) {}
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _guideText = '얼굴 확인에 실패했습니다. 서버 상태를 확인해주세요.');
+  //     if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+  //       try {
+  //         await controller.startImageStream(_processCameraImage);
+  //       } catch (_) {}
+  //     }
+  //   } catch (_) {
+  //     if (!mounted) return;
+  //     setState(() => _guideText = '얼굴 확인에 실패했습니다. 서버 상태를 확인해주세요.');
 
-      if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-        try {
-          await controller.startImageStream(_processCameraImage);
-        } catch (_) {}
-      }
-    } finally {
-      if (mounted && !_hasMatchedFace) {
-        setState(() => _isUploading = false);
-      }
-    }
-  }
+  //     if (!_hasMatchedFace && !controller.value.isStreamingImages) {
+  //       try {
+  //         await controller.startImageStream(_processCameraImage);
+  //       } catch (_) {}
+  //     }
+  //   } finally {
+  //     if (mounted && !_hasMatchedFace) {
+  //       setState(() => _isUploading = false);
+  //     }
+  //   }
+  // }
 
   Future<List<File>> _cropFacesFromImage(File imageFile) async {
     final inputImage = InputImage.fromFilePath(imageFile.path);
@@ -437,8 +429,6 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         Uri.parse('$_pythonServerUrl/api/face/verify'),
       );
 
-      request.fields['seniorId'] = '1';
-
       for (final file in faceFiles) {
         request.files.add(
           await http.MultipartFile.fromPath('faces', file.path),
@@ -471,9 +461,12 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       final seniorName = data['seniorName']?.toString();
 
       if (!matched) {
-        return const FaceVerifyResult(
+        final similarity = data['bestSimilarity'];
+        return FaceVerifyResult(
           matched: false,
-          message: '일치하는 얼굴이 없습니다.',
+          message: similarity == null
+              ? (data['message']?.toString() ?? '일치하는 실종자 얼굴이 없습니다.')
+              : '일치하는 실종자 얼굴이 없습니다. 유사도: $similarity',
         );
       }
 
@@ -481,7 +474,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         return FaceVerifyResult(
           matched: true,
           seniorName: seniorName,
-          message: '$seniorName님 얼굴과 일치합니다.',
+          message: '$seniorName님과 유사한 얼굴입니다.',
         );
       }
 
@@ -649,12 +642,13 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                       child: SizedBox(
                                         height: 48,
                                         child: FilledButton(
-                                          onPressed: _isUploading
-                                              ? null
-                                              : _verifyCapturedImage,
+                                          onPressed: _verifyCapturedImage,
                                           style: FilledButton.styleFrom(
                                             backgroundColor: _kGreen,
                                             foregroundColor: Colors.white,
+                                            disabledBackgroundColor: _kGreen,
+                                            disabledForegroundColor:
+                                                Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(10),

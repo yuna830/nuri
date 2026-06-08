@@ -22,3 +22,6 @@ export const POLICE_API_BASE =
 export const FALL_API_PORT = trimEnv(import.meta.env.VITE_FALL_API_PORT) || "8000";
 
 export const getDefaultFallApiBase = () => sameHostBase(FALL_API_PORT);
+
+export const RAG_API_BASE =
+  trimEnv(import.meta.env.VITE_RAG_API_BASE) || sameHostBase("8001");
