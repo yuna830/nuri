@@ -175,7 +175,7 @@ function AdminWelfare() {
       {selectedWorker ? (
         <div className="admin-modal-overlay" role="presentation" onClick={() => setSelectedWorker(null)}>
           <section
-            className="admin-small-modal"
+            className="admin-small-modal wide"
             role="dialog"
             aria-modal="true"
             aria-labelledby="assigned-seniors-title"
@@ -195,7 +195,13 @@ function AdminWelfare() {
               <ul className="admin-modal-list">
                 {selectedSeniors.map((senior) => (
                   <li key={senior.id}>
-                    <Link className="admin-modal-list-link" to={`/admin/seniors/${senior.id}`}>
+                    <Link
+                      className="admin-modal-list-link compact"
+                      to={`/admin/seniors/${senior.id}`}
+                      title={[senior.age ? `${senior.age}${TEXT.yearsOld}` : "", senior.address]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
+                    >
                       <strong>{senior.name}</strong>
                       <span>
                         {[senior.age ? `${senior.age}${TEXT.yearsOld}` : "", senior.address]
