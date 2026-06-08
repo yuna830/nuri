@@ -10,10 +10,11 @@ from fastapi import FastAPI, File, Form, UploadFile
 from insightface.app import FaceAnalysis
 
 
-ARCFACE_SIMILARITY_THRESHOLD = 0.65
+MATCH_THRESHOLD = 0.62
+CANDIDATE_THRESHOLD = 0.55
 FACE_ALERT_COOLDOWN_SECONDS = 60
 KNOWN_FACE_QUALITY_MIN_SCORE = 0.45
-LIVE_FACE_QUALITY_MIN_SCORE = 0.55
+LIVE_FACE_QUALITY_MIN_SCORE = 0.45
 MIN_FACE_SIZE = 100
 
 SPRING_SERVER_URL = os.getenv("SPRING_SERVER_URL", "http://localhost:8080")
@@ -22,7 +23,7 @@ KNOWN_FACE_DIR = os.getenv("KNOWN_FACE_DIR", "known_faces")
 app = FastAPI()
 
 face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-face_app.prepare(ctx_id=-1, det_size=(480, 480))
+face_app.prepare(ctx_id=-1, det_size=(640, 640))
 
 known_embeddings = []
 last_alert_time_by_senior_id = {}
@@ -37,8 +38,48 @@ def read_image(path: str):
     return cv2.imdecode(data, cv2.IMREAD_COLOR)
 
 
+def read_image_from_url(url: str):
+    if not url:
+        return None
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        data = np.frombuffer(response.content, dtype=np.uint8)
+
+        if data.size == 0:
+            return None
+
+        return cv2.imdecode(data, cv2.IMREAD_COLOR)
+    except requests.RequestException as error:
+        print(f"missing report image download failed: {url}, error={error}")
+        return None
+
+
+def resolve_spring_url(value: str):
+    if not value:
+        return None
+
+    value = value.strip()
+
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+
+    if value.startswith("/"):
+        return f"{SPRING_SERVER_URL}{value}"
+
+    return f"{SPRING_SERVER_URL}/{value}"
+
+
 def cosine_similarity(left, right):
-    return float(np.dot(left, right) / (np.linalg.norm(left) * np.linalg.norm(right)))
+    left_norm = np.linalg.norm(left)
+    right_norm = np.linalg.norm(right)
+
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+
+    return float(np.dot(left, right) / (left_norm * right_norm))
 
 
 def parse_known_face_filename(file_name: str):
@@ -139,6 +180,30 @@ def estimate_upload_face_quality(image, face):
     return quality_score, reasons
 
 
+def extract_largest_face_embedding(image, label: str):
+    faces = face_app.get(image)
+
+    if not faces:
+        print(f"{label} skipped, no face found")
+        return None, None, None
+
+    largest_face = max(
+        faces,
+        key=lambda face: (face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]),
+    )
+
+    quality_score, quality_reasons = estimate_upload_face_quality(image, largest_face)
+
+    if quality_score < KNOWN_FACE_QUALITY_MIN_SCORE:
+        print(
+            f"{label} skipped, low quality, "
+            f"quality={quality_score:.2f}, reasons={quality_reasons}"
+        )
+        return None, quality_score, quality_reasons
+
+    return largest_face.embedding, quality_score, quality_reasons
+
+
 def load_known_embeddings():
     embeddings = []
 
@@ -163,54 +228,104 @@ def load_known_embeddings():
             print(f"known face skipped, cannot read image: {file_name}")
             continue
 
-        faces = face_app.get(image)
+        embedding, _, _ = extract_largest_face_embedding(image, f"known face {file_name}")
 
-        if not faces:
-            print(f"known face skipped, no face found: {file_name}")
-            continue
-
-        largest_face = max(
-            faces,
-            key=lambda face: (face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]),
-        )
-
-        quality_score, quality_reasons = estimate_upload_face_quality(image, largest_face)
-
-        if quality_score < KNOWN_FACE_QUALITY_MIN_SCORE:
-            print(
-                f"known face skipped, low quality: {file_name}, "
-                f"quality={quality_score:.2f}, reasons={quality_reasons}"
-            )
+        if embedding is None:
             continue
 
         embeddings.append({
+            "source": "KNOWN_FACE",
+            "missing_report_id": None,
             "senior_id": senior_id,
             "senior_name": senior_name,
-            "embedding": largest_face.embedding,
+            "description": None,
+            "image_url": None,
             "file_name": file_name,
+            "embedding": embedding,
         })
 
     print(f"known embeddings loaded: {len(embeddings)}")
     return embeddings
 
 
+def load_missing_report_embeddings():
+    embeddings = []
+
+    try:
+        response = requests.get(
+            f"{SPRING_SERVER_URL}/api/missing-reports/face-targets",
+            timeout=10,
+        )
+        response.raise_for_status()
+        reports = response.json()
+    except requests.RequestException as error:
+        print(f"missing report targets load failed: {error}")
+        return embeddings
+
+    for report in reports:
+        raw_image_urls = report.get("imageUrls") or []
+
+        if not raw_image_urls and report.get("imageUrl"):
+            raw_image_urls = [report.get("imageUrl")]
+
+        missing_report_id = report.get("missingReportId") or report.get("id")
+
+        for image_index, raw_image_url in enumerate(raw_image_urls):
+            image_url = resolve_spring_url(raw_image_url)
+            image = read_image_from_url(image_url)
+
+            if image is None:
+                print(f"missing report skipped, cannot read image: {image_url}")
+                continue
+
+            embedding, _, _ = extract_largest_face_embedding(
+                image,
+                f"missing report {missing_report_id} image {image_index}",
+            )
+
+            if embedding is None:
+                continue
+
+            embeddings.append({
+                "source": "MISSING_REPORT",
+                "missing_report_id": missing_report_id,
+                "senior_id": report.get("seniorId"),
+                "senior_name": report.get("name") or report.get("description") or "실종 신고",
+                "description": report.get("description"),
+                "image_url": image_url,
+                "file_name": None,
+                "embedding": embedding,
+            })
+
+    print(f"missing report embeddings loaded: {len(embeddings)}")
+    return embeddings
+
+
+def load_registered_embeddings():
+    embeddings = []
+    embeddings.extend(load_known_embeddings())
+    embeddings.extend(load_missing_report_embeddings())
+    print(f"total registered embeddings loaded: {len(embeddings)}")
+    return embeddings
+
+
 @app.on_event("startup")
 def startup():
     global known_embeddings
-    known_embeddings = load_known_embeddings()
+    known_embeddings = load_registered_embeddings()
+
 
 @app.post("/api/face/reload")
 def reload_known_faces():
     global known_embeddings
-    known_embeddings = load_known_embeddings()
-
-    return {
-        "status": "RELOADED",
-        "count": len(known_embeddings),
-    }    
+    known_embeddings = load_registered_embeddings()
+    return {"loaded": len(known_embeddings)}
 
 
 def can_send_alert(senior_id: int):
+    if senior_id is None:
+        return False
+
     now = time.time()
     last_alert_at = last_alert_time_by_senior_id.get(senior_id, 0)
 
@@ -222,6 +337,9 @@ def can_send_alert(senior_id: int):
 
 
 def post_camera_alert(senior_id: int, similarity: float):
+    if senior_id is None:
+        return
+
     try:
         response = requests.post(
             f"{SPRING_SERVER_URL}/api/alerts/camera",
@@ -238,6 +356,36 @@ def post_camera_alert(senior_id: int, similarity: float):
         print(f"spring alert failed: {error}")
 
 
+def make_match_payload(
+    best_match,
+    matched,
+    match_status,
+    best_similarity,
+    quality_score,
+    quality_reasons,
+    bbox,
+    index,
+    source_device,
+):
+    return {
+        "index": index,
+        "matched": matched,
+        "status": match_status,
+        "similarity": round(best_similarity, 4),
+        "qualityScore": round(quality_score, 4),
+        "qualityReasons": quality_reasons,
+        "bbox": bbox,
+        "sourceDevice": source_device,
+        "source": best_match.get("source") if best_match else None,
+        "missingReportId": best_match.get("missing_report_id") if best_match else None,
+        "seniorId": best_match.get("senior_id") if best_match else None,
+        "seniorName": best_match.get("senior_name") if best_match else None,
+        "description": best_match.get("description") if best_match else None,
+        "imageUrl": best_match.get("image_url") if best_match else None,
+        "fileName": best_match.get("file_name") if best_match else None,
+    }
+
+
 @app.post("/api/face/verify")
 async def verify_faces(
     sourceDevice: str = Form("unknown"),
@@ -248,16 +396,8 @@ async def verify_faces(
             "matched": False,
             "status": "NO_KNOWN_FACE",
             "message": "등록 얼굴 임베딩이 없습니다.",
-            "faces": [],
-        }
-
-    target_embeddings = known_embeddings
-
-    if not target_embeddings:
-        return {
-            "matched": False,
-            "status": "NO_TARGET_FACE",
-            "message": "비교할 등록 얼굴이 없습니다.",
+            "bestSimilarity": 0,
+            "bestCandidate": None,
             "faces": [],
         }
 
@@ -314,6 +454,7 @@ async def verify_faces(
         )
 
         left, top, right, bottom = map(int, largest_face.bbox)
+        bbox = [left, top, right, bottom]
         quality_score, quality_reasons = estimate_upload_face_quality(image, largest_face)
 
         if quality_score < LIVE_FACE_QUALITY_MIN_SCORE:
@@ -324,7 +465,7 @@ async def verify_faces(
                 "similarity": 0,
                 "qualityScore": round(quality_score, 4),
                 "qualityReasons": quality_reasons,
-                "bbox": [left, top, right, bottom],
+                "bbox": bbox,
                 "sourceDevice": sourceDevice,
             })
             continue
@@ -332,7 +473,7 @@ async def verify_faces(
         best_match = None
         best_similarity = 0.0
 
-        for known in target_embeddings:
+        for known in known_embeddings:
             similarity = cosine_similarity(
                 known["embedding"],
                 largest_face.embedding,
@@ -342,37 +483,56 @@ async def verify_faces(
                 best_similarity = similarity
                 best_match = known
 
-        matched = best_similarity >= ARCFACE_SIMILARITY_THRESHOLD
+        if best_similarity >= MATCH_THRESHOLD:
+            match_status = "MATCH"
+            matched = True
+        elif best_similarity >= CANDIDATE_THRESHOLD:
+            match_status = "CANDIDATE"
+            matched = False
+        else:
+            match_status = "NO_MATCH"
+            matched = False
 
-        if matched:
+        best_overall_similarity = max(best_overall_similarity, best_similarity)
+
+        if match_status in ("MATCH", "CANDIDATE"):
             final_matched = True
-            best_overall_similarity = max(best_overall_similarity, best_similarity)
 
-        results.append({
-            "index": index,
-            "matched": matched,
-            "status": "MATCH" if matched else "NO_MATCH",
-            "similarity": round(best_similarity, 4),
-            "qualityScore": round(quality_score, 4),
-            "qualityReasons": quality_reasons,
-            "bbox": [left, top, right, bottom],
-            "sourceDevice": sourceDevice,
-            "seniorId": best_match["senior_id"] if matched and best_match else None,
-            "seniorName": best_match["senior_name"] if matched and best_match else None,
-        })
+        results.append(
+            make_match_payload(
+                best_match=best_match,
+                matched=matched,
+                match_status=match_status,
+                best_similarity=best_similarity,
+                quality_score=quality_score,
+                quality_reasons=quality_reasons,
+                bbox=bbox,
+                index=index,
+                source_device=sourceDevice,
+            )
+        )
 
-    matched_face = next((face for face in results if face["matched"]), None)
+    matched_face = next((face for face in results if face.get("status") == "MATCH"), None)
+    candidate_face = next((face for face in results if face.get("status") == "CANDIDATE"), None)
+    best_candidate = max(results, key=lambda face: face.get("similarity", 0), default=None)
 
-    if final_matched and matched_face and can_send_alert(matched_face["seniorId"]):
-        post_camera_alert(matched_face["seniorId"], best_overall_similarity)
+    final_face = matched_face or candidate_face
+    final_status = "MATCH" if matched_face else "CANDIDATE" if candidate_face else "NO_MATCH"
+
+    if final_matched and matched_face and can_send_alert(matched_face.get("seniorId")):
+        post_camera_alert(matched_face.get("seniorId"), best_overall_similarity)
 
     return {
-        "matched": final_matched,
-        "status": "MATCH" if final_matched else "NO_MATCH",
+        "matched": final_status in ("MATCH", "CANDIDATE"),
+        "status": final_status,
         "bestSimilarity": round(best_overall_similarity, 4),
-        "missingReportId": matched_face["missingReportId"] if matched_face else None,
-        "seniorId": matched_face["seniorId"] if matched_face else None,
-        "name": matched_face["name"] if matched_face else None,
-        "imageUrl": matched_face["imageUrl"] if matched_face else None,
+        "sourceDevice": sourceDevice,
+        "source": final_face.get("source") if final_face else None,
+        "missingReportId": final_face.get("missingReportId") if final_face else None,
+        "seniorId": final_face.get("seniorId") if final_face else None,
+        "seniorName": final_face.get("seniorName") if final_face else None,
+        "description": final_face.get("description") if final_face else None,
+        "imageUrl": final_face.get("imageUrl") if final_face else None,
+        "bestCandidate": best_candidate,
         "faces": results,
     }

@@ -4,18 +4,74 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../../core/config/app_config.dart';
+import '../report/report_screen.dart';
 
 class FaceCheckCameraScreen extends StatefulWidget {
   const FaceCheckCameraScreen({super.key});
 
   @override
   State<FaceCheckCameraScreen> createState() => _FaceCheckCameraScreenState();
+}
+
+class _BouncingLoadingText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+
+  const _BouncingLoadingText({required this.text, required this.style});
+
+  @override
+  State<_BouncingLoadingText> createState() => _BouncingLoadingTextState();
+}
+
+class _BouncingLoadingTextState extends State<_BouncingLoadingText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final characters = widget.text.characters.toList();
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Wrap(
+          alignment: WrapAlignment.center,
+          children: List.generate(characters.length, (index) {
+            final phase = (_controller.value * 2 * math.pi) + (index * 0.45);
+            final offsetY = math.sin(phase) * 3;
+
+            return Transform.translate(
+              offset: Offset(0, offsetY),
+              child: Text(characters[index], style: widget.style),
+            );
+          }),
+        );
+      },
+    );
+  }
 }
 
 class FaceVerifyResult {
@@ -31,6 +87,8 @@ class FaceVerifyResult {
 }
 
 class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
+  List<CameraDescription> _cameras = [];
+  CameraLensDirection _lensDirection = CameraLensDirection.back;
   CameraController? _controller;
   late final FaceDetector _faceDetector;
 
@@ -42,6 +100,11 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   XFile? _capturedImage;
   XFile? _matchedImage;
   bool _hasMatchedFace = false;
+  bool _hasVerifyResult = false;
+  FaceVerifyResult? _lastVerifyResult;
+
+  bool get _isSelfieMode =>
+      _controller?.description.lensDirection == CameraLensDirection.front;
 
   static const _kGreen = Color(0xFF86A788);
   static String get _pythonServerUrl => AppConfig.faceApiBaseUrl;
@@ -63,17 +126,23 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     _initCamera();
   }
 
-  Future<void> _initCamera() async {
+  Future<void> _initCamera({CameraLensDirection? lensDirection}) async {
     try {
-      final cameras = await availableCameras();
+      setState(() => _isInitializing = true);
 
-      final backCamera = cameras.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first,
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        throw Exception('사용 가능한 카메라가 없습니다.');
+      }
+
+      final targetLens = lensDirection ?? _lensDirection;
+      final selectedCamera = _cameras.firstWhere(
+        (camera) => camera.lensDirection == targetLens,
+        orElse: () => _cameras.first,
       );
 
       final controller = CameraController(
-        backCamera,
+        selectedCamera,
         ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.nv21,
@@ -81,11 +150,21 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       await controller.initialize();
 
-      if (!mounted) return;
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
 
       setState(() {
         _controller = controller;
+        _lensDirection = selectedCamera.lensDirection;
         _isInitializing = false;
+        _capturedImage = null;
+        _matchedImage = null;
+        _hasMatchedFace = false;
+        _hasVerifyResult = false;
+        _lastVerifyResult = null;
+        _guideText = '얼굴을 화면에 맞춰주세요.';
       });
 
       await controller.startImageStream(_processCameraImage);
@@ -93,6 +172,39 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       if (!mounted) return;
       setState(() {
         _guideText = '카메라를 실행할 수 없습니다.';
+        _isInitializing = false;
+      });
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_isUploading || _isInitializing) return;
+
+    final currentController = _controller;
+    final nextLens = _lensDirection == CameraLensDirection.back
+        ? CameraLensDirection.front
+        : CameraLensDirection.back;
+
+    try {
+      if (currentController != null) {
+        if (currentController.value.isStreamingImages) {
+          await currentController.stopImageStream();
+        }
+        await currentController.dispose();
+      }
+
+      setState(() {
+        _controller = null;
+        _isDetecting = false;
+        _capturedImage = null;
+        _guideText = '카메라 전환 중...';
+      });
+
+      await _initCamera(lensDirection: nextLens);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _guideText = '카메라 전환에 실패했습니다.';
         _isInitializing = false;
       });
     }
@@ -219,6 +331,8 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       _matchedImage = null;
       _hasMatchedFace = false;
       _guideText = '얼굴을 화면에 맞춰주세요.';
+      _hasVerifyResult = false;
+      _lastVerifyResult = null;
     });
 
     if (controller.value.isInitialized && !controller.value.isStreamingImages) {
@@ -237,28 +351,11 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
     setState(() {
       _isUploading = true;
-      _guideText = '얼굴을 찾는 중...';
+      _guideText = '얼굴 정보를 확인하는 중...';
     });
 
     try {
-      final faceFiles = await _cropFacesFromImage(File(capturedImage.path))
-          .timeout(
-            const Duration(seconds: 8),
-            onTimeout: () {
-              throw TimeoutException('얼굴 감지 시간이 초과되었습니다.');
-            },
-          );
-
-      if (faceFiles.isEmpty) {
-        if (!mounted) return;
-        setState(() => _guideText = '얼굴을 찾지 못했습니다. 다시 촬영해주세요.');
-        return;
-      }
-
-      if (!mounted) return;
-      setState(() => _guideText = '얼굴 정보를 확인하는 중...');
-
-      final result = await _uploadFaceCrops(faceFiles).timeout(
+      final result = await _uploadFullImage(File(capturedImage.path)).timeout(
         const Duration(seconds: 12),
         onTimeout: () {
           throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
@@ -267,7 +364,12 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       if (!mounted) return;
 
-      setState(() => _guideText = result.message);
+      // 일치/유사한 얼굴일 때만 신고하기
+      setState(() {
+        _guideText = result.message;
+        _hasVerifyResult = result.matched;
+        _lastVerifyResult = result;
+      });
     } on TimeoutException catch (e) {
       if (!mounted) return;
       final message = e.message ?? '얼굴 확인 시간이 초과되었습니다.';
@@ -280,104 +382,118 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     }
   }
 
-  // Future<void> _captureCropAndUpload() async {
-  //   final controller = _controller;
-  //   if (controller == null || !controller.value.isInitialized) return;
-  //   if (_hasMatchedFace) return;
+  Future<void> _goToReportScreen() async {
+    final controller = _controller;
 
-  //   setState(() {
-  //     _isUploading = true;
-  //     _guideText = '얼굴 확인 중...';
-  //   });
+    try {
+      if (controller != null &&
+          controller.value.isInitialized &&
+          controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+    } catch (_) {
+      // 화면 전환 전 카메라 스트림 정리 실패는 신고 화면 진입을 막지 않습니다.
+    }
 
-  //   try {
-  //     if (controller.value.isStreamingImages) {
-  //       await controller.stopImageStream();
-  //     }
+    if (!mounted) return;
 
-  //     final picture = await controller.takePicture().timeout(
-  //       const Duration(seconds: 5),
-  //       onTimeout: () {
-  //         throw TimeoutException('자동 촬영 시간이 초과되었습니다.');
-  //       },
-  //     );
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ReportScreen()),
+    );
 
-  //     setState(() => _guideText = '얼굴을 찾는 중...');
+    if (!mounted) return;
 
-  //     final faceFiles = await _cropFacesFromImage(File(picture.path)).timeout(
-  //       const Duration(seconds: 8),
-  //       onTimeout: () {
-  //         throw TimeoutException('얼굴 감지 시간이 초과되었습니다.');
-  //       },
-  //     );
+    try {
+      if (controller != null &&
+          controller.value.isInitialized &&
+          !controller.value.isStreamingImages &&
+          _capturedImage == null) {
+        await controller.startImageStream(_processCameraImage);
+      }
+    } catch (_) {}
+  }
 
-  //     if (faceFiles.isEmpty) {
-  //       if (!mounted) return;
-  //       setState(() => _guideText = '얼굴을 찾지 못했습니다. 다시 맞춰주세요.');
+  Future<FaceVerifyResult> _uploadFullImage(File imageFile) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_pythonServerUrl/api/face/verify'),
+      );
 
-  //       if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-  //         await controller.startImageStream(_processCameraImage);
-  //       }
-  //       return;
-  //     }
+      request.files.add(
+        await http.MultipartFile.fromPath('faces', imageFile.path),
+      );
 
-  //     setState(() => _guideText = '서버에서 얼굴을 확인하는 중...');
+      final response = await request.send().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('얼굴 확인 연결 시간이 초과되었습니다.');
+        },
+      );
 
-  //     final result = await _uploadFaceCrops(faceFiles).timeout(
-  //       const Duration(seconds: 12),
-  //       onTimeout: () {
-  //         throw TimeoutException('서버 응답 시간이 초과되었습니다.');
-  //       },
-  //     );
+      final body = await response.stream.bytesToString().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
+        },
+      );
 
-  //     if (!mounted) return;
+      if (response.statusCode != 200) {
+        return FaceVerifyResult(
+          matched: false,
+          message: '얼굴 확인에 실패했습니다. (${response.statusCode})',
+        );
+      }
 
-  //     if (result.matched) {
-  //       setState(() {
-  //         _hasMatchedFace = true;
-  //         _capturedImage = picture;
-  //         _matchedImage = picture;
-  //         _guideText = result.message;
-  //         _isUploading = false;
-  //       });
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final status = data['status']?.toString() ?? 'NO_MATCH';
+      final bestCandidate = data['bestCandidate'];
 
-  //       return;
-  //     }
+      final candidateName = bestCandidate is Map<String, dynamic>
+          ? bestCandidate['seniorName']?.toString()
+          : null;
 
-  //     setState(() {
-  //       _guideText = result.message;
-  //     });
+      final name = data['seniorName']?.toString() ?? candidateName;
+      final similarity = data['bestSimilarity'];
 
-  //     await Future.delayed(const Duration(seconds: 2));
+      String formatSimilarity(dynamic value) {
+        if (value is num) return value.toStringAsFixed(2);
+        return value?.toString() ?? '-';
+      }
 
-  //     if (mounted && !_hasMatchedFace && !controller.value.isStreamingImages) {
-  //       await controller.startImageStream(_processCameraImage);
-  //     }
-  //   } on TimeoutException catch (e) {
-  //     if (!mounted) return;
-  //     final message = e.message ?? '얼굴 확인 시간이 초과되었습니다.';
-  //     setState(() => _guideText = message);
+      final scoreText = formatSimilarity(similarity);
+      final displayName = name == null || name.isEmpty ? '등록된 실종자' : name;
 
-  //     if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-  //       try {
-  //         await controller.startImageStream(_processCameraImage);
-  //       } catch (_) {}
-  //     }
-  //   } catch (_) {
-  //     if (!mounted) return;
-  //     setState(() => _guideText = '얼굴 확인에 실패했습니다. 서버 상태를 확인해주세요.');
+      if (status == 'MATCH') {
+        return FaceVerifyResult(
+          matched: true,
+          seniorName: name,
+          message: '$displayName님과 일치 가능성이 높습니다. 유사도: $scoreText',
+        );
+      }
 
-  //     if (!_hasMatchedFace && !controller.value.isStreamingImages) {
-  //       try {
-  //         await controller.startImageStream(_processCameraImage);
-  //       } catch (_) {}
-  //     }
-  //   } finally {
-  //     if (mounted && !_hasMatchedFace) {
-  //       setState(() => _isUploading = false);
-  //     }
-  //   }
-  // }
+      if (status == 'CANDIDATE') {
+        return FaceVerifyResult(
+          matched: false,
+          seniorName: name,
+          message: '$displayName님과 비슷한 얼굴입니다. 확인이 필요합니다. 유사도: $scoreText',
+        );
+      }
+
+      return FaceVerifyResult(
+        matched: false,
+        message: '일치하는 실종자 얼굴이 없습니다. 유사도: $scoreText',
+      );
+    } on TimeoutException {
+      rethrow;
+    } catch (_) {
+      return const FaceVerifyResult(
+        matched: false,
+        message: '얼굴 확인 서비스에 연결할 수 없습니다.',
+      );
+    }
+  }
 
   Future<List<File>> _cropFacesFromImage(File imageFile) async {
     final inputImage = InputImage.fromFilePath(imageFile.path);
@@ -493,7 +609,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     final previewSize = controller.value.previewSize;
     if (previewSize == null) return CameraPreview(controller);
 
-    return ClipRect(
+    final preview = ClipRect(
       child: FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
@@ -503,6 +619,16 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         ),
       ),
     );
+
+    if (controller.description.lensDirection == CameraLensDirection.front) {
+      return Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+        child: preview,
+      );
+    }
+
+    return preview;
   }
 
   @override
@@ -522,6 +648,15 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         title: const Text('얼굴 확인'),
         backgroundColor: _kGreen,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: _isInitializing || _isUploading ? null : _switchCamera,
+            icon: const Icon(Icons.flip_camera_ios_outlined),
+            tooltip: _lensDirection == CameraLensDirection.front
+                ? '후면 카메라'
+                : '셀카 모드',
+          ),
+        ],
       ),
       body: SafeArea(
         child: _isInitializing
@@ -535,9 +670,14 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                       children: [
                         if (_capturedImage != null)
                           Positioned.fill(
-                            child: Image.file(
-                              File(_capturedImage!.path),
-                              fit: BoxFit.cover,
+                            child: Transform(
+                              alignment: Alignment.center,
+                              transform: Matrix4.identity()
+                                ..scale(_isSelfieMode ? -1.0 : 1.0, 1.0, 1.0),
+                              child: Image.file(
+                                File(_capturedImage!.path),
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           )
                         else if (controller != null)
@@ -561,15 +701,24 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                   color: Colors.black.withValues(alpha: 0.55),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Text(
-                                  _guideText,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                                child: _isUploading
+                                    ? _BouncingLoadingText(
+                                        text: _guideText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      )
+                                    : Text(
+                                        _guideText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                               ),
                               const SizedBox(height: 12),
                               if (_capturedImage == null)
@@ -642,7 +791,11 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                       child: SizedBox(
                                         height: 48,
                                         child: FilledButton(
-                                          onPressed: _verifyCapturedImage,
+                                          onPressed: _isUploading
+                                              ? null
+                                              : _hasVerifyResult
+                                              ? _goToReportScreen
+                                              : _verifyCapturedImage,
                                           style: FilledButton.styleFrom(
                                             backgroundColor: _kGreen,
                                             foregroundColor: Colors.white,
@@ -655,7 +808,11 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                             ),
                                           ),
                                           child: Text(
-                                            _isUploading ? '확인 중' : '확인하기',
+                                            _isUploading
+                                                ? '확인 중'
+                                                : _hasVerifyResult
+                                                ? '신고하기'
+                                                : '확인하기',
                                             style: const TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w700,

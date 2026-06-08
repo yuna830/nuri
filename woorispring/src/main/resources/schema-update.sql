@@ -171,3 +171,30 @@ create table if not exists rag_public_welfare_jobs (
     created_at timestamp default current_timestamp,
     updated_at timestamp default current_timestamp
 );
+
+create table if not exists missing_report_images (
+                                                     id bigserial primary key,
+                                                     missing_report_id bigint not null,
+                                                     image_url varchar(500) not null,
+    sort_order integer not null default 0,
+    created_at timestamp not null default current_timestamp,
+    constraint fk_missing_report_images_report
+    foreign key (missing_report_id)
+    references missing_reports (id)
+    on delete cascade
+    );
+
+create index if not exists idx_missing_report_images_report
+    on missing_report_images (missing_report_id, sort_order, id);
+
+insert into missing_report_images (missing_report_id, image_url, sort_order)
+select id, image_url, 0
+from missing_reports
+where image_url is not null
+  and image_url <> ''
+  and not exists (
+    select 1
+    from missing_report_images mri
+    where mri.missing_report_id = missing_reports.id
+      and mri.image_url = missing_reports.image_url
+);
