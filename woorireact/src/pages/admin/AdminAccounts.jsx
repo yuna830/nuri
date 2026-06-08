@@ -3,6 +3,7 @@ import { Check, Trash2, X } from "lucide-react";
 
 import { deleteAdmin, fetchAdmins, updateAdminStatus } from "../../api/adminAuthApi";
 import AdminLayout from "./AdminLayout";
+import { sortAdminsByPendingFirst } from "./adminListUtils";
 
 const statusLabel = {
   PENDING: "승인 대기",
@@ -16,6 +17,7 @@ function AdminAccounts() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [savingId, setSavingId] = useState(null);
+  const orderedAdmins = sortAdminsByPendingFirst(admins);
 
   useEffect(() => {
     fetchAdmins()
@@ -70,6 +72,7 @@ function AdminAccounts() {
         <p className="admin-empty">관리자 계정을 불러오는 중입니다.</p>
       ) : (
         <div className="admin-table-box">
+          <div className="admin-table-summary">총 {orderedAdmins.length}명</div>
           <table className="admin-table">
             <thead>
               <tr>
@@ -82,7 +85,7 @@ function AdminAccounts() {
               </tr>
             </thead>
             <tbody>
-              {admins.map((admin) => (
+              {orderedAdmins.map((admin) => (
                 <tr key={admin.id}>
                   <td className="admin-name-cell">{admin.name}</td>
                   <td>{admin.loginId || "-"}</td>

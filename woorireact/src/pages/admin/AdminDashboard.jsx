@@ -8,6 +8,7 @@ import {
   getWorkerSeniorCount,
 } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
+import { sortRecentFirst } from "./adminListUtils";
 import { useAdminData } from "./useAdminData";
 
 function AdminDashboard() {
@@ -32,6 +33,9 @@ function AdminDashboard() {
       hint: "\ubcf4\ud638\uc790 \ub610\ub294 \ubcf5\uc9c0\uc0ac \uc5f0\uacb0 \ud544\uc694",
     },
   ];
+  const recentSeniors = sortRecentFirst(seniors).slice(0, 5);
+  const recentWelfareWorkers = sortRecentFirst(welfareWorkers).slice(0, 5);
+  const recentGuardians = sortRecentFirst(guardians).slice(0, 5);
 
   return (
     <AdminLayout>
@@ -72,8 +76,8 @@ function AdminDashboard() {
 
           <section className="admin-section">
             <header className="admin-page-header">
-              <h1>{"최근 보호대상자 연결 현황"}</h1>
-              <p>{"\ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\uc640 \ubcf4\ud638\uc790 \uc5f0\uacb0\uc774 \ube44\uc5b4 \uc788\ub294\uc9c0 \ube60\ub974\uac8c \ud655\uc778\ud569\ub2c8\ub2e4."}</p>
+              <h1>{"최근 가입 보호대상자 현황"}</h1>
+              <p>{"최근 가입한 보호대상자 5명의 연결 상태를 확인합니다."}</p>
             </header>
 
             <div className="admin-table-box">
@@ -88,7 +92,7 @@ function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {seniors.slice(0, 5).map((senior) => {
+                  {recentSeniors.map((senior) => {
                     const worker = getSeniorWelfareWorker(senior, welfareById);
                     const seniorGuardians = getSeniorGuardians(senior, guardianById);
 
@@ -115,7 +119,7 @@ function AdminDashboard() {
             <div className="admin-panel">
               <h2>{"\ubcf5\uc9c0\uc0ac \ub2f4\ub2f9 \ud604\ud669"}</h2>
               <div className="admin-linked-list">
-                {welfareWorkers.map((worker) => (
+                {recentWelfareWorkers.map((worker) => (
                   <div key={worker.id} className="admin-linked-item">
                     <strong>{worker.name}</strong>
                     <span>{`${worker.center} / 담당 보호대상자 ${getWorkerSeniorCount(worker.id, seniors)}명`}</span>
@@ -127,7 +131,7 @@ function AdminDashboard() {
             <div className="admin-panel">
               <h2>{"\ubcf4\ud638\uc790 \uc5f0\uacb0 \ud604\ud669"}</h2>
               <div className="admin-linked-list">
-                {guardians.map((guardian) => {
+                {recentGuardians.map((guardian) => {
                   const names = getGuardianSeniorNames(guardian, seniors);
 
                   return (

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Repeat2 } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Repeat2 } from "lucide-react";
 
 import { getSeniorGuardians, getSeniorWelfareWorker, updateSeniorWelfareWorker } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
@@ -8,6 +8,8 @@ import { useAdminData } from "./useAdminData";
 
 function AdminSeniorDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { seniors, welfareWorkers, welfareById, guardianById, isLoading, loadError } = useAdminData();
   const senior = useMemo(() => seniors.find((item) => String(item.id) === String(id)), [id, seniors]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -28,15 +30,15 @@ function AdminSeniorDetail() {
 
   const worker = getSeniorWelfareWorker(displayedSenior, welfareById);
   const guardians = getSeniorGuardians(displayedSenior, guardianById);
-  const currentWorkerId = displayedSenior?.welfareId ? String(displayedSenior.welfareId) : "";
+  const currentWorkerId = worker?.id ? String(worker.id) : "";
   const hasSelectionChanged = selectedWorkerId !== currentWorkerId;
   const actionLabel = selectedWorkerId ? "\uc7ac\ubc30\uc815" : worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\uc7ac\ubc30\uc815";
 
   useEffect(() => {
     if (!displayedSenior) return;
-    setSelectedWorkerId(displayedSenior.welfareId ? String(displayedSenior.welfareId) : "");
+    setSelectedWorkerId(worker?.id ? String(worker.id) : "");
     setFallApiUrl(displayedSenior.fallApiUrl || "");
-  }, [displayedSenior?.id, displayedSenior?.welfareId, displayedSenior?.fallApiUrl]);
+  }, [displayedSenior?.id, displayedSenior?.welfareId, displayedSenior?.fallApiUrl, worker?.id]);
 
   const handleCameraSave = async () => {
     if (!displayedSenior) return;
@@ -84,11 +86,33 @@ function AdminSeniorDetail() {
     }
   };
 
+  const goBackToList = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+      return;
+    }
+
+    if (window.history.state?.idx > 0) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/admin/seniors");
+  };
+
   return (
     <AdminLayout>
       <header className="admin-page-header">
-        <h1>{"보호대상자 상세"}</h1>
-        <p>{"\uc5f0\uacb0\ub41c \ubcf4\ud638\uc790\uc640 \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\ub97c \ud655\uc778\ud558\uace0 \ubcf5\uc9c0\uc0ac\ub97c \uc7ac\ubc30\uc815\ud569\ub2c8\ub2e4."}</p>
+        <div className="admin-page-header-row">
+          <div>
+            <h1>{"보호대상자 상세"}</h1>
+            <p>{"\uc5f0\uacb0\ub41c \ubcf4\ud638\uc790\uc640 \ub2f4\ub2f9 \ubcf5\uc9c0\uc0ac\ub97c \ud655\uc778\ud558\uace0 \ubcf5\uc9c0\uc0ac\ub97c \uc7ac\ubc30\uc815\ud569\ub2c8\ub2e4."}</p>
+          </div>
+          <button type="button" className="admin-button" onClick={goBackToList}>
+            <ArrowLeft size={16} />
+            목록으로
+          </button>
+        </div>
       </header>
 
       {loadError ? (
@@ -146,9 +170,9 @@ function AdminSeniorDetail() {
                 aria-label="\uc7ac\ubc30\uc815\ud560 \ubcf5\uc9c0\uc0ac"
               >
                 <option value="">{worker ? "\ub2f4\ub2f9 \ud574\uc81c" : "\ubcf5\uc9c0\uc0ac \uc120\ud0dd"}</option>
-                {welfareWorkers.map((item) => (
+                {welfareWorkers.filter((item) => item.active).map((item) => (
                   <option key={item.id} value={item.id}>
-                    {`${item.name} / ${item.center || "-"}${item.active ? "" : " / \ube44\ud65c\uc131"}`}
+                    {`${item.name} / ${item.center || "-"}`}
                   </option>
                 ))}
               </select>
