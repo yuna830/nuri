@@ -176,6 +176,13 @@
   margin-bottom: 18px;
 }
 
+.admin-page-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .admin-page-header h1 {
   margin: 0;
   font-size: 28px;
@@ -319,6 +326,14 @@
   overflow-x: auto;
 }
 
+.admin-table-summary {
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e9ee;
+  color: #556171;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .admin-table {
   width: 100%;
   min-width: 760px;
@@ -345,6 +360,44 @@
 
 .admin-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.admin-pagination {
+  padding: 14px 16px;
+  border-top: 1px solid #e5e9ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.admin-pagination button {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid #d3dce6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #405a78;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-pagination button:hover,
+.admin-pagination button.active {
+  border-color: #9aaabd;
+  background: #eef3f8;
+}
+
+.admin-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-pagination button:disabled:hover {
+  border-color: #d3dce6;
+  background: #ffffff;
 }
 
 .admin-clickable-row {

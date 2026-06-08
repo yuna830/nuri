@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { getSeniorGuardians, getSeniorWelfareWorker } from "../../api/adminApi";
 import AdminLayout from "./AdminLayout";
+import AdminPagination from "./AdminPagination";
+import { getPageCount, paginateItems, sortRecentFirst } from "./adminListUtils";
 import { useAdminData } from "./useAdminData";
 
 const TEXT = {
@@ -26,10 +28,13 @@ const TEXT = {
 
 function AdminSeniors() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { seniors, welfareById, guardianById, isLoading, loadError } = useAdminData();
   const [keyword, setKeyword] = useState("");
   const filter = searchParams.get("filter") || "all";
+  const pageParam = Number(searchParams.get("page") || 1);
+  const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
   const filterOptions = [
     { value: "all", label: TEXT.all },
     { value: "unlinked", label: TEXT.unlinked },
@@ -50,15 +55,42 @@ function AdminSeniors() {
       return true;
     });
 
-    if (!value) return connectionFilteredSeniors;
+    if (!value) return sortRecentFirst(connectionFilteredSeniors);
 
-    return connectionFilteredSeniors.filter((senior) =>
-      [senior.name, senior.age, senior.address, getSeniorWelfareWorker(senior, welfareById)?.name]
-        .join(" ")
-        .toLowerCase()
-        .includes(value)
+    return sortRecentFirst(
+      connectionFilteredSeniors.filter((senior) =>
+        [senior.name, senior.age, senior.address, getSeniorWelfareWorker(senior, welfareById)?.name]
+          .join(" ")
+          .toLowerCase()
+          .includes(value)
+      )
     );
   }, [filter, guardianById, keyword, seniors, welfareById]);
+  const pageCount = getPageCount(filteredSeniors);
+  const pagedSeniors = paginateItems(filteredSeniors, page);
+
+  const updatePage = useCallback((nextPage) => {
+    const params = new URLSearchParams(searchParams);
+
+    if (nextPage <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(nextPage));
+    }
+
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (page > pageCount) updatePage(pageCount);
+  }, [page, pageCount, updatePage]);
+
+  const updateKeyword = (nextKeyword) => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("page");
+    setKeyword(nextKeyword);
+    setSearchParams(params, { replace: true });
+  };
 
   return (
     <AdminLayout>
@@ -73,7 +105,7 @@ function AdminSeniors() {
           type="search"
           value={keyword}
           placeholder={TEXT.searchPlaceholder}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={(event) => updateKeyword(event.target.value)}
         />
         <div className="admin-filter-tabs" aria-label="보호대상자 필터">
           {filterOptions.map((option) => (
@@ -101,6 +133,7 @@ function AdminSeniors() {
         <p className="admin-empty">{TEXT.loading}</p>
       ) : (
         <div className="admin-table-box">
+          <div className="admin-table-summary">총 {filteredSeniors.length}명</div>
           <table className="admin-table">
             <thead>
               <tr>
@@ -112,7 +145,7 @@ function AdminSeniors() {
               </tr>
             </thead>
             <tbody>
-              {filteredSeniors.map((senior) => {
+              {pagedSeniors.map((senior) => {
                 const worker = getSeniorWelfareWorker(senior, welfareById);
                 const guardians = getSeniorGuardians(senior, guardianById);
 
@@ -120,7 +153,11 @@ function AdminSeniors() {
                   <tr
                     key={senior.id}
                     className={`admin-clickable-row ${senior.active ? "" : "admin-inactive-row"}`}
-                    onClick={() => navigate(`/admin/seniors/${senior.id}`)}
+                    onClick={() =>
+                      navigate(`/admin/seniors/${senior.id}`, {
+                        state: { from: `${location.pathname}${location.search}` },
+                      })
+                    }
                   >
                     <td className="admin-name-cell">{senior.name}</td>
                     <td>{senior.age ? `${senior.age}\uc138` : "-"}</td>
@@ -136,6 +173,7 @@ function AdminSeniors() {
               })}
             </tbody>
           </table>
+          <AdminPagination page={page} pageCount={pageCount} onPageChange={updatePage} />
         </div>
       )}
     </AdminLayout>
