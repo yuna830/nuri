@@ -1872,6 +1872,29 @@
   font-weight: 800;
 }
 
+.guardian-welfare-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.guardian-welfare-sources-label {
+  font-size: 12px;
+  color: #7a9a7c;
+  font-weight: 600;
+}
+
+.guardian-welfare-source-tag {
+  font-size: 12px;
+  background: #f0f5ef;
+  color: #4a6b4d;
+  border-radius: 999px;
+  padding: 3px 10px;
+  border: 1px solid #d4e8d6;
+}
+
 .guardian-checkin-card {
   overflow: hidden;
 }

@@ -198,6 +198,7 @@ function WelfareCommonHeader({ rightText }) {
             message: `${seniorName} 대상자가 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`,
         });
 
+        // inactive- 가상 알림이라 서버 read API 호출 불필요 — 로컬 state만 업데이트
         setCheckInRequestedNotificationIds((previousIds) =>
             previousIds.includes(notification.id)
                 ? previousIds
@@ -310,7 +311,11 @@ function WelfareCommonHeader({ rightText }) {
             return defaultAction;
         }
 
-        const isRequested = checkInRequestedNotificationIds.includes(notification.id);
+        // 변경 — 서버에서 이미 읽음 처리된 것도 포함
+        const isRequested =
+            checkInRequestedNotificationIds.includes(notification.id) ||
+            notification.isRead === true ||
+            notification.raw?.isRead === true;
 
         if (!isRequested) {
             return (

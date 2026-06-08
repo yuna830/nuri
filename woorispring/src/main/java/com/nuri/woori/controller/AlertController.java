@@ -428,8 +428,38 @@ public class AlertController {
         alert.setGuardianResponseType(request.responseType());
         alert.setGuardianScheduleAt(request.scheduleAt());
         alert.setGuardianRespondedAt(LocalDateTime.now());
+        alertRepository.save(alert);
 
-        return alertRepository.save(alert);
+        // 복지사에게 응답 알림 생성
+        Senior senior = seniorRepository.findById(alert.getSeniorId()).orElse(null);
+        String seniorName = senior != null ? senior.getName() : "대상자";
+
+        String responseMessage = "즉시".equals(request.responseType())
+                ? seniorName + "님 보호자가 지금 바로 상담 가능하다고 응답했습니다."
+                : seniorName + "님 보호자가 상담 일정을 " + request.scheduleAt() + "으로 제안했습니다.";
+
+        Alert responseAlert = new Alert();
+        responseAlert.setSeniorId(alert.getSeniorId());
+        responseAlert.setGuardianId(alert.getGuardianId());
+        responseAlert.setType("WELFARE_CONSULT_RESPONSE");
+        responseAlert.setTitle("보호자 상담 응답");
+        responseAlert.setMessage(responseMessage);
+        responseAlert.setIsRead(false);
+
+        Alert saved = alertRepository.save(responseAlert);
+
+        // 복지사 FCM 푸시
+        if (senior != null && senior.getWelfareWorkerId() != null) {
+            fcmPushService.sendToUser(
+                    "WELFARE_WORKER",
+                    senior.getWelfareWorkerId(),
+                    saved.getTitle(),
+                    saved.getMessage(),
+                    saved.getType()
+            );
+        }
+
+        return saved;
     }
 
     @GetMapping("/welfare")
@@ -480,6 +510,7 @@ public class AlertController {
                 .stream()
                 .filter(senior -> senior.getLastLoginAt() != null)
                 .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
+                .filter(senior -> !alertRepository.existsBySeniorIdAndTypeAndIsReadFalse(senior.getId(), "CHECK_IN_REQUEST"))
                 .map(senior -> new WelfareAlertResponse(
                         "inactive-" + senior.getId(),
                         senior.getId(),
@@ -507,12 +538,24 @@ public class AlertController {
                   .map(alert -> toWelfareResponse(alert, "profile-update-", "정보 수정 완료", "PROFILE_UPDATE"))
                   .toList();
 
+        // 보호자 상담 응답 알림
+        LocalDateTime consultResponseCutoff = LocalDateTime.now().minusDays(7);
+        List<WelfareAlertResponse> consultResponseAlerts = managedSeniorIds.isEmpty()
+                ? List.of()
+                : alertRepository.findBySeniorIdInAndTypeAndCreatedAtAfterOrderByCreatedAtDesc(
+                        managedSeniorIds, "WELFARE_CONSULT_RESPONSE", consultResponseCutoff)
+                .stream()
+                .filter(alert -> !alert.getIsRead())
+                .map(alert -> toWelfareResponse(alert, "consult-response-", "보호자 상담 응답", "WELFARE_CONSULT_RESPONSE"))
+                .toList();
+
         List<WelfareAlertResponse> responses = new ArrayList<>();
         responses.addAll(fallAlerts);
         responses.addAll(sosAlerts);
         responses.addAll(checkInOkAlerts);
         responses.addAll(inactiveAlerts);
         responses.addAll(profileUpdateAlerts);
+        responses.addAll(consultResponseAlerts);
 
         return responses.stream()
                 .sorted((first, second) -> second.createdAt().compareTo(first.createdAt()))

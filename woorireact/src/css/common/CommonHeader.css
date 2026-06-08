@@ -266,6 +266,12 @@
 .uch-alert-item.common-alert-item .uch-alert-action > button {
   width: 100%;
   min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  background: #f3f5ef;
+  color: #222222;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .uch-alert-item.common-alert-item .uch-alert-action > em {
@@ -327,7 +333,8 @@
 }
 
 .guardian-alert-primary-action {
-  background: #c95b57 !important;
+  background: #86A788 !important;
+  color: #ffffff !important;
 }
 
 .guardian-alert-date-action {
@@ -409,7 +416,7 @@
 .welfare-alert-primary-action {
     border: 0;
     color: #ffffff;
-    background: #c95b57;
+    background: #86A788 !important;
 }
 
 .uch-alert-item .welfare-alert-secondary-action {

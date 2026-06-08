@@ -389,6 +389,21 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
                         ? formatWelfareAnswer(message.text)
                         : message.text}
                     </p>
+
+                    {/* 마지막 assistant 메시지에만 출처 표시 */}
+                    {message.role === "assistant" &&
+                      index === welfareMessages.length - 1 &&
+                      evidence.length > 0 && (
+                        <div className="guardian-welfare-sources">
+                          <span className="guardian-welfare-sources-label">출처</span>
+                          {evidence.map((src, i) => (
+                            <span key={i} className="guardian-welfare-source-tag">
+                              {src.service_name || src.filename || "복지 문서"}
+                              {src.department ? ` · ${src.department}` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                   </article>
                 ))}
 
