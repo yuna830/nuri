@@ -22,6 +22,10 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     boolean existsBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
 
+    boolean existsByGuardianIdAndSeniorIdAndType(Long guardianId, Long seniorId, String type);
+
+    boolean existsByGuardianIdAndSeniorIdAndTypeAndIsReadFalse(Long guardianId, Long seniorId, String type);
+
     long countBySeniorIdAndTypeAndIsReadFalse(Long seniorId, String type);
 
     List<Alert> findBySeniorIdAndTypeInAndCreatedAtBefore(Long seniorId, List<String> types, LocalDateTime cutoff);

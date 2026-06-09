@@ -24,15 +24,6 @@ extension _GuardianChatTargetValue on _GuardianChatTarget {
     }
   }
 
-  String get title {
-    switch (this) {
-      case _GuardianChatTarget.senior:
-        return '어르신과 채팅';
-      case _GuardianChatTarget.socialWorker:
-        return '담당 복지사와 채팅';
-    }
-  }
-
   String get emptyText {
     switch (this) {
       case _GuardianChatTarget.senior:
@@ -96,6 +87,152 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
     }
   }
 
+  void _showSeniorPicker() {
+    if (_seniors.length <= 1) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(16),
+        ),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5E5EA),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '대상자 선택',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1F2A20),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                for (final senior in _seniors) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor:
+                          const Color(0xFF86A788).withValues(alpha: 0.16),
+                      child: const Icon(
+                        Icons.person,
+                        size: 18,
+                        color: Color(0xFF4A7A4C),
+                      ),
+                    ),
+                    title: Text(
+                      senior.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1F2A20),
+                      ),
+                    ),
+                    subtitle: Text(
+                      senior.lastLocationAddress,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF6D766A),
+                      ),
+                    ),
+                    trailing: _selectedSenior?.id == senior.id
+                        ? const Icon(
+                            Icons.check,
+                            size: 18,
+                            color: Color(0xFF86A788),
+                          )
+                        : null,
+                    onTap: () {
+                      setState(() => _selectedSenior = senior);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                  if (senior != _seniors.last)
+                    const Divider(
+                      height: 1,
+                      color: Color(0xFFE5E5EA),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAppBarTitle() {
+    final selected = _selectedSenior;
+
+    return Row(
+      children: [
+        const Text(
+          '채팅',
+          style: TextStyle(
+            color: Color(0xFF1F2A20),
+            fontWeight: FontWeight.w900,
+            fontSize: 20,
+          ),
+        ),
+        if (selected != null) ...[
+          const SizedBox(width: 8),
+          Flexible(
+            child: GestureDetector(
+              onTap: _seniors.length > 1 ? _showSeniorPicker : null,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      selected.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF6D766A),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  if (_seniors.length > 1) ...[
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: Color(0xFF6D766A),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _selectedSenior;
@@ -106,17 +243,27 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          '채팅',
-          style: TextStyle(
-            color: Color(0xFF1F2A20),
-            fontWeight: FontWeight.w900,
+        titleSpacing: 0,
+        title: _buildAppBarTitle(),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: _AppBarTargetToggle(
+                selectedTarget: _selectedTarget,
+                onChanged: (target) {
+                  setState(() => _selectedTarget = target);
+                },
+              ),
+            ),
           ),
-        ),
+        ],
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF86A788)),
+              child: CircularProgressIndicator(
+                color: Color(0xFF86A788),
+              ),
             )
           : _seniors.isEmpty
               ? const Center(
@@ -128,100 +275,25 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
                     ),
                   ),
                 )
-              : Column(
-                  children: [
-                    _SeniorSelector(
-                      seniors: _seniors,
-                      selectedSenior: selected,
-                      onChanged: (senior) {
-                        setState(() => _selectedSenior = senior);
-                      },
+              : selected == null || _guardianId == null
+                  ? const SizedBox.shrink()
+                  : _GuardianHumanChatRoom(
+                      key: ValueKey(
+                        '${selected.id}-${_selectedTarget.roomType}',
+                      ),
+                      seniorId: selected.id,
+                      guardianId: _guardianId!,
+                      guardianName: _guardianName,
+                      roomType: _selectedTarget.roomType,
+                      emptyText: _selectedTarget.emptyText,
+                      seniorProfileImageUrl: selected.profileImageUrl,
                     ),
-
-                    _ChatTargetSelector(
-                      selectedTarget: _selectedTarget,
-                      onChanged: (target) {
-                        setState(() => _selectedTarget = target);
-                      },
-                    ),
-
-                    Expanded(
-                      child: selected == null || _guardianId == null
-                          ? const SizedBox.shrink()
-                          : _GuardianHumanChatRoom(
-                              key: ValueKey(
-                                '${selected.id}-${_selectedTarget.roomType}',
-                              ),
-                              seniorId: selected.id,
-                              guardianId: _guardianId!,
-                              guardianName: _guardianName,
-                              roomType: _selectedTarget.roomType,
-                              roomTitle: _selectedTarget.title,
-                              emptyText: _selectedTarget.emptyText,
-                              seniorProfileImageUrl:
-                                  selected.profileImageUrl,
-                            ),
-                    ),
-                  ],
-                ),
     );
   }
 }
 
-class _SeniorSelector extends StatelessWidget {
-  const _SeniorSelector({
-    required this.seniors,
-    required this.selectedSenior,
-    required this.onChanged,
-  });
-
-  final List<Senior> seniors;
-  final Senior? selectedSenior;
-  final ValueChanged<Senior> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: DropdownButtonFormField<int>(
-        value: selectedSenior?.id,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: const Color(0xFFF7F5E8),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 10,
-          ),
-        ),
-        items: seniors
-            .map(
-              (senior) => DropdownMenuItem<int>(
-                value: senior.id,
-                child: Text(senior.name),
-              ),
-            )
-            .toList(),
-        onChanged: (id) {
-          if (id == null) return;
-
-          final match = seniors.where((senior) => senior.id == id);
-
-          if (match.isNotEmpty) {
-            onChanged(match.first);
-          }
-        },
-      ),
-    );
-  }
-}
-
-class _ChatTargetSelector extends StatelessWidget {
-  const _ChatTargetSelector({
+class _AppBarTargetToggle extends StatelessWidget {
+  const _AppBarTargetToggle({
     required this.selectedTarget,
     required this.onChanged,
   });
@@ -232,51 +304,40 @@ class _ChatTargetSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F5E8),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _ChatTargetButton(
-                label: '어르신',
-                icon: Icons.person_outline,
-                selected: selectedTarget == _GuardianChatTarget.senior,
-                onTap: () => onChanged(_GuardianChatTarget.senior),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _ChatTargetButton(
-                label: '복지사',
-                icon: Icons.support_agent_outlined,
-                selected:
-                    selectedTarget == _GuardianChatTarget.socialWorker,
-                onTap: () => onChanged(_GuardianChatTarget.socialWorker),
-              ),
-            ),
-          ],
-        ),
+      height: 32,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F5E8),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _AppBarTargetButton(
+            label: '어르신',
+            selected: selectedTarget == _GuardianChatTarget.senior,
+            onTap: () => onChanged(_GuardianChatTarget.senior),
+          ),
+          const SizedBox(width: 3),
+          _AppBarTargetButton(
+            label: '복지사',
+            selected: selectedTarget == _GuardianChatTarget.socialWorker,
+            onTap: () => onChanged(_GuardianChatTarget.socialWorker),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ChatTargetButton extends StatelessWidget {
-  const _ChatTargetButton({
+class _AppBarTargetButton extends StatelessWidget {
+  const _AppBarTargetButton({
     required this.label,
-    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
@@ -287,42 +348,31 @@ class _ChatTargetButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: selected
               ? [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 4,
+                    blurRadius: 3,
                     offset: const Offset(0, 1),
                   ),
                 ]
               : [],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: selected
-                  ? const Color(0xFF4A7A4C)
-                  : const Color(0xFF6D766A),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: selected
-                    ? const Color(0xFF4A7A4C)
-                    : const Color(0xFF6D766A),
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: selected
+                ? const Color(0xFF4A7A4C)
+                : const Color(0xFF6D766A),
+          ),
         ),
       ),
     );
@@ -336,7 +386,6 @@ class _GuardianHumanChatRoom extends StatefulWidget {
     required this.guardianId,
     required this.guardianName,
     required this.roomType,
-    required this.roomTitle,
     required this.emptyText,
     required this.seniorProfileImageUrl,
   });
@@ -345,13 +394,11 @@ class _GuardianHumanChatRoom extends StatefulWidget {
   final int guardianId;
   final String guardianName;
   final String roomType;
-  final String roomTitle;
   final String emptyText;
   final String seniorProfileImageUrl;
 
   @override
-  State<_GuardianHumanChatRoom> createState() =>
-      _GuardianHumanChatRoomState();
+  State<_GuardianHumanChatRoom> createState() => _GuardianHumanChatRoomState();
 }
 
 class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
@@ -383,7 +430,6 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
         _messages = [];
         _loading = true;
       });
-
       _load();
     }
   }
@@ -415,7 +461,6 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
             _messages = list.whereType<Map<String, dynamic>>().toList();
             _loading = false;
           });
-
           _scrollToBottom();
         }
       } else {
@@ -492,13 +537,14 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF86A788)),
+        child: CircularProgressIndicator(
+          color: Color(0xFF86A788),
+        ),
       );
     }
 
     return Column(
       children: [
-        _RoomHeader(title: widget.roomTitle),
         Expanded(
           child: _messages.isEmpty
               ? Center(
@@ -534,41 +580,6 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
           onSend: _send,
         ),
       ],
-    );
-  }
-}
-
-class _RoomHeader extends StatelessWidget {
-  const _RoomHeader({
-    required this.title,
-  });
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.chat_bubble_outline,
-            size: 16,
-            color: Color(0xFF86A788),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF1F2A20),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -752,7 +763,11 @@ String _resolveProfileImageUrl(String rawUrl) {
   if (apiUri == null) return imageUrl;
 
   final serverOrigin = apiUri
-      .replace(path: '', queryParameters: null, fragment: null)
+      .replace(
+        path: '',
+        queryParameters: null,
+        fragment: null,
+      )
       .toString()
       .replaceFirst(RegExp(r'/$'), '');
 

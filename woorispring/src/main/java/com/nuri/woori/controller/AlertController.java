@@ -398,6 +398,22 @@ public class AlertController {
         return saveAndPushToGuardian(guardianAlert);
     }
 
+    @GetMapping("/consent-status")
+    public ConsentStatusResponse getConsentStatus(
+            @RequestParam Long guardianId,
+            @RequestParam Long seniorId
+    ) {
+        boolean confirmed = alertRepository.existsByGuardianIdAndSeniorIdAndType(
+                guardianId, seniorId, "CONSENT_CONFIRMED");
+        if (confirmed) return new ConsentStatusResponse("ALLOWED");
+
+        boolean pending = alertRepository.existsByGuardianIdAndSeniorIdAndTypeAndIsReadFalse(
+                guardianId, seniorId, "CONSENT_REQUEST");
+        if (pending) return new ConsentStatusResponse("PENDING");
+
+        return new ConsentStatusResponse("DENIED");
+    }
+
     @PatchMapping("/{id}/read")
     public Alert readAlert(@PathVariable Long id) {
         Alert alert = alertRepository.findById(id)
@@ -859,4 +875,6 @@ public class AlertController {
             Boolean isRead
     ) {
     }
+
+    public record ConsentStatusResponse(String status) {}
 }

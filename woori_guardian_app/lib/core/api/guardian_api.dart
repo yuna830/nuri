@@ -373,6 +373,66 @@ class GuardianApi {
     throw Exception('일자리 신청 내역을 불러오지 못했습니다.');
   }
 
+  Future<void> sendMedicationReminder({
+    required int seniorId,
+    required int guardianId,
+    String? message,
+  }) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/medicine');
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'seniorId': seniorId,
+              'guardianId': guardianId,
+              if (message != null && message.isNotEmpty) 'message': message,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('알림 전송에 실패했습니다. (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e.toString().contains('알림 전송')) rethrow;
+      throw Exception('알림 전송 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateGuardianProfile({
+    required int guardianId,
+    required String name,
+    required String email,
+    required String phone,
+    required String address,
+  }) async {
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/guardians/$guardianId/profile',
+    );
+    try {
+      final response = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name,
+              'email': email,
+              'phone': phone,
+              'address': address,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+      throw Exception('프로필 수정에 실패했습니다. (${response.statusCode})');
+    } catch (e) {
+      if (e.toString().contains('프로필 수정')) rethrow;
+      throw Exception('프로필 수정 중 오류가 발생했습니다: $e');
+    }
+  }
+
   Future<void> sendConsentRequest({
     required int guardianId,
     required int seniorId,
@@ -396,6 +456,29 @@ class GuardianApi {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('동의 요청 전송에 실패했습니다. (${response.statusCode})');
+    }
+  }
+
+  Future<String> fetchConsentStatus({
+    required int guardianId,
+    required int seniorId,
+  }) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/consent-status')
+        .replace(
+          queryParameters: {
+            'guardianId': guardianId.toString(),
+            'seniorId': seniorId.toString(),
+          },
+        );
+    try {
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['status'] as String? ?? 'DENIED';
+      }
+      return 'DENIED';
+    } catch (_) {
+      return 'DENIED';
     }
   }
 }
