@@ -1,13 +1,19 @@
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
+
+/* ========== shouldUseScheduleExtraction() 사용 정규화 ========== */
+/* 병원, 약속, 운동 등 일정 소재  */
 const SCHEDULE_INTENT_PATTERN =
   /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|복약|약|병원|진료|검진|접종|약국|방문|전화|운동|이동|행사|모임|치과|안과|내과|상담|약속|산책|공원|수영장|경로당|복지관|문화센터|주민센터|보건소|요양원|마트|시장|취침|기상|수면|잠|자기|식사|아침|점심|저녁)/;
 
+/*  등록, 추가, 삭제, 변경 등 명령  */
 const SCHEDULE_COMMAND_PATTERN =
   /(일정|예약|알림|리마인드|등록|추가|넣어|넣어줘|기억|챙겨|삭제|취소|지워|빼줘|없애|수정|변경|바꿔|미뤄|앞당겨|조회|확인|알려|보여)/;
 
+/*  추천이나 일상 대화  */
 const NON_SCHEDULE_QUESTION_PATTERN =
   /(날씨|기분|컨디션|뭐해|뭐 할까|뭐하지|뭐할지|뭘 하지|뭐 먹|먹을까|메뉴|추천|어때|좋아|나빠|누구|이름|이야기|농담|뉴스)/;
+/* ============================================================= */
 
 const TYPO_REPLACEMENTS = [
   [/낼/g, "내일"],
@@ -47,6 +53,7 @@ const KOREAN_TIME_NUMBER_PATTERN =
 export const TIME_EXPRESSION_PATTERN_SOURCE =
   `(오전|오후|아침|저녁|밤|새벽|낮|점심)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분?)?\\s*(?:에)?`;
 
+/*  문자 정규화  */
 export function normalizeScheduleText(text) {
   return TYPO_REPLACEMENTS.reduce(
     (normalized, [pattern, replacement]) => normalized.replace(pattern, replacement),
@@ -54,6 +61,7 @@ export function normalizeScheduleText(text) {
   );
 }
 
+/*  날짜 추출  */
 export function parseDateFromText(text, baseDate = new Date()) {
   const normalized = normalizeScheduleText(text).replace(/\s+/g, " ").trim();
 
@@ -83,6 +91,7 @@ export function parseTimeFromText(text) {
   return time ? time.value : "";
 }
 
+/*  시간 추출  */
 export function parseTimeExpression(text) {
   const normalized = normalizeScheduleText(text);
   const match = normalized.match(new RegExp(TIME_EXPRESSION_PATTERN_SOURCE));
@@ -106,6 +115,7 @@ export function parseTimeExpression(text) {
   };
 }
 
+/*  일정인지 판별  */
 export function shouldUseScheduleExtraction(text) {
   const normalized = normalizeScheduleText(text).replace(/\s+/g, " ").trim();
   if (!normalized) return false;
@@ -124,6 +134,38 @@ export function shouldUseScheduleExtraction(text) {
   return false;
 }
 
+/* =====================================================
+   일정 등록 전체 흐름
+
+   사용자 입력
+   ↓
+   parseKoreanSchedules()
+
+      ├─ parseDateFromText()
+      │   날짜 추출
+      │
+      ├─ parseTimeExpression()
+      │   시간 추출
+      │
+      ├─ cleanTitle()
+      │   일정 제목 추출
+      │
+      └─ shouldCreateScheduleCandidate()
+          일정 생성 가능 여부 판단
+
+   ↓
+
+   schedule 객체 생성
+
+   {
+     title,
+     date,
+     time
+   }
+
+===================================================== */
+
+/*  실제 사용 위치  */
 export function parseKoreanSchedules(text, baseDate = new Date()) {
   if (!text || !text.trim()) return [];
 
@@ -177,6 +219,10 @@ function shouldCreateScheduleCandidate({ text, date, time, title }) {
   return false;
 }
 
+/*  애매한 시간 처리  */
+/* 오늘 일정이고 오전 3시가 아직 지나지 않았다면 03:00
+오전 3시는 지났지만 오후 3시는 지나지 않았다면 15:00
+판단할 수 없을 땐 시간을 비워두고 ambiiguousTime에 저장  */
 function resolveScheduleTime(timeExpression, date, baseDate) {
   if (!timeExpression) return { time: "", ambiguousTime: null };
   if (!timeExpression.isAmbiguous) return { time: timeExpression.value, ambiguousTime: null };
@@ -214,7 +260,9 @@ function isCasualAdviceQuestion(text) {
   return /(뭐\s*하지|뭐\s*할지|뭘\s*하지|뭐\s*할까|뭐\s*먹을까|뭘\s*먹을까|메뉴\s*추천|추천해\s*줘|추천해줘)/.test(text);
 }
 
-function cleanTitle(text) {
+/*  제목 추출  */
+/* 날짜, 시간, 명령 표현을 제거 
+ */function cleanTitle(text) {
   const title = normalizeScheduleText(text)
     .replace(/20\d{2}[-./년\s]+\d{1,2}[-./월\s]+\d{1,2}일?/g, "")
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일?에?/g, "")
@@ -230,6 +278,7 @@ function cleanTitle(text) {
   return dedupeAdjacentWords(title);
 }
 
+/* 중복 제거  */
 function dedupeAdjacentWords(text) {
   return text
     .split(/\s+/)

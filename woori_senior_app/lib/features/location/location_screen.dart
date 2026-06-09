@@ -90,8 +90,9 @@ class _LocationScreenState extends State<LocationScreen>
   double? _lastSavedLat;
   double? _lastSavedLon;
   DateTime? _lastSavedAt;
-  String? _serverReceivedAt; // 서버 마지막 수신 시각
-  int _mapLevel = 3; // 카카오맵 줌 레벨 (1=최대확대, 14=최대축소)
+  String? _serverReceivedAt;
+  int _mapLevel = 3;
+  bool _mapInteracting = false;
 
   Timer? _locationTimer;
   Timer? _safeZoneTimer;
@@ -477,6 +478,7 @@ class _LocationScreenState extends State<LocationScreen>
       ),
       body: SafeArea(
         child: ListView(
+          physics: _mapInteracting ? const NeverScrollableScrollPhysics() : null,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             // ── 상태 카드 ─────────────────────────
@@ -490,7 +492,11 @@ class _LocationScreenState extends State<LocationScreen>
             const SizedBox(height: 12),
 
             // ── 지도 ──────────────────────────────
-            _LocationMapCard(
+            Listener(
+              onPointerDown: (_) => setState(() => _mapInteracting = true),
+              onPointerUp: (_) => setState(() => _mapInteracting = false),
+              onPointerCancel: (_) => setState(() => _mapInteracting = false),
+              child: _LocationMapCard(
               lat: _lat,
               lon: _lon,
               loading: _loading,
@@ -510,6 +516,7 @@ class _LocationScreenState extends State<LocationScreen>
                   : null,
               onZoomIn: _zoomIn,
               onZoomOut: _zoomOut,
+            ),
             ),
             const SizedBox(height: 12),
 

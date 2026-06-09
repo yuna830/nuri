@@ -97,7 +97,7 @@ function WelfareDashboard() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
+    //const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
     const [draftFilters, setDraftFilters] = useState(createEmptyFilters);
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -391,7 +391,7 @@ function WelfareDashboard() {
         }
 
         if (key === "emergency") {
-            setActiveFilterKey("alertStatus");
+            //setActiveFilterKey("alertStatus");
             setDraftFilters((previousFilters) => ({
                 ...previousFilters,
                 alertStatus: EMERGENCY_FILTER_VALUES,
@@ -1139,7 +1139,7 @@ function WelfareDashboard() {
 
                     <section className="wd-filter-area">
                         <div className="wd-search-row">
-                            <select
+                            {/* <select
                                 className="wd-condition-select"
                                 value={activeFilterKey}
                                 onChange={(event) => setActiveFilterKey(event.target.value)}
@@ -1150,7 +1150,7 @@ function WelfareDashboard() {
                                         {group.label}
                                     </option>
                                 ))}
-                            </select>
+                            </select> */}
 
                             <input
                                 id="senior-keyword-search"
