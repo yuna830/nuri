@@ -40,6 +40,15 @@ export function useChatFlow({
     setMessages((prev) => [...prev, { role: "user", content: text }]);
 
     try {
+      const guardianCall = getGuardianCallAction(text);
+      if (guardianCall) {
+        answer(guardianCall.answer, options);
+        if (guardianCall.telHref) {
+          window.location.href = guardianCall.telHref;
+        }
+        return;
+      }
+
       const weatherAnswer = await getWeatherChatAnswer(text);
       if (weatherAnswer) {
         answer(weatherAnswer, options);
@@ -486,4 +495,67 @@ function applyMeridiemToSchedule(schedule, meridiem) {
     time: `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
     ambiguousTime: null,
   };
+}
+
+function getGuardianCallAction(text) {
+  const guardian = getCurrentGuardianContact();
+  const normalizedText = String(text || "")
+    .replace(/\s+/g, "")
+    .replace(/[.!?,~]+$/g, "");
+  const callCommand =
+    /(?:전화|통화)(?:를)?(?:걸어(?:줘|주세요)?|해(?:줘|주세요)?|하자|연결해(?:줘|주세요)?)?$/;
+
+  if (!callCommand.test(normalizedText)) return null;
+
+  const targets = ["보호자", guardian.name]
+    .map((value) => String(value || "").replace(/\s+/g, ""))
+    .filter((value) => value.length >= 2);
+
+  if (!targets.some((target) => normalizedText.includes(target))) return null;
+
+  const phone = String(guardian.phone || "").replace(/[^\d+]/g, "");
+  if (!phone) {
+    return {
+      answer: "등록된 보호자 연락처가 없어요. 내 정보에서 보호자 연락처를 먼저 확인해 주세요.",
+      telHref: "",
+    };
+  }
+
+  return {
+    answer: `${guardian.name || "보호자"}님에게 전화를 연결할게요.`,
+    telHref: `tel:${phone}`,
+  };
+}
+
+function getCurrentGuardianContact() {
+  try {
+    const profile = JSON.parse(sessionStorage.getItem("currentSenior") || "null");
+    const senior = profile?.senior || profile || {};
+    const seniorId = senior?.id || localStorage.getItem("current_senior_id") || "";
+    const careTeamMap = JSON.parse(localStorage.getItem("seniorCareTeamMap") || "{}");
+    const localCareTeam = careTeamMap[String(seniorId)] || {};
+
+    return {
+      name:
+        profile?.guardian?.name
+        || profile?.guardianName
+        || senior?.guardianName
+        || localCareTeam.guardianName
+        || "",
+      relation:
+        profile?.guardian?.relation
+        || profile?.guardianRelation
+        || senior?.guardianRelation
+        || localCareTeam.guardianRelation
+        || "",
+      phone:
+        profile?.guardian?.phone
+        || profile?.guardianPhone
+        || senior?.guardianPhone
+        || localCareTeam.guardianPhone
+        || "",
+    };
+  } catch {
+    return { name: "", relation: "", phone: "" };
+  }
 }
