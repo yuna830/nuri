@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,6 +35,23 @@ public class FileUploadController {
             throw new IllegalArgumentException("업로드할 파일이 없습니다.");
         }
 
+        // 프로필 사진은 Base64 data URL로 반환 → DB에 저장 → 팀원 간 공유 가능
+        if ("profile".equals(category)) {
+            String contentType = uploadFile.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                contentType = "image/jpeg";
+            }
+            String base64 = Base64.getEncoder().encodeToString(uploadFile.getBytes());
+            String dataUrl = "data:" + contentType + ";base64," + base64;
+            String originalName = uploadFile.getOriginalFilename();
+            return ResponseEntity.ok(Map.of(
+                    "imageUrl", dataUrl,
+                    "fileUrl", dataUrl,
+                    "fileName", originalName != null ? originalName : ""
+            ));
+        }
+
+        // 그 외 카테고리(chat, missing-reports 등)는 기존대로 파일 시스템에 저장
         String originalFilename = uploadFile.getOriginalFilename();
         String extension = getExtension(originalFilename);
         String savedFilename = UUID.randomUUID() + extension;

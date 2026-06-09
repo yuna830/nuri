@@ -32,6 +32,7 @@ import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.j
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const getInitialSeniorProfile = () => {
   try {
@@ -925,7 +926,7 @@ export default function UserPage() {
             if (response.ok) {
               const freshProfile = await response.json();
 
-              sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              saveCurrentSenior(freshProfile);
               setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
@@ -961,7 +962,7 @@ export default function UserPage() {
 
         if (!latest) return;
 
-        sessionStorage.setItem("currentSenior", JSON.stringify(latest));
+        saveCurrentSenior(latest);
         localStorage.setItem("current_senior_id", String(latest.senior.id));
         setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
@@ -1312,7 +1313,7 @@ export default function UserPage() {
       if (!res.ok) throw new Error("edit_failed");
 
       const updated = await res.json();
-      sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+      saveCurrentSenior(updated);
       setCareTeam((prev) => ({
         ...prev,
         guardianName: guardianEditData.name.trim(),
@@ -1378,7 +1379,7 @@ export default function UserPage() {
       const profileRes = await fetch(`/api/seniors/${seniorId}`);
       if (profileRes.ok) {
         const updated = await profileRes.json();
-        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+        saveCurrentSenior(updated);
         setCurrentProfile(updated);
       }
       setCareTeam((prev) => ({
