@@ -106,10 +106,18 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
 
     await _clearMapOverlays();
 
-    _seniorPoi = await controller.labelLayer.addPoi(
-      kakao.LatLng(lat, lng),
-      style: kakao.PoiStyle(),
-    );
+    if (_latitude != null && _longitude != null) {
+      final icon = await kakao.KImage.fromWidget(
+        const Icon(Icons.location_pin, size: 48, color: Color(0xFF4A90E2)),
+        const Size(48, 48),
+        context: context,
+      );
+
+      _seniorPoi = await controller.labelLayer.addPoi(
+        kakao.LatLng(_latitude!, _longitude!),
+        style: kakao.PoiStyle(icon: icon, anchor: const kakao.KPoint(0.5, 1.0)),
+      );
+    }
   }
 
   @override
@@ -149,17 +157,6 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
                           await _syncMapOverlays();
                         },
                       ),
-                      if (hasLocation)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.only(bottom: 36),
-                            child: Icon(
-                              Icons.location_pin,
-                              size: 52,
-                              color: Color(0xFF4A90E2),
-                            ),
-                          ),
-                        ),
                       if (_isLoading)
                         Container(
                           color: Colors.grey.shade300.withValues(alpha: 0.8),

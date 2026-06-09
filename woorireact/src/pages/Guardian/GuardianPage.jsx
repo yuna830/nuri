@@ -527,12 +527,19 @@ function GuardianPage() {
         if (didLoadAlertsRef.current && newAlerts.length > 0) {
           const latestAlert = newAlerts[0];
 
-          setGuardianToast({
-            id: latestAlert.id,
-            type: latestAlert.type,
-            title: latestAlert.title || "새 알림이 도착했어요",
-            message: latestAlert.message || "보호 대상자의 새 알림을 확인해주세요.",
-          });
+          const isCheckInOk =
+            latestAlert.type === "CHECK_IN_OK" ||
+            latestAlert.title?.includes("안부 확인 완료") ||
+            latestAlert.message?.includes("안부 확인 결과 이상 없습니다");
+
+          if (!isCheckInOk) {
+            setGuardianToast({
+              id: latestAlert.id,
+              type: latestAlert.type,
+              title: latestAlert.title || "새 알림이 도착했어요",
+              message: latestAlert.message || "보호 대상자의 새 알림을 확인해주세요.",
+            });
+          }
         }
 
         didLoadAlertsRef.current = true;

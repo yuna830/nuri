@@ -66,6 +66,8 @@ class GroqService:
                 [대상 사용자]
                 - 보호자가 이해하기 쉽게 쉬운 말로 설명한다.
                 - 행정 용어는 풀어서 설명한다.
+                - 핵심 내용만 3~5문장 이내로 짧게 요약한다.
+                - 세부 지원 항목은 2~3개만 대표로 언급하고 나열하지 않는다.
                 - 다음 행동을 짧게 안내한다.
                 - 확정적으로 대상이라고 말하지 말고, 주민센터, 복지로 또는 담당 기관 확인이 필요하다고 안내한다.
                 """,
@@ -104,7 +106,7 @@ class GroqService:
                 - 지원 내용: {검색 문서에 있는 핵심 지원 내용을 1~2문장으로 요약한다.}
                 - 신청 방법: {검색 문서에 있는 주민센터, 복지로, 수행기관 등 신청 경로를 설명한다.}
                 - 확인 필요: {선정 전에 확인해야 하는 소득·재산, 가구 형태, 건강 상태, 돌봄 필요도, 기존 수급 여부 등을 적는다.}
-                - 근거: {참고한 문서명 또는 제도명}
+                - 근거: {실제 복지 제도 이름과 출처 기관명. '문서 1', '문서 2' 같은 번호 표현은 쓰지 않는다.}
 
                 마지막에는 다음 문장을 붙인다.
                 위 내용은 현재 등록된 대상자 정보와 검색된 복지 문서를 기준으로 한 검토 결과이므로, 실제 신청 가능 여부는 주민센터, 복지로 또는 담당 기관 확인이 필요합니다.
@@ -131,15 +133,23 @@ class GroqService:
     def _build_context(self, chunks: list[dict]) -> str:
         limited_chunks = chunks[:4]
 
-        return "\n\n".join(
-            [
-                f"[문서 {index + 1}] "
-                f"{chunk.get('service_name') or chunk.get('filename') or '복지 문서'}\n"
-                f"출처: {chunk.get('source') or chunk.get('department') or '제공 문서'}\n"
-                f"{self._limit_text(chunk.get('content') or '', 1200)}"
-                for index, chunk in enumerate(limited_chunks)
-            ]
-        )
+        seen_names = set()
+        result = []
+
+        for chunk in limited_chunks:
+            name = chunk.get("service_name") or chunk.get("filename") or "복지 문서"
+            source = chunk.get("source") or chunk.get("department") or "관련 기관"
+            content = self._limit_text(chunk.get("content") or "", 1200)
+
+            result.append(
+                f"[{name}]\n"
+                f"출처: {source}\n"
+                f"{content}"
+            )
+
+            seen_names.add(name)
+
+        return "\n\n".join(result)
 
     def _build_profile_text(self, profile: dict | None) -> str:
         if not profile:

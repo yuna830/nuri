@@ -90,7 +90,8 @@ export default function TripartiteChatModal({
 
   // 각 채팅방의 최신 메시지 발신자를 확인해 안읽음 여부 판단
   useEffect(() => {
-    if (!isOpen || senderRole !== "WELFARE" || !chatRooms.length) return;
+    //if (!isOpen || senderRole !== "WELFARE" || !chatRooms.length) return;
+    if (!isOpen || !chatRooms.length) return;
     let cancelled = false;
 
     const checkUnread = async () => {
@@ -111,7 +112,9 @@ export default function TripartiteChatModal({
             }, null);
             return {
               key: room.key,
-              hasUnread: Boolean(newest && newest.senderRole !== "WELFARE"),
+              //hasUnread: Boolean(newest && newest.senderRole !== "WELFARE"),
+              hasUnread: Boolean(newest && newest.senderRole !== senderRole),
+
             };
           } catch {
             return { key: room.key, hasUnread: false };

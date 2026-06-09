@@ -721,41 +721,59 @@ class _SeniorCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // 작은 위젯들
-// ═══════════════════════════════════════════════════════════════════════════════
 
 class _StatusBadge extends StatelessWidget {
   final String status;
+
   const _StatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final isSafe = status == '안전';
+
+    final color = isSafe ? _C.safe : _C.warn;
+    final bgColor = isSafe ? _C.safeBg : _C.warnBg;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
       decoration: BoxDecoration(
-        color: isSafe ? _C.safeBg : _C.warnBg,
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: isSafe ? _C.safe : _C.warn,
+              color: color,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 5),
-          Text(
-            status,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isSafe ? _C.safe : _C.warn,
+
+          // 글자만 배지 높이 기준 중앙 정렬
+          SizedBox(
+            height: 26,
+            child: Center(
+              child: Text(
+                status,
+                strutStyle: const StrutStyle(
+                  fontSize: 12,
+                  height: 1.0,
+                  forceStrutHeight: true,
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.0,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
             ),
           ),
         ],

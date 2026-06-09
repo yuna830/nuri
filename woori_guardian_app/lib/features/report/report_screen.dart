@@ -11,7 +11,7 @@ import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
-// ── 색상 토큰 ─────────────────────────────────────────────────────────────────
+// ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kSafe = Color(0xFF4A7A4C);
 const _kSafeBg = Color(0xFFEEF5EE);
@@ -46,6 +46,8 @@ const _kReportTypes = [
 enum _LocationMode { lastKnown, mapPick, search }
 
 enum _TargetMode { registeredSenior, otherPerson }
+
+const _kGenderOptions = ['남성', '여성'];
 
 // ── 화면 ─────────────────────────────────────────────────────────────────────
 
@@ -82,18 +84,28 @@ class _ReportScreenState extends State<ReportScreen> {
   // 주소 검색
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
-  List<_NominatimResult> _searchResults = [];
+  List<_KakaoPlaceResult> _searchResults = [];
   bool _searchLoading = false;
 
   _TargetMode _targetMode = _TargetMode.registeredSenior;
 
   final _otherNameCtrl = TextEditingController();
+  final _otherAgeCtrl = TextEditingController();
   final _otherPhoneCtrl = TextEditingController();
+  final _otherClothesCtrl = TextEditingController();
+
+  String _otherGender = '여성';
+
+  double? _selectedLocationLatitude;
+  double? _selectedLocationLongitude;
 
   bool get _canSubmit {
     final hasTarget = _targetMode == _TargetMode.registeredSenior
         ? _selectedSenior != null
-        : _otherNameCtrl.text.trim().isNotEmpty;
+        : _otherNameCtrl.text.trim().isNotEmpty &&
+              _otherAgeCtrl.text.trim().isNotEmpty &&
+              _otherPhoneCtrl.text.trim().isNotEmpty &&
+              _locationCtrl.text.trim().isNotEmpty;
 
     return _selectedType != null && hasTarget && _consentGiven;
   }
@@ -113,7 +125,9 @@ class _ReportScreenState extends State<ReportScreen> {
     _searchCtrl.dispose();
     _searchDebounce?.cancel();
     _otherNameCtrl.dispose();
+    _otherAgeCtrl.dispose();
     _otherPhoneCtrl.dispose();
+    _otherClothesCtrl.dispose();
     super.dispose();
   }
 
@@ -144,6 +158,10 @@ class _ReportScreenState extends State<ReportScreen> {
       _locationCtrl.text = s.lastLocationAddress != '위치 정보 없음'
           ? s.lastLocationAddress
           : '';
+
+      // 등록된 어르신의 마지막 위치 주소만 있을 수 있으므로 좌표는 비워둠
+      _selectedLocationLatitude = null;
+      _selectedLocationLongitude = null;
     }
   }
 
@@ -167,8 +185,13 @@ class _ReportScreenState extends State<ReportScreen> {
 
   void _removePhoto(int i) => setState(() => _photos.removeAt(i));
 
+  // 발생 시간 선택
   Future<void> _pickTime() async {
     DateTime temp = _incidentTime;
+    final title = _targetMode == _TargetMode.otherPerson
+        ? '마지막 목격 시간'
+        : '발생 시간';
+
     await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -176,105 +199,129 @@ class _ReportScreenState extends State<ReportScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return SizedBox(
-          height: 300,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        '발생 시간',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: _kTextMain,
+        return Localizations.override(
+          context: ctx,
+          locale: const Locale('ko', 'KR'),
+          child: SizedBox(
+            height: 300,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _kTextMain,
+                          ),
                         ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text(
-                        '취소',
-                        style: TextStyle(color: _kTextSub),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() => _incidentTime = temp);
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text(
-                        '확인',
-                        style: TextStyle(
-                          color: _kSafe,
-                          fontWeight: FontWeight.w600,
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          '취소',
+                          style: TextStyle(color: _kTextSub),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: _kDivider),
-              Expanded(
-                child: CupertinoDatePicker(
-                  initialDateTime: _incidentTime,
-                  maximumDate: DateTime.now(),
-                  minimumDate: DateTime.now().subtract(
-                    const Duration(days: 30),
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _incidentTime = temp);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text(
+                          '확인',
+                          style: TextStyle(
+                            color: _kSafe,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  mode: CupertinoDatePickerMode.dateAndTime,
-                  use24hFormat: true,
-                  onDateTimeChanged: (dt) => temp = dt,
                 ),
-              ),
-            ],
+                const Divider(height: 1, color: _kDivider),
+                Expanded(
+                  child: CupertinoDatePicker(
+                    initialDateTime: _incidentTime,
+                    maximumDate: DateTime.now(),
+                    minimumDate: DateTime.now().subtract(
+                      const Duration(days: 30),
+                    ),
+                    mode: CupertinoDatePickerMode.dateAndTime,
+                    use24hFormat: true,
+                    onDateTimeChanged: (dt) => temp = dt,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  // 주소 모드 변경
   Future<void> _onLocationModeChanged(_LocationMode mode) async {
     if (mode == _LocationMode.lastKnown) {
+      // 직접 입력 대상자는 등록된 마지막 위치가 없으므로 사용하지 않음
+      if (_targetMode == _TargetMode.otherPerson) return;
+
       setState(() {
         _locationMode = _LocationMode.lastKnown;
         _searchResults = [];
+        _selectedLocationLatitude = null;
+        _selectedLocationLongitude = null;
       });
+
       _searchCtrl.clear();
-      if (_selectedSenior != null) _applyLastKnownLocation(_selectedSenior!);
+
+      if (_selectedSenior != null) {
+        _applyLastKnownLocation(_selectedSenior!);
+      }
+
       return;
     }
+
     if (mode == _LocationMode.search) {
       setState(() {
         _locationMode = _LocationMode.search;
         _searchResults = [];
+        _selectedLocationLatitude = null;
+        _selectedLocationLongitude = null;
       });
+
       _locationCtrl.clear();
       _searchCtrl.clear();
       return;
     }
-    // 지도에서 선택
-    final defaultLat = 37.5665;
-    final defaultLng = 126.9780;
-    final initial = kakao.LatLng(defaultLat, defaultLng);
+
+    final initialLat = _selectedLocationLatitude ?? 37.5665;
+    final initialLng = _selectedLocationLongitude ?? 126.9780;
+    final initial = kakao.LatLng(initialLat, initialLng);
 
     final result = await Navigator.push<_MapPickResult>(
       context,
       MaterialPageRoute(builder: (_) => _ReportMapPickScreen(initial: initial)),
     );
+
     if (result != null && mounted) {
       setState(() {
         _locationMode = _LocationMode.mapPick;
+        _selectedLocationLatitude = result.point.latitude;
+        _selectedLocationLongitude = result.point.longitude;
         _locationCtrl.text = result.address.isNotEmpty
             ? result.address
-            : '${result.point.latitude.toStringAsFixed(5)}, ${result.point.longitude.toStringAsFixed(5)}';
+            : '${result.point.latitude.toStringAsFixed(5)}, '
+                  '${result.point.longitude.toStringAsFixed(5)}';
       });
     }
   }
 
+  // 신고 제출
   Future<void> _submit() async {
     if (_selectedType == null) {
       _snack('신고 유형을 선택해주세요.');
@@ -286,10 +333,26 @@ class _ReportScreenState extends State<ReportScreen> {
       return;
     }
 
-    if (_targetMode == _TargetMode.otherPerson &&
-        _otherNameCtrl.text.trim().isEmpty) {
-      _snack('신고 대상자 이름을 입력해주세요.');
-      return;
+    if (_targetMode == _TargetMode.otherPerson) {
+      if (_otherNameCtrl.text.trim().isEmpty) {
+        _snack('신고 대상자 이름을 입력해주세요.');
+        return;
+      }
+
+      if (_otherAgeCtrl.text.trim().isEmpty) {
+        _snack('나이를 입력해주세요.');
+        return;
+      }
+
+      if (_otherPhoneCtrl.text.trim().isEmpty) {
+        _snack('연락처를 입력해주세요.');
+        return;
+      }
+
+      if (_locationCtrl.text.trim().isEmpty) {
+        _snack('마지막 위치를 선택해주세요.');
+        return;
+      }
     }
     if (!_consentGiven) {
       _snack('개인정보 수집 및 이용에 동의해주세요.');
@@ -320,6 +383,9 @@ class _ReportScreenState extends State<ReportScreen> {
       final locationText = _locationCtrl.text.trim();
       final coords = _parseCoordinates(locationText);
 
+      final lastSeenLatitude = _selectedLocationLatitude ?? coords?.$1;
+      final lastSeenLongitude = _selectedLocationLongitude ?? coords?.$2;
+
       final response = await http
           .post(
             Uri.parse('${AppConfig.apiBaseUrl}/missing-reports'),
@@ -330,8 +396,8 @@ class _ReportScreenState extends State<ReportScreen> {
                   : null,
               'guardianId': guardianId,
               'lastSeenAddress': locationText.isEmpty ? null : locationText,
-              'lastSeenLatitude': coords?.$1,
-              'lastSeenLongitude': coords?.$2,
+              'lastSeenLatitude': lastSeenLatitude,
+              'lastSeenLongitude': lastSeenLongitude,
               'description': _buildReportDescription(),
               'imageUrl': imageUrl,
               'imageUrls': imageUrls,
@@ -355,6 +421,7 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  // 사진 업로드
   Future<String?> _uploadReportImage(XFile photo) async {
     final request = http.MultipartRequest(
       'POST',
@@ -374,27 +441,36 @@ class _ReportScreenState extends State<ReportScreen> {
     return data['imageUrl']?.toString() ?? data['fileUrl']?.toString();
   }
 
+  // 신고 설명 빌드
   String _buildReportDescription() {
     final typeLabel = _selectedType?.label ?? '신고';
     final incidentTimeText = _formatDateTime(_incidentTime);
     final description = _descCtrl.text.trim();
+    final locationText = _locationCtrl.text.trim();
+    final clothesText = _otherClothesCtrl.text.trim();
 
     final targetLines = _targetMode == _TargetMode.otherPerson
         ? [
             '신고 대상: 직접 입력',
             '대상자 이름: ${_otherNameCtrl.text.trim()}',
-            if (_otherPhoneCtrl.text.trim().isNotEmpty)
-              '대상자 연락처: ${_otherPhoneCtrl.text.trim()}',
+            '나이: ${_otherAgeCtrl.text.trim()}',
+            '성별: $_otherGender',
+            '연락처: ${_otherPhoneCtrl.text.trim()}',
+            if (locationText.isNotEmpty) '마지막 위치: $locationText',
+            '마지막 목격 시간: $incidentTimeText',
+            if (clothesText.isNotEmpty) '옷차림: $clothesText',
           ]
         : [
             '신고 대상: 등록된 보호 대상자',
             if (_selectedSenior != null) '대상자 이름: ${_selectedSenior!.name}',
+            if (locationText.isNotEmpty) '발생 장소: $locationText',
+            '발생 시간: $incidentTimeText',
           ];
 
     return [
       '신고 유형: $typeLabel',
       ...targetLines,
-      '발생 시간: $incidentTimeText',
+      if (description.isNotEmpty) '',
       if (description.isNotEmpty) description,
     ].join('\n');
   }
@@ -424,7 +500,12 @@ class _ReportScreenState extends State<ReportScreen> {
       _locationCtrl.clear();
       _searchCtrl.clear();
       _otherNameCtrl.clear();
+      _otherAgeCtrl.clear();
       _otherPhoneCtrl.clear();
+      _otherClothesCtrl.clear();
+      _otherGender = '여성';
+      _selectedLocationLatitude = null;
+      _selectedLocationLongitude = null;
       _searchResults = [];
       _photos.clear();
       _consentGiven = false;
@@ -485,17 +566,36 @@ class _ReportScreenState extends State<ReportScreen> {
                   _buildTypeDropdown(),
                   const SizedBox(height: 14),
 
-                  // ③ 발생 시간
-                  _sectionLabel('발생 시간'),
-                  const SizedBox(height: 6),
-                  _buildTimePicker(),
-                  const SizedBox(height: 14),
+                  if (_targetMode == _TargetMode.otherPerson) ...[
+                    // ③ 마지막 위치
+                    _sectionLabel('마지막 위치', required: true),
+                    const SizedBox(height: 6),
+                    _buildLocationSection(),
+                    const SizedBox(height: 14),
 
-                  // ④ 발생 장소
-                  _sectionLabel('발생 장소'),
-                  const SizedBox(height: 6),
-                  _buildLocationSection(),
-                  const SizedBox(height: 14),
+                    // ④ 마지막 목격 시간 + 옷차림
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildCompactTimePicker()),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildClothesInput()),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                  ] else ...[
+                    // ③ 발생 시간
+                    _sectionLabel('발생 시간'),
+                    const SizedBox(height: 6),
+                    _buildTimePicker(),
+                    const SizedBox(height: 14),
+
+                    // ④ 발생 장소
+                    _sectionLabel('발생 장소'),
+                    const SizedBox(height: 6),
+                    _buildLocationSection(),
+                    const SizedBox(height: 14),
+                  ],
 
                   // ⑤ 상황 설명
                   _sectionLabel('상황 설명'),
@@ -534,26 +634,52 @@ class _ReportScreenState extends State<ReportScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel('신고 대상자', required: true),
-        const SizedBox(height: 6),
-        SegmentedButton<_TargetMode>(
-          segments: const [
-            ButtonSegment(
-              value: _TargetMode.registeredSenior,
-              label: Text('등록된 어르신'),
-              icon: Icon(Icons.person_outline),
+        const SizedBox(height: 8),
+
+        Row(
+          children: [
+            _TargetModeChip(
+              label: '등록된 어르신',
+              icon: Icons.person_outline,
+              selected: _targetMode == _TargetMode.registeredSenior,
+              onTap: () {
+                setState(() {
+                  _targetMode = _TargetMode.registeredSenior;
+                  _locationMode = _LocationMode.lastKnown;
+                  _locationCtrl.clear();
+                  _searchCtrl.clear();
+                  _searchResults = [];
+                  _selectedLocationLatitude = null;
+                  _selectedLocationLongitude = null;
+
+                  if (_selectedSenior != null) {
+                    _applyLastKnownLocation(_selectedSenior!);
+                  }
+                });
+              },
             ),
-            ButtonSegment(
-              value: _TargetMode.otherPerson,
-              label: Text('직접 입력'),
-              icon: Icon(Icons.edit_outlined),
+            const SizedBox(width: 8),
+            _TargetModeChip(
+              label: '직접 입력',
+              icon: Icons.edit_outlined,
+              selected: _targetMode == _TargetMode.otherPerson,
+              onTap: () {
+                setState(() {
+                  _targetMode = _TargetMode.otherPerson;
+                  _locationMode = _LocationMode.search;
+                  _locationCtrl.clear();
+                  _searchCtrl.clear();
+                  _searchResults = [];
+                  _selectedLocationLatitude = null;
+                  _selectedLocationLongitude = null;
+                });
+              },
             ),
           ],
-          selected: {_targetMode},
-          onSelectionChanged: (values) {
-            setState(() => _targetMode = values.first);
-          },
         ),
-        const SizedBox(height: 8),
+
+        const SizedBox(height: 10),
+
         if (_targetMode == _TargetMode.registeredSenior) ...[
           if (_seniorsLoading)
             const Center(
@@ -565,37 +691,123 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
               ),
             )
+          else if (_seniors.isEmpty)
+            const Text(
+              '등록된 어르신이 없습니다.',
+              style: TextStyle(fontSize: 13, color: _kTextHint),
+            )
           else
             _buildDropdown<Senior>(
               value: _selectedSenior,
               hint: '대상자를 선택하세요',
               items: _seniors,
               itemLabel: (s) => s.name,
-              onChanged: (v) => setState(() {
-                _selectedSenior = v;
-                if (v != null) _applyLastKnownLocation(v);
-              }),
+              onChanged: (v) {
+                setState(() {
+                  _selectedSenior = v;
+
+                  if (v != null) {
+                    _applyLastKnownLocation(v);
+                  }
+                });
+              },
             ),
+
           if (_selectedSenior != null) ...[
             const SizedBox(height: 8),
             _SeniorCard(senior: _selectedSenior!),
           ],
         ] else ...[
-          TextField(
-            controller: _otherNameCtrl,
-            style: const TextStyle(fontSize: 14, color: _kTextMain),
-            decoration: _inputDeco('신고 대상자 이름을 입력하세요'),
-            onChanged: (_) => setState(() {}),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _otherNameCtrl,
+                  style: const TextStyle(fontSize: 14, color: _kTextMain),
+                  decoration: _inputDeco('이름 *'),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: _otherAgeCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 14, color: _kTextMain),
+                  decoration: _inputDeco('나이 *'),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _otherPhoneCtrl,
-            keyboardType: TextInputType.phone,
-            style: const TextStyle(fontSize: 14, color: _kTextMain),
-            decoration: _inputDeco('연락처 또는 보호자 연락처 (선택)'),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _otherPhoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(fontSize: 14, color: _kTextMain),
+                  decoration: _inputDeco('연락처 *'),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(flex: 2, child: _buildGenderDropdown()),
+            ],
           ),
         ],
       ],
+    );
+  }
+
+  // ── 성별 드롭다운 ─────────────────────────────────────────────────────────
+  Widget _buildGenderDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _otherGender,
+      decoration: InputDecoration(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kDivider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kGreen, width: 1.5),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      isExpanded: true,
+      icon: const Icon(Icons.keyboard_arrow_down, color: _kTextSub),
+      dropdownColor: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      items: _kGenderOptions.map((gender) {
+        return DropdownMenuItem<String>(
+          value: gender,
+          child: Text(
+            gender,
+            style: const TextStyle(fontSize: 14, color: _kTextMain),
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value == null) return;
+
+        setState(() {
+          _otherGender = value;
+        });
+      },
     );
   }
 
@@ -670,32 +882,92 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // ── 발생 장소 ──────────────────────────────────────────────────────────────
-
-  Widget _buildLocationSection() {
+  // ── 마지막 목격 시간 ─────────────────────────────────────────
+  Widget _buildCompactTimePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 3가지 선택 칩
+        _sectionLabel('마지막 목격 시간'),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: _pickTime,
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: _cardDeco(),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time_outlined, size: 16, color: _kSafe),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _formatDateTime(_incidentTime),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _kTextMain,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 옷차림 입력 ─────────────────────────────────────────────────────────
+  Widget _buildClothesInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('옷차림'),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 48,
+          child: TextField(
+            controller: _otherClothesCtrl,
+            style: const TextStyle(fontSize: 13, color: _kTextMain),
+            decoration: _inputDeco('예: 회색 점퍼'),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 발생 장소 ──────────────────────────────────────────────────────────────
+
+  Widget _buildLocationSection() {
+    final isDirectInput = _targetMode == _TargetMode.otherPerson;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Row(
           children: [
-            _LocationChip(
-              icon: Icons.person_pin_circle_outlined,
-              label: '마지막 위치',
-              selected: _locationMode == _LocationMode.lastKnown,
-              onTap: () => _onLocationModeChanged(_LocationMode.lastKnown),
-            ),
-            const SizedBox(width: 8),
+            if (!isDirectInput) ...[
+              _LocationChip(
+                icon: Icons.person_pin_circle_outlined,
+                label: '마지막 위치',
+                selected: _locationMode == _LocationMode.lastKnown,
+                onTap: () => _onLocationModeChanged(_LocationMode.lastKnown),
+              ),
+              const SizedBox(width: 8),
+            ],
             _LocationChip(
               icon: Icons.map_outlined,
-              label: '지도에서 선택',
+              label: '카카오맵 선택',
               selected: _locationMode == _LocationMode.mapPick,
               onTap: () => _onLocationModeChanged(_LocationMode.mapPick),
             ),
             const SizedBox(width: 8),
             _LocationChip(
               icon: Icons.search,
-              label: '주소 검색',
+              label: '카카오 검색',
               selected: _locationMode == _LocationMode.search,
               onTap: () => _onLocationModeChanged(_LocationMode.search),
             ),
@@ -703,23 +975,21 @@ class _ReportScreenState extends State<ReportScreen> {
         ),
         const SizedBox(height: 8),
 
-        // 마지막 위치 / 지도 선택 결과 표시
         if (_locationMode != _LocationMode.search)
           TextField(
             controller: _locationCtrl,
             readOnly: true,
             style: const TextStyle(fontSize: 14, color: _kTextMain),
             decoration: _inputDeco(
-              '위치를 선택하면 여기에 표시됩니다',
+              isDirectInput ? '마지막 위치를 선택하세요' : '위치를 선택하면 여기에 표시됩니다',
             ).copyWith(fillColor: const Color(0xFFF8F8F8)),
           ),
 
-        // 주소 검색 모드
         if (_locationMode == _LocationMode.search) ...[
           TextField(
             controller: _searchCtrl,
             style: const TextStyle(fontSize: 14, color: _kTextMain),
-            decoration: _inputDeco('주소를 입력하세요 (예: 서초동 편의점)').copyWith(
+            decoration: _inputDeco('장소명 또는 주소를 입력하세요').copyWith(
               prefixIcon: const Icon(Icons.search, size: 18, color: _kTextHint),
               suffixIcon: _searchLoading
                   ? const Padding(
@@ -737,24 +1007,30 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
             onChanged: (v) {
               _searchDebounce?.cancel();
+
               if (v.trim().length < 2) {
                 setState(() => _searchResults = []);
                 return;
               }
+
               _searchDebounce = Timer(
                 const Duration(milliseconds: 500),
                 () async {
                   setState(() => _searchLoading = true);
-                  final results = await _searchNominatim(v.trim());
-                  if (mounted)
+
+                  final results = await _searchKakaoPlaces(v.trim());
+
+                  if (mounted) {
                     setState(() {
                       _searchResults = results;
                       _searchLoading = false;
                     });
+                  }
                 },
               );
             },
           ),
+
           if (_searchResults.isNotEmpty) ...[
             const SizedBox(height: 4),
             Container(
@@ -769,7 +1045,11 @@ class _ReportScreenState extends State<ReportScreen> {
                     if (i > 0) const Divider(height: 1, color: _kDivider),
                     InkWell(
                       onTap: () => setState(() {
-                        _locationCtrl.text = _searchResults[i].displayName;
+                        final selected = _searchResults[i];
+
+                        _locationCtrl.text = selected.displayName;
+                        _selectedLocationLatitude = selected.lat;
+                        _selectedLocationLongitude = selected.lng;
                         _locationMode = _LocationMode.search;
                         _searchResults = [];
                         _searchCtrl.clear();
@@ -817,7 +1097,7 @@ class _ReportScreenState extends State<ReportScreen> {
               ),
             ),
           ],
-          // 검색 결과 선택 후 선택된 주소 표시
+
           if (_locationCtrl.text.isNotEmpty &&
               _searchResults.isEmpty &&
               _searchCtrl.text.isEmpty) ...[
@@ -1157,6 +1437,63 @@ class _ReportScreenState extends State<ReportScreen> {
   );
 }
 
+// ── 위치 모드 선택 칩 ─────────────────────────────────────────────────────────
+class _TargetModeChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TargetModeChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = selected ? _kSafe : _kTextSub;
+    final bgColor = selected ? _kSafeBg : Colors.white;
+    final borderColor = selected ? _kGreen : _kDivider;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor, width: selected ? 1.3 : 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: textColor),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              strutStyle: const StrutStyle(
+                fontSize: 13,
+                height: 1.0,
+                forceStrutHeight: true,
+              ),
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.0,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── 어르신 요약 카드 ──────────────────────────────────────────────────────────
 
 class _SeniorCard extends StatelessWidget {
@@ -1357,6 +1694,111 @@ class _LocationChip extends StatelessWidget {
   );
 }
 
+// ── 신고 대상 선택 카드 ─────────────────────────────────────────────────────────
+class _TargetChoiceCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TargetChoiceCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? _kSafeBg : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? _kGreen : _kDivider,
+              width: selected ? 1.4 : 1,
+            ),
+            boxShadow: [
+              if (selected)
+                BoxShadow(
+                  color: _kGreen.withValues(alpha: 0.14),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : const Color(0xFFF7F8F3),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 17,
+                      color: selected ? _kSafe : _kTextSub,
+                    ),
+                  ),
+                  const Spacer(),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: selected ? 1 : 0,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: const BoxDecoration(
+                        color: _kSafe,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? _kSafe : _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.3,
+                  color: selected ? _kSafe : _kTextHint,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── 사진 슬롯 ─────────────────────────────────────────────────────────────────
 
 class _PhotoSlot extends StatelessWidget {
@@ -1398,42 +1840,127 @@ String _formatDateTime(DateTime dt) {
   return '${dt.year}-${p(dt.month)}-${p(dt.day)} ${p(dt.hour)}:${p(dt.minute)}';
 }
 
-// ── Nominatim 주소 검색 ───────────────────────────────────────────────────────
-
-class _NominatimResult {
+// ── 카카오맵 장소 검색 및 역지오코딩 ─────────────────────────────────────────
+class _KakaoPlaceResult {
   final String displayName;
   final double lat;
   final double lng;
-  const _NominatimResult({
+
+  const _KakaoPlaceResult({
     required this.displayName,
     required this.lat,
     required this.lng,
   });
 }
 
-Future<List<_NominatimResult>> _searchNominatim(String query) async {
-  final url = Uri.parse(
-    'https://nominatim.openstreetmap.org/search'
-    '?q=${Uri.encodeComponent(query)}&format=json&limit=5&accept-language=ko',
-  );
-  try {
+Future<List<_KakaoPlaceResult>> _searchKakaoPlaces(String query) async {
+  final restKey = AppConfig.kakaoRestApiKey;
+
+  if (restKey.isEmpty) {
+    return [];
+  }
+
+  Future<List<_KakaoPlaceResult>> requestKakao(String path) async {
+    final url = Uri.https('dapi.kakao.com', path, {
+      'query': query,
+      'size': '10',
+    });
+
     final res = await http
-        .get(url, headers: {'User-Agent': 'woori_guardian_app'})
+        .get(url, headers: {'Authorization': 'KakaoAK $restKey'})
         .timeout(const Duration(seconds: 8));
+
     if (res.statusCode != 200) return [];
-    final list = jsonDecode(res.body) as List<dynamic>;
-    return list
-        .map(
-          (j) => _NominatimResult(
-            displayName: j['display_name'] as String? ?? '',
-            lat: double.tryParse(j['lat'] as String? ?? '') ?? 0,
-            lng: double.tryParse(j['lon'] as String? ?? '') ?? 0,
-          ),
-        )
-        .where((r) => r.lat != 0 && r.lng != 0)
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final documents = data['documents'];
+
+    if (documents is! List) return [];
+
+    return documents
+        .map((item) {
+          if (item is! Map<String, dynamic>) return null;
+
+          final x = double.tryParse(item['x']?.toString() ?? '');
+          final y = double.tryParse(item['y']?.toString() ?? '');
+
+          if (x == null || y == null) return null;
+
+          final placeName = item['place_name']?.toString().trim() ?? '';
+          final roadAddress =
+              item['road_address_name']?.toString().trim() ?? '';
+          final address = item['address_name']?.toString().trim() ?? '';
+
+          final displayName = [
+            if (placeName.isNotEmpty) placeName,
+            if (roadAddress.isNotEmpty) roadAddress else address,
+          ].where((v) => v.isNotEmpty).join(' · ');
+
+          if (displayName.isEmpty) return null;
+
+          return _KakaoPlaceResult(displayName: displayName, lat: y, lng: x);
+        })
+        .whereType<_KakaoPlaceResult>()
         .toList();
+  }
+
+  try {
+    final keywordResults = await requestKakao('/v2/local/search/keyword.json');
+
+    if (keywordResults.isNotEmpty) {
+      return keywordResults;
+    }
+
+    return await requestKakao('/v2/local/search/address.json');
   } catch (_) {
     return [];
+  }
+}
+
+Future<String> _reverseGeocodeKakao(kakao.LatLng point) async {
+  final restKey = AppConfig.kakaoRestApiKey;
+
+  if (restKey.isEmpty) return '';
+
+  try {
+    final url =
+        Uri.https('dapi.kakao.com', '/v2/local/geo/coord2address.json', {
+          'x': point.longitude.toString(),
+          'y': point.latitude.toString(),
+          'input_coord': 'WGS84',
+        });
+
+    final res = await http
+        .get(url, headers: {'Authorization': 'KakaoAK $restKey'})
+        .timeout(const Duration(seconds: 6));
+
+    if (res.statusCode != 200) return '';
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final documents = data['documents'];
+
+    if (documents is! List || documents.isEmpty) return '';
+
+    final first = documents.first;
+
+    if (first is! Map<String, dynamic>) return '';
+
+    final roadAddress = first['road_address'];
+    final address = first['address'];
+
+    if (roadAddress is Map<String, dynamic>) {
+      final value = roadAddress['address_name']?.toString().trim() ?? '';
+
+      if (value.isNotEmpty) return value;
+    }
+
+    if (address is Map<String, dynamic>) {
+      return address['address_name']?.toString().trim() ?? '';
+    }
+
+    return '';
+  } catch (_) {
+    return '';
   }
 }
 
@@ -1487,22 +2014,17 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
       _address = '';
       _geocoding = true;
     });
+
     await _renderPickedPoi();
-    try {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse'
-        '?lat=${point.latitude}&lon=${point.longitude}'
-        '&format=json&accept-language=ko',
-      );
-      final res = await http
-          .get(url, headers: {'User-Agent': 'woori_guardian_app'})
-          .timeout(const Duration(seconds: 6));
-      if (res.statusCode == 200 && mounted) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        setState(() => _address = data['display_name'] as String? ?? '');
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _geocoding = false);
+
+    final address = await _reverseGeocodeKakao(point);
+
+    if (mounted) {
+      setState(() {
+        _address = address;
+        _geocoding = false;
+      });
+    }
   }
 
   @override

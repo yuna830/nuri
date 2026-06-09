@@ -97,7 +97,7 @@ function WelfareDashboard() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
+    //const [activeFilterKey, setActiveFilterKey] = useState("healthStatus");
     const [filters, setFilters] = useState(createEmptyFilters);
     const [draftFilters, setDraftFilters] = useState(createEmptyFilters);
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -122,6 +122,7 @@ function WelfareDashboard() {
     const [agencyPlaces, setAgencyPlaces] = useState([]);
     const [isAgencyLoading, setIsAgencyLoading] = useState(false);
     const [agencyError, setAgencyError] = useState("");
+    const [readSyntheticAlertIds, setReadSyntheticAlertIds] = useState([]);
 
     useEffect(() => {
         if (!currentWorker) {
@@ -390,7 +391,7 @@ function WelfareDashboard() {
         }
 
         if (key === "emergency") {
-            setActiveFilterKey("alertStatus");
+            //setActiveFilterKey("alertStatus");
             setDraftFilters((previousFilters) => ({
                 ...previousFilters,
                 alertStatus: EMERGENCY_FILTER_VALUES,
@@ -515,6 +516,7 @@ function WelfareDashboard() {
                 category: MISSING_INFO_NOTIFICATION_CATEGORY,
                 detailCategory: "기본 정보",
                 danger: false,
+                isRead: readSyntheticAlertIds.includes(`${senior.id}-missing-info`),  // 추가
             });
         }
 
@@ -799,7 +801,10 @@ function WelfareDashboard() {
             return defaultAction;
         }
 
-        const isRequested = checkInRequestedNotificationIds.includes(notification.id);
+        const isRequested =
+            checkInRequestedNotificationIds.includes(notification.id) ||
+            notification.raw?.status === "CHECK_IN_REQUESTED" ||
+            notification.statusLabel === "안부 확인 요청됨";
 
         if (!isRequested) {
             return (
@@ -964,7 +969,31 @@ function WelfareDashboard() {
                     },
                 }))}
                 notificationTabs={["전체", "긴급", "낙상", "정보 미입력", "일자리", "복지", "읽지 않음"]}
-                onReadNotification={(notification) => dismissNotification(notification.id)}
+                onReadNotification={async (notification) => {
+                    if (!notification?.id) return;
+
+                    const isSyntheticAlert = String(notification.id).includes("-");
+
+                    if (isSyntheticAlert) {
+                        // 가상 알림 — dismiss 하지 않고 읽음 state만 업데이트
+                        setReadSyntheticAlertIds((prev) =>
+                            prev.includes(notification.id) ? prev : [...prev, notification.id]
+                        );
+                    } else {
+                        try {
+                            await readWelfareAlert(notification.id);
+                            setDbWelfareAlerts((prev) =>
+                                prev.map((alert) =>
+                                    String(alert.id) === String(notification.id)
+                                        ? { ...alert, isRead: true }
+                                        : alert
+                                )
+                            );
+                        } catch (error) {
+                            console.error("알림 읽음 처리 실패:", error);
+                        }
+                    }
+                }}
                 onNotificationClick={(notification) => {
                     if (notification.seniorId) {
                         navigate(`/welfare/seniors/${notification.seniorId}`, {
@@ -1110,7 +1139,7 @@ function WelfareDashboard() {
 
                     <section className="wd-filter-area">
                         <div className="wd-search-row">
-                            <select
+                            {/* <select
                                 className="wd-condition-select"
                                 value={activeFilterKey}
                                 onChange={(event) => setActiveFilterKey(event.target.value)}
@@ -1121,7 +1150,7 @@ function WelfareDashboard() {
                                         {group.label}
                                     </option>
                                 ))}
-                            </select>
+                            </select> */}
 
                             <input
                                 id="senior-keyword-search"

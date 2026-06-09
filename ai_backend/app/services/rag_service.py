@@ -53,15 +53,20 @@ class RagService:
             context_chunks=chunks,
         )
 
-        return {
-            "answer": answer,
-            "sources": [
-                {
+        seen = set()
+        unique_sources = []
+        for chunk in chunks:
+            key = chunk.get("service_name") or chunk.get("filename") or ""
+            if key and key not in seen:
+                seen.add(key)
+                unique_sources.append({
                     **chunk,
                     "content": self._limit_text(chunk.get("content") or "", 300),
-                }
-                for chunk in chunks
-            ],
+                })
+
+        return {
+            "answer": answer,
+            "sources": unique_sources,
         }
 
     def _build_retrieval_query(
