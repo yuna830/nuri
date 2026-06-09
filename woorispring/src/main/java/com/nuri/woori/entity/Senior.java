@@ -44,6 +44,9 @@ public class Senior {
     private String guardianRelation;
     private String guardianPhone;
 
+    /** 어르신 본인이 신고한 보호자 유무. null/true = 있음(기본), false = 없음 */
+    private Boolean hasGuardian;
+
     public LocalDateTime getLastLoginAt() {
         return lastLoginAt;
     }

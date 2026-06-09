@@ -1449,6 +1449,8 @@ export default function UserPage() {
     return list.slice(0, 2);
   })();
 
+  const seniorHasGuardian = currentProfile?.senior?.hasGuardian !== false;
+
   const welfarePerson = buildUserWelfarePerson(currentProfile, userName, userRegion);
   const welfareMatches = findWelfarePrograms({
     question: "내 상황에 맞는 복지 제도를 추천해줘",
@@ -1493,11 +1495,15 @@ export default function UserPage() {
             <div className="up-care-team">
               <div>
                 <span>보호자</span>
-                <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
-                  {careTeam.guardianName
-                    ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                    : "입력하기"}
-                </button>
+                {seniorHasGuardian ? (
+                  <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
+                    {careTeam.guardianName
+                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                      : "등록하기"}
+                  </button>
+                ) : (
+                  <strong className="up-care-none">--</strong>
+                )}
               </div>
               <div>
                 <span>복지사</span>

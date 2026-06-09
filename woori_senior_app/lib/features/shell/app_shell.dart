@@ -345,6 +345,7 @@ class _AppShellState extends State<AppShell> {
           seniorId: widget.seniorId,
           hideAppBar: true,
           onRegisterAction: _registerAction,
+          onSaved: () => _go(0),
         );
       default:
         return SeniorHomeScreen(

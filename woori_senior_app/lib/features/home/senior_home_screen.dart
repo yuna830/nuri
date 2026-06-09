@@ -189,10 +189,16 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     _fetchWeather();
 
     // 보호자 미연동 안내 — 최초 1회
+    // hasGuardian == false 이면 보호자 없다고 본인이 선택한 것이므로 안내 생략
     if (!_guardianNoticeShown) {
       final profile = data.senior;
+      // hasGuardian 은 senior 서브오브젝트 안에 있음
+      final seniorObj = profile['senior'] is Map<String, dynamic>
+          ? profile['senior'] as Map<String, dynamic>
+          : <String, dynamic>{};
+      final seniorSaidNoGuardian = seniorObj['hasGuardian'] == false;
       final guardianName = _textFrom(profile, ['guardianName'], '');
-      if (guardianName.isEmpty) {
+      if (!seniorSaidNoGuardian && guardianName.isEmpty) {
         _guardianNoticeShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _showGuardianNotice(profile);
@@ -510,9 +516,19 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
           seniorId: widget.seniorId,
           initialSectionIndex: sectionIndex,
           pendingAlertId: alertId,
+          onSaved: () {
+            if (context.mounted) Navigator.pop(context);
+          },
         ),
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _guardianNoticeShown = false;
+          _homeDataFuture = _loadHomeData();
+        });
+      }
+    });
   }
 
   Future<void> _sendCheckInReply() async {
@@ -914,6 +930,10 @@ class _HomeBody extends StatelessWidget {
       final rel = _textFrom(profile, ['relation'], '');
       return rel.isEmpty ? name : '$name ($rel)';
     }
+    final seniorObj = profile['senior'] is Map<String, dynamic>
+        ? profile['senior'] as Map<String, dynamic>
+        : <String, dynamic>{};
+    if (seniorObj['hasGuardian'] == false) return '--';
     return '보호자 매칭 전';
   }
 
@@ -1940,7 +1960,14 @@ class _AppFeatureGrid extends StatelessWidget {
       (
         Icons.person_outline,
         '내 정보',
-        _go(context, 4, () => ProfileScreen(seniorId: seniorId)),
+        _go(
+          context,
+          4,
+          () => ProfileScreen(
+            seniorId: seniorId,
+            onSaved: () => Navigator.pop(context),
+          ),
+        ),
       ),
       (
         Icons.work_outline,

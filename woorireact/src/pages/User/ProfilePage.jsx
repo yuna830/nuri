@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const isDirty = useRef(false);
 
   useEffect(() => {
     const requestedSection = searchParams.get("section");
@@ -73,7 +74,7 @@ export default function ProfilePage() {
             fetch(`${SPRING_API_BASE}/api/seniors/${seniorId}`)
               .then((r) => r.ok ? r.json() : null)
               .then((freshProfile) => {
-                if (!freshProfile) return;
+                if (!freshProfile || isDirty.current) return;
                 sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
                 setForm(profileToForm(freshProfile));
               })
@@ -103,9 +104,10 @@ export default function ProfilePage() {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
-  const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const set = (key, value) => { isDirty.current = true; setForm((prev) => ({ ...prev, [key]: value })); };
 
   const toggleArr = (key, value) => {
+    isDirty.current = true;
     setForm((prev) => {
       const arr = prev[key] || [];
       return { ...prev, [key]: arr.includes(value) ? arr.filter((item) => item !== value) : [...arr, value] };
@@ -113,6 +115,7 @@ export default function ProfilePage() {
   };
 
   const setMedicine = (index, key, value) => {
+    isDirty.current = true;
     setForm((prev) => ({
       ...prev,
       medications: prev.medications.map((medicine, currentIndex) =>
@@ -121,11 +124,14 @@ export default function ProfilePage() {
     }));
   };
 
-  const addMedicine = () => setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] }));
-  const removeMedicine = (index) =>
+  const addMedicine = () => { isDirty.current = true; setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] })); };
+  const removeMedicine = (index) => {
+    isDirty.current = true;
     setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
+  };
 
   const handleMedicineCountChange = (value) => {
+    isDirty.current = true;
     setForm((prev) => ({
       ...prev,
       medicineCount: value,
@@ -175,6 +181,7 @@ export default function ProfilePage() {
     }
     const updatedProfile = await response.json();
     sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+    isDirty.current = false;
     setForm(profileToForm(updatedProfile));
     return updatedProfile;
   };
@@ -272,6 +279,18 @@ export default function ProfilePage() {
               <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} onChange={(value) => set("disabilityGrade", value)} />
             </div>
             <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} onChange={(value) => set("disabilityType", value)} />
+
+            {/* 보호자 유무 */}
+            <div className="su-toggle-row">
+              <div>
+                <p className="su-toggle-title">보호자 있음</p>
+                <p className="su-toggle-desc">보호자가 없는 경우 꺼주세요.</p>
+              </div>
+              <label className="su-switch">
+                <input type="checkbox" checked={form.hasGuardian} onChange={(e) => set("hasGuardian", e.target.checked)} />
+                <span className="su-slider" />
+              </label>
+            </div>
           </section>
         );
 

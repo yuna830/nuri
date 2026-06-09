@@ -248,6 +248,13 @@
   color: #f3fff3;
 }
 
+.up-care-none {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.05em;
+}
+
 .up-guardian-modal {
   text-align: left;
   width: min(360px, 88vw);

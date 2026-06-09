@@ -268,6 +268,18 @@ export default function SignUp() {
               <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} onChange={(value) => set("disabilityGrade", value)} />
               <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} onChange={(value) => set("disabilityType", value)} />
             </div>
+
+            {/* 보호자 유무 */}
+            <div className="su-toggle-row">
+              <div>
+                <p className="su-toggle-title">보호자 있음</p>
+                <p className="su-toggle-desc">보호자가 없는 경우 꺼주세요.</p>
+              </div>
+              <label className="su-switch">
+                <input type="checkbox" checked={form.hasGuardian} onChange={(e) => set("hasGuardian", e.target.checked)} />
+                <span className="su-slider" />
+              </label>
+            </div>
           </section>
         )}
 

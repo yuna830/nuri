@@ -133,6 +133,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   final _detailCtrl = TextEditingController();
   String _disabilityGrade = _none;
   String _disabilityType = _none;
+  bool _hasGuardian = true; // 보호자 유무
   String _profileImageUrl = '';
   bool _uploadingPhoto = false;
 
@@ -325,6 +326,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       'profileImageUrl': _profileImageUrl,
       'disabilityGrade': _disabilityGrade == _none ? '' : _disabilityGrade,
       'disabilityType': _disabilityType == _none ? '' : _disabilityType,
+      'hasGuardian': _hasGuardian,
       // 건강 정보
       'height': _heightCtrl.text.trim(),
       'weight': _weightCtrl.text.trim(),
@@ -674,6 +676,40 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
               ]),
         ),
       ]),
+      const SizedBox(height: 8),
+      // ── 보호자 유무 ──────────────────────────────────────────────────
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5E8),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD4E8D6)),
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('보호자 있음',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2A20))),
+                  SizedBox(height: 2),
+                  Text('보호자가 없는 경우 꺼주세요.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF7A8A7C))),
+                ],
+              ),
+            ),
+            Switch(
+              value: _hasGuardian,
+              activeColor: const Color(0xFF86A788),
+              onChanged: (v) => setState(() => _hasGuardian = v),
+            ),
+          ],
+        ),
+      ),
     ]);
   }
 

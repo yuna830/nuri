@@ -28,6 +28,7 @@ export function useChatFlow({
   const [pendingSchedule, setPendingSchedule] = useState(null);
   const [pendingSchedules, setPendingSchedules] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingContactCall, setPendingContactCall] = useState(null);
   const [lastDeletedSchedules, setLastDeletedSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,6 +41,37 @@ export function useChatFlow({
     setMessages((prev) => [...prev, { role: "user", content: text }]);
 
     try {
+      if (pendingContactCall) {
+        if (isCallConfirmation(text)) {
+          const answerText = `${pendingContactCall.name || pendingContactCall.label}님에게 전화를 연결할게요.`;
+          answer(answerText, options);
+          window.location.href = pendingContactCall.telHref;
+          setPendingContactCall(null);
+          return;
+        }
+
+        if (isCallCancellation(text)) {
+          answer(`${pendingContactCall.label} 전화 연결을 취소했어요.`, options);
+          setPendingContactCall(null);
+          return;
+        }
+      }
+
+      const contactCall = getContactCallAction(text);
+      if (contactCall) {
+        answer(contactCall.answer, options);
+        if (contactCall.requiresConfirmation) {
+          setPendingContactCall({
+            name: contactCall.name,
+            label: contactCall.label,
+            telHref: contactCall.telHref,
+          });
+        } else if (contactCall.telHref) {
+          window.location.href = contactCall.telHref;
+        }
+        return;
+      }
+
       const weatherAnswer = await getWeatherChatAnswer(text);
       if (weatherAnswer) {
         answer(weatherAnswer, options);
@@ -337,6 +369,7 @@ export function useChatFlow({
     pendingSchedule,
     pendingSchedules,
     pendingDelete,
+    pendingContactCall,
     isLoading,
     sendMessage,
     confirmPendingSchedule,
@@ -486,4 +519,172 @@ function applyMeridiemToSchedule(schedule, meridiem) {
     time: `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
     ambiguousTime: null,
   };
+}
+
+function getContactCallAction(text) {
+  const contacts = getCurrentCallContacts();
+  const normalizedText = normalizeCallCommandText(text)
+    .replace(/\s+/g, "")
+    .replace(/[.!?,~]+$/g, "");
+  const callCommand =
+    /(?:전화|통화|저나)(?:를)?(?:걸어(?:줘|주세요)?|해(?:줘|주세요)?|하자|연결해(?:줘|주세요)?)?$/;
+
+  if (!callCommand.test(normalizedText)) return null;
+
+  const typedName = extractCallNameTarget(normalizedText);
+  const matchedContact = contacts
+    .map((contact) => {
+      const targets = [contact.label, ...(contact.aliases || []), contact.name]
+        .map((value) => String(value || "").replace(/\s+/g, ""))
+        .filter((value) => value.length >= 2);
+      const hasExactTarget = targets.some((target) => normalizedText.includes(target));
+      const isSimilarName =
+        !hasExactTarget && isSimilarContactName(typedName, contact.name);
+      return hasExactTarget || isSimilarName
+        ? { ...contact, isSimilarName }
+        : null;
+    })
+    .find(Boolean);
+
+  if (!matchedContact) return null;
+
+  const phone = String(matchedContact.phone || "").replace(/[^\d+]/g, "");
+  if (!phone) {
+    return {
+      answer: `등록된 ${matchedContact.label} 연락처가 없어요. 내 정보에서 연락처를 먼저 확인해 주세요.`,
+      telHref: "",
+    };
+  }
+
+  if (matchedContact.isSimilarName) {
+    return {
+      answer: `${matchedContact.name || matchedContact.label} ${matchedContact.label}에게 전화할까요?`,
+      name: matchedContact.name || matchedContact.label,
+      label: matchedContact.label,
+      telHref: `tel:${phone}`,
+      requiresConfirmation: true,
+    };
+  }
+
+  return {
+    answer: `${matchedContact.name || matchedContact.label}님에게 전화를 연결할게요.`,
+    name: matchedContact.name || matchedContact.label,
+    label: matchedContact.label,
+    telHref: `tel:${phone}`,
+    requiresConfirmation: false,
+  };
+}
+
+function normalizeCallCommandText(text) {
+  return String(text || "")
+    .replace(/저나|전아|전화아/g, "전화")
+    .replace(/해조|해죠|해주|해쥬/g, "해줘")
+    .replace(/걸어조|걸어죠|걸어주|걸어쥬/g, "걸어줘")
+    .replace(/연결해조|연결해죠|연결해주|연결해쥬/g, "연결해줘");
+}
+
+function extractCallNameTarget(text) {
+  const commandIndex = text.search(/전화|통화|저나/);
+  if (commandIndex <= 0) return "";
+
+  return text
+    .slice(0, commandIndex)
+    .replace(/(?:보호자|담당복지사|복지사|사회복지사)?(?:님)?(?:한테|에게|께|로|하고|와|과)$/g, "")
+    .replace(/님$/g, "");
+}
+
+function isSimilarContactName(typedName, contactName) {
+  const typed = String(typedName || "").replace(/\s+/g, "");
+  const fullName = String(contactName || "").replace(/\s+/g, "");
+  if (typed.length < 2 || fullName.length < 2) return false;
+
+  const candidates = [fullName];
+  if (fullName.length >= 3) candidates.push(fullName.slice(1));
+
+  return candidates.some((candidate) => {
+    const distance = getEditDistance(typed, candidate);
+    const maxDistance = Math.max(typed.length, candidate.length) <= 2 ? 1 : 2;
+    return distance <= maxDistance;
+  });
+}
+
+function getEditDistance(left, right) {
+  const rows = Array.from({ length: left.length + 1 }, () =>
+    Array(right.length + 1).fill(0)
+  );
+
+  for (let i = 0; i <= left.length; i += 1) rows[i][0] = i;
+  for (let j = 0; j <= right.length; j += 1) rows[0][j] = j;
+
+  for (let i = 1; i <= left.length; i += 1) {
+    for (let j = 1; j <= right.length; j += 1) {
+      const substitutionCost = left[i - 1] === right[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(
+        rows[i - 1][j] + 1,
+        rows[i][j - 1] + 1,
+        rows[i - 1][j - 1] + substitutionCost
+      );
+    }
+  }
+
+  return rows[left.length][right.length];
+}
+
+function isCallConfirmation(text) {
+  return /^(네|예|응|어|그래|좋아|전화해|저나|저나해조|전화해줘|연결해|연결해줘)[.!?\s]*$/i.test(
+    String(text || "").trim()
+  );
+}
+
+function isCallCancellation(text) {
+  return /^(아니|아니요|아니오|취소|그만|전화하지마|전화하지마세요|끊어|끄너)[.!?\s]*$/i.test(
+    String(text || "").trim()
+  );
+}
+
+function getCurrentCallContacts() {
+  try {
+    const profile = JSON.parse(sessionStorage.getItem("currentSenior") || "null");
+    const senior = profile?.senior || profile || {};
+    const seniorId = senior?.id || localStorage.getItem("current_senior_id") || "";
+    const careTeamMap = JSON.parse(localStorage.getItem("seniorCareTeamMap") || "{}");
+    const localCareTeam = careTeamMap[String(seniorId)] || {};
+
+    return [
+      {
+        label: "보호자",
+        aliases: ["보호자"],
+        name:
+          profile?.guardian?.name
+          || profile?.guardianName
+          || senior?.guardianName
+          || localCareTeam.guardianName
+          || "",
+        phone:
+          profile?.guardian?.phone
+          || profile?.guardianPhone
+          || senior?.guardianPhone
+          || localCareTeam.guardianPhone
+          || "",
+      },
+      {
+        label: "담당 복지사",
+        aliases: ["복지사", "담당복지사", "사회복지사"],
+        name:
+          profile?.welfareWorker?.name
+          || profile?.socialWorkerName
+          || senior?.socialWorkerName
+          || localCareTeam.socialWorkerName
+          || "",
+        phone:
+          profile?.welfareWorker?.phone
+          || profile?.socialWorkerPhone
+          || senior?.socialWorkerPhone
+          || localCareTeam.socialWorkerPhone
+          || "",
+      },
+    ];
+  } catch {
+    return [];
+  }
 }
