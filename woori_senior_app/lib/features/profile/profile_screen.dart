@@ -1342,36 +1342,39 @@ class _MedicationRowState extends State<_MedicationRow> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F5E8),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4E8D6)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text('약품 ${widget.index + 1}',
+          Text('복용 약 ${widget.index + 1}',
               style: const TextStyle(
-                  color: Color(0xFF6D766A), fontSize: 13, fontWeight: FontWeight.w700)),
+                  color: Color(0xFF1F2A20), fontSize: 15, fontWeight: FontWeight.w900)),
           const Spacer(),
           GestureDetector(
             onTap: widget.onRemove,
             child: const Icon(Icons.close, size: 18, color: Color(0xFFD94E4E)),
           ),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        const _FieldLabel('약 이름'),
         TextField(
           controller: _name,
-          decoration: _deco(hint: '약품명 예: 아스피린'),
+          decoration: _deco(hint: '예: 아스피린'),
           onChanged: (v) {
             widget.med['name'] = v;
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        const _FieldLabel('복용량'),
         TextField(
           controller: _dose,
-          decoration: _deco(hint: '복용량 예: 1정 하루 1회'),
+          decoration: _deco(hint: '예: 1정 하루 1회'),
           onChanged: (v) {
             widget.med['dose'] = v;
             widget.onChanged();

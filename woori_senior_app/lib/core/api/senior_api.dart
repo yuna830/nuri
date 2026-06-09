@@ -199,6 +199,22 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
+  /// 보호자-어르신 관계(GuardianSenior.relation) 수정
+  Future<void> patchGuardianRelation({
+    required int guardianId,
+    required int seniorId,
+    required String relation,
+  }) async {
+    final response = await http.patch(
+      Uri.parse('$apiBaseUrl/api/guardians/$guardianId/seniors/$seniorId/relation'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'relation': relation}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('관계 정보 저장 실패');
+    }
+  }
+
   /// 정보 수정 완료 알림 (복지사에게)
   Future<void> notifyProfileUpdateComplete(int seniorId, int alertId) async {
     try {

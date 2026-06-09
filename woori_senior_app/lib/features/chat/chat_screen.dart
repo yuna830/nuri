@@ -405,6 +405,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   bool _ttsEnabled = true;
   bool _isListening = false;
   bool _sttAvailable = false;
+  String _sttLocaleId = 'ko_KR';
   Map<String, dynamic> _senior = {};
   Map<String, dynamic> _healthInfo = {};
   String? _pendingImageBase64;
@@ -423,12 +424,36 @@ class _AiChatRoomState extends State<_AiChatRoom> {
 
   Future<void> _initTts() async {
     await _tts.setLanguage('ko-KR');
-    await _tts.setSpeechRate(0.9);
+    await _tts.setSpeechRate(0.45);
     await _tts.setVolume(1.0);
   }
 
   Future<void> _initStt() async {
-    _sttAvailable = await _stt.initialize();
+    _sttAvailable = await _stt.initialize(
+      onError: (error) {
+        debugPrint('[STT] 에러: ${error.errorMsg} (permanent: ${error.permanent})');
+        if (mounted) setState(() => _isListening = false);
+      },
+      onStatus: (status) {
+        debugPrint('[STT] 상태: $status');
+        if (mounted &&
+            (status == SpeechToText.doneStatus ||
+                status == SpeechToText.notListeningStatus)) {
+          setState(() => _isListening = false);
+        }
+      },
+    );
+    debugPrint('[STT] 초기화 결과: $_sttAvailable');
+    if (_sttAvailable) {
+      final locales = await _stt.locales();
+      debugPrint('[STT] 사용 가능한 locale: ${locales.map((l) => l.localeId).join(', ')}');
+      final koLocale = locales.firstWhere(
+        (l) => l.localeId.toLowerCase().startsWith('ko'),
+        orElse: () => LocaleName('ko-KR', '한국어'),
+      );
+      _sttLocaleId = koLocale.localeId;
+      debugPrint('[STT] 선택된 locale: $_sttLocaleId');
+    }
     if (mounted) setState(() {});
   }
 
@@ -437,19 +462,29 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       await _stt.stop();
       setState(() => _isListening = false);
     } else if (_sttAvailable) {
+      debugPrint('[STT] 인식 시작, locale: ${_sttLocaleId.replaceAll('_', '-')}');
       setState(() => _isListening = true);
       await _stt.listen(
         onResult: (result) {
-          setState(() {
-            _inputCtrl.text = result.recognizedWords;
-            _inputCtrl.selection = TextSelection.fromPosition(
-              TextPosition(offset: _inputCtrl.text.length),
-            );
-            if (result.finalResult) _isListening = false;
-          });
+          debugPrint('[STT] 결과: "${result.recognizedWords}" (final: ${result.finalResult})');
+          if (mounted) {
+            setState(() {
+              _inputCtrl.text = result.recognizedWords;
+              _inputCtrl.selection = TextSelection.fromPosition(
+                TextPosition(offset: _inputCtrl.text.length),
+              );
+              if (result.finalResult) _isListening = false;
+            });
+          }
         },
-        localeId: 'ko_KR',
+        localeId: _sttLocaleId.replaceAll('_', '-'),
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+        cancelOnError: true,
+        partialResults: true,
       );
+    } else {
+      debugPrint('[STT] STT 사용 불가 (_sttAvailable: $_sttAvailable)');
     }
   }
 
@@ -717,13 +752,23 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     final basicContext = basicParts.isEmpty ? '' : basicParts.join(' / ');
     final healthContext = healthParts.isEmpty ? '(건강 정보 없음)' : healthParts.join('\n');
 
-    return '너는 $name님($basicContext)의 일상을 돕는 한국어 돌봄 챗봇이다.\n\n'
+    return '너는 $name님($basicContext)의 일상을 돕는 한국어 돌봄 챗봇이다. 대화 상대는 어르신이므로 쉽고 따뜻하게 설명한다.\n\n'
         '[${name}님 건강·복지 정보 - DB 기준]\n$healthContext\n\n'
+        '답변 방식:\n'
+        '- 어르신이 이해하기 쉽도록 의학 용어 대신 쉬운 말로 풀어서 설명한다. 예) "혈당" → "피 속의 당 수치", "인슐린" → "혈당을 조절하는 주사약"\n'
+        '- 단순히 "먹지 마세요"가 아니라 왜 조심해야 하는지 이유를 함께 설명한다.\n'
+        '- 대안이나 조언도 함께 제시한다. 예) "대신 ○○은 조금 드셔도 괜찮아요", "드신다면 소량만, 식후 바로 드세요"\n'
+        '- 답변은 3~5문장 내외로 핵심만 담되, 건강 경고가 필요한 경우엔 이유·대안을 포함해 충분히 설명한다.\n'
+        '- 문장 끝은 "~하세요", "~해요", "~랍니다" 처럼 친근하고 부드럽게 마무리한다.\n\n'
         '규칙:\n'
-        '- 모든 답변은 자연스러운 한국어 존댓말로 한다.\n'
-        '- 위 건강·복지 정보를 반드시 참고하여 개인 상황에 맞게 답변한다.\n'
+        '- 음식 질문 시 건강 상태를 반드시 반영한다:\n'
+        '  · 당뇨가 있거나 인슐린·혈당 관련 약을 복용/투여 중이면, 당분·탄수화물이 많은 음식(케이크·빵·떡·단음료·과자 등)은 "피 속 당 수치를 갑자기 높일 수 있어서 조심하셔야 해요"처럼 이유와 함께 경고하고, 먹고 싶을 때 어떻게 하면 좋은지 대안도 알려준다.\n'
+        '  · 고혈압이 있으면 짠 음식, 신장질환이 있으면 고단백·고칼륨 음식도 같은 방식으로 이유를 설명하며 경고한다.\n'
+        '  · 복용 중인 약이 있으면 해당 약과 음식의 상호작용을 쉬운 말로 설명한다.\n'
+        '  · 위 조건에 해당하지 않으면 간단히 답변한다.\n'
+        '- 알레르기는 질문한 음식에 해당 성분이 실제로 들어가는 경우에만 언급한다.\n'
+        '- 건강·복지 정보 중 질문과 무관한 항목은 언급하지 않는다.\n'
         '- 이미 알고 있는 정보는 다시 묻지 않는다.\n'
-        '- 복지 정책, 건강, 일자리에 대해 간결하게 답변한다.\n'
         '- 이미지가 첨부되면 이미지 내용을 분석하여 답변한다.\n'
         '- 모르면 지어내지 말고 다시 말해 달라고 한다.\n'
         '- 반말, 외국어 섞어 쓰기는 하지 않는다.';
@@ -777,8 +822,8 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       return;
     }
 
-    // 프로필 아직 안 불러왔으면 먼저 로드
-    if (_healthInfo.isEmpty && _senior.isEmpty) await _loadProfile();
+    // 매 질문마다 최신 건강·복약 정보로 갱신
+    await _loadProfile();
 
     try {
       final systemPrompt = _buildSystemPrompt();
@@ -874,6 +919,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
           const Expanded(
             child: Text(
               '🤖 건강 · 일자리 · 음식에 대해 질문해보세요',
+              textAlign: TextAlign.center,
               style: TextStyle(
                   color: Color(0xFF2D5A2E),
                   fontSize: 12,
