@@ -27,6 +27,7 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
   bool _isLoadingExtra = true;
   List<Map<String, dynamic>> _jobApplications = [];
   List<AlertModel> _consultRequests = [];
+  int? _guardianId;
 
   Senior get senior => widget.senior;
 
@@ -57,15 +58,14 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
 
       if (!mounted) return;
       setState(() {
+        _guardianId = guardianId; // ← 추가
         _jobApplications = jobs;
         _consultRequests = consults;
         _isLoadingExtra = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _isLoadingExtra = false;
-      });
+      setState(() => _isLoadingExtra = false);
     }
   }
 
@@ -204,6 +204,45 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
     }).toList();
   }
 
+  Future<void> _respondConsult(AlertModel alert) async {
+    if (_guardianId == null) return;
+
+    final result =
+        await showModalBottomSheet<({DateTime date, TimeOfDay time})>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const _ConsultScheduleSheet(),
+        );
+    if (result == null || !mounted) return;
+
+    final scheduleAt =
+        '${result.date.year}-${_pad(result.date.month)}-${_pad(result.date.day)} '
+        '${_pad(result.time.hour)}:${_pad(result.time.minute)}';
+
+    try {
+      await _api.respondWelfareConsult(
+        alertId: alert.id,
+        responseType: '예약',
+        scheduleAt: scheduleAt,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$scheduleAt 상담 일정을 복지사에게 전달했습니다.')),
+        );
+        _loadExtraWelfareInfo(); // 목록 새로고침
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
   List<Widget> _buildConsultRequestTiles() {
     if (_isLoadingExtra) {
       return const [_InfoTile(label: '조회', value: '불러오는 중')];
@@ -221,10 +260,33 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
           : alert.createdAt.toString().substring(0, 16);
       final message = alert.message.isEmpty ? alert.title : alert.message;
 
+      // 응답 유형에 따라 상태 결정
+      final responseType = alert.guardianResponseType;
+      final scheduleAt = alert.guardianScheduleAt;
+
+      String status;
+      bool canSchedule = false;
+
+      if (responseType == '즉시') {
+        status = '즉시 상담 가능';
+      } else if (responseType == '예약' && scheduleAt != null) {
+        status = '$scheduleAt 예약';
+      } else if (responseType == '예약') {
+        status = '일정 예약 완료';
+      } else {
+        status = '응답 대기';
+        canSchedule = true;
+      }
+
       return _ConsultRequestTile(
         message: message,
-        status: alert.isRead ? '응답 완료' : '응답 대기',
+        status: status,
         createdAt: createdAt,
+        canSchedule: canSchedule, // ← 추가
+        onSchedule:
+            canSchedule // ← 추가
+            ? () => _respondConsult(alert)
+            : null,
         showDivider: index < _consultRequests.length - 1,
       );
     }).toList();
@@ -563,18 +625,214 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+// ── 상담 일정 선택 바텀시트 ──────────────────────────────────────────────
+class _ConsultScheduleSheet extends StatefulWidget {
+  const _ConsultScheduleSheet();
+
+  @override
+  State<_ConsultScheduleSheet> createState() => _ConsultScheduleSheetState();
+}
+
+class _ConsultScheduleSheetState extends State<_ConsultScheduleSheet> {
+  late DateTime _date;
+  int _hour = 10;
+  int _minute = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _date = DateTime.now().add(const Duration(days: 1));
+  }
+
+  String get _dateLabel => '${_date.year}년 ${_date.month}월 ${_date.day}일';
+
+  String get _timeLabel =>
+      '${_hour.toString().padLeft(2, '0')}:${_minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        0,
+        12,
+        0,
+        MediaQuery.of(context).padding.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '상담 일정 선택',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 260,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(primary: _kGreen),
+              ),
+              child: CalendarDatePicker(
+                initialDate: _date,
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 60)),
+                onDateChanged: (date) => setState(() => _date = date),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                const Text(
+                  '시간',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _kTextTitle,
+                  ),
+                ),
+                const Spacer(),
+                _PickerDropdown(
+                  value: _hour,
+                  items: List.generate(24, (i) => i),
+                  label: (v) => '${v}시',
+                  onChanged: (v) => setState(() => _hour = v),
+                ),
+                const SizedBox(width: 8),
+                _PickerDropdown(
+                  value: _minute,
+                  items: [0, 10, 20, 30, 40, 50],
+                  label: (v) => '${v.toString().padLeft(2, '0')}분',
+                  onChanged: (v) => setState(() => _minute = v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context, (
+                date: _date,
+                time: TimeOfDay(hour: _hour, minute: _minute),
+              )),
+              style: FilledButton.styleFrom(
+                backgroundColor: _kGreen,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                '$_dateLabel  $_timeLabel 확정',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickerDropdown extends StatelessWidget {
+  final int value;
+  final List<int> items;
+  final String Function(int) label;
+  final ValueChanged<int> onChanged;
+
+  const _PickerDropdown({
+    required this.value,
+    required this.items,
+    required this.label,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFF9F9F9),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: value,
+          isDense: true,
+          items: items
+              .map(
+                (v) => DropdownMenuItem(
+                  value: v,
+                  child: Text(
+                    label(v),
+                    style: const TextStyle(fontSize: 14, color: _kTextTitle),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _ConsultRequestTile extends StatelessWidget {
   final String message;
   final String status;
   final String createdAt;
   final bool showDivider;
+  final bool canSchedule;
+  final VoidCallback? onSchedule;
 
   const _ConsultRequestTile({
     required this.message,
     required this.status,
     required this.createdAt,
     this.showDivider = true,
+    this.canSchedule = false,
+    this.onSchedule,
   });
+
+  Color get _statusColor => switch (status) {
+    String s when s.contains('즉시') => const Color(0xFF4A7A4C),
+    String s when s.contains('예약') => const Color(0xFF7A6800),
+    _ => const Color(0xFF9A6060),
+  };
+
+  Color get _statusBg => switch (status) {
+    String s when s.contains('즉시') => const Color(0xFFEEF5EE),
+    String s when s.contains('예약') => const Color(0xFFFFF8E1),
+    _ => const Color(0xFFF5EEEE),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -586,19 +844,53 @@ class _ConsultRequestTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 메시지 텍스트 — 날짜 선택 가능하면 클릭 가능
               Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: _kTextTitle,
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
+                child: GestureDetector(
+                  onTap: canSchedule ? onSchedule : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: _kTextTitle,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      if (canSchedule) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 15,
+                          color: Color(0xFF86A788),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              _StatusPill(text: status),
+              // 상태 배지
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _statusBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
+                  ),
+                ),
+              ),
             ],
           ),
           if (createdAt.isNotEmpty) ...[

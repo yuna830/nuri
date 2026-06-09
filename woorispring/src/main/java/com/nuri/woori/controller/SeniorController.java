@@ -496,6 +496,14 @@ public class SeniorController {
             senior.setGuardianName(request.guardianName());
         }
 
+        if (request.disabilityGrade() != null) {
+            senior.setDisabilityGrade(request.disabilityGrade());
+        }
+
+        if (request.disabilityType() != null) {
+            senior.setDisabilityType(request.disabilityType());
+        }
+
         if (request.guardianRelation() != null) {
             senior.setGuardianRelation(request.guardianRelation());
         }
@@ -603,6 +611,8 @@ public class SeniorController {
             String profileImageUrl,
             String incomeLevel,
             String householdType,
+            String disabilityGrade,
+            String disabilityType,
             String diabetes,
             String hypertension,
             String heartDisease,
@@ -738,8 +748,10 @@ public class SeniorController {
                     isFilled(healthInfo.getHearing()) && isFilled(healthInfo.getRecentFall()),
                 healthInfo != null && isFilled(healthInfo.getMedicineCount()),
                 healthInfo != null &&
-                    isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType()) &&
-                    isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()));
+                        isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType()) &&
+                        isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()),
+                    senior.getGuardianName(),    
+                    senior.getGuardianPhone());
     }
 
     public record WelfareSeniorListResponse(
@@ -769,7 +781,9 @@ public class SeniorController {
             Boolean hasBodyInfo,
             Boolean hasHealthInfo,
             Boolean hasMedicationInfo,
-            Boolean hasWelfareInfo) {
+            Boolean hasWelfareInfo,
+            String guardianName,
+            String guardianPhone) {
     }
 
     public record SeniorWelfareWorkerRequest(

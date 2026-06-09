@@ -54,6 +54,17 @@ const INFO_UPDATE_COMPLETE_TYPES = new Set([
     "PROFILE_UPDATED",
     "PROFILE_UPDATE",
 ]);
+const MISSING_FIELD_DETAILS = {
+    "연락처": "전화번호",
+    "주소": "거주지 주소",
+    "생년월일/나이": "생년월일, 나이",
+    "성별": "성별 정보",
+    "장애 정보": "장애 등급, 장애 유형",
+    "신체 정보": "키, 몸무게, 흡연 여부, 음주 여부, 알레르기",
+    "건강 정보": "만성질환, 거동 상태, 시력/청력, 낙상 이력",
+    "복약 정보": "복용 약, 복용 간격, 하루 복용 횟수",
+    "복지 정보": "소득 구분, 가구 형태, 현재 복지 혜택",
+};
 const INFO_UPDATE_REQUEST_TYPES = new Set([
     "INFO_UPDATE_REQUEST",
     "PROFILE_UPDATE_REQUEST",
@@ -123,6 +134,9 @@ function WelfareDashboard() {
     const [isAgencyLoading, setIsAgencyLoading] = useState(false);
     const [agencyError, setAgencyError] = useState("");
     const [readSyntheticAlertIds, setReadSyntheticAlertIds] = useState([]);
+
+    const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
+    const [emergencySeniorId, setEmergencySeniorId] = useState("");
 
     useEffect(() => {
         if (!currentWorker) {
@@ -1018,9 +1032,12 @@ function WelfareDashboard() {
                     <button
                         className="common-app-danger-button"
                         type="button"
-                        onClick={openAddSeniorModal}
+                        onClick={() => {
+                            setEmergencySeniorId(seniors[0]?.id ? String(seniors[0].id) : "");
+                            setIsEmergencyModalOpen(true);
+                        }}
                     >
-                        대상자 추가
+                        긴급 신고
                     </button>
                 }
 
@@ -1338,12 +1355,123 @@ function WelfareDashboard() {
                 </div>
             )}
 
+            {isEmergencyModalOpen && (
+                <div className="wd-modal-backdrop" onClick={() => setIsEmergencyModalOpen(false)}>
+                    <section
+                        className="wd-info-request-modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ maxWidth: "420px" }}
+                    >
+                        <div className="wd-info-request-header">
+                            <h2 style={{ color: "#b85252" }}>🚨 긴급 신고</h2>
+                            <button
+                                type="button"
+                                className="wd-info-request-close"
+                                onClick={() => setIsEmergencyModalOpen(false)}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        {/* 대상자 선택 */}
+                        <div style={{ padding: "0 20px 16px" }}>
+                            <label style={{ fontSize: "13px", color: "#666", display: "block", marginBottom: "6px" }}>
+                                긴급 상황 대상자
+                            </label>
+                            <select
+                                value={emergencySeniorId}
+                                onChange={(e) => setEmergencySeniorId(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    border: "1px solid #e0e0e0",
+                                    borderRadius: "8px",
+                                    fontSize: "14px",
+                                    background: "#fafafa",
+                                }}
+                            >
+                                {seniors.map((s) => (
+                                    <option key={s.id} value={String(s.id)}>
+                                        {s.name}{s.guardianName ? ` (보호자: ${s.guardianName})` : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 전화 버튼들 */}
+                        {(() => {
+                            const target = seniors.find((s) => String(s.id) === emergencySeniorId);
+                            return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 20px 20px" }}>
+                                    <a
+                                        href="tel:119"
+                                        className="wd-info-request-submit"
+                                        style={{
+                                            display: "block",
+                                            textAlign: "center",
+                                            padding: "12px",
+                                            borderRadius: "8px",
+                                            background: "#b85252",
+                                            color: "#fff",
+                                            fontWeight: "700",
+                                            fontSize: "15px",
+                                            textDecoration: "none",
+                                        }}
+                                    >
+                                        119 신고
+                                    </a>
+
+                                    {target?.phone && (
+                                        <a
+                                            href={`tel:${target.phone.replace(/[^0-9]/g, "")}`}
+                                            style={{
+                                                display: "block",
+                                                textAlign: "center",
+                                                padding: "11px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #b85252",
+                                                color: "#b85252",
+                                                fontWeight: "600",
+                                                fontSize: "14px",
+                                                textDecoration: "none",
+                                            }}
+                                        >
+                                            {target.name}님에게 전화 ({target.phone})
+                                        </a>
+                                    )}
+
+                                    {target?.guardianPhone && (
+                                        <a
+                                            href={`tel:${target.guardianPhone.replace(/[^0-9]/g, "")}`}
+                                            style={{
+                                                display: "block",
+                                                textAlign: "center",
+                                                padding: "11px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #6f9272",
+                                                color: "#6f9272",
+                                                fontWeight: "600",
+                                                fontSize: "14px",
+                                                textDecoration: "none",
+                                            }}
+                                        >
+                                            보호자에게 전화 ({target.guardianPhone})
+                                        </a>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </section>
+                </div>
+            )}
+
             {infoRequestTarget && (
                 <div className="wd-modal-backdrop" onClick={() => setInfoRequestTarget(null)}>
                     <section className="wd-info-request-modal" onClick={(event) => event.stopPropagation()}>
+
+                        {/* 헤더 */}
                         <div className="wd-info-request-header">
                             <h2>정보 입력 요청</h2>
-
                             <button
                                 type="button"
                                 className="wd-info-request-close"
@@ -1353,11 +1481,26 @@ function WelfareDashboard() {
                             </button>
                         </div>
 
-                        <div className="wd-info-request-fields">
-                            <span>미입력 항목</span>
-                            <strong>{getMissingSeniorInfoFields(infoRequestTarget).join(", ")}</strong>
-                        </div>
+                        {/* 대상자 이름 */}
+                        <p className="wd-info-request-target-name">
+                            {infoRequestTarget.name}님의 미입력 항목
+                        </p>
 
+                        {/* 미입력 항목 목록 */}
+                        <ul className="wd-info-request-field-list">
+                            {getMissingSeniorInfoFields(infoRequestTarget).map((field) => (
+                                <li key={field} className="wd-info-request-field-item">
+                                    <span className="wd-info-request-field-name">{field}</span>
+                                    {MISSING_FIELD_DETAILS[field] && (
+                                        <span className="wd-info-request-field-detail">
+                                            {MISSING_FIELD_DETAILS[field]}
+                                        </span>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+
+                        {/* 요청 대상 체크박스 */}
                         <div className="wd-info-request-options">
                             <label className="wd-info-request-option">
                                 <input
@@ -1393,6 +1536,7 @@ function WelfareDashboard() {
                             </label>
                         </div>
 
+                        {/* 버튼 */}
                         <div className="wd-info-request-actions">
                             <button
                                 type="button"
@@ -1409,10 +1553,10 @@ function WelfareDashboard() {
                                 요청 보내기
                             </button>
                         </div>
+
                     </section>
                 </div>
             )}
-
         </div>
     );
 }

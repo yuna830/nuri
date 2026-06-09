@@ -42,6 +42,7 @@ public class Senior {
     private String fallApiUrl;
     private String guardianName;
     private String guardianRelation;
+    private String guardianPhone;
 
     public LocalDateTime getLastLoginAt() {
         return lastLoginAt;

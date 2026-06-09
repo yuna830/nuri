@@ -72,6 +72,7 @@ class GuardianApi {
     }
   }
 
+  // 사용자 정확 검색
   Future<Map<String, dynamic>?> searchSeniorExact(
     String name,
     String phone,
@@ -93,6 +94,7 @@ class GuardianApi {
     }
   }
 
+  // 사용자 - 보호자 연결
   Future<void> connectSeniorToGuardian(
     int guardianId,
     int seniorId,
@@ -115,6 +117,7 @@ class GuardianApi {
     throw Exception('연결 실패 (${response.statusCode})');
   }
 
+  // 보호자가 담당하는 사용자 목록 조회
   Future<List<Senior>> fetchGuardianSeniors(int guardianId) async {
     final url = Uri.parse(
       '${AppConfig.apiBaseUrl}/seniors/guardian/$guardianId',
@@ -134,6 +137,7 @@ class GuardianApi {
     }
   }
 
+  // 사용자 최신 위치 조회
   Future<Map<String, dynamic>> fetchLatestLocation(int seniorId) async {
     final url = Uri.parse(
       '${AppConfig.apiBaseUrl}/locations/senior/$seniorId/latest',
@@ -173,6 +177,7 @@ class GuardianApi {
     }
   }
 
+  // 날짜별 이동 경로 조회
   Future<List<Map<String, dynamic>>> fetchLocationHistoryByDate(
     int seniorId,
     DateTime date,
@@ -199,6 +204,7 @@ class GuardianApi {
     }
   }
 
+  // 보호자 알림 목록 조회
   Future<List<AlertModel>> fetchGuardianAlerts(int guardianId) async {
     final url = Uri.parse(
       '${AppConfig.apiBaseUrl}/alerts/guardian/$guardianId',
@@ -221,6 +227,7 @@ class GuardianApi {
     }
   }
 
+  // 알림 읽음 처리
   Future<void> markAlertAsRead(int alertId) async {
     final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/$alertId/read');
 
@@ -236,6 +243,7 @@ class GuardianApi {
     }
   }
 
+  // 알림 삭제
   Future<void> deleteAlert(int alertId) async {
     final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/$alertId');
 
@@ -251,6 +259,7 @@ class GuardianApi {
     }
   }
 
+  // 알림 선택 삭제
   Future<void> deleteAlerts(List<int> alertIds) async {
     if (alertIds.isEmpty) return;
 
@@ -272,7 +281,7 @@ class GuardianApi {
     }
   }
 
-  // ── 안전 구역 API (/api/safe-zones) ─────────────────────────────────────
+  // 안전 구역 API (/api/safe-zones)
 
   Future<List<SafeZone>> fetchSafeZones(int seniorId) async {
     final url = Uri.parse(
@@ -356,6 +365,7 @@ class GuardianApi {
     }
   }
 
+  // 사용자 일자리 신청 내역
   Future<List<Map<String, dynamic>>> fetchSeniorJobApplications(
     int seniorId,
   ) async {
@@ -373,6 +383,7 @@ class GuardianApi {
     throw Exception('일자리 신청 내역을 불러오지 못했습니다.');
   }
 
+  // 복약 알림 전송
   Future<void> sendMedicationReminder({
     required int seniorId,
     required int guardianId,
@@ -400,6 +411,7 @@ class GuardianApi {
     }
   }
 
+  // 보호자 프로필 수정
   Future<Map<String, dynamic>> updateGuardianProfile({
     required int guardianId,
     required String name,
@@ -433,6 +445,66 @@ class GuardianApi {
     }
   }
 
+  // 복지사 상담 요청
+  Future<void> respondWelfareConsult({
+    required int alertId,
+    required String responseType, // "즉시" 또는 "예약"
+    String? scheduleAt,
+  }) async {
+    final url = Uri.parse(
+      '${AppConfig.apiBaseUrl}/alerts/$alertId/welfare-consult-response',
+    );
+    try {
+      final response = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'responseType': responseType,
+              if (scheduleAt != null) 'scheduleAt': scheduleAt,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        throw Exception('상담 응답에 실패했습니다. (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e.toString().contains('상담 응답')) rethrow;
+      throw Exception('상담 응답 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  // 이상 없음 -> 복지사에게 알림 자동 전달
+  Future<void> sendCheckInReply({
+    required int seniorId,
+    required int guardianId,
+    required String reply,
+    String? originalMessage,
+  }) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/alerts/check-in-reply');
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'seniorId': seniorId,
+              'guardianId': guardianId,
+              'reply': reply,
+              if (originalMessage != null) 'originalMessage': originalMessage,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('이상 없음 전송에 실패했습니다. (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e.toString().contains('이상 없음 전송')) rethrow;
+      throw Exception('이상 없음 전송 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  // 개인정보/기능 동의 요청 알림 전송
   Future<void> sendConsentRequest({
     required int guardianId,
     required int seniorId,
@@ -459,6 +531,7 @@ class GuardianApi {
     }
   }
 
+  // 동의 상태 조회
   Future<String> fetchConsentStatus({
     required int guardianId,
     required int seniorId,

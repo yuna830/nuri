@@ -666,9 +666,23 @@
     opacity: 0.7;
 }
 
-.wsd-health-summary-grade-good  { background: #edf6ee; color: #2f6a3b; border-color: #b8ddc0; }
-.wsd-health-summary-grade-caution { background: #fff6d8; color: #8a640e; border-color: #eed27a; }
-.wsd-health-summary-grade-danger  { background: #ffe8e8; color: #a53a3a; border-color: #efb0b0; }
+.wsd-health-summary-grade-good {
+    background: #edf6ee;
+    color: #2f6a3b;
+    border-color: #b8ddc0;
+}
+
+.wsd-health-summary-grade-caution {
+    background: #fff6d8;
+    color: #8a640e;
+    border-color: #eed27a;
+}
+
+.wsd-health-summary-grade-danger {
+    background: #ffe8e8;
+    color: #a53a3a;
+    border-color: #efb0b0;
+}
 
 .wsd-health-summary-label {
     color: #6f876f;
@@ -988,7 +1002,7 @@
     position: relative;
 }
 
-.wsd-health-grade-segment + .wsd-health-grade-segment {
+.wsd-health-grade-segment+.wsd-health-grade-segment {
     border-left: 1px solid #d4e8d6;
 }
 
@@ -1511,7 +1525,7 @@
     gap: 0;
 }
 
-.wsd-info-field + .wsd-info-field {
+.wsd-info-field+.wsd-info-field {
     border-top: 1px solid #e3eee3;
 }
 
@@ -1528,14 +1542,14 @@
     grid-column: auto;
 }
 
-.wsd-info-field > span {
+.wsd-info-field>span {
     margin: 0;
     color: #78947a;
     font-size: 0.82rem;
     font-weight: 900;
 }
 
-.wsd-info-field > strong {
+.wsd-info-field>strong {
     min-height: 0;
     width: auto;
     padding: 0;
@@ -1628,7 +1642,7 @@
     gap: 0.9rem;
 }
 
-.wsd-activity-summary > div,
+.wsd-activity-summary>div,
 .wsd-activity-task-card {
     padding: 1rem;
     border: 1px solid #d8e8d9;
@@ -1637,7 +1651,7 @@
 }
 
 .wsd-activity-summary span,
-.wsd-activity-task-card > span {
+.wsd-activity-task-card>span {
     display: block;
     margin-bottom: 0.45rem;
     color: #78947a;
@@ -1651,7 +1665,7 @@
     font-weight: 900;
 }
 
-.wsd-activity-task-card > div {
+.wsd-activity-task-card>div {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -1684,7 +1698,7 @@
     gap: 1rem;
 }
 
-.wsd-chip-group > span {
+.wsd-chip-group>span {
     display: block;
     margin-bottom: 0.45rem;
     color: #78947a;
@@ -1692,7 +1706,7 @@
     font-weight: 900;
 }
 
-.wsd-chip-group > div {
+.wsd-chip-group>div {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
@@ -1731,8 +1745,8 @@
     background: #fbfdf8;
 }
 
-.wsd-medication-card > div,
-.wsd-requested-job-card > div {
+.wsd-medication-card>div,
+.wsd-requested-job-card>div {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -1772,7 +1786,7 @@
     background: #fbfdf8;
 }
 
-.wsd-medication-card > div {
+.wsd-medication-card>div {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -1901,17 +1915,17 @@
     border-bottom: 1px solid #e3eee3;
 }
 
-.wsd-activity-range > div {
+.wsd-activity-range>div {
     padding: 1rem 0;
 }
 
-.wsd-activity-range > div + div {
+.wsd-activity-range>div+div {
     padding-left: 1.5rem;
     border-left: 1px solid #e3eee3;
 }
 
 .wsd-activity-range span,
-.wsd-activity-limits > span {
+.wsd-activity-limits>span {
     display: block;
     margin-bottom: 0.45rem;
     color: #78947a;
@@ -1933,14 +1947,14 @@
     padding: 1rem 0;
 }
 
-.wsd-activity-limits > span {
+.wsd-activity-limits>span {
     margin: 0;
     color: #78947a;
     font-size: 0.82rem;
     font-weight: 900;
 }
 
-.wsd-activity-limits > strong {
+.wsd-activity-limits>strong {
     color: #101a12;
     font-size: 1rem;
     font-weight: 900;
@@ -2247,7 +2261,7 @@
     background: #fbfdf8;
 }
 
-.wsd-agency-summary-card.minimal > div + div {
+.wsd-agency-summary-card.minimal>div+div {
     padding-left: 32px;
     border-left: 1px solid #dce8d9;
 }
@@ -2424,6 +2438,23 @@
     cursor: not-allowed;
 }
 
+.wsd-remove-senior-btn {
+    width: 100%;
+    padding: 9px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffff;
+    background: #86a788;
+    border: 1px solid #86a788;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.wsd-remove-senior-btn:hover {
+    background: #6f906f;
+    border-color: #6f906f;
+}
+
 @media (max-width: 900px) {
     .wsd-header {
         padding: 0 20px;
@@ -2558,7 +2589,7 @@
         grid-template-columns: 1fr;
     }
 
-    .wsd-activity-range > div + div {
+    .wsd-activity-range>div+div {
         padding-left: 0;
         border-left: 0;
         border-top: 1px solid #e3eee3;
@@ -2578,7 +2609,7 @@
         border-radius: 14px;
     }
 
-    .wsd-health-grade-segment + .wsd-health-grade-segment {
+    .wsd-health-grade-segment+.wsd-health-grade-segment {
         border-top: 1px solid #d4e8d6;
         border-left: 0;
     }

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/guardian_api.dart';
 import '../../core/models/alert.dart';
+import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+
+const _kGreen = Color(0xFF86A788);
+const _kRed = Color(0xFFB85252);
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -19,9 +24,11 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<AlertModel> _alerts = [];
+  Map<int, Senior> _seniorMap = {};
   _AlertFilter _selectedFilter = _AlertFilter.all;
   final Set<int> _selectedAlertIds = {};
   final Set<int> _confirmedWhileUnreadTab = {};
+  int? _guardianId;
 
   @override
   void initState() {
@@ -46,11 +53,20 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       }
 
       final guardianId = int.parse(guardianIdStr);
-      final alerts = await _api.fetchGuardianAlerts(guardianId);
+
+      final results = await Future.wait([
+        _api.fetchGuardianAlerts(guardianId),
+        _api.fetchGuardianSeniors(guardianId),
+      ]);
+
+      final alerts = results[0] as List<AlertModel>;
+      final seniors = results[1] as List<Senior>;
 
       if (!mounted) return;
       setState(() {
+        _guardianId = guardianId;
         _alerts = alerts;
+        _seniorMap = {for (final s in seniors) s.id: s};
         _isLoading = false;
       });
     } catch (e) {
@@ -62,49 +78,286 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     }
   }
 
-  Future<void> _confirmAlert(AlertModel selectedAlert) async {
-    if (selectedAlert.isRead) return;
+  // ── 알림 읽음 처리 ────────────────────────────────────────────────────
+  Future<void> _confirmAlert(AlertModel alert) async {
+    if (alert.isRead) return;
 
-    final index = _alerts.indexWhere((alert) => alert.id == selectedAlert.id);
+    final index = _alerts.indexWhere((a) => a.id == alert.id);
     if (index == -1) return;
 
-    final originalAlert = _alerts[index];
-
+    final original = _alerts[index];
     setState(() {
-      _alerts[index] = originalAlert.copyWith(isRead: true);
+      _alerts[index] = original.copyWith(isRead: true);
       if (_selectedFilter == _AlertFilter.unread) {
-        _confirmedWhileUnreadTab.add(originalAlert.id);
+        _confirmedWhileUnreadTab.add(original.id);
       }
     });
 
     try {
-      await _api.markAlertAsRead(originalAlert.id);
+      await _api.markAlertAsRead(original.id);
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _alerts[index] = originalAlert;
-        _confirmedWhileUnreadTab.remove(originalAlert.id);
+        _alerts[index] = original;
+        _confirmedWhileUnreadTab.remove(original.id);
       });
     }
   }
 
+  // ── 전화 걸기 ─────────────────────────────────────────────────────────
+  Future<void> _callPhone(String phone) async {
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      _showError('전화번호 정보가 없습니다.');
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: digits);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      _showError('전화를 걸 수 없습니다.');
+    }
+  }
+
+  // ── 안부 확인 요청: 이상 없음 (웹의 handleCheckInOk와 동일) ────────────
+  Future<void> _checkInOk(AlertModel alert) async {
+    final senior = alert.seniorId != null ? _seniorMap[alert.seniorId] : null;
+    final seniorName = senior?.name ?? '사용자';
+    final displayName = seniorName.endsWith('님') ? seniorName : '$seniorName님';
+
+    try {
+      await _api.sendCheckInReply(
+        seniorId: alert.seniorId!,
+        guardianId: _guardianId!,
+        reply: '${displayName}께서 안부 확인 결과 이상 없습니다.',
+        originalMessage: alert.message,
+      );
+      await _confirmAlert(alert);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('복지사에게 이상 없음 알림을 보냈습니다.')));
+      }
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // ── SOS/낙상 전화 확인 모달 (웹의 isCallResultOpen 모달과 동일) ─────
+  void _showCallModal(AlertModel alert) {
+    final senior = alert.seniorId != null ? _seniorMap[alert.seniorId] : null;
+    final phone = senior?.phone ?? '';
+    final seniorName = senior?.name ?? '사용자';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          24,
+          20,
+          MediaQuery.of(ctx).padding.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$seniorName님에게 연락하기',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              alert.message,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6C6C70)),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _callPhone('119');
+                    },
+                    icon: const Icon(Icons.local_hospital_outlined, size: 16),
+                    label: const Text('119 신고'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kRed,
+                      side: const BorderSide(color: _kRed),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: phone.isEmpty
+                        ? null
+                        : () async {
+                            Navigator.pop(ctx);
+                            await _callPhone(phone);
+                            await _confirmAlert(alert);
+                          },
+                    icon: const Icon(Icons.phone_outlined, size: 16),
+                    label: const Text('연락하기'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 복지사 상담: 즉시 / 일정 잡기 모달 (웹의 상담 선택 모달과 동일) ──
+  void _showConsultModal(AlertModel alert) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          24,
+          20,
+          MediaQuery.of(ctx).padding.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '복지사 상담 요청',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              alert.message,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6C6C70)),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _respondConsultNow(alert);
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                label: const Text('즉시 상담 가능'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _respondConsultSchedule(alert);
+                },
+                icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: const Text('날짜 / 시간 선택'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF7A6800),
+                  side: const BorderSide(color: Color(0xFF7A6800)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _respondConsultNow(AlertModel alert) async {
+    try {
+      await _api.respondWelfareConsult(alertId: alert.id, responseType: '즉시');
+      await _confirmAlert(alert);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('즉시 상담 가능하다고 복지사에게 전달했습니다.')),
+        );
+      }
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> _respondConsultSchedule(AlertModel alert) async {
+    final result =
+        await showModalBottomSheet<({DateTime date, TimeOfDay time})>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const _ConsultScheduleSheet(),
+        );
+    if (result == null || !mounted) return;
+
+    final scheduleAt =
+        '${result.date.year}-${_pad(result.date.month)}-${_pad(result.date.day)} '
+        '${_pad(result.time.hour)}:${_pad(result.time.minute)}';
+
+    try {
+      await _api.respondWelfareConsult(
+        alertId: alert.id,
+        responseType: '예약',
+        scheduleAt: scheduleAt,
+      );
+      await _confirmAlert(alert);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$scheduleAt 상담 일정을 복지사에게 전달했습니다.')),
+        );
+      }
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
+  // ── 삭제 ─────────────────────────────────────────────────────────────
   Future<void> _deleteAllVisibleAlerts() async {
     final targets = _filteredAlerts;
     if (targets.isEmpty) return;
-
     final confirmed = await _confirmDelete(
       title: '전체 삭제',
       message: '현재 탭의 알림 ${targets.length}건을 모두 삭제할까요?',
     );
     if (confirmed != true) return;
-
-    final ids = targets.map((alert) => alert.id).toList();
-
+    final ids = targets.map((a) => a.id).toList();
     try {
       await _api.deleteAlerts(ids);
       if (!mounted) return;
       setState(() {
-        _alerts.removeWhere((alert) => ids.contains(alert.id));
+        _alerts.removeWhere((a) => ids.contains(a.id));
         _selectedAlertIds.removeAll(ids);
         _confirmedWhileUnreadTab.removeAll(ids);
       });
@@ -118,20 +371,17 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       _showError('삭제할 알림을 선택해 주세요.');
       return;
     }
-
     final confirmed = await _confirmDelete(
       title: '선택 삭제',
       message: '선택한 알림 ${_selectedAlertIds.length}건을 삭제할까요?',
     );
     if (confirmed != true) return;
-
     final ids = _selectedAlertIds.toList();
-
     try {
       await _api.deleteAlerts(ids);
       if (!mounted) return;
       setState(() {
-        _alerts.removeWhere((alert) => ids.contains(alert.id));
+        _alerts.removeWhere((a) => ids.contains(a.id));
         _selectedAlertIds.clear();
         _confirmedWhileUnreadTab.removeAll(ids);
       });
@@ -146,31 +396,25 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }) {
     return showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '삭제',
-                style: TextStyle(color: Color(0xFFB85252)),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('삭제', style: TextStyle(color: _kRed)),
+          ),
+        ],
+      ),
     );
   }
 
   void _toggleSelection(AlertModel alert) {
     if (!alert.isRead) return;
-
     setState(() {
       if (_selectedAlertIds.contains(alert.id)) {
         _selectedAlertIds.remove(alert.id);
@@ -182,15 +426,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFFB85252),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: _kRed));
   }
-
-  int get _unreadCount => _alerts.where((alert) => !alert.isRead).length;
 
   List<AlertModel> get _filteredAlerts {
     return _alerts.where((alert) {
@@ -200,27 +439,112 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         case _AlertFilter.unread:
           return !alert.isRead || _confirmedWhileUnreadTab.contains(alert.id);
         case _AlertFilter.urgent:
-          return alert.type == 'SOS' ||
-              alert.type == 'SOS_CANCEL' ||
-              alert.type == 'CALL_REQUEST' ||
-              alert.type == 'CHECK_IN_REQUEST' ||
-              alert.type == 'SAFE_ZONE_EXIT' ||
-              alert.type == 'FALL_DETECTED' ||
-              alert.type == 'FALL_RISK';
+          return const {
+            'SOS',
+            'SOS_CANCEL',
+            'CALL_REQUEST',
+            'CHECK_IN_REQUEST',
+            'SAFE_ZONE_EXIT',
+            'FALL_DETECTED',
+            'FALL_RISK',
+          }.contains(alert.type);
         case _AlertFilter.info:
-          return alert.type == 'WELFARE_CONSULT_REQUEST' ||
-              alert.type == 'FACE_MATCH' ||
-              alert.type == 'PERSON_DETECTED' ||
-              alert.type == 'INFO_UPDATE_REQUEST' ||
-              alert.type == 'PROFILE_UPDATE_REQUEST' ||
-              alert.type == 'PROFILE_UPDATE' ||
-              alert.type == 'CONSENT_REQUEST' ||
-              alert.type == 'CONSENT_CONFIRMED' ||
-              alert.type == 'MEDICINE' ||
-              alert.type == 'CHECK_IN_OK' ||
-              alert.type == 'CHECK_IN_MESSAGE';
+          return const {
+            'WELFARE_CONSULT_REQUEST',
+            'FACE_MATCH',
+            'PERSON_DETECTED',
+            'INFO_UPDATE_REQUEST',
+            'PROFILE_UPDATE_REQUEST',
+            'PROFILE_UPDATE',
+            'CONSENT_REQUEST',
+            'CONSENT_CONFIRMED',
+            'MEDICINE',
+            'CHECK_IN_OK',
+            'CHECK_IN_MESSAGE',
+          }.contains(alert.type);
       }
     }).toList();
+  }
+
+  // ── 웹과 동일한 알림별 액션 빌드 ───────────────────────────────────────
+  List<_AlertAction> _buildActions(AlertModel alert) {
+    confirm() => _confirmAlert(alert);
+
+    switch (alert.type) {
+      // SOS / 낙상 / 안전구역 이탈 → 전화 버튼 (모달로 119신고/연락하기 선택)
+      case 'SOS':
+      case 'FALL_DETECTED':
+      case 'FALL_RISK':
+      case 'SAFE_ZONE_EXIT':
+        return [
+          _AlertAction(
+            label: '전화',
+            icon: Icons.phone_outlined,
+            color: _kRed,
+            primary: true,
+            onTap: () => _showCallModal(alert),
+          ),
+          _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
+        ];
+
+      // SOS 취소
+      case 'SOS_CANCEL':
+        return [_AlertAction(label: '확인', color: _kGreen, onTap: confirm)];
+
+      // 전화 요청 → 바로 전화 + 확인
+      case 'CALL_REQUEST':
+        final phone = alert.seniorId != null
+            ? (_seniorMap[alert.seniorId]?.phone ?? '')
+            : '';
+        return [
+          _AlertAction(
+            label: '전화하기',
+            icon: Icons.phone_outlined,
+            color: _kGreen,
+            primary: true,
+            onTap: () async {
+              await _callPhone(phone);
+              await confirm();
+            },
+          ),
+          _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
+        ];
+
+      // 안부 확인 요청 → 이상 없음 (복지사 자동 알림) + 확인
+      case 'CHECK_IN_REQUEST':
+        return [
+          _AlertAction(
+            label: '이상 없음',
+            icon: Icons.check_circle_outline,
+            color: _kGreen,
+            primary: true,
+            onTap: () => _checkInOk(alert),
+          ),
+          _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
+        ];
+
+      // 복지사 상담 요청 → 상담 선택 모달 (즉시 / 일정)
+      case 'WELFARE_CONSULT_REQUEST':
+        return [
+          _AlertAction(
+            label: '상담 선택',
+            icon: Icons.support_agent_outlined,
+            color: Colors.indigo,
+            primary: true,
+            onTap: () => _showConsultModal(alert),
+          ),
+          _AlertAction(
+            label: '나중에',
+            icon: Icons.notifications_paused_outlined,
+            color: Colors.grey,
+            onTap: confirm,
+          ),
+        ];
+
+      // 기본 (정보성 알림)
+      default:
+        return [_AlertAction(label: '확인', color: _kGreen, onTap: confirm)];
+    }
   }
 
   @override
@@ -228,7 +552,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림 센터'),
-        backgroundColor: const Color(0xFF86A788),
+        backgroundColor: _kGreen,
         foregroundColor: Colors.white,
         actions: [
           if (!_isLoading && _alerts.isNotEmpty)
@@ -249,9 +573,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF86A788)),
-      );
+      return const Center(child: CircularProgressIndicator(color: _kGreen));
     }
 
     if (_errorMessage != null) {
@@ -261,22 +583,18 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Color(0xFFB85252),
-              ),
+              const Icon(Icons.error_outline, size: 48, color: _kRed),
               const SizedBox(height: 16),
               Text(
                 _errorMessage!,
-                style: const TextStyle(color: Color(0xFFB85252), fontSize: 15),
+                style: const TextStyle(color: _kRed, fontSize: 15),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _loadAlerts,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF86A788),
+                  backgroundColor: _kGreen,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('다시 시도'),
@@ -330,7 +648,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadAlerts,
-            color: const Color(0xFF86A788),
+            color: _kGreen,
             child: filteredAlerts.isEmpty
                 ? ListView(
                     children: [
@@ -357,12 +675,17 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                     itemCount: filteredAlerts.length,
                     itemBuilder: (context, index) {
                       final alert = filteredAlerts[index];
-
+                      // 변경 후
                       return _AlertTile(
                         alert: alert,
                         isSelected: _selectedAlertIds.contains(alert.id),
-                        onConfirm: () => _confirmAlert(alert),
+                        actions: _buildActions(alert),
                         onSelectionChanged: () => _toggleSelection(alert),
+                        onScheduleTap:
+                            (!alert.isRead &&
+                                alert.type == 'WELFARE_CONSULT_REQUEST')
+                            ? () => _respondConsultSchedule(alert)
+                            : null,
                       );
                     },
                   ),
@@ -373,6 +696,24 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 }
 
+// ── 액션 정의 ─────────────────────────────────────────────────────────────
+class _AlertAction {
+  final String label;
+  final IconData? icon;
+  final Color color;
+  final bool primary;
+  final VoidCallback onTap;
+
+  const _AlertAction({
+    required this.label,
+    this.icon,
+    required this.color,
+    this.primary = false,
+    required this.onTap,
+  });
+}
+
+// ── 필터 ──────────────────────────────────────────────────────────────────
 enum _AlertFilter {
   all('전체'),
   unread('미확인'),
@@ -380,10 +721,10 @@ enum _AlertFilter {
   info('정보');
 
   const _AlertFilter(this.label);
-
   final String label;
 }
 
+// ── 헤더 ──────────────────────────────────────────────────────────────────
 class _NotificationActionHeader extends StatelessWidget {
   const _NotificationActionHeader({
     required this.selectedFilter,
@@ -418,7 +759,6 @@ class _NotificationActionHeader extends StatelessWidget {
             child: Row(
               children: _AlertFilter.values.map((filter) {
                 final selected = selectedFilter == filter;
-
                 return InkWell(
                   onTap: () => onFilterChanged(filter),
                   borderRadius: BorderRadius.circular(6),
@@ -490,10 +830,8 @@ class _NotificationActionHeader extends StatelessWidget {
           TextButton(
             onPressed: onDeleteSelected,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFB85252),
-              disabledForegroundColor: const Color(
-                0xFFB85252,
-              ).withValues(alpha: 0.35),
+              foregroundColor: _kRed,
+              disabledForegroundColor: _kRed.withValues(alpha: 0.35),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(0, 30),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -509,30 +847,34 @@ class _NotificationActionHeader extends StatelessWidget {
   }
 }
 
+// ── 알림 카드 ──────────────────────────────────────────────────────────────
 class _AlertTile extends StatelessWidget {
   final AlertModel alert;
   final bool isSelected;
-  final VoidCallback onConfirm;
+  final List<_AlertAction> actions;
   final VoidCallback onSelectionChanged;
+  final VoidCallback? onScheduleTap;
 
   const _AlertTile({
     required this.alert,
     required this.isSelected,
-    required this.onConfirm,
+    required this.actions,
     required this.onSelectionChanged,
+    this.onScheduleTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final config = alertConfig(alert.type);
+    final isRead = alert.isRead;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: alert.isRead ? Colors.white : config.bgColor,
-      elevation: alert.isRead ? 1 : 3,
+      color: isRead ? Colors.white : config.bgColor,
+      elevation: isRead ? 1 : 3,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: alert.isRead
+        side: isRead
             ? BorderSide.none
             : BorderSide(
                 color: config.iconColor.withValues(alpha: 0.4),
@@ -540,64 +882,73 @@ class _AlertTile extends StatelessWidget {
               ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              config.icon,
-              color: alert.isRead ? Colors.grey : config.iconColor,
-              size: 28,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                config.icon,
+                color: isRead ? Colors.grey : config.iconColor,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 변경 후
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: Text(
-                          alert.title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: alert.isRead
-                                ? Colors.black54
-                                : Colors.black87,
+                        child: GestureDetector(
+                          onTap: onScheduleTap,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  alert.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: onScheduleTap != null
+                                        ? const Color(0xFF86A788)
+                                        : isRead
+                                        ? Colors.black54
+                                        : Colors.black87,
+                                    decoration: onScheduleTap != null
+                                        ? TextDecoration.underline
+                                        : TextDecoration.none,
+                                    decorationColor: const Color(0xFF86A788),
+                                  ),
+                                ),
+                              ),
+                              if (onScheduleTap != null) ...[
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.calendar_today_outlined,
+                                  size: 15,
+                                  color: Color(0xFF86A788),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      if (alert.isRead)
+                      if (isRead)
                         SizedBox(
                           width: 28,
                           height: 28,
                           child: Checkbox(
                             value: isSelected,
                             onChanged: (_) => onSelectionChanged(),
-                            activeColor: const Color(0xFF86A788),
+                            activeColor: _kGreen,
                             visualDensity: VisualDensity.compact,
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        )
-                      else
-                        TextButton(
-                          onPressed: onConfirm,
-                          style: TextButton.styleFrom(
-                            foregroundColor: config.iconColor,
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            minimumSize: const Size(0, 28),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text(
-                            '확인',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
                           ),
                         ),
                     ],
@@ -607,7 +958,7 @@ class _AlertTile extends StatelessWidget {
                     alert.message,
                     style: TextStyle(
                       fontSize: 13,
-                      color: alert.isRead ? Colors.grey : Colors.black87,
+                      color: isRead ? Colors.grey : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -615,6 +966,75 @@ class _AlertTile extends StatelessWidget {
                     _formatTime(alert.createdAt),
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
+
+                  // 액션 버튼 (미확인일 때)
+                  if (!isRead) ...[
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: Color(0xFFE5E5EA)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: actions.map((action) {
+                        if (action.primary) {
+                          return FilledButton.icon(
+                            onPressed: action.onTap,
+                            icon: action.icon != null
+                                ? Icon(action.icon, size: 14)
+                                : const SizedBox.shrink(),
+                            label: Text(
+                              action.label,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: action.color,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              minimumSize: const Size(0, 30),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          );
+                        }
+                        return OutlinedButton.icon(
+                          onPressed: action.onTap,
+                          icon: action.icon != null
+                              ? Icon(action.icon, size: 13)
+                              : const SizedBox.shrink(),
+                          label: Text(
+                            action.label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: action.color,
+                            side: BorderSide(
+                              color: action.color.withValues(alpha: 0.6),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -633,11 +1053,11 @@ class _AlertTile extends StatelessWidget {
   String _pad(int n) => n.toString().padLeft(2, '0');
 }
 
+// ── 알림 타입별 스타일 ─────────────────────────────────────────────────────
 class AlertDisplayConfig {
   final IconData icon;
   final Color iconColor;
   final Color bgColor;
-
   const AlertDisplayConfig({
     required this.icon,
     required this.iconColor,
@@ -660,14 +1080,9 @@ AlertDisplayConfig alertConfig(String type) {
         bgColor: Colors.orange.shade50,
       );
     case 'FALL_DETECTED':
-      return AlertDisplayConfig(
-        icon: Icons.personal_injury,
-        iconColor: Colors.deepOrange,
-        bgColor: Colors.deepOrange.shade50,
-      );
     case 'FALL_RISK':
       return AlertDisplayConfig(
-        icon: Icons.videocam,
+        icon: Icons.personal_injury,
         iconColor: Colors.deepOrange,
         bgColor: Colors.deepOrange.shade50,
       );
@@ -716,8 +1131,8 @@ AlertDisplayConfig alertConfig(String type) {
     case 'WELFARE_CONSULT_REQUEST':
       return AlertDisplayConfig(
         icon: Icons.support_agent,
-        iconColor: Colors.blue,
-        bgColor: Colors.blue.shade50,
+        iconColor: Colors.indigo,
+        bgColor: Colors.indigo.shade50,
       );
     case 'FACE_MATCH':
     case 'PERSON_DETECTED':
@@ -732,5 +1147,203 @@ AlertDisplayConfig alertConfig(String type) {
         iconColor: Colors.grey,
         bgColor: Colors.grey.shade50,
       );
+  }
+}
+
+// ── 상담 일정 선택 바텀시트 ──────────────────────────────────────────────
+class _ConsultScheduleSheet extends StatefulWidget {
+  const _ConsultScheduleSheet();
+
+  @override
+  State<_ConsultScheduleSheet> createState() => _ConsultScheduleSheetState();
+}
+
+class _ConsultScheduleSheetState extends State<_ConsultScheduleSheet> {
+  late DateTime _date;
+  int _hour = 10;
+  int _minute = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _date = DateTime.now().add(const Duration(days: 1));
+  }
+
+  String get _dateLabel => '${_date.year}년 ${_date.month}월 ${_date.day}일';
+
+  String get _timeLabel =>
+      '${_hour.toString().padLeft(2, '0')}:${_minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        0,
+        12,
+        0,
+        MediaQuery.of(context).padding.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 드래그 핸들
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+
+          // 제목
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text(
+                  '상담 일정 선택',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          // 캘린더 (CalendarDatePicker 직접 삽입)
+          SizedBox(
+            height: 260,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(primary: _kGreen),
+              ),
+              child: CalendarDatePicker(
+                initialDate: _date,
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 60)),
+                onDateChanged: (date) => setState(() => _date = date),
+              ),
+            ),
+          ),
+
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // 시간 선택 행
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                const Text(
+                  '시간',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1C1C1E),
+                  ),
+                ),
+                const Spacer(),
+                _PickerDropdown(
+                  value: _hour,
+                  items: List.generate(24, (i) => i),
+                  label: (v) => '${v}시',
+                  onChanged: (v) => setState(() => _hour = v),
+                ),
+                const SizedBox(width: 8),
+                _PickerDropdown(
+                  value: _minute,
+                  items: [0, 10, 20, 30, 40, 50],
+                  label: (v) => '${v.toString().padLeft(2, '0')}분',
+                  onChanged: (v) => setState(() => _minute = v),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 확정 버튼
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context, (
+                date: _date,
+                time: TimeOfDay(hour: _hour, minute: _minute),
+              )),
+              style: FilledButton.styleFrom(
+                backgroundColor: _kGreen,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                '$_dateLabel  $_timeLabel 확정',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 시간 드롭다운 ─────────────────────────────────────────────────────────
+class _PickerDropdown extends StatelessWidget {
+  final int value;
+  final List<int> items;
+  final String Function(int) label;
+  final ValueChanged<int> onChanged;
+
+  const _PickerDropdown({
+    required this.value,
+    required this.items,
+    required this.label,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFF9F9F9),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: value,
+          isDense: true,
+          items: items
+              .map(
+                (v) => DropdownMenuItem(
+                  value: v,
+                  child: Text(
+                    label(v),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1C1C1E),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
+    );
   }
 }
