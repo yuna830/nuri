@@ -7,6 +7,7 @@ import { readAlert, resolveUploadUrl, uploadProfileImage } from "../../api/userP
 import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
@@ -75,7 +76,7 @@ export default function ProfilePage() {
               .then((r) => r.ok ? r.json() : null)
               .then((freshProfile) => {
                 if (!freshProfile || isDirty.current) return;
-                sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+                saveCurrentSenior(freshProfile);
                 setForm(profileToForm(freshProfile));
               })
               .catch(() => {});
@@ -88,7 +89,7 @@ export default function ProfilePage() {
         const profiles = await response.json();
         const latestProfile = profiles[profiles.length - 1];
         if (!latestProfile) return;
-        sessionStorage.setItem("currentSenior", JSON.stringify(latestProfile));
+        saveCurrentSenior(latestProfile);
         setForm(profileToForm(latestProfile));
         setIsLoaded(true);
       } catch (error) {
@@ -180,7 +181,7 @@ export default function ProfilePage() {
       throw new Error(`프로필 수정 실패 (${response.status})${text ? `: ${text}` : ""}`);
     }
     const updatedProfile = await response.json();
-    sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+    saveCurrentSenior(updatedProfile);
     isDirty.current = false;
     setForm(profileToForm(updatedProfile));
     return updatedProfile;

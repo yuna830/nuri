@@ -33,6 +33,7 @@ import {
   syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
 import "../../css/common/SignUp.css";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const STEPS = ["기본 정보", "건강 정보", "복약 정보", "건강 상태", "거동/인지/감각", "복지 정보", "활동/일자리"];
 
@@ -158,7 +159,7 @@ export default function SignUp() {
       }
 
       const profile = await response.json();
-      sessionStorage.setItem("currentSenior", JSON.stringify(profile));
+      saveCurrentSenior(profile);
       localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
       localStorage.removeItem("login_temp");
       navigate("/user");

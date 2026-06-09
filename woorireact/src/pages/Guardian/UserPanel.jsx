@@ -4,6 +4,7 @@ import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi";
 import { updateGuardianSeniorRelation, updateSeniorRequestedInfo } from "../../api/guardianApi";
 import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const ACTIVITY_LABELS = {
   activity: "활동성",
@@ -147,7 +148,7 @@ function UserPanel({
       },
     };
 
-    sessionStorage.setItem("currentSenior", JSON.stringify(seniorProfile));
+    saveCurrentSenior(seniorProfile);
     localStorage.setItem("current_senior_id", String(selectedElder.id));
 
     navigate("/user");
