@@ -28,7 +28,6 @@ import {
   sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
-import { saveCurrentSeniorProfile } from "../../utils/user/currentSeniorStorage.js";
 import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
@@ -926,7 +925,7 @@ export default function UserPage() {
             if (response.ok) {
               const freshProfile = await response.json();
 
-              saveCurrentSeniorProfile(freshProfile);
+              sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
               setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
@@ -954,29 +953,22 @@ export default function UserPage() {
           }
         }
 
-        const storedSeniorId = localStorage.getItem("current_senior_id");
-        if (storedSeniorId) {
-          const response = await fetch(`/api/seniors/${storedSeniorId}`);
+        const response = await fetch(`${SPRING_API_BASE}/api/seniors`);
+        if (!response.ok) return;
 
-          if (response.ok) {
-            const profile = await response.json();
+        const profiles = await response.json();
+        const latest = profiles[profiles.length - 1];
 
-            saveCurrentSeniorProfile(profile);
-            setChanged(setCurrentProfile, profile);
-            setChanged(setUserName, profile?.senior?.name || "사용자");
-            setChanged(setUserRegion, profile?.senior?.region || profile?.senior?.address || "");
-            setChanged(setProfileImageUrl, profile?.senior?.profileImageUrl || "");
-            loadMatchedCareTeam(profile?.senior?.id, profile);
-            setChanged(setHealthScores, getHealthScoresFromProfile(profile));
-            return;
-          }
+        if (!latest) return;
 
-          if (response.status === 404) {
-            localStorage.removeItem("current_senior_id");
-          }
-        }
-
-        navigate("/login");
+        sessionStorage.setItem("currentSenior", JSON.stringify(latest));
+        localStorage.setItem("current_senior_id", String(latest.senior.id));
+        setChanged(setCurrentProfile, latest);
+        setChanged(setUserName, latest?.senior?.name || "사용자");
+        setChanged(setUserRegion, latest?.senior?.region || latest?.senior?.address || "");
+        setChanged(setProfileImageUrl, latest?.senior?.profileImageUrl || "");
+        loadMatchedCareTeam(latest?.senior?.id, latest);
+        setChanged(setHealthScores, getHealthScoresFromProfile(latest));
       } catch (error) {
         console.error("사용자 정보 조회 실패:", error);
       }
@@ -1320,7 +1312,7 @@ export default function UserPage() {
       if (!res.ok) throw new Error("edit_failed");
 
       const updated = await res.json();
-      saveCurrentSeniorProfile(updated);
+      sessionStorage.setItem("currentSenior", JSON.stringify(updated));
       setCareTeam((prev) => ({
         ...prev,
         guardianName: guardianEditData.name.trim(),
@@ -1386,7 +1378,7 @@ export default function UserPage() {
       const profileRes = await fetch(`/api/seniors/${seniorId}`);
       if (profileRes.ok) {
         const updated = await profileRes.json();
-        saveCurrentSeniorProfile(updated);
+        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
         setCurrentProfile(updated);
       }
       setCareTeam((prev) => ({

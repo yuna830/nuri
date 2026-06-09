@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { SPRING_API_BASE } from "../../config/api.js";
-import { saveCurrentSeniorProfile } from "../../utils/user/currentSeniorStorage.js";
 import "../../css/common/Login.css";
 
 const FEATURES = [
@@ -57,7 +56,7 @@ export default function Login() {
       if (response.ok) {
         const profile = await response.json();
 
-        saveCurrentSeniorProfile(profile);
+        sessionStorage.setItem("currentSenior", JSON.stringify(profile));
         localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
         localStorage.removeItem("login_temp");
 
