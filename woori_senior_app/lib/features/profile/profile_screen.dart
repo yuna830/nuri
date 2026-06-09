@@ -13,6 +13,17 @@ import '../auth/login_screen.dart';
 
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
+/// data: URL이면 MemoryImage, 아니면 NetworkImage 반환
+ImageProvider _profileImageProvider(String url) {
+  if (url.startsWith('data:')) {
+    try {
+      final base64Data = url.substring(url.indexOf(',') + 1);
+      return MemoryImage(base64Decode(base64Data));
+    } catch (_) {}
+  }
+  return NetworkImage(url);
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const _none = '없음';
@@ -721,7 +732,7 @@ class _PersonalSectionState extends State<_PersonalSection> {
                       color: const Color(0xFFD4E8D6),
                       image: imageUrl.isNotEmpty
                           ? DecorationImage(
-                              image: NetworkImage(imageUrl),
+                              image: _profileImageProvider(imageUrl),
                               fit: BoxFit.cover,
                             )
                           : null,
