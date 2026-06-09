@@ -21,6 +21,7 @@ public class MedicationAlertSchedulerService {
     private final AlertRepository alertRepository;
     private final SeniorRepository seniorRepository;
     private final HealthInfoRepository healthInfoRepository;
+    private final FcmPushService fcmPushService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean autoMedicationAlertsEnabled;
 
@@ -28,11 +29,13 @@ public class MedicationAlertSchedulerService {
             AlertRepository alertRepository,
             SeniorRepository seniorRepository,
             HealthInfoRepository healthInfoRepository,
+            FcmPushService fcmPushService,
             @Value("${app.medication-alert.auto-enabled:false}") boolean autoMedicationAlertsEnabled
     ) {
         this.alertRepository = alertRepository;
         this.seniorRepository = seniorRepository;
         this.healthInfoRepository = healthInfoRepository;
+        this.fcmPushService = fcmPushService;
         this.autoMedicationAlertsEnabled = autoMedicationAlertsEnabled;
     }
 
@@ -108,16 +111,22 @@ public class MedicationAlertSchedulerService {
             if (LocalDateTime.now().isBefore(nextAlertTime)) return;
         }
 
-        // 약 이름마다 알림 생성
+        // 약 이름마다 알림 생성 + FCM 발송
         for (String medName : alertNames) {
+            String title = "복약 알림 · " + medName;
+            String message = senior.getName() + "님, " + buildMedMessage(medName);
+
             Alert alert = new Alert();
             alert.setSeniorId(senior.getId());
             alert.setGuardianId(null);
             alert.setType("MEDICINE");
-            alert.setTitle("복약 알림 · " + medName);
-            alert.setMessage(senior.getName() + "님, " + buildMedMessage(medName));
+            alert.setTitle(title);
+            alert.setMessage(message);
             alert.setIsRead(false);
             alertRepository.save(alert);
+
+            // 어르신 기기에 FCM 푸시 발송
+            fcmPushService.sendToUser("SENIOR", senior.getId(), title, message, "MEDICINE");
         }
     }
 }

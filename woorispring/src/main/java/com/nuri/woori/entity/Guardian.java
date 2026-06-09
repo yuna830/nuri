@@ -16,6 +16,7 @@ public class Guardian {
     private String phone;
     private String email;
     private String password;
+    private String address;
     private Boolean active = true;
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -53,6 +54,14 @@ public class Guardian {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
     }
 
     public Boolean getActive() {

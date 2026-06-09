@@ -101,6 +101,7 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
 
           _InfoSection(
             title: '복약 정보',
+            trailing: _MedicationAlertIconButton(senior: senior),
             children: [
               _InfoTile(label: '복약 수', value: senior.medicineCount ?? '-'),
               _InfoTile(
@@ -250,7 +251,9 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
 
   String _jobTitleWithoutParentheses(String title) {
     final text = title.trim();
-    final withoutParentheses = text.replaceAll(RegExp(r'\s*\([^)]*\)\s*'), ' ').trim();
+    final withoutParentheses = text
+        .replaceAll(RegExp(r'\s*\([^)]*\)\s*'), ' ')
+        .trim();
     return withoutParentheses.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
@@ -410,8 +413,13 @@ class _FallbackProfileInitial extends StatelessWidget {
 class _InfoSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
+  final Widget? trailing;
 
-  const _InfoSection({required this.title, required this.children});
+  const _InfoSection({
+    required this.title,
+    required this.children,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -424,13 +432,20 @@ class _InfoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _kTextTitle,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _kTextTitle,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
           ),
           const SizedBox(height: 8),
           ...children,
@@ -639,6 +654,356 @@ class _InfoTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MedicationAlertIconButton extends StatelessWidget {
+  final Senior senior;
+
+  const _MedicationAlertIconButton({required this.senior});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.notifications_outlined, color: _kGreen),
+      tooltip: '복약 알림 보내기',
+      onPressed: () => _showModal(context),
+    );
+  }
+
+  void _showModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _MedicationAlertModal(senior: senior),
+    );
+  }
+}
+
+class _MedicationAlertModal extends StatefulWidget {
+  final Senior senior;
+
+  const _MedicationAlertModal({required this.senior});
+
+  @override
+  State<_MedicationAlertModal> createState() => _MedicationAlertModalState();
+}
+
+class _MedicationAlertModalState extends State<_MedicationAlertModal> {
+  final _api = GuardianApi();
+  final _session = GuardianSessionStorage();
+  final _customMsgCtrl = TextEditingController();
+
+  String? _selectedMed;
+  int _selectedMsgIdx = 0;
+  bool _isSending = false;
+  String _medName(String med) => med.split(' / ').first.trim();
+
+  static const _kModalGreen = Color(0xFF86A788);
+  static const _kModalBg = Color(0xFFF5F5F5);
+  static const _kModalSub = Color(0xFF6C6C70);
+  static const _kModalHint = Color(0xFFAEAEB2);
+  static const _kModalDivider = Color(0xFFE5E5EA);
+  static const _kModalRed = Color(0xFFB85252);
+
+  List<String> get _presets {
+    final name = _selectedMed ?? '약';
+    return [
+      '$name 복용 시간입니다. 꼭 챙겨드세요 💊',
+      '지금 $name 드실 시간이에요!',
+      '오늘 $name 드셨나요? 확인해주세요.',
+      '직접 입력',
+    ];
+  }
+
+  String get _finalMessage {
+    if (_selectedMsgIdx == _presets.length - 1) {
+      return _customMsgCtrl.text.trim();
+    }
+    return _presets[_selectedMsgIdx];
+  }
+
+  Future<void> _send() async {
+    final info = await _session.getGuardianInfo();
+    final guardianId = int.tryParse(info['guardianId'] ?? '');
+    if (guardianId == null) return;
+
+    if (_finalMessage.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('메시지를 입력해주세요.')));
+      return;
+    }
+
+    setState(() => _isSending = true);
+    try {
+      await _api.sendMedicationReminder(
+        seniorId: widget.senior.id,
+        guardianId: guardianId,
+        message: _finalMessage,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.senior.name}님께 복약 알림을 전송했습니다.'),
+          backgroundColor: _kModalGreen,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: _kModalRed,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _customMsgCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final meds = widget.senior.medications;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 핸들
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _kModalDivider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '${widget.senior.name}님께 복약 알림 보내기',
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1C1C1E),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '알림은 앱 푸시와 앱 내 알림함으로 동시에 전송됩니다.',
+              style: TextStyle(fontSize: 12, color: _kModalSub),
+            ),
+            const SizedBox(height: 24),
+
+            // 약 선택
+            const Text(
+              '약 선택',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kModalSub,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (meds.isEmpty)
+              TextField(
+                decoration: InputDecoration(
+                  hintText: '약 이름을 직접 입력하세요',
+                  hintStyle: const TextStyle(color: _kModalHint),
+                  filled: true,
+                  fillColor: _kModalBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+                onChanged: (v) => setState(() => _selectedMed = v.trim()),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: meds.map((med) {
+                  final name = _medName(med);
+                  final selected = _selectedMed == name;
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      _selectedMed = selected ? null : name;
+                      _selectedMsgIdx = 0;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected ? _kModalGreen : _kModalBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: selected ? _kModalGreen : _kModalDivider,
+                        ),
+                      ),
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF1C1C1E),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            const SizedBox(height: 24),
+
+            // 메시지 선택
+            const Text(
+              '메시지',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kModalSub,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ..._presets.asMap().entries.map((e) {
+              final idx = e.key;
+              final isCustom = idx == _presets.length - 1;
+              final selected = _selectedMsgIdx == idx;
+              return Column(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _selectedMsgIdx = idx),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: selected ? const Color(0xFFEBF8EE) : _kModalBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected ? _kModalGreen : _kModalDivider,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            selected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: selected ? _kModalGreen : _kModalHint,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              isCustom ? '직접 입력' : e.value,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: selected
+                                    ? const Color(0xFF1C1C1E)
+                                    : _kModalSub,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (isCustom && selected)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: TextField(
+                        controller: _customMsgCtrl,
+                        maxLines: 2,
+                        decoration: InputDecoration(
+                          hintText: '보낼 메시지를 입력하세요',
+                          hintStyle: const TextStyle(color: _kModalHint),
+                          filled: true,
+                          fillColor: _kModalBg,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            }),
+            const SizedBox(height: 8),
+
+            // 전송 버튼
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kModalGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: _isSending ? null : _send,
+                child: _isSending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        '알림 보내기',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

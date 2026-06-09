@@ -1,4 +1,7 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:kpostal/kpostal.dart';
+import '../../core/api/guardian_api.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../auth/guardian_login_screen.dart';
@@ -7,12 +10,10 @@ import 'senior_consent_screen.dart';
 import '../senior/add_senior_screen.dart';
 import '../senior/senior_list_screen.dart';
 import 'privacy_screen.dart';
-import 'profile_edit_screen.dart';
 
 // ── 색상 ──────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kGreenBg = Color(0xFFEBF8EE);
-const _kBg = Colors.white;
 const _kDivider = Color(0xFFE5E5EA);
 const _kTextMain = Color(0xFF1C1C1E);
 const _kTextSub = Color(0xFF6C6C70);
@@ -30,9 +31,10 @@ class _MypageScreenState extends State<MypageScreen> {
   final _session = GuardianSessionStorage();
   final _consent = ConsentStorage();
 
+  String _guardianId = '';
   String _name = '';
   String _email = '';
-  // TODO: 백엔드 Guardian 엔티티에 address 필드 추가 및 세션 저장 후 활용
+  String _phone = '';
   String _address = '';
 
   Map<String, bool> _consents = {};
@@ -48,9 +50,10 @@ class _MypageScreenState extends State<MypageScreen> {
     final consents = await _consent.load();
     if (mounted) {
       setState(() {
+        _guardianId = info['guardianId'] ?? '';
         _name = info['name'] ?? '';
         _email = info['email'] ?? '';
-        // TODO: 세션에 address 저장 후 info['address'] ?? '' 로 교체
+        _phone = info['phone'] ?? '';
         _address = info['address'] ?? '';
         _consents = consents;
       });
@@ -60,6 +63,257 @@ class _MypageScreenState extends State<MypageScreen> {
   Future<void> _saveConsent(String key, bool v) async {
     setState(() => _consents[key] = v);
     await _consent.set(key, v);
+  }
+
+  void _showProfileEditModal() {
+    final nameCtrl = TextEditingController(text: _name);
+    final emailCtrl = TextEditingController(text: _email);
+    final phoneCtrl = TextEditingController(text: _phone);
+    final addressCtrl = TextEditingController(text: _address);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        bool isSaving = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            Future<void> onSave() async {
+              setModalState(() => isSaving = true);
+              final nav = Navigator.of(ctx);
+              try {
+                final id = int.tryParse(_guardianId) ?? 0;
+                final updated = await GuardianApi().updateGuardianProfile(
+                  guardianId: id,
+                  name: nameCtrl.text.trim(),
+                  email: emailCtrl.text.trim(),
+                  phone: phoneCtrl.text.trim(),
+                  address: addressCtrl.text.trim(),
+                );
+                await _session.saveGuardianInfo(
+                  guardianId: _guardianId,
+                  name: updated['name'] ?? nameCtrl.text.trim(),
+                  email: updated['email'] ?? emailCtrl.text.trim(),
+                  phone: updated['phone'] ?? phoneCtrl.text.trim(),
+                  address: updated['address'] ?? addressCtrl.text.trim(),
+                );
+                nav.pop();
+                _load();
+              } catch (e) {
+                setModalState(() => isSaving = false);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: _kRed,
+                  ),
+                );
+              }
+            }
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 핸들
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: _kDivider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // 이름 + 전화번호 한 줄
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _modalField('이름', nameCtrl, hintText: '이름'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: _modalField(
+                          '전화번호',
+                          phoneCtrl,
+                          hintText: '010-0000-0000',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [_PhoneInputFormatter()],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  // 이메일
+                  _modalField(
+                    '이메일',
+                    emailCtrl,
+                    hintText: '이메일을 입력하세요',
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 14),
+                  // 주소 (카카오 주소 검색)
+                  // 주소 검색 (인라인)
+                  // 주소
+                  const Text(
+                    '주소',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextSub,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: addressCtrl,
+                    readOnly: true,
+                    onTap: () {
+                      Navigator.push(
+                        ctx,
+                        PageRouteBuilder(
+                          pageBuilder: (_, __, ___) => KpostalView(
+                            callback: (Kpostal result) {
+                              addressCtrl.text = result.address;
+                              setModalState(() {});
+                            },
+                          ),
+                          transitionsBuilder: (_, animation, __, child) {
+                            return SlideTransition(
+                              position:
+                                  Tween<Offset>(
+                                    begin: const Offset(0, 1),
+                                    end: Offset.zero,
+                                  ).animate(
+                                    CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeOut,
+                                    ),
+                                  ),
+                              child: child,
+                            );
+                          },
+                          transitionDuration: const Duration(milliseconds: 300),
+                        ),
+                      );
+                    },
+                    decoration: InputDecoration(
+                      hintText: '주소를 검색하세요',
+                      hintStyle: const TextStyle(color: _kTextHint),
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      suffixIcon: const Icon(
+                        Icons.search,
+                        color: _kGreen,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: isSaving ? null : onSave,
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              '저장',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _modalField(
+    String label,
+    TextEditingController ctrl, {
+    String? hintText,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters, // ← 추가
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextSub,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters, // ← 추가
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(color: _kTextHint),
+            filled: true,
+            fillColor: const Color(0xFFF5F5F5),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _logout() async {
@@ -232,7 +486,7 @@ class _MypageScreenState extends State<MypageScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => _go(const ProfileEditScreen()),
+                    onTap: _showProfileEditModal,
                     child: const Text(
                       '정보 수정',
                       style: TextStyle(
@@ -394,6 +648,28 @@ class _MypageScreenState extends State<MypageScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PhoneInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < digits.length && i < 11; i++) {
+      if (i == 3 || i == 7) buffer.write('-');
+      buffer.write(digits[i]);
+    }
+
+    final formatted = buffer.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }

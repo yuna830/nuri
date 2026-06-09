@@ -132,6 +132,22 @@ public class GuardianController {
         return toResponse(guardian);
     }
 
+    @PatchMapping("/{id}/profile")
+    public ResponseEntity<GuardianResponse> updateProfile(
+            @PathVariable Long id,
+            @RequestBody UpdateProfileRequest request) {
+        return guardianRepository.findById(id)
+                .map(guardian -> {
+                    if (request.name() != null) guardian.setName(request.name());
+                    if (request.phone() != null) guardian.setPhone(request.phone());
+                    if (request.email() != null) guardian.setEmail(request.email());
+                    if (request.address() != null) guardian.setAddress(request.address());
+                    Guardian saved = guardianRepository.save(guardian);
+                    return ResponseEntity.ok(toResponse(saved));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PatchMapping("/{id}/active")
     public ResponseEntity<GuardianResponse> updateActive(@PathVariable Long id, @RequestBody ActiveRequest request) {
         return guardianRepository.findById(id)
@@ -202,7 +218,7 @@ public class GuardianController {
     }
 
     private GuardianResponse toResponse(Guardian guardian) {
-        return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), !Boolean.FALSE.equals(guardian.getActive()));
+        return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), !Boolean.FALSE.equals(guardian.getActive()));
     }
 
     private GuardianListResponse toListResponse(Guardian guardian) {
@@ -214,7 +230,7 @@ public class GuardianController {
                 .map(java.util.Optional::get)
                 .toList();
 
-        return new GuardianListResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), !Boolean.FALSE.equals(guardian.getActive()), seniors);
+        return new GuardianListResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), !Boolean.FALSE.equals(guardian.getActive()), seniors);
     }
 
     private String normalizePhone(String phone) {
@@ -250,7 +266,8 @@ public class GuardianController {
     public record GuardianSignupRequest(String name, String phone, String email, String password, Long seniorId, String seniorRelation) {}
     public record GuardianLoginRequest(String email, String password) {}
     public record ActiveRequest(Boolean active) {}
-    public record GuardianResponse(Long id, String name, String phone, String email, Boolean active) {}
-    public record GuardianListResponse(Long id, String name, String phone, String email, Boolean active, List<GuardianSeniorSummaryResponse> seniors) {}
+    public record UpdateProfileRequest(String name, String phone, String email, String address) {}
+    public record GuardianResponse(Long id, String name, String phone, String email, String address, Boolean active) {}
+    public record GuardianListResponse(Long id, String name, String phone, String email, String address, Boolean active, List<GuardianSeniorSummaryResponse> seniors) {}
     public record GuardianSeniorSummaryResponse(Long id, String name, String phone, String relation) {}
 }
