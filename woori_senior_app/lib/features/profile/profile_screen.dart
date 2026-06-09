@@ -196,7 +196,6 @@ List<Map<String, String>> _parseMedications(dynamic raw) {
     if (trimmed.isEmpty || trimmed == '[]') return [];
     try {
       source = jsonDecode(trimmed);
-      widget.onSaved?.call();
     } catch (_) {
       return [];
     }
@@ -497,6 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('저장되었습니다'), backgroundColor: Color(0xFF86A788)),
       );
+      widget.onSaved?.call();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
