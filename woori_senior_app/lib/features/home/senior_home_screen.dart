@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,6 +47,9 @@ String scheduleTime(dynamic schedule) {
 String _resolveImageUrl(String url) {
   if (url.isEmpty) return url;
 
+  // data: URL은 그대로 사용
+  if (url.startsWith('data:')) return url;
+
   // 상대경로
   if (url.startsWith('/')) return '$apiBaseUrl$url';
 
@@ -59,6 +63,17 @@ String _resolveImageUrl(String url) {
   } catch (_) {}
 
   return url;
+}
+
+/// data: URL이면 MemoryImage, 아니면 NetworkImage 반환
+ImageProvider _profileImageProvider(String url) {
+  if (url.startsWith('data:')) {
+    try {
+      final base64Data = url.substring(url.indexOf(',') + 1);
+      return MemoryImage(base64Decode(base64Data));
+    } catch (_) {}
+  }
+  return NetworkImage(url);
 }
 
 List<String> _parseList(dynamic v) {
@@ -1260,8 +1275,8 @@ class _ProfileHeader extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: hasImage
-                ? Image.network(
-                    imageUrl,
+                ? Image(
+                    image: _profileImageProvider(imageUrl),
                     width: 62,
                     height: 62,
                     fit: BoxFit.cover,

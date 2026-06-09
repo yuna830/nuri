@@ -26,6 +26,7 @@ public class Senior {
     private String emergencyPhone;
     private String disabilityGrade;
     private String disabilityType;
+    @Column(columnDefinition = "TEXT")
     private String profileImageUrl;
     private Boolean active = true;
     private Long welfareWorkerId;

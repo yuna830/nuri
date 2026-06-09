@@ -15,6 +15,17 @@ import '../shell/app_shell.dart';
 
 const _none = '없음';
 
+/// data: URL이면 MemoryImage, 아니면 NetworkImage 반환
+ImageProvider _profileImageProvider(String url) {
+  if (url.startsWith('data:')) {
+    try {
+      final base64Data = url.substring(url.indexOf(',') + 1);
+      return MemoryImage(base64Decode(base64Data));
+    } catch (_) {}
+  }
+  return NetworkImage(url);
+}
+
 const _steps = [
   '기본 정보',
   '건강 정보',
@@ -537,7 +548,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
             radius: 48,
             backgroundColor: const Color(0xFFE8F5E9),
             backgroundImage: _profileImageUrl.isNotEmpty
-                ? NetworkImage(_profileImageUrl.startsWith('/')
+                ? _profileImageProvider(_profileImageUrl.startsWith('/')
                     ? '$apiBaseUrl$_profileImageUrl'
                     : _profileImageUrl)
                 : null,
