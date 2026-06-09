@@ -211,7 +211,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx).padding.bottom + 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -766,6 +766,8 @@ class _HomeBody extends StatelessWidget {
     final workerSummary = _workerSummary(profile);
     final guardianPhone = _textFrom(profile, ['guardianPhone'], '');
     final workerPhone = _textFrom(profile, ['socialWorkerPhone'], '');
+    final guardianIdRaw = profile['guardianId'];
+    final guardianId = guardianIdRaw == null ? null : (guardianIdRaw as num).toInt();
     final medicineCount = _medicineCount(data.alerts);
 
     return RefreshIndicator(
@@ -790,14 +792,19 @@ class _HomeBody extends StatelessWidget {
                     icon: Icons.call,
                     title: '보호자 전화',
                     subtitle: guardianSummary,
-                    onTap: () => _callPhone(context, guardianPhone, '보호자'),
-                    onEdit: () => _showGuardianEditSheet(
+                    onTap: () => _showGuardianActionSheet(
                       context,
-                      seniorId,
-                      _textFrom(profile, ['guardianName'], ''),
-                      _textFrom(profile, ['relation'], ''),
-                      guardianPhone,
-                      onRefresh,
+                      guardianName: _textFrom(profile, ['guardianName'], ''),
+                      onCall: () => _callPhone(context, guardianPhone, '보호자'),
+                      onEdit: () => _showGuardianEditSheet(
+                        context,
+                        seniorId,
+                        guardianId,
+                        _textFrom(profile, ['guardianName'], ''),
+                        _textFrom(profile, ['relation'], ''),
+                        guardianPhone,
+                        onRefresh,
+                      ),
                     ),
                   ),
                 ),
@@ -816,7 +823,9 @@ class _HomeBody extends StatelessWidget {
           const SizedBox(height: 14),
           _LocationCard(region: region, onTap: onTabSwitch != null ? () => onTabSwitch!(1) : null),
           const SizedBox(height: 14),
-          Row(
+          IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: _SmallStatusCard(
@@ -838,7 +847,7 @@ class _HomeBody extends StatelessWidget {
                   title: '복약 알림',
                   value: '$medicineCount건',
                   description:
-                      medicineCount > 0 ? '복용 알림을 확인해주세요.' : '복용 알림이 없어요.',
+                      medicineCount > 0 ? '복약 알림을 확인하세요.' : '복용 알림이 없어요.',
                   icon: Icons.medication_outlined,
                   valueColor: const Color(0xFF1F2A20),
                   onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -847,6 +856,7 @@ class _HomeBody extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
           const SizedBox(height: 14),
           _WelfareCheckCard(
@@ -1463,6 +1473,7 @@ class _SmallStatusCard extends StatelessWidget {
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Icon(icon, color: const Color(0xFF86A788), size: 30),
           const SizedBox(height: 10),
@@ -2053,12 +2064,108 @@ class _BaseCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
+//  보호자 액션 선택 바텀시트 (전화하기 / 수정하기)
+// ─────────────────────────────────────────────
+
+void _showGuardianActionSheet(
+  BuildContext context, {
+  required String guardianName,
+  required VoidCallback onCall,
+  required VoidCallback onEdit,
+}) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetCtx) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 72),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDDDDDD),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Text(
+            guardianName.isNotEmpty ? guardianName : '보호자',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1F2A20),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.call, size: 22),
+              label: const Text(
+                '전화하기',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF86A788),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(sheetCtx);
+                onCall();
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: OutlinedButton.icon(
+              icon: const Icon(
+                Icons.edit_outlined,
+                size: 22,
+                color: Color(0xFF6F9271),
+              ),
+              label: const Text(
+                '수정하기',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF6F9271),
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF86A788), width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(sheetCtx);
+                onEdit();
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────
 //  보호자 정보 수정 바텀시트
 // ─────────────────────────────────────────────
 
 void _showGuardianEditSheet(
   BuildContext context,
   int seniorId,
+  int? guardianId,
   String currentName,
   String currentRelation,
   String currentPhone,
@@ -2073,6 +2180,7 @@ void _showGuardianEditSheet(
     ),
     builder: (_) => _GuardianEditSheet(
       seniorId: seniorId,
+      guardianId: guardianId,
       initialName: currentName,
       initialRelation: currentRelation,
       initialPhone: currentPhone,
@@ -2084,12 +2192,14 @@ void _showGuardianEditSheet(
 class _GuardianEditSheet extends StatefulWidget {
   const _GuardianEditSheet({
     required this.seniorId,
+    required this.guardianId,
     required this.initialName,
     required this.initialRelation,
     required this.initialPhone,
     required this.onSaved,
   });
   final int seniorId;
+  final int? guardianId;
   final String initialName;
   final String initialRelation;
   final String initialPhone;
@@ -2110,7 +2220,6 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.initialName);
     _relationCtrl = TextEditingController(text: widget.initialRelation);
-    // 전화번호 초기값 — 하이픈 포맷 적용 (DB에 하이픈 없이 저장된 경우 대비)
     _phoneCtrl = TextEditingController(
       text: PhoneNumberFormatter().formatEditUpdate(
         const TextEditingValue(text: ''),
@@ -2128,24 +2237,21 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
   }
 
   Future<void> _save() async {
-    final name = _nameCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
-    if (name.isEmpty || phone.isEmpty) {
+    if (widget.guardianId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이름과 전화번호는 필수입니다.')),
+        const SnackBar(content: Text('보호자가 연동되어 있지 않습니다.')),
       );
       return;
     }
     setState(() => _saving = true);
-    // async gap 전에 context 의존 객체 미리 캡처
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
-      await const SeniorApi().updateProfile(widget.seniorId, {
-        'guardianName': name,
-        'relation': _relationCtrl.text.trim(),
-        'guardianPhone': phone,
-      });
+      await const SeniorApi().patchGuardianRelation(
+        guardianId: widget.guardianId!,
+        seniorId: widget.seniorId,
+        relation: _relationCtrl.text.trim(),
+      );
       if (mounted) {
         navigator.pop();
         await widget.onSaved();
@@ -2174,7 +2280,7 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
         left: 24,
         right: 24,
         top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 72,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2196,22 +2302,23 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)),
           ),
           const SizedBox(height: 20),
-          // 이름
-          _EditField(label: '이름', controller: _nameCtrl, hint: '홍길동'),
+          // 이름 (보호자 계정 이름 — 읽기 전용)
+          _EditField(label: '이름', controller: _nameCtrl, hint: '홍길동', readOnly: true),
           const SizedBox(height: 14),
-          // 관계
+          // 관계 (수정 가능)
           _EditField(
             label: '관계',
             controller: _relationCtrl,
             hint: '예: 아들, 딸, 배우자, 친구 등',
           ),
           const SizedBox(height: 14),
-          // 전화번호
+          // 전화번호 (보호자 계정 전화번호 — 읽기 전용)
           _EditField(
             label: '전화번호',
             controller: _phoneCtrl,
             hint: '010-0000-0000',
             isPhone: true,
+            readOnly: true,
           ),
           const SizedBox(height: 24),
           // 저장 버튼
@@ -2241,11 +2348,13 @@ class _EditField extends StatelessWidget {
     required this.controller,
     required this.hint,
     this.isPhone = false,
+    this.readOnly = false,
   });
   final String label;
   final TextEditingController controller;
   final String hint;
   final bool isPhone;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -2257,8 +2366,9 @@ class _EditField extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          readOnly: readOnly,
           keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-          inputFormatters: isPhone
+          inputFormatters: (isPhone && !readOnly)
               ? [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(11),
@@ -2269,7 +2379,7 @@ class _EditField extends StatelessWidget {
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFCECECE)),
             filled: true,
-            fillColor: const Color(0xFFF5F7F5),
+            fillColor: readOnly ? const Color(0xFFEEEEEE) : const Color(0xFFF5F7F5),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -2351,6 +2461,7 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
       if (result == null) {
         setState(() => _errorMsg = '일치하는 보호자를 찾을 수 없어요.\n이름과 전화번호를 다시 확인해주세요.');
       } else {
+        FocusScope.of(context).unfocus();
         setState(() { _found = result; _step = 1; });
       }
     } catch (_) {
@@ -2396,7 +2507,7 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
     return Padding(
       padding: EdgeInsets.only(
         left: 24, right: 24, top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 120,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
