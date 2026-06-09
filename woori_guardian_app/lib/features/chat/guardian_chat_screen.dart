@@ -9,6 +9,40 @@ import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
+enum _GuardianChatTarget {
+  senior,
+  socialWorker,
+}
+
+extension _GuardianChatTargetValue on _GuardianChatTarget {
+  String get roomType {
+    switch (this) {
+      case _GuardianChatTarget.senior:
+        return 'SENIOR_GUARDIAN';
+      case _GuardianChatTarget.socialWorker:
+        return 'GUARDIAN_SOCIAL_WORKER';
+    }
+  }
+
+  String get title {
+    switch (this) {
+      case _GuardianChatTarget.senior:
+        return '어르신과 채팅';
+      case _GuardianChatTarget.socialWorker:
+        return '담당 복지사와 채팅';
+    }
+  }
+
+  String get emptyText {
+    switch (this) {
+      case _GuardianChatTarget.senior:
+        return '아직 어르신과의 대화가 없습니다.';
+      case _GuardianChatTarget.socialWorker:
+        return '아직 담당 복지사와의 대화가 없습니다.';
+    }
+  }
+}
+
 class GuardianChatScreen extends StatefulWidget {
   const GuardianChatScreen({super.key});
 
@@ -26,6 +60,8 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
   int? _guardianId;
   bool _loading = true;
 
+  _GuardianChatTarget _selectedTarget = _GuardianChatTarget.senior;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +72,7 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
     try {
       final session = await _sessionStorage.getGuardianInfo();
       final guardianId = int.tryParse(session['guardianId'] ?? '');
+
       if (guardianId == null) {
         if (mounted) setState(() => _loading = false);
         return;
@@ -44,6 +81,7 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
       final seniors = await _api.fetchGuardianSeniors(guardianId);
 
       if (!mounted) return;
+
       setState(() {
         _guardianId = guardianId;
         _guardianName = session['name']?.trim().isNotEmpty == true
@@ -81,36 +119,51 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
               child: CircularProgressIndicator(color: Color(0xFF86A788)),
             )
           : _seniors.isEmpty
-          ? const Center(
-              child: Text(
-                '연결된 어르신이 없습니다.',
-                style: TextStyle(
-                  color: Color(0xFF6D766A),
-                  fontWeight: FontWeight.w700,
+              ? const Center(
+                  child: Text(
+                    '연결된 어르신이 없습니다.',
+                    style: TextStyle(
+                      color: Color(0xFF6D766A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    _SeniorSelector(
+                      seniors: _seniors,
+                      selectedSenior: selected,
+                      onChanged: (senior) {
+                        setState(() => _selectedSenior = senior);
+                      },
+                    ),
+
+                    _ChatTargetSelector(
+                      selectedTarget: _selectedTarget,
+                      onChanged: (target) {
+                        setState(() => _selectedTarget = target);
+                      },
+                    ),
+
+                    Expanded(
+                      child: selected == null || _guardianId == null
+                          ? const SizedBox.shrink()
+                          : _GuardianHumanChatRoom(
+                              key: ValueKey(
+                                '${selected.id}-${_selectedTarget.roomType}',
+                              ),
+                              seniorId: selected.id,
+                              guardianId: _guardianId!,
+                              guardianName: _guardianName,
+                              roomType: _selectedTarget.roomType,
+                              roomTitle: _selectedTarget.title,
+                              emptyText: _selectedTarget.emptyText,
+                              seniorProfileImageUrl:
+                                  selected.profileImageUrl,
+                            ),
+                    ),
+                  ],
                 ),
-              ),
-            )
-          : Column(
-              children: [
-                _SeniorSelector(
-                  seniors: _seniors,
-                  selectedSenior: selected,
-                  onChanged: (senior) {
-                    setState(() => _selectedSenior = senior);
-                  },
-                ),
-                Expanded(
-                  child: selected == null || _guardianId == null
-                      ? const SizedBox.shrink()
-                      : _GuardianHumanChatRoom(
-                          seniorId: selected.id,
-                          guardianId: _guardianId!,
-                          guardianName: _guardianName,
-                          seniorProfileImageUrl: selected.profileImageUrl,
-                        ),
-                ),
-              ],
-            ),
     );
   }
 }
@@ -155,9 +208,122 @@ class _SeniorSelector extends StatelessWidget {
             .toList(),
         onChanged: (id) {
           if (id == null) return;
+
           final match = seniors.where((senior) => senior.id == id);
-          if (match.isNotEmpty) onChanged(match.first);
+
+          if (match.isNotEmpty) {
+            onChanged(match.first);
+          }
         },
+      ),
+    );
+  }
+}
+
+class _ChatTargetSelector extends StatelessWidget {
+  const _ChatTargetSelector({
+    required this.selectedTarget,
+    required this.onChanged,
+  });
+
+  final _GuardianChatTarget selectedTarget;
+  final ValueChanged<_GuardianChatTarget> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5E8),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _ChatTargetButton(
+                label: '어르신',
+                icon: Icons.person_outline,
+                selected: selectedTarget == _GuardianChatTarget.senior,
+                onTap: () => onChanged(_GuardianChatTarget.senior),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _ChatTargetButton(
+                label: '복지사',
+                icon: Icons.support_agent_outlined,
+                selected:
+                    selectedTarget == _GuardianChatTarget.socialWorker,
+                onTap: () => onChanged(_GuardianChatTarget.socialWorker),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatTargetButton extends StatelessWidget {
+  const _ChatTargetButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: selected
+                  ? const Color(0xFF4A7A4C)
+                  : const Color(0xFF6D766A),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: selected
+                    ? const Color(0xFF4A7A4C)
+                    : const Color(0xFF6D766A),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -165,19 +331,27 @@ class _SeniorSelector extends StatelessWidget {
 
 class _GuardianHumanChatRoom extends StatefulWidget {
   const _GuardianHumanChatRoom({
+    super.key,
     required this.seniorId,
     required this.guardianId,
     required this.guardianName,
+    required this.roomType,
+    required this.roomTitle,
+    required this.emptyText,
     required this.seniorProfileImageUrl,
   });
 
   final int seniorId;
   final int guardianId;
   final String guardianName;
+  final String roomType;
+  final String roomTitle;
+  final String emptyText;
   final String seniorProfileImageUrl;
 
   @override
-  State<_GuardianHumanChatRoom> createState() => _GuardianHumanChatRoomState();
+  State<_GuardianHumanChatRoom> createState() =>
+      _GuardianHumanChatRoomState();
 }
 
 class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
@@ -193,17 +367,23 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   void initState() {
     super.initState();
     _load();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _load(),
+    );
   }
 
   @override
   void didUpdateWidget(_GuardianHumanChatRoom oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.seniorId != widget.seniorId) {
+
+    if (oldWidget.seniorId != widget.seniorId ||
+        oldWidget.roomType != widget.roomType) {
       setState(() {
         _messages = [];
         _loading = true;
       });
+
       _load();
     }
   }
@@ -221,7 +401,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
       final response = await http.get(
         Uri.parse(
           '${AppConfig.apiBaseUrl}/chat/senior/${widget.seniorId}'
-          '?roomType=SENIOR_GUARDIAN&viewerRole=GUARDIAN&size=100',
+          '?roomType=${widget.roomType}&viewerRole=GUARDIAN&size=100',
         ),
       );
 
@@ -229,11 +409,13 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes));
+
         if (list is List) {
           setState(() {
             _messages = list.whereType<Map<String, dynamic>>().toList();
             _loading = false;
           });
+
           _scrollToBottom();
         }
       } else {
@@ -246,6 +428,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
 
   Future<void> _send() async {
     final text = _inputCtrl.text.trim();
+
     if (text.isEmpty || _sending) return;
 
     setState(() => _sending = true);
@@ -256,7 +439,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
         Uri.parse('${AppConfig.apiBaseUrl}/chat/senior/${widget.seniorId}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'roomType': 'SENIOR_GUARDIAN',
+          'roomType': widget.roomType,
           'senderRole': 'GUARDIAN',
           'senderId': widget.guardianId,
           'senderName': widget.guardianName,
@@ -295,6 +478,16 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
     });
   }
 
+  String _profileImageFor(Map<String, dynamic> message) {
+    final senderRole = message['senderRole']?.toString() ?? '';
+
+    if (senderRole == 'SENIOR') {
+      return widget.seniorProfileImageUrl;
+    }
+
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -305,12 +498,13 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
 
     return Column(
       children: [
+        _RoomHeader(title: widget.roomTitle),
         Expanded(
           child: _messages.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    '아직 대화가 없습니다.',
-                    style: TextStyle(
+                    widget.emptyText,
+                    style: const TextStyle(
                       color: Color(0xFF6D766A),
                       fontWeight: FontWeight.w700,
                     ),
@@ -325,18 +519,56 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                   itemCount: _messages.length,
                   itemBuilder: (_, index) {
                     final message = _messages[index];
+
                     return _MessageBubble(
                       message: message,
                       isMine: message['senderRole'] == 'GUARDIAN',
-                      profileImageUrl: message['senderRole'] == 'SENIOR'
-                          ? widget.seniorProfileImageUrl
-                          : '',
+                      profileImageUrl: _profileImageFor(message),
                     );
                   },
                 ),
         ),
-        _InputBar(controller: _inputCtrl, sending: _sending, onSend: _send),
+        _InputBar(
+          controller: _inputCtrl,
+          sending: _sending,
+          onSend: _send,
+        ),
       ],
+    );
+  }
+}
+
+class _RoomHeader extends StatelessWidget {
+  const _RoomHeader({
+    required this.title,
+  });
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.chat_bubble_outline,
+            size: 16,
+            color: Color(0xFF86A788),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF1F2A20),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -354,8 +586,10 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(dynamic value) {
     if (value == null) return '';
+
     try {
       final dateTime = DateTime.parse('$value').toLocal();
+
       return '${dateTime.hour.toString().padLeft(2, '0')}:'
           '${dateTime.minute.toString().padLeft(2, '0')}';
     } catch (_) {
@@ -372,19 +606,20 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisAlignment: isMine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) ...[
-            _ChatAvatar(name: senderName, imageUrl: profileImageUrl),
+            _ChatAvatar(
+              name: senderName,
+              imageUrl: profileImageUrl,
+            ),
             const SizedBox(width: 8),
           ],
           Column(
-            crossAxisAlignment: isMine
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               if (!isMine && senderName.isNotEmpty)
                 Padding(
@@ -451,7 +686,10 @@ class _MessageBubble extends StatelessWidget {
 }
 
 class _ChatAvatar extends StatelessWidget {
-  const _ChatAvatar({required this.name, required this.imageUrl});
+  const _ChatAvatar({
+    required this.name,
+    required this.imageUrl,
+  });
 
   final String name;
   final String imageUrl;
@@ -500,14 +738,17 @@ class _ChatAvatar extends StatelessWidget {
 
 String _resolveProfileImageUrl(String rawUrl) {
   final imageUrl = rawUrl.trim();
+
   if (imageUrl.isEmpty) return '';
 
   final parsed = Uri.tryParse(imageUrl);
+
   if (parsed != null && parsed.hasScheme) {
     return imageUrl;
   }
 
   final apiUri = Uri.tryParse(AppConfig.apiBaseUrl);
+
   if (apiUri == null) return imageUrl;
 
   final serverOrigin = apiUri
@@ -590,7 +831,11 @@ class _InputBar extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.send, color: Colors.white, size: 20),
+                  : const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                      size: 20,
+                    ),
             ),
           ),
         ],

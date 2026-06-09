@@ -3,7 +3,7 @@ import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
-// ── 색상 토큰 ──────────────────────────────────────────────────────────────────
+// ── 색상 ──────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kGreenBg = Color(0xFFEBF8EE);
 const _kBg = Colors.white;

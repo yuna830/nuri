@@ -18,6 +18,8 @@ const _kSafe = Color(0xFF4A7A4C);
 const _kSafeBg = Color(0xFFEEF5EE);
 const _kWarn = Color(0xFFFF9500);
 const _kWarnBg = Color(0xFFFFF4E5);
+const _kNeutral = Color(0xFF6C6C70);
+const _kNeutralBg = Color(0xFFF2F2F7);
 const _kTextMain = Color(0xFF1C1C1E);
 const _kTextSub = Color(0xFF6C6C70);
 const _kTextHint = Color(0xFFAEAEB2);
@@ -32,6 +34,23 @@ String _radiusLabel(num m) => m >= 1000
     ? '${(m / 1000).toStringAsFixed(0)}km'
     : '${m.toStringAsFixed(0)}m';
 
+double _distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+  const earthRadius = 6378137.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final rLat1 = lat1 * math.pi / 180.0;
+  final rLat2 = lat2 * math.pi / 180.0;
+
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(rLat1) *
+          math.cos(rLat2) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return earthRadius * c;
+}
+
 // ── 중심 위치 선택 모드 ────────────────────────────────────────────────────────
 enum _CenterMode { none, senior, address }
 
@@ -40,6 +59,7 @@ class _NominatimResult {
   final String displayName;
   final double lat;
   final double lng;
+
   const _NominatimResult({
     required this.displayName,
     required this.lat,
@@ -52,12 +72,16 @@ Future<List<_NominatimResult>> _searchNominatim(String query) async {
     'https://nominatim.openstreetmap.org/search'
     '?q=${Uri.encodeComponent(query)}&format=json&limit=5&accept-language=ko',
   );
+
   try {
     final res = await http
         .get(url, headers: {'User-Agent': 'woori_guardian_app'})
         .timeout(const Duration(seconds: 8));
+
     if (res.statusCode != 200) return [];
+
     final list = jsonDecode(res.body) as List<dynamic>;
+
     return list
         .map(
           (j) => _NominatimResult(
@@ -76,6 +100,7 @@ Future<List<_NominatimResult>> _searchNominatim(String query) async {
 // ── 지도에서 위치 선택 화면 ────────────────────────────────────────────────────
 class _MapPickScreen extends StatefulWidget {
   final kakao.LatLng initial;
+
   const _MapPickScreen({required this.initial});
 
   @override
@@ -96,10 +121,12 @@ class _MapPickScreenState extends State<_MapPickScreen> {
   Future<void> _renderPickedPoi() async {
     final controller = _controller;
     if (controller == null) return;
+
     if (_pickedPoi != null) {
       await _pickedPoi!.remove();
       _pickedPoi = null;
     }
+
     _pickedPoi = await controller.labelLayer.addPoi(
       _picked,
       style: kakao.PoiStyle(),
@@ -188,6 +215,7 @@ class _MapPickScreenState extends State<_MapPickScreen> {
 
 class LocationTabScreen extends StatefulWidget {
   final int? initialSeniorId;
+
   const LocationTabScreen({super.key, this.initialSeniorId});
 
   @override
@@ -198,6 +226,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   final _api = GuardianApi();
   final _sessionStorage = GuardianSessionStorage();
   final _sheetController = DraggableScrollableController();
+
   kakao.KakaoMapController? _mapController;
   kakao.Poi? _seniorPoi;
   final List<kakao.Polygon> _zonePolygons = [];
@@ -233,6 +262,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   @override
   void didUpdateWidget(LocationTabScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (widget.initialSeniorId != oldWidget.initialSeniorId &&
         widget.initialSeniorId != null &&
         _seniors.isNotEmpty) {
@@ -252,25 +282,31 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     try {
       final userInfo = await _sessionStorage.getGuardianInfo();
       final guardianIdStr = userInfo['guardianId'];
+
       if (guardianIdStr == null || guardianIdStr.isEmpty) return;
 
       final seniors = await _api.fetchGuardianSeniors(int.parse(guardianIdStr));
+
       if (!mounted) return;
 
       setState(() {
         _seniors = seniors;
         _seniorsLoading = false;
       });
+
       if (seniors.isEmpty) return;
 
       final targetId = widget.initialSeniorId;
+
       if (targetId != null && seniors.any((s) => s.id == targetId)) {
         _selectSeniorById(targetId);
       } else {
         _selectSenior(seniors.first);
       }
     } catch (_) {
-      if (mounted) setState(() => _seniorsLoading = false);
+      if (mounted) {
+        setState(() => _seniorsLoading = false);
+      }
     }
   }
 
@@ -305,6 +341,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   Future<void> _fetchLocation(Senior senior) async {
     try {
       final data = await _api.fetchLatestLocation(senior.id);
+
       if (!mounted) return;
 
       final rawTime = data['receivedAt']?.toString() ?? '-';
@@ -326,9 +363,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       if (lat != null && lng != null) {
         await _moveMap(lat, lng);
       }
+
       await _syncMapOverlays();
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _locationError = e.toString().replaceAll('Exception: ', '');
         _locationLoading = false;
@@ -341,16 +380,21 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       _zonesLoading = true;
       _zonesError = null;
     });
+
     try {
       final zones = await _api.fetchSafeZones(seniorId);
+
       if (!mounted) return;
+
       setState(() {
         _zones = zones;
         _zonesLoading = false;
       });
+
       await _syncMapOverlays();
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _zonesError = e.toString().replaceAll('Exception: ', '');
         _zonesLoading = false;
@@ -363,9 +407,12 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       _routeHistoryLoading = true;
       _routeHistoryError = null;
     });
+
     try {
       final history = await _api.fetchLocationHistoryByDate(seniorId, date);
+
       if (!mounted) return;
+
       setState(() {
         _routeHistory = history;
         _routeHistoryDate = date;
@@ -373,6 +420,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _routeHistoryError = e.toString().replaceAll('Exception: ', '');
         _routeHistoryLoading = false;
@@ -382,9 +430,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
   Future<void> _pickRouteHistoryDate() async {
     final senior = _selectedSenior;
+
     if (senior == null) return;
 
     final now = DateTime.now();
+
     final picked = await showDatePicker(
       context: context,
       initialDate: _routeHistoryDate,
@@ -404,20 +454,45 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         );
       },
     );
+
     if (picked == null) return;
 
     await _fetchRouteHistory(senior.id, picked);
   }
 
-  Future<void> _moveMap(double lat, double lng) async {
+  Future<void> _moveMap(double lat, double lng, {int zoomLevel = 15}) async {
     final controller = _mapController;
+
     if (controller == null) return;
+
     await controller.moveCamera(
       kakao.CameraUpdate.newCenterPosition(
         kakao.LatLng(lat, lng),
-        zoomLevel: 15,
+        zoomLevel: zoomLevel,
       ),
     );
+  }
+
+  int _zoneZoomLevel(num radiusMeters) {
+    if (radiusMeters >= 800) return 14;
+    if (radiusMeters >= 500) return 15;
+    return 16;
+  }
+
+  Future<void> _focusSafeZone(SafeZone zone) async {
+    await _moveMap(
+      zone.centerLatitude,
+      zone.centerLongitude,
+      zoomLevel: _zoneZoomLevel(zone.radiusMeters),
+    );
+
+    if (_sheetController.isAttached) {
+      await _sheetController.animateTo(
+        0.30,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Future<void> _clearMapOverlays() async {
@@ -429,6 +504,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       } catch (e) {
         debugPrint('[KAKAO] senior poi remove ignored: $e');
       }
+
       _seniorPoi = null;
     }
 
@@ -473,17 +549,28 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
   Future<void> _syncMapOverlays() async {
     final controller = _mapController;
+
     if (controller == null || !mounted) return;
 
     await _clearMapOverlays();
 
+    // 현재 위치 마커
+    // 이 마커는 Flutter 화면 위에 고정되는 아이콘이 아니라,
+    // 실제 카카오맵 좌표에 붙는 Poi 마커입니다.
     if (_latitude != null && _longitude != null) {
+      final icon = await kakao.KImage.fromWidget(
+        const Icon(Icons.location_pin, size: 48, color: Color(0xFF4A90E2)),
+        const Size(48, 48),
+        context: context,
+      );
+
       _seniorPoi = await controller.labelLayer.addPoi(
         kakao.LatLng(_latitude!, _longitude!),
-        style: kakao.PoiStyle(),
+        style: kakao.PoiStyle(icon: icon, anchor: const kakao.KPoint(0.5, 1.0)),
       );
     }
 
+    // 안전구역 원 표시
     for (final zone in _zones) {
       final points = _buildCirclePoints(
         zone.centerLatitude,
@@ -505,7 +592,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Future<void> _refresh() async {
-    if (_selectedSenior != null) await _selectSenior(_selectedSenior!);
+    if (_selectedSenior != null) {
+      await _selectSenior(_selectedSenior!);
+    }
   }
 
   // ── 안전 구역 CRUD ────────────────────────────────────────────────────────
@@ -513,10 +602,13 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   void _onAddZone() {
     if (_selectedSenior == null) return;
     if (_zones.length >= _kMaxZones) return;
+
     _showZoneEditor(null);
   }
 
-  void _onEditZone(SafeZone zone) => _showZoneEditor(zone);
+  void _onEditZone(SafeZone zone) {
+    _showZoneEditor(zone);
+  }
 
   Future<void> _onDeleteZone(SafeZone zone) async {
     final confirmed = await showDialog<bool>(
@@ -557,27 +649,34 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
           const SizedBox(width: 8),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
+            child: const Text(
               '삭제',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFB85252),
+                color: Color(0xFFB85252),
               ),
             ),
           ),
         ],
       ),
     );
+
     if (confirmed != true || !mounted) return;
 
     try {
       await _api.deleteSafeZone(_selectedSenior!.id, zone.id);
+
       if (!mounted) return;
-      setState(() => _zones.removeWhere((z) => z.id == zone.id));
+
+      setState(() {
+        _zones.removeWhere((z) => z.id == zone.id);
+      });
+
       await _syncMapOverlays();
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
       );
@@ -616,209 +715,230 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            // ── 중심 위치 선택 칩 ────────────────────────────────────────────
-            Widget centerPickRow() => Row(
-              children: [
-                _CenterChip(
-                  icon: Icons.map_outlined,
-                  label: '지도에서 선택',
-                  selected: false,
-                  onTap: () async {
-                    final picked = await Navigator.push<kakao.LatLng>(
-                      outerContext,
-                      MaterialPageRoute(
-                        builder: (_) => _MapPickScreen(
-                          initial: kakao.LatLng(centerLat, centerLng),
+            Widget centerPickRow() {
+              return Row(
+                children: [
+                  _CenterChip(
+                    icon: Icons.map_outlined,
+                    label: '지도에서 선택',
+                    selected: false,
+                    onTap: () async {
+                      final picked = await Navigator.push<kakao.LatLng>(
+                        outerContext,
+                        MaterialPageRoute(
+                          builder: (_) => _MapPickScreen(
+                            initial: kakao.LatLng(centerLat, centerLng),
+                          ),
                         ),
-                      ),
-                    );
-                    if (picked != null) {
-                      setLocal(() {
-                        centerLat = picked.latitude;
-                        centerLng = picked.longitude;
-                        centerMode = _CenterMode.none;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                _CenterChip(
-                  icon: Icons.person_pin_circle_outlined,
-                  label: '현재 어르신 위치',
-                  selected: centerMode == _CenterMode.senior,
-                  onTap: () {
-                    if (_latitude == null || _longitude == null) {
-                      ScaffoldMessenger.of(outerContext).showSnackBar(
-                        const SnackBar(content: Text('어르신의 현재 위치 정보가 없습니다.')),
                       );
-                      return;
-                    }
-                    setLocal(() {
-                      centerLat = _latitude!;
-                      centerLng = _longitude!;
-                      centerAddr = _address != '-' ? _address : centerAddr;
-                      centerMode = _CenterMode.senior;
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                _CenterChip(
-                  icon: Icons.search,
-                  label: '주소 검색',
-                  selected: centerMode == _CenterMode.address,
-                  onTap: () => setLocal(() {
-                    centerMode = centerMode == _CenterMode.address
-                        ? _CenterMode.none
-                        : _CenterMode.address;
-                    if (centerMode != _CenterMode.address) {
-                      searchResults = [];
-                      searchCtrl.clear();
-                    }
-                  }),
-                ),
-              ],
-            );
 
-            // ── 주소 검색 UI ─────────────────────────────────────────────────
-            Widget addressSearchSection() => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                TextField(
-                  controller: searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: '주소를 입력하세요',
-                    hintStyle: const TextStyle(color: _kTextHint, fontSize: 13),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      size: 18,
-                      color: _kTextHint,
-                    ),
-                    suffixIcon: searchLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: _kGreen,
-                              ),
-                            ),
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _kDivider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _kGreen),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
+                      if (picked != null) {
+                        setLocal(() {
+                          centerLat = picked.latitude;
+                          centerLng = picked.longitude;
+                          centerMode = _CenterMode.none;
+                        });
+                      }
+                    },
                   ),
-                  onChanged: (v) {
-                    searchDebounce?.cancel();
-                    if (v.trim().length < 2) {
-                      setLocal(() => searchResults = []);
-                      return;
-                    }
-                    searchDebounce = Timer(
-                      const Duration(milliseconds: 500),
-                      () async {
-                        setLocal(() => searchLoading = true);
-                        final results = await _searchNominatim(v.trim());
-                        if (ctx.mounted) {
-                          setLocal(() {
-                            searchResults = results;
-                            searchLoading = false;
-                          });
+                  const SizedBox(width: 8),
+                  _CenterChip(
+                    icon: Icons.person_pin_circle_outlined,
+                    label: '현재 어르신 위치',
+                    selected: centerMode == _CenterMode.senior,
+                    onTap: () {
+                      if (_latitude == null || _longitude == null) {
+                        ScaffoldMessenger.of(outerContext).showSnackBar(
+                          const SnackBar(content: Text('어르신의 현재 위치 정보가 없습니다.')),
+                        );
+                        return;
+                      }
+
+                      setLocal(() {
+                        centerLat = _latitude!;
+                        centerLng = _longitude!;
+                        centerAddr = _address != '-' ? _address : centerAddr;
+                        centerMode = _CenterMode.senior;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _CenterChip(
+                    icon: Icons.search,
+                    label: '주소 검색',
+                    selected: centerMode == _CenterMode.address,
+                    onTap: () {
+                      setLocal(() {
+                        centerMode = centerMode == _CenterMode.address
+                            ? _CenterMode.none
+                            : _CenterMode.address;
+
+                        if (centerMode != _CenterMode.address) {
+                          searchResults = [];
+                          searchCtrl.clear();
                         }
-                      },
-                    );
-                  },
-                ),
-                if (searchResults.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _kDivider),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < searchResults.length; i++) ...[
-                          if (i > 0) const Divider(height: 1, color: _kDivider),
-                          InkWell(
-                            onTap: () => setLocal(() {
-                              centerLat = searchResults[i].lat;
-                              centerLng = searchResults[i].lng;
-                              centerAddr = searchResults[i].displayName;
-                              centerMode = _CenterMode.none;
-                              searchResults = [];
-                              searchCtrl.clear();
-                            }),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
+                      });
+                    },
+                  ),
+                ],
+              );
+            }
+
+            Widget addressSearchSection() {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: '주소를 입력하세요',
+                      hintStyle: const TextStyle(
+                        color: _kTextHint,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: 18,
+                        color: _kTextHint,
+                      ),
+                      suffixIcon: searchLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _kGreen,
+                                ),
                               ),
-                              child: Text(
-                                searchResults[i].displayName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _kTextMain,
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: _kDivider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: _kGreen),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    onChanged: (v) {
+                      searchDebounce?.cancel();
+
+                      if (v.trim().length < 2) {
+                        setLocal(() => searchResults = []);
+                        return;
+                      }
+
+                      searchDebounce = Timer(
+                        const Duration(milliseconds: 500),
+                        () async {
+                          setLocal(() => searchLoading = true);
+
+                          final results = await _searchNominatim(v.trim());
+
+                          if (ctx.mounted) {
+                            setLocal(() {
+                              searchResults = results;
+                              searchLoading = false;
+                            });
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  if (searchResults.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _kDivider),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          for (var i = 0; i < searchResults.length; i++) ...[
+                            if (i > 0)
+                              const Divider(height: 1, color: _kDivider),
+                            InkWell(
+                              onTap: () {
+                                setLocal(() {
+                                  centerLat = searchResults[i].lat;
+                                  centerLng = searchResults[i].lng;
+                                  centerAddr = searchResults[i].displayName;
+                                  centerMode = _CenterMode.none;
+                                  searchResults = [];
+                                  searchCtrl.clear();
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Text(
+                                  searchResults[i].displayName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: _kTextMain,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            );
-
-            // ── 현재 중심 좌표 표시 ─────────────────────────────────────────
-            Widget centerDisplay() => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _kSafeBg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _kGreen.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 14,
-                    color: _kSafe,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      centerAddr.isNotEmpty
-                          ? '$centerAddr\n'
-                                '(${centerLat.toStringAsFixed(5)}, '
-                                '${centerLng.toStringAsFixed(5)})'
-                          : '${centerLat.toStringAsFixed(5)}, '
-                                '${centerLng.toStringAsFixed(5)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: _kSafe,
-                        height: 1.4,
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ),
-            );
+              );
+            }
+
+            Widget centerDisplay() {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: _kSafeBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kGreen.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: _kSafe,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        centerAddr.isNotEmpty
+                            ? '$centerAddr\n'
+                                  '(${centerLat.toStringAsFixed(5)}, '
+                                  '${centerLng.toStringAsFixed(5)})'
+                            : '${centerLat.toStringAsFixed(5)}, '
+                                  '${centerLng.toStringAsFixed(5)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _kSafe,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
 
             return Padding(
               padding: EdgeInsets.only(
@@ -831,7 +951,6 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 핸들
                       Center(
                         child: Container(
                           width: 36,
@@ -852,12 +971,8 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // 구역 이름
                       _inputField(nameCtrl, '구역 이름 (예: 집, 병원)'),
                       const SizedBox(height: 16),
-
-                      // 중심 위치 섹션
                       const Text(
                         '중심 위치',
                         style: TextStyle(
@@ -873,8 +988,6 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                       if (centerMode == _CenterMode.address)
                         addressSearchSection(),
                       const SizedBox(height: 16),
-
-                      // 반경
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -905,12 +1018,14 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                           max: 1000,
                           divisions: 18,
                           value: radius,
-                          onChanged: (v) => setLocal(() => radius = v),
+                          onChanged: (v) {
+                            setLocal(() => radius = v);
+                          },
                         ),
                       ),
-                      Row(
+                      const Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
+                        children: [
                           Text(
                             '100m',
                             style: TextStyle(fontSize: 11, color: _kTextHint),
@@ -922,8 +1037,6 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-
-                      // 저장 버튼
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -939,7 +1052,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                               ? null
                               : () async {
                                   final name = nameCtrl.text.trim();
+
                                   if (name.isEmpty) return;
+
                                   setLocal(() => saving = true);
 
                                   try {
@@ -951,13 +1066,18 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                                       centerLongitude: centerLng,
                                       radiusMeters: radius.toInt(),
                                     );
+
                                     if (isNew) {
                                       final created = await _api.createSafeZone(
                                         _selectedSenior!.id,
                                         draft,
                                       );
+
                                       if (mounted) {
-                                        setState(() => _zones.add(created));
+                                        setState(() {
+                                          _zones.add(created);
+                                        });
+
                                         await _syncMapOverlays();
                                       }
                                     } else {
@@ -966,19 +1086,28 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                                         existing!.id,
                                         draft,
                                       );
+
                                       if (mounted) {
                                         setState(() {
                                           final idx = _zones.indexWhere(
                                             (z) => z.id == existing.id,
                                           );
-                                          if (idx >= 0) _zones[idx] = updated;
+
+                                          if (idx >= 0) {
+                                            _zones[idx] = updated;
+                                          }
                                         });
+
                                         await _syncMapOverlays();
                                       }
                                     }
-                                    if (ctx.mounted) Navigator.pop(ctx);
+
+                                    if (ctx.mounted) {
+                                      Navigator.pop(ctx);
+                                    }
                                   } catch (e) {
                                     setLocal(() => saving = false);
+
                                     if (ctx.mounted) {
                                       ScaffoldMessenger.of(ctx).showSnackBar(
                                         SnackBar(
@@ -1014,34 +1143,38 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         );
       },
     );
+
     searchDebounce?.cancel();
   }
 
-  static Widget _inputField(TextEditingController ctrl, String label) =>
-      TextField(
-        controller: ctrl,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: _kTextSub),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _kDivider),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _kGreen),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
-          ),
+  static Widget _inputField(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: _kTextSub),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kDivider),
         ),
-      );
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _kGreen),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
 
   // ── UI ────────────────────────────────────────────────────────────────────
 
   @override
-  Widget build(BuildContext context) => _buildMapWithSheet();
+  Widget build(BuildContext context) {
+    return _buildMapWithSheet();
+  }
 
   Widget _buildFloatingChips() {
     if (_seniorsLoading) {
@@ -1068,7 +1201,10 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         ),
       );
     }
-    if (_seniors.isEmpty) return const SizedBox.shrink();
+
+    if (_seniors.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1105,31 +1241,19 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
               zoomLevel: 15,
             ),
             onMapReady: (controller) async {
-              // debugPrint('[KAKAO] map ready');
               _mapController = controller;
+
               if (hasLocation) {
                 await _moveMap(centerLat, centerLng);
               }
+
               await _syncMapOverlays();
             },
           ),
         ),
 
-        // ── 사용자 선택 floating chip ──────────────────────────────
         Positioned(top: 10, left: 10, right: 56, child: _buildFloatingChips()),
 
-        if (hasLocation)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 36),
-              child: Icon(
-                Icons.location_pin,
-                size: 52,
-                color: Color(0xFF4A90E2),
-              ),
-            ),
-          ),
-          
         if (_locationLoading)
           const Positioned.fill(
             child: ColoredBox(
@@ -1188,6 +1312,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
               routeHistoryDate: _routeHistoryDate,
               onPickRouteHistoryDate: _pickRouteHistoryDate,
               onAddZone: _onAddZone,
+              onFocusZone: _focusSafeZone,
               onEditZone: _onEditZone,
               onDeleteZone: _onDeleteZone,
             );
@@ -1319,6 +1444,7 @@ class _SheetContent extends StatelessWidget {
   final DateTime routeHistoryDate;
   final VoidCallback onPickRouteHistoryDate;
   final VoidCallback onAddZone;
+  final void Function(SafeZone) onFocusZone;
   final void Function(SafeZone) onEditZone;
   final void Function(SafeZone) onDeleteZone;
 
@@ -1340,9 +1466,78 @@ class _SheetContent extends StatelessWidget {
     required this.routeHistoryDate,
     required this.onPickRouteHistoryDate,
     required this.onAddZone,
+    required this.onFocusZone,
     required this.onEditZone,
     required this.onDeleteZone,
   });
+
+  _SafetyDisplay _resolveSafetyDisplay() {
+    if (zonesLoading) {
+      return const _SafetyDisplay(
+        badgeText: '확인 중',
+        description: '안전 구역 확인 중',
+        icon: Icons.shield_outlined,
+        color: _kNeutral,
+      );
+    }
+
+    if (zonesError != null) {
+      return const _SafetyDisplay(
+        badgeText: '확인 불가',
+        description: '안전 구역 확인 불가',
+        icon: Icons.error_outline,
+        color: _kWarn,
+      );
+    }
+
+    if (zones.isEmpty) {
+      return const _SafetyDisplay(
+        badgeText: '미설정',
+        description: '안전 구역 미설정',
+        icon: Icons.shield_outlined,
+        color: _kNeutral,
+      );
+    }
+
+    final lat = latitude;
+    final lng = longitude;
+
+    if (lat == null || lng == null) {
+      return const _SafetyDisplay(
+        badgeText: '확인 불가',
+        description: '위치 정보가 없어 안전 구역을 확인할 수 없습니다',
+        icon: Icons.location_off_outlined,
+        color: _kWarn,
+      );
+    }
+
+    final isInsideSafeZone = zones.any((zone) {
+      final distance = _distanceMeters(
+        lat,
+        lng,
+        zone.centerLatitude,
+        zone.centerLongitude,
+      );
+
+      return distance <= zone.radiusMeters;
+    });
+
+    if (isInsideSafeZone) {
+      return const _SafetyDisplay(
+        badgeText: '안전',
+        description: '안전 구역 내',
+        icon: Icons.shield,
+        color: _kSafe,
+      );
+    }
+
+    return const _SafetyDisplay(
+      badgeText: '이탈',
+      description: '안전 구역 이탈',
+      icon: Icons.shield_outlined,
+      color: _kWarn,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1368,19 +1563,21 @@ class _SheetContent extends StatelessWidget {
     );
   }
 
-  Widget _handle() => Center(
-    child: Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 6),
-      child: Container(
-        width: 36,
-        height: 4,
-        decoration: BoxDecoration(
-          color: _kDivider,
-          borderRadius: BorderRadius.circular(2),
+  Widget _handle() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 6),
+        child: Container(
+          width: 36,
+          height: 4,
+          decoration: BoxDecoration(
+            color: _kDivider,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _body(BuildContext context) {
     if (senior == null) {
@@ -1394,6 +1591,7 @@ class _SheetContent extends StatelessWidget {
         ),
       );
     }
+
     if (locationLoading) {
       return const Padding(
         padding: EdgeInsets.all(24),
@@ -1401,10 +1599,12 @@ class _SheetContent extends StatelessWidget {
       );
     }
 
-    final isSafe = senior!.status == '안전';
+    final safety = _resolveSafetyDisplay();
+
     final latLng = (latitude != null && longitude != null)
         ? '${latitude!.toStringAsFixed(6)}, ${longitude!.toStringAsFixed(6)}'
         : '좌표 정보 없음';
+
     final atMax = zones.length >= _kMaxZones;
 
     return Padding(
@@ -1412,7 +1612,6 @@ class _SheetContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 이름 + 배지
           Row(
             children: [
               Expanded(
@@ -1425,10 +1624,9 @@ class _SheetContent extends StatelessWidget {
                   ),
                 ),
               ),
-              _StatusBadge(status: senior!.status),
+              _StatusBadge(status: safety.badgeText),
             ],
           ),
-
           if (locationError != null) ...[
             const SizedBox(height: 10),
             Row(
@@ -1436,14 +1634,14 @@ class _SheetContent extends StatelessWidget {
                 const Icon(
                   Icons.error_outline,
                   size: 15,
-                  color: const Color(0xFFB85252),
+                  color: Color(0xFFB85252),
                 ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     locationError!,
                     style: const TextStyle(
-                      color: const Color(0xFFB85252),
+                      color: Color(0xFFB85252),
                       fontSize: 13,
                     ),
                   ),
@@ -1471,18 +1669,15 @@ class _SheetContent extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _InfoRow(
-              icon: isSafe ? Icons.shield : Icons.shield_outlined,
+              icon: safety.icon,
               label: '안전 상태',
-              value: isSafe ? '안전 구역 내' : '안전 구역 이탈',
-              valueColor: isSafe ? _kSafe : _kWarn,
+              value: safety.description,
+              valueColor: safety.color,
             ),
           ],
-
           const SizedBox(height: 16),
           const Divider(color: _kDivider, height: 1),
           const SizedBox(height: 14),
-
-          // 안전 구역 헤더
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1526,9 +1721,7 @@ class _SheetContent extends StatelessWidget {
                 ),
             ],
           ),
-
           const SizedBox(height: 10),
-
           if (zonesLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -1544,10 +1737,7 @@ class _SheetContent extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 zonesError!,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: const Color(0xFFB85252),
-                ),
+                style: const TextStyle(fontSize: 12, color: Color(0xFFB85252)),
               ),
             )
           else if (zones.isEmpty)
@@ -1562,12 +1752,12 @@ class _SheetContent extends StatelessWidget {
             for (var i = 0; i < zones.length; i++) ...[
               _ZoneCard(
                 zone: zones[i],
+                onTap: () => onFocusZone(zones[i]),
                 onEdit: () => onEditZone(zones[i]),
                 onDelete: () => onDeleteZone(zones[i]),
               ),
               if (i < zones.length - 1) const SizedBox(height: 8),
             ],
-
           const SizedBox(height: 16),
           const Divider(color: _kDivider, height: 1),
           const SizedBox(height: 14),
@@ -1673,32 +1863,41 @@ class _SheetContent extends StatelessWidget {
 
   String _routeMeridiem(Map<String, dynamic> item) {
     final parsed = _parseRouteDateTime(item);
+
     if (parsed == null) return '';
+
     return parsed.hour < 12 ? '오전' : '오후';
   }
 
   String _routeTime(Map<String, dynamic> item) {
     final parsed = _parseRouteDateTime(item);
+
     if (parsed == null) return '--:--';
+
     return '${_twoDigits(parsed.hour)}:${_twoDigits(parsed.minute)}';
   }
 
   DateTime? _parseRouteDateTime(Map<String, dynamic> item) {
     final raw = item['receivedAt']?.toString();
+
     if (raw == null || raw.isEmpty) return null;
+
     return DateTime.tryParse(raw)?.toLocal();
   }
 
   String _routeAddress(Map<String, dynamic> item) {
     final address = item['address'] ?? item['roadAddress'];
     final text = address?.toString().trim() ?? '';
+
     return text.isEmpty ? '주소 정보 없음' : text;
   }
 
-  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+  String _twoDigits(int value) {
+    return value.toString().padLeft(2, '0');
+  }
 }
 
-// ── 안전 구역 카드 ─────────────────────────────────────────────────────────────
+// ── 이동 경로 카드 ─────────────────────────────────────────────────────────────
 
 class _RouteHistoryCard extends StatelessWidget {
   final String meridiem;
@@ -1764,13 +1963,17 @@ class _RouteHistoryCard extends StatelessWidget {
   }
 }
 
+// ── 안전 구역 카드 ─────────────────────────────────────────────────────────────
+
 class _ZoneCard extends StatelessWidget {
   final SafeZone zone;
+  final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _ZoneCard({
     required this.zone,
+    required this.onTap,
     required this.onEdit,
     required this.onDelete,
   });
@@ -1778,77 +1981,82 @@ class _ZoneCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasAddr = zone.address.isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8F3),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  zone.name,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _kTextMain,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (hasAddr)
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F8F3),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    zone.address,
-                    style: const TextStyle(fontSize: 11, color: _kTextSub),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    zone.name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextMain,
+                    ),
                   ),
-                Text(
-                  '반경 ${_radiusLabel(zone.radiusMeters)}  '
-                  '(${zone.centerLatitude.toStringAsFixed(4)}, '
-                  '${zone.centerLongitude.toStringAsFixed(4)})',
-                  style: const TextStyle(fontSize: 11, color: _kTextHint),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  if (hasAddr)
+                    Text(
+                      zone.address,
+                      style: const TextStyle(fontSize: 11, color: _kTextSub),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  Text(
+                    '반경 ${_radiusLabel(zone.radiusMeters)}  '
+                    '(${zone.centerLatitude.toStringAsFixed(4)}, '
+                    '${zone.centerLongitude.toStringAsFixed(4)})',
+                    style: const TextStyle(fontSize: 11, color: _kTextHint),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: onEdit,
-            behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-              child: Text(
-                '수정',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _kTextSub,
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: onEdit,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(
+                  '수정',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _kTextSub,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onDelete,
-            behavior: HitTestBehavior.opaque,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-              child: Text(
-                '삭제',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFB85252),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onDelete,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Text(
+                  '삭제',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFB85252),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1856,37 +2064,69 @@ class _ZoneCard extends StatelessWidget {
 
 // ── 공유 위젯 ─────────────────────────────────────────────────────────────────
 
+class _SafetyDisplay {
+  final String badgeText;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  const _SafetyDisplay({
+    required this.badgeText,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+}
+
 class _StatusBadge extends StatelessWidget {
   final String status;
+
   const _StatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final isSafe = status == '안전';
+    final isNeutral = status == '미설정' || status == '확인 중';
+
+    final color = isSafe ? _kSafe : (isNeutral ? _kNeutral : _kWarn);
+    final bgColor = isSafe ? _kSafeBg : (isNeutral ? _kNeutralBg : _kWarnBg);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
       decoration: BoxDecoration(
-        color: isSafe ? _kSafeBg : _kWarnBg,
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: isSafe ? _kSafe : _kWarn,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
-          Text(
-            status,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isSafe ? _kSafe : _kWarn,
+
+          // 글자만 배지 중앙에 오도록 높이를 고정하고 Center로 감쌈
+          SizedBox(
+            height: 26,
+            child: Center(
+              child: Text(
+                status,
+                strutStyle: const StrutStyle(
+                  fontSize: 12,
+                  height: 1.0,
+                  forceStrutHeight: true,
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.0,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
             ),
           ),
         ],

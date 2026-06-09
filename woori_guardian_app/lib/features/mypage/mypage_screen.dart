@@ -9,7 +9,7 @@ import '../senior/senior_list_screen.dart';
 import 'privacy_screen.dart';
 import 'profile_edit_screen.dart';
 
-// ── 색상 토큰 ──────────────────────────────────────────────────────────────────
+// ── 색상 ──────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
 const _kGreenBg = Color(0xFFEBF8EE);
 const _kBg = Colors.white;
