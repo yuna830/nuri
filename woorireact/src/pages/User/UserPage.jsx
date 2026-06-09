@@ -21,6 +21,7 @@ import {
   fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId as getSavedSeniorId,
+  isFallApiDown,
   readAlert,
   resolveUploadUrl,
   reverseGeocode,
@@ -319,6 +320,25 @@ const toTelHref = (phone = "") => {
   return digits ? `tel:${digits}` : "";
 };
 
+const formatPhone = (value) => {
+  const digits = String(value).replace(/[^0-9]/g, "");
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0,2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`;
+    return `${digits.slice(0,2)}-${digits.slice(2,6)}-${digits.slice(6,10)}`;
+  }
+  if (digits.startsWith("010")) {
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+    return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+  }
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+  return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+};
+
 const getLocalCareTeam = (seniorId) => {
   if (!seniorId) return null;
 
@@ -491,7 +511,14 @@ export default function UserPage() {
   const [infoUpdateRequestAlert, setInfoUpdateRequestAlert] = useState(null);
   const [checkInMessageAlert, setCheckInMessageAlert] = useState(null);
   const [guardianEditOpen, setGuardianEditOpen] = useState(false);
-  const [guardianEditForm, setGuardianEditForm] = useState({ name: "", relation: "" });
+  const [guardianIsEditMode, setGuardianIsEditMode] = useState(false); // true=수정, false=신규등록
+  const [guardianEditData, setGuardianEditData] = useState({ name: "", relation: "", phone: "" });
+  const [guardianConnectStep, setGuardianConnectStep] = useState(0); // 0: 검색, 1: 관계 입력
+  const [guardianSearchForm, setGuardianSearchForm] = useState({ name: "", phone: "" });
+  const [foundGuardian, setFoundGuardian] = useState(null);
+  const [guardianSearching, setGuardianSearching] = useState(false);
+  const [guardianSearchError, setGuardianSearchError] = useState("");
+  const [guardianRelation, setGuardianRelation] = useState("");
   const [guardianSaving, setGuardianSaving] = useState(false);
   const [checkInReplyMessage, setCheckInReplyMessage] = useState("");
 
@@ -500,30 +527,24 @@ export default function UserPage() {
 
     const loadActivityCondition = async () => {
       const seniorId = getCurrentSeniorId(initialSenior);
-      try {
-        const [today, trend, slots, baseline, fallPattern] = await Promise.all([
-          fetchActivityToday(seniorId),
-          fetchActivityTrend(1, seniorId),
-          fetchActivitySlots(seniorId),
-          fetchActivityBaseline(14, seniorId),
-          fetchFallPattern(seniorId),
-        ]);
-        if (!isMounted) return;
-        setActivityToday(today?.status === "ok" && today?.scores ? today : DEFAULT_ACTIVITY_TODAY);
-        setDeviceStatus(today?.status === "ok" ? "connected" : "checking");
-        setActivityTrend(trend);
-        setActivitySlots(slots?.slots ? slots : DEFAULT_ACTIVITY_SLOTS);
-        setActivityBaseline(baseline || DEFAULT_ACTIVITY_BASELINE);
-        setActivityFallPattern(fallPattern || DEFAULT_FALL_PATTERN);
-      } catch {
-        if (!isMounted) return;
-        setActivityToday(DEFAULT_ACTIVITY_TODAY);
-        setDeviceStatus("failed");
-        setActivityTrend(null);
-        setActivitySlots(DEFAULT_ACTIVITY_SLOTS);
-        setActivityBaseline(DEFAULT_ACTIVITY_BASELINE);
-        setActivityFallPattern(DEFAULT_FALL_PATTERN);
-      }
+      const results = await Promise.allSettled([
+        fetchActivityToday(seniorId),
+        fetchActivityTrend(1, seniorId),
+        fetchActivitySlots(seniorId),
+        fetchActivityBaseline(14, seniorId),
+        fetchFallPattern(seniorId),
+      ]);
+      if (!isMounted) return;
+
+      const ok = (r) => r.status === "fulfilled" ? r.value : null;
+      const [todayData, trendData, slotsData, baselineData, fallPatternData] = results.map(ok);
+
+      setActivityToday(todayData?.status === "ok" && todayData?.scores ? todayData : DEFAULT_ACTIVITY_TODAY);
+      setDeviceStatus(todayData?.status === "ok" ? "connected" : results[0].status === "rejected" ? "failed" : "checking");
+      setActivityTrend(trendData);
+      setActivitySlots(slotsData?.slots ? slotsData : DEFAULT_ACTIVITY_SLOTS);
+      setActivityBaseline(baselineData || DEFAULT_ACTIVITY_BASELINE);
+      setActivityFallPattern(fallPatternData || DEFAULT_FALL_PATTERN);
     };
 
     loadActivityCondition();
@@ -1037,6 +1058,7 @@ export default function UserPage() {
     if (!seniorId) return undefined;
 
     let cancelled = false;
+    let lastFallCheck = 0;
     const loadCallRequest = async () => {
       const alerts = await fetchSeniorAlerts(seniorId).catch(() => []);
       if (cancelled) return;
@@ -1087,9 +1109,18 @@ export default function UserPage() {
         );
       }).length;
 
-      const fallEvents = await fetchFallEvents(1).catch(() => []);
-      const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
-      setTodayFallCount(Math.max(alertFallCount, modelFallCount));
+      // fetchFallEvents는 최대 60초에 1번만 호출 (1초 폴링에서 제외)
+      const now = Date.now();
+      if (now - lastFallCheck >= 60000 && !isFallApiDown()) {
+        lastFallCheck = now;
+        const fallEvents = await fetchFallEvents(1).catch(() => []);
+        if (!cancelled) {
+          const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
+          setTodayFallCount(Math.max(alertFallCount, modelFallCount));
+        }
+      } else {
+        setTodayFallCount((prev) => Math.max(alertFallCount, prev));
+      }
     };
 
     loadCallRequest();
@@ -1235,41 +1266,130 @@ export default function UserPage() {
   };
 
   const openGuardianEdit = () => {
-    setGuardianEditForm({ name: careTeam.guardianName || "", relation: careTeam.guardianRelation || "" });
+    const hasGuardian = !!careTeam.guardianName;
+    setGuardianIsEditMode(hasGuardian);
+    setGuardianSearchError("");
+    if (hasGuardian) {
+      // 수정 모드: 기존 값 세팅
+      setGuardianEditData({
+        name: careTeam.guardianName || "",
+        relation: careTeam.guardianRelation || "",
+        phone: careTeam.guardianPhone || "",
+      });
+    } else {
+      // 등록 모드: 검색 플로우
+      setGuardianConnectStep(0);
+      setGuardianSearchForm({ name: "", phone: "" });
+      setFoundGuardian(null);
+      setGuardianRelation("");
+    }
     setGuardianEditOpen(true);
   };
 
-  const saveGuardianEdit = async () => {
+  const saveGuardianEditDirect = async () => {
+    if (!guardianEditData.name.trim()) {
+      setGuardianSearchError("이름을 입력해주세요.");
+      return;
+    }
+    setGuardianSaving(true);
+    setGuardianSearchError("");
     try {
-      setGuardianSaving(true);
       const saved = sessionStorage.getItem("currentSenior");
       if (!saved) return;
       const profile = JSON.parse(saved);
       const seniorId = profile?.senior?.id;
       if (!seniorId) return;
 
-      // PATCH로 guardianName/guardianRelation만 업데이트 (PUT은 전체 덮어써서 데이터 날아감)
-      const response = await fetch(`/api/seniors/${seniorId}/requested-info`, {
+      const res = await fetch(`/api/seniors/${seniorId}/requested-info`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          guardianName: guardianEditForm.name.trim(),
-          guardianRelation: guardianEditForm.relation.trim(),
+          guardianName: guardianEditData.name.trim(),
+          guardianRelation: guardianEditData.relation.trim(),
+          guardianPhone: guardianEditData.phone.replace(/[^0-9]/g, ""),
         }),
       });
+      if (!res.ok) throw new Error("edit_failed");
 
-      if (response.ok) {
-        const updated = await response.json();
-        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
-        setCareTeam((prev) => ({
-          ...prev,
-          guardianName: guardianEditForm.name.trim(),
-          guardianRelation: guardianEditForm.relation.trim(),
-        }));
-        setGuardianEditOpen(false);
+      const updated = await res.json();
+      sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+      setCareTeam((prev) => ({
+        ...prev,
+        guardianName: guardianEditData.name.trim(),
+        guardianRelation: guardianEditData.relation.trim(),
+        guardianPhone: guardianEditData.phone.trim(),
+      }));
+      setGuardianEditOpen(false);
+    } catch {
+      setGuardianSearchError("저장에 실패했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setGuardianSaving(false);
+    }
+  };
+
+  const searchGuardian = async () => {
+    const { name, phone } = guardianSearchForm;
+    if (!name.trim() || !phone.trim()) {
+      setGuardianSearchError("이름과 전화번호를 모두 입력해주세요.");
+      return;
+    }
+    setGuardianSearching(true);
+    setGuardianSearchError("");
+    try {
+      const digits = phone.replace(/[^0-9]/g, "");
+      const res = await fetch(`/api/guardians/search?name=${encodeURIComponent(name.trim())}&phone=${digits}`);
+      if (res.status === 404) {
+        setGuardianSearchError("일치하는 보호자를 찾을 수 없어요.\n이름과 전화번호를 다시 확인해주세요.");
+        return;
       }
-    } catch (error) {
-      console.error("보호자 정보 수정 실패:", error);
+      if (!res.ok) throw new Error("search_failed");
+      const data = await res.json();
+      setFoundGuardian(data);
+      setGuardianConnectStep(1);
+    } catch {
+      setGuardianSearchError("검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setGuardianSearching(false);
+    }
+  };
+
+  const saveGuardianEdit = async () => {
+    if (!guardianRelation.trim()) {
+      setGuardianSearchError("관계를 입력해주세요.");
+      return;
+    }
+    setGuardianSaving(true);
+    setGuardianSearchError("");
+    try {
+      const saved = sessionStorage.getItem("currentSenior");
+      if (!saved) return;
+      const profile = JSON.parse(saved);
+      const seniorId = profile?.senior?.id;
+      if (!seniorId || !foundGuardian?.id) return;
+
+      const res = await fetch(`/api/guardians/${foundGuardian.id}/seniors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seniorId, relation: guardianRelation.trim() }),
+      });
+      if (!res.ok) throw new Error("connect_failed");
+
+      // 프로필 새로 불러오기
+      const profileRes = await fetch(`/api/seniors/${seniorId}`);
+      if (profileRes.ok) {
+        const updated = await profileRes.json();
+        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+        setCurrentProfile(updated);
+      }
+      setCareTeam((prev) => ({
+        ...prev,
+        guardianName: foundGuardian.name || "",
+        guardianRelation: guardianRelation.trim(),
+        guardianPhone: foundGuardian.phone || "",
+      }));
+      setGuardianEditOpen(false);
+    } catch {
+      setGuardianSearchError("연동에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setGuardianSaving(false);
     }
@@ -1778,33 +1898,157 @@ export default function UserPage() {
       {guardianEditOpen && (
         <div className="up-overlay" onClick={() => setGuardianEditOpen(false)}>
           <div className="up-modal up-guardian-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="up-modal-title">보호자 정보 수정</div>
-            <div className="up-guardian-field">
-              <label className="up-guardian-label">보호자 이름</label>
-              <input
-                className="up-guardian-input"
-                value={guardianEditForm.name}
-                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="이름 입력"
-              />
-            </div>
-            <div className="up-guardian-field">
-              <label className="up-guardian-label">관계</label>
-              <input
-                className="up-guardian-input"
-                value={guardianEditForm.relation}
-                onChange={(e) => setGuardianEditForm((prev) => ({ ...prev, relation: e.target.value }))}
-                placeholder="예: 아들, 딸, 배우자"
-              />
-            </div>
-            <div className="up-modal-row" style={{ marginTop: "1.4rem" }}>
-              <button className="up-modal-cancel" type="button" onClick={() => setGuardianEditOpen(false)}>
-                취소
-              </button>
-              <button className="up-modal-ok up-modal-ok-green" type="button" onClick={saveGuardianEdit} disabled={guardianSaving}>
-                {guardianSaving ? "저장 중..." : "저장"}
-              </button>
-            </div>
+
+            {guardianIsEditMode ? (
+              /* ── 수정 모드 ── */
+              <>
+                <div className="up-modal-title">보호자 정보 수정</div>
+                <p style={{ fontSize: "0.82rem", color: "#888", margin: "-0.3rem 0 1.2rem", textAlign: "left" }}>
+                  보호자 정보를 직접 수정할 수 있어요.
+                </p>
+                <div className="up-guardian-field">
+                  <label className="up-guardian-label">이름</label>
+                  <input
+                    className="up-guardian-input"
+                    value={guardianEditData.name}
+                    onChange={(e) => setGuardianEditData((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="보호자 이름"
+                  />
+                </div>
+                <div className="up-guardian-field">
+                  <label className="up-guardian-label">관계</label>
+                  <input
+                    className="up-guardian-input"
+                    value={guardianEditData.relation}
+                    onChange={(e) => setGuardianEditData((prev) => ({ ...prev, relation: e.target.value }))}
+                    placeholder="예: 아들, 딸, 배우자, 친구 등"
+                  />
+                </div>
+                <div className="up-guardian-field">
+                  <label className="up-guardian-label">전화번호</label>
+                  <input
+                    className="up-guardian-input"
+                    value={guardianEditData.phone}
+                    onChange={(e) => setGuardianEditData((prev) => ({ ...prev, phone: formatPhone(e.target.value) }))}
+                    placeholder="010-0000-0000"
+                    inputMode="numeric"
+                    onKeyDown={(e) => e.key === "Enter" && saveGuardianEditDirect()}
+                  />
+                </div>
+                {guardianSearchError && (
+                  <div style={{ background: "#FFF0F0", color: "#D94E4E", borderRadius: "8px", padding: "10px 14px", fontSize: "0.82rem", margin: "0.8rem 0 0", textAlign: "left" }}>
+                    {guardianSearchError}
+                  </div>
+                )}
+                <div className="up-modal-row" style={{ marginTop: "1.2rem" }}>
+                  <button className="up-modal-cancel" type="button" onClick={() => setGuardianEditOpen(false)}>취소</button>
+                  <button className="up-modal-ok up-modal-ok-green" type="button" onClick={saveGuardianEditDirect} disabled={guardianSaving}>
+                    {guardianSaving ? "저장 중..." : "저장"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* ── 등록 모드 (검색 플로우) ── */
+              <>
+                <div className="up-modal-title">
+                  {guardianConnectStep === 0 ? "보호자 등록" : "관계 입력"}
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "#888", margin: "-0.3rem 0 1.2rem", textAlign: "left" }}>
+                  {guardianConnectStep === 0
+                    ? "보호자 앱에 등록된 이름과 전화번호로 검색해요."
+                    : "어르신과 보호자의 관계를 입력해주세요."}
+                </p>
+
+                {guardianConnectStep === 0 ? (
+                  <>
+                    <div className="up-guardian-field">
+                      <label className="up-guardian-label">보호자 이름</label>
+                      <input
+                        className="up-guardian-input"
+                        value={guardianSearchForm.name}
+                        onChange={(e) => setGuardianSearchForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="예: 김철수"
+                        onKeyDown={(e) => e.key === "Enter" && searchGuardian()}
+                      />
+                    </div>
+                    <div className="up-guardian-field">
+                      <label className="up-guardian-label">보호자 전화번호</label>
+                      <input
+                        className="up-guardian-input"
+                        value={guardianSearchForm.phone}
+                        onChange={(e) => setGuardianSearchForm((prev) => ({ ...prev, phone: formatPhone(e.target.value) }))}
+                        placeholder="010-0000-0000"
+                        inputMode="numeric"
+                        onKeyDown={(e) => e.key === "Enter" && searchGuardian()}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{
+                      background: "#E8F5E9", borderRadius: "10px", padding: "12px 16px",
+                      display: "flex", alignItems: "center", gap: "12px", marginBottom: "1.2rem",
+                    }}>
+                      <div style={{
+                        width: "40px", height: "40px", borderRadius: "50%",
+                        background: "#86A788", display: "flex", alignItems: "center",
+                        justifyContent: "center", color: "#fff", fontSize: "1.1rem", flexShrink: 0,
+                      }}>👤</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#1F2A20" }}>{foundGuardian?.name}</div>
+                        <div style={{ fontSize: "0.82rem", color: "#6D766A" }}>{foundGuardian?.phone}</div>
+                      </div>
+                      <span style={{ color: "#86A788", fontSize: "1.3rem" }}>✓</span>
+                    </div>
+                    <div className="up-guardian-field">
+                      <label className="up-guardian-label">관계</label>
+                      <input
+                        className="up-guardian-input"
+                        value={guardianRelation}
+                        onChange={(e) => setGuardianRelation(e.target.value)}
+                        placeholder="예: 아들, 딸, 배우자, 친구 등"
+                        autoFocus
+                        onKeyDown={(e) => e.key === "Enter" && saveGuardianEdit()}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {guardianSearchError && (
+                  <div style={{ background: "#FFF0F0", color: "#D94E4E", borderRadius: "8px", padding: "10px 14px", fontSize: "0.82rem", marginTop: "0.8rem", whiteSpace: "pre-line", textAlign: "left" }}>
+                    {guardianSearchError}
+                  </div>
+                )}
+
+                <div className="up-modal-row" style={{ marginTop: "1rem" }}>
+                  <button
+                    className="up-modal-cancel"
+                    type="button"
+                    onClick={() => {
+                      if (guardianConnectStep === 1) {
+                        setGuardianConnectStep(0);
+                        setFoundGuardian(null);
+                        setGuardianSearchError("");
+                      } else {
+                        setGuardianEditOpen(false);
+                      }
+                    }}
+                  >
+                    {guardianConnectStep === 1 ? "이전" : "취소"}
+                  </button>
+                  <button
+                    className="up-modal-ok up-modal-ok-green"
+                    type="button"
+                    onClick={guardianConnectStep === 0 ? searchGuardian : saveGuardianEdit}
+                    disabled={guardianSearching || guardianSaving}
+                  >
+                    {guardianConnectStep === 0
+                      ? (guardianSearching ? "검색 중..." : "검색")
+                      : (guardianSaving ? "저장 중..." : "연동 완료")}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

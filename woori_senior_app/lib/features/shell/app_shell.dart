@@ -75,19 +75,14 @@ class _AppShellState extends State<AppShell> {
       if (mounted && count != _unreadCount) setState(() => _unreadCount = count);
     } catch (_) {}
     try {
-      int chatUnread = 0;
-      for (final roomType in ['SENIOR_GUARDIAN', 'SENIOR_WELFARE']) {
-        final res = await http.get(Uri.parse(
-          '$apiBaseUrl/api/chat/senior/${widget.seniorId}?roomType=$roomType&viewerRole=SENIOR&size=50',
-        )).timeout(const Duration(seconds: 5));
-        if (res.statusCode == 200) {
-          final list = jsonDecode(utf8.decode(res.bodyBytes));
-          if (list is List) {
-            chatUnread += list.where((m) => m is Map && m['senderRole'] != 'SENIOR' && m['isRead'] != true).length;
-          }
-        }
+      final res = await http.get(Uri.parse(
+        '$apiBaseUrl/api/chat/unread?viewerRole=SENIOR&seniorId=${widget.seniorId}',
+      )).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        final chatUnread = (data['count'] as num?)?.toInt() ?? 0;
+        if (mounted && chatUnread != _unreadChatCount) setState(() => _unreadChatCount = chatUnread);
       }
-      if (mounted && chatUnread != _unreadChatCount) setState(() => _unreadChatCount = chatUnread);
     } catch (_) {}
   }
 

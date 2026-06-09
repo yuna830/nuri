@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import 'core/config/app_config.dart';
@@ -31,11 +32,24 @@ class WooriSeniorApp extends StatelessWidget {
     return MaterialApp(
       title: '우리 woori',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('ko', 'KR'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ko', 'KR'),
+        Locale('en', 'US'),
+      ],
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFFFFDEC),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF86A788),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          hintStyle: TextStyle(color: Color(0xFFCECECE)),
         ),
       ),
       home: const LoginGate(),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/utils/phone_formatter.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 import '../fall/fall_history_screen.dart';
@@ -138,6 +139,9 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   // 나중에 누른 알림 ID (세션 중 재표시 방지)
   final Set<int> _dismissedAlertIds = {};
 
+  // 보호자 미연동 안내 — 세션 중 1회만 표시
+  bool _guardianNoticeShown = false;
+
   // 각 알림 타입별 현재 알림 (null=없음)
   Map<String, dynamic>? _callAlert;
   Map<String, dynamic>? _medicineAlert;
@@ -183,7 +187,119 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     _cachedData = data;
     _processAlerts(data.alerts);
     _fetchWeather();
+
+    // 보호자 미연동 안내 — 최초 1회
+    if (!_guardianNoticeShown) {
+      final profile = data.senior;
+      final guardianName = _textFrom(profile, ['guardianName'], '');
+      if (guardianName.isEmpty) {
+        _guardianNoticeShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showGuardianNotice(profile);
+        });
+      }
+    }
+
     return data;
+  }
+
+  void _showGuardianNotice(Map<String, dynamic> profile) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 핸들
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDDDDDD),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // 아이콘
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: const Icon(Icons.people_alt_outlined,
+                  size: 32, color: Color(0xFF86A788)),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '보호자를 연동해 보세요',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1F2A20),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '보호자가 연동되면 비상시 바로 전화하거나\nSOS 알림을 보낼 수 있어요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF6D766A),
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFB0BDB1)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('나중에',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF6D766A))),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showGuardianConnectSheet(
+                      context,
+                      widget.seniorId,
+                      onConnected: () => setState(() {
+                        _homeDataFuture = _loadHomeData();
+                      }),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF86A788),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('입력하기',
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchWeather() async {
@@ -257,25 +373,41 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Text('🚨', style: TextStyle(fontSize: 54)),
-        title: const Text('SOS를 보내시겠어요?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w900)),
-        content: const Text('보호자와 담당 복지사에게 긴급 알림이 전송됩니다.',
-            textAlign: TextAlign.center),
+        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🚨', style: TextStyle(fontSize: 54)),
+            const SizedBox(height: 16),
+            const Text('SOS를 보내시겠어요?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          ],
+        ),
         actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
         actions: [
-          TextButton(
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF6D766A),
+              side: const BorderSide(color: Color(0xFFB0BDB1)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+            ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
+            child: const Text('취소', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD94E4E)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD94E4E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               _sendSos();
             },
-            child: const Text('보내기'),
+            child: const Text('보내기', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -659,6 +791,14 @@ class _HomeBody extends StatelessWidget {
                     title: '보호자 전화',
                     subtitle: guardianSummary,
                     onTap: () => _callPhone(context, guardianPhone, '보호자'),
+                    onEdit: () => _showGuardianEditSheet(
+                      context,
+                      seniorId,
+                      _textFrom(profile, ['guardianName'], ''),
+                      _textFrom(profile, ['relation'], ''),
+                      guardianPhone,
+                      onRefresh,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1167,12 +1307,14 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.onEdit,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1180,53 +1322,77 @@ class _ActionTile extends StatelessWidget {
     final primarySubtitle = subtitleLines.first;
     final secondarySubtitle = subtitleLines.skip(1).join('\n');
 
-    return _BaseCard(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+    return Stack(
+      children: [
+        _BaseCard(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(icon, color: const Color(0xFF6F9271), size: 28),
-              const SizedBox(width: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Icon(icon, color: const Color(0xFF6F9271), size: 28),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1F2A20),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Text(
-                title,
+                primarySubtitle,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 17,
+                  fontSize: 16,
+                  height: 1.35,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1F2A20),
+                  color: Color(0xFF6D766A),
                 ),
               ),
+              if (secondarySubtitle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  secondarySubtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6D766A),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            primarySubtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              height: 1.35,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF6D766A),
-            ),
-          ),
-          if (secondarySubtitle.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              secondarySubtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF6D766A),
+        ),
+        if (onEdit != null)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: GestureDetector(
+              onTap: onEdit,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF86A788).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.edit_outlined,
+                  size: 15,
+                  color: Color(0xFF6F9271),
+                ),
               ),
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -1883,5 +2049,553 @@ class _BaseCard extends StatelessWidget {
     if (onTap == null) return card;
     return InkWell(
         borderRadius: BorderRadius.circular(18), onTap: onTap, child: card);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  보호자 정보 수정 바텀시트
+// ─────────────────────────────────────────────
+
+void _showGuardianEditSheet(
+  BuildContext context,
+  int seniorId,
+  String currentName,
+  String currentRelation,
+  String currentPhone,
+  Future<void> Function() onRefresh,
+) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _GuardianEditSheet(
+      seniorId: seniorId,
+      initialName: currentName,
+      initialRelation: currentRelation,
+      initialPhone: currentPhone,
+      onSaved: onRefresh,
+    ),
+  );
+}
+
+class _GuardianEditSheet extends StatefulWidget {
+  const _GuardianEditSheet({
+    required this.seniorId,
+    required this.initialName,
+    required this.initialRelation,
+    required this.initialPhone,
+    required this.onSaved,
+  });
+  final int seniorId;
+  final String initialName;
+  final String initialRelation;
+  final String initialPhone;
+  final Future<void> Function() onSaved;
+
+  @override
+  State<_GuardianEditSheet> createState() => _GuardianEditSheetState();
+}
+
+class _GuardianEditSheetState extends State<_GuardianEditSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _relationCtrl;
+  late final TextEditingController _phoneCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.initialName);
+    _relationCtrl = TextEditingController(text: widget.initialRelation);
+    // 전화번호 초기값 — 하이픈 포맷 적용 (DB에 하이픈 없이 저장된 경우 대비)
+    _phoneCtrl = TextEditingController(
+      text: PhoneNumberFormatter().formatEditUpdate(
+        const TextEditingValue(text: ''),
+        TextEditingValue(text: widget.initialPhone),
+      ).text,
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _relationCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이름과 전화번호는 필수입니다.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    // async gap 전에 context 의존 객체 미리 캡처
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await const SeniorApi().updateProfile(widget.seniorId, {
+        'guardianName': name,
+        'relation': _relationCtrl.text.trim(),
+        'guardianPhone': phone,
+      });
+      if (mounted) {
+        navigator.pop();
+        await widget.onSaved();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('보호자 정보가 저장되었습니다.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('저장에 실패했습니다. 다시 시도해주세요.'),
+            backgroundColor: Color(0xFFD94E4E),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 핸들
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0E0E0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const Text(
+            '보호자 정보 수정',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)),
+          ),
+          const SizedBox(height: 20),
+          // 이름
+          _EditField(label: '이름', controller: _nameCtrl, hint: '홍길동'),
+          const SizedBox(height: 14),
+          // 관계
+          _EditField(
+            label: '관계',
+            controller: _relationCtrl,
+            hint: '예: 아들, 딸, 배우자, 친구 등',
+          ),
+          const SizedBox(height: 14),
+          // 전화번호
+          _EditField(
+            label: '전화번호',
+            controller: _phoneCtrl,
+            hint: '010-0000-0000',
+            isPhone: true,
+          ),
+          const SizedBox(height: 24),
+          // 저장 버튼
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF86A788),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _saving
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('저장', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditField extends StatelessWidget {
+  const _EditField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.isPhone = false,
+  });
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF6D766A))),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+          inputFormatters: isPhone
+              ? [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                  PhoneNumberFormatter(),
+                ]
+              : null,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Color(0xFFCECECE)),
+            filled: true,
+            fillColor: const Color(0xFFF5F7F5),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── 보호자 검색 연동 바텀시트 ─────────────────────────────────────────────────
+
+void _showGuardianConnectSheet(
+  BuildContext context,
+  int seniorId, {
+  required VoidCallback onConnected,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _GuardianConnectSheet(
+      seniorId: seniorId,
+      onConnected: onConnected,
+    ),
+  );
+}
+
+class _GuardianConnectSheet extends StatefulWidget {
+  const _GuardianConnectSheet({
+    required this.seniorId,
+    required this.onConnected,
+  });
+  final int seniorId;
+  final VoidCallback onConnected;
+
+  @override
+  State<_GuardianConnectSheet> createState() => _GuardianConnectSheetState();
+}
+
+class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
+  // 0: 검색, 1: 관계 선택
+  int _step = 0;
+
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _relationCtrl = TextEditingController();
+
+  Map<String, dynamic>? _found;   // 검색 결과
+  bool _searching = false;
+  bool _saving = false;
+  String? _errorMsg;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _relationCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    final name = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty) {
+      setState(() => _errorMsg = '이름과 전화번호를 모두 입력해주세요.');
+      return;
+    }
+    setState(() { _searching = true; _errorMsg = null; });
+    try {
+      final result = await const SeniorApi().searchGuardian(
+        name: name, phone: phone,
+      );
+      if (result == null) {
+        setState(() => _errorMsg = '일치하는 보호자를 찾을 수 없어요.\n이름과 전화번호를 다시 확인해주세요.');
+      } else {
+        setState(() { _found = result; _step = 1; });
+      }
+    } catch (_) {
+      setState(() => _errorMsg = '검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _connect() async {
+    final relation = _relationCtrl.text.trim();
+    if (relation.isEmpty) {
+      setState(() => _errorMsg = '관계를 입력해주세요.');
+      return;
+    }
+    setState(() { _saving = true; _errorMsg = null; });
+    try {
+      final guardianId = _found!['id'] as int? ??
+          int.tryParse('${_found!['id']}') ?? 0;
+      await const SeniorApi().connectGuardian(
+        guardianId: guardianId,
+        seniorId: widget.seniorId,
+        relation: relation,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onConnected();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('보호자가 연동됐어요 🎉'),
+          backgroundColor: Color(0xFF86A788),
+        ),
+      );
+    } catch (_) {
+      setState(() => _errorMsg = '연동에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24, right: 24, top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 핸들
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDDDDDD),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 헤더
+          Row(children: [
+            if (_step == 1)
+              GestureDetector(
+                onTap: () => setState(() { _step = 0; _found = null; _errorMsg = null; }),
+                child: const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF1F2A20)),
+                ),
+              ),
+            Expanded(
+              child: Text(
+                _step == 0 ? '보호자 검색' : '관계 선택',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            _step == 0
+                ? '보호자 앱에 가입된 이름과 전화번호로 검색해요.'
+                : '어르신과 보호자의 관계를 선택해주세요.',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6D766A)),
+          ),
+          const SizedBox(height: 20),
+
+          if (_step == 0) ...[
+            // ── 검색 단계 ──
+            _ConnectField(label: '보호자 이름', controller: _nameCtrl, hint: '예: 김철수'),
+            const SizedBox(height: 12),
+            _ConnectField(
+              label: '보호자 전화번호',
+              controller: _phoneCtrl,
+              hint: '010-0000-0000',
+              keyboardType: TextInputType.phone,
+              isPhone: true,
+            ),
+            const SizedBox(height: 20),
+            if (_errorMsg != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0F0),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(_errorMsg!,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFFD94E4E))),
+              ),
+              const SizedBox(height: 12),
+            ],
+            FilledButton(
+              onPressed: _searching ? null : _search,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF86A788),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _searching
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('검색',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            ),
+          ] else ...[
+            // ── 관계 선택 단계 ──
+
+            // 찾은 보호자 카드
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(children: [
+                const CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Color(0xFF86A788),
+                  child: Icon(Icons.person, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${_found!['name'] ?? ''}',
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w900,
+                                color: Color(0xFF1F2A20))),
+                        Text('${_found!['phone'] ?? ''}',
+                            style: const TextStyle(
+                                fontSize: 13, color: Color(0xFF6D766A))),
+                      ]),
+                ),
+                const Icon(Icons.check_circle, color: Color(0xFF86A788), size: 22),
+              ]),
+            ),
+            const SizedBox(height: 20),
+
+            // 관계 입력
+            _ConnectField(
+              label: '관계',
+              controller: _relationCtrl,
+              hint: '예: 아들, 딸, 배우자, 친구 등',
+              keyboardType: TextInputType.text,
+            ),
+            const SizedBox(height: 16),
+            if (_errorMsg != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0F0),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(_errorMsg!,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFFD94E4E))),
+              ),
+              const SizedBox(height: 12),
+            ],
+            FilledButton(
+              onPressed: _saving ? null : _connect,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF86A788),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _saving
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('연동 완료',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectField extends StatelessWidget {
+  const _ConnectField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.keyboardType,
+    this.isPhone = false,
+  });
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final TextInputType? keyboardType;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1F2A20))),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType ?? TextInputType.text,
+          textInputAction: isPhone ? TextInputAction.done : TextInputAction.next,
+          inputFormatters: isPhone ? [PhoneNumberFormatter()] : null,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Color(0xFFCECECE), fontSize: 14),
+            filled: true,
+            fillColor: const Color(0xFFF7F5E8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

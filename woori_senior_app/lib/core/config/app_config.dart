@@ -14,6 +14,10 @@ String get fallServerBaseUrl {
   return dotenv.env['FALL_API_BASE_URL'] ?? 'http://10.0.2.2:8000';
 }
 
+String get chatApiBaseUrl {
+  return dotenv.env['CHAT_API_BASE_URL'] ?? 'http://10.0.2.2:8002';
+}
+
 String get kakaoJavaScriptKey {
   return dotenv.env['KAKAO_JAVASCRIPT_KEY'] ?? '';
 }
