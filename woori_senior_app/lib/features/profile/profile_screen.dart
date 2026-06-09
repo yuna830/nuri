@@ -116,6 +116,7 @@ class _ProfileForm {
   String profileImageUrl = '';
   String disabilityGrade = _none;
   String disabilityType = _none;
+  bool hasGuardian = true; // 보호자 유무 (true=있음, false=없음)
 
   // 신체정보
   String height = '';
@@ -235,6 +236,7 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   form.profileImageUrl = '${s['profileImageUrl'] ?? ''}';
   form.disabilityGrade = _orNone(s['disabilityGrade']);
   form.disabilityType = _orNone(s['disabilityType']);
+  form.hasGuardian = s['hasGuardian'] != false; // null 이나 true → true(있음)
 
   // ── 신체정보 (HealthInfo 엔티티) ─────────────────
   form.height = '${h['height'] ?? ''}';
@@ -322,6 +324,7 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'profileImageUrl': f.profileImageUrl,
     'disabilityGrade': f.disabilityGrade == _none ? '' : f.disabilityGrade,
     'disabilityType': f.disabilityType == _none ? '' : f.disabilityType,
+    'hasGuardian': f.hasGuardian,
     'height': f.height,
     'weight': f.weight,
     'smoking': f.smoking == _none ? '' : f.smoking,
@@ -398,6 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   _ProfileForm _form = _ProfileForm();
   bool _loading = true;
   bool _saving = false;
+  bool _dirty = false; // 사용자가 폼을 수정한 경우 백그라운드 갱신 차단
   String? _error;
 
   @override
@@ -453,9 +457,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         _form = _apiToForm(cached);
         _loading = false;
       });
-      // 백그라운드에서 최신 데이터 갱신
+      // 백그라운드에서 최신 데이터 갱신 (사용자가 이미 수정 중이면 덮어쓰지 않음)
       _api.fetchProfile(widget.seniorId).then((raw) {
-        if (!mounted) return;
+        if (!mounted || _dirty) return;
         SeniorSessionStorage.saveProfile(widget.seniorId, raw);
         setState(() => _form = _apiToForm(raw));
       }).catchError((_) {});
@@ -547,15 +551,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     _PersonalSection(
                       form: _form,
-                      onChanged: () => setState(() {}),
+                      onChanged: () => setState(() { _dirty = true; }),
                     ),
-                    _BodySection(form: _form, onChanged: () => setState(() {})),
-                    _MedicationSection(form: _form, onChanged: () => setState(() {})),
-                    _ChronicSection(form: _form, onChanged: () => setState(() {})),
-                    _MobilitySection(form: _form, onChanged: () => setState(() {})),
-                    _ActivitySection(form: _form, onChanged: () => setState(() {})),
-                    _WelfareSection(form: _form, onChanged: () => setState(() {})),
-                    _JobSection(form: _form, onChanged: () => setState(() {})),
+                    _BodySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _MedicationSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _ChronicSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _MobilitySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _ActivitySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _WelfareSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _JobSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                   ],
                 ),
 
@@ -849,6 +853,45 @@ class _PersonalSectionState extends State<_PersonalSection> {
             widget.form.disabilityType = v;
             widget.onChanged();
           }),
+      const SizedBox(height: 8),
+      // ── 보호자 유무 ────────────────────────────────────────────
+      StatefulBuilder(
+        builder: (context, setLocal) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F5E8),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD4E8D6)),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('보호자 있음',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1F2A20))),
+                    SizedBox(height: 2),
+                    Text('보호자가 없는 경우 꺼주세요.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF7A8A7C))),
+                  ],
+                ),
+              ),
+              Switch(
+                value: widget.form.hasGuardian,
+                activeColor: const Color(0xFF86A788),
+                onChanged: (v) {
+                  setLocal(() => widget.form.hasGuardian = v);
+                  widget.onChanged();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     ]);
   }
 }

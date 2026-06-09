@@ -255,6 +255,7 @@ export const defaultForm = {
   socialWorkerPhone: "",
   disabilityGrade: "",
   disabilityType: "",
+  hasGuardian: true,
   height: "",
   weight: "",
   smoking: "",
@@ -368,6 +369,7 @@ export const profileToForm = (profile = {}) => {
     socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
     disabilityGrade: senior.disabilityGrade ?? NONE,
     disabilityType: senior.disabilityType ?? NONE,
+    hasGuardian: senior.hasGuardian !== false, // null/true → true(있음)
     height: mergedHealthInfo.height ? String(mergedHealthInfo.height) : "",
     weight: mergedHealthInfo.weight ? String(mergedHealthInfo.weight) : "",
     smoking: mergedHealthInfo.smoking ?? NONE,
@@ -478,6 +480,7 @@ export const formToProfile = (profile, form) => {
       socialWorkerPhone: normalized.socialWorkerPhone,
       disabilityGrade: normalized.disabilityGrade,
       disabilityType: normalized.disabilityType,
+      hasGuardian: normalized.hasGuardian,
     },
     healthInfo: {
       ...profile.healthInfo,

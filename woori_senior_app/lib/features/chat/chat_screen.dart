@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -29,35 +30,59 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _tabController;
   final Set<int> _unreadTabIndices = {};
   Timer? _unreadTimer;
 
-  static const _tabs = [
-    _Tab('보호자', 'SENIOR_GUARDIAN'),
-    _Tab('복지사', 'SENIOR_WELFARE'),
-    _Tab('AI 도우미', 'AI'),
+  bool _hasGuardian = true;   // 프로필 로드 전 기본값
+  bool _profileLoaded = false;
+
+  // 보호자 유무에 따라 탭 목록이 달라짐
+  List<_Tab> get _tabs => [
+    if (_hasGuardian) const _Tab('보호자', 'SENIOR_GUARDIAN'),
+    const _Tab('복지사', 'SENIOR_WELFARE'),
+    const _Tab('AI 도우미', 'AI'),
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
-    _tabController.addListener(_onTabChanged);
+    _loadProfileAndInit();
+    _unreadTimer = Timer.periodic(
+        const Duration(seconds: 10), (_) => _checkUnread());
+  }
+
+  /// 프로필에서 hasGuardian 읽어온 뒤 TabController 생성
+  Future<void> _loadProfileAndInit() async {
+    try {
+      final raw = await const SeniorApi().fetchProfile(widget.seniorId);
+      final senior = raw['senior'] as Map<String, dynamic>? ?? {};
+      _hasGuardian = senior['hasGuardian'] != false; // null/true → true
+    } catch (_) {
+      _hasGuardian = true; // 오류 시 보수적으로 탭 유지
+    }
+    if (!mounted) return;
+    setState(() {
+      _profileLoaded = true;
+      _tabController = TabController(length: _tabs.length, vsync: this)
+        ..addListener(_onTabChanged);
+    });
     _checkUnread();
-    _unreadTimer = Timer.periodic(const Duration(seconds: 10), (_) => _checkUnread());
   }
 
   void _onTabChanged() {
-    if (!_tabController.indexIsChanging) {
-      setState(() => _unreadTabIndices.remove(_tabController.index));
+    if (!(_tabController?.indexIsChanging ?? true)) {
+      setState(() => _unreadTabIndices.remove(_tabController!.index));
     }
   }
 
   Future<void> _checkUnread() async {
-    for (int i = 0; i < _tabs.length - 1; i++) {
-      if (_tabController.index == i) continue; // 현재 보고 있는 탭은 건너뜀
-      final roomType = _tabs[i].roomType;
+    final ctrl = _tabController;
+    if (ctrl == null) return;
+    final humanTabs = _tabs.where((t) => t.roomType != 'AI').toList();
+    for (int i = 0; i < humanTabs.length; i++) {
+      if (ctrl.index == i) continue;
+      final roomType = humanTabs[i].roomType;
       try {
         final res = await http.get(Uri.parse(
           '$apiBaseUrl/api/chat/senior/${widget.seniorId}?roomType=$roomType&size=10',
@@ -66,7 +91,7 @@ class _ChatScreenState extends State<ChatScreen>
           final list = jsonDecode(utf8.decode(res.bodyBytes));
           if (list is List && mounted) {
             final hasUnread = list.any((m) =>
-              m is Map && m['unreadForSenior'] == true);
+                m is Map && m['unreadForSenior'] == true);
             setState(() {
               if (hasUnread) {
                 _unreadTabIndices.add(i);
@@ -83,13 +108,26 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void dispose() {
     _unreadTimer?.cancel();
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
+    _tabController?.removeListener(_onTabChanged);
+    _tabController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // 프로필 로드 완료 전 로딩 표시
+    if (!_profileLoaded || _tabController == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF5F7F5),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF86A788)),
+        ),
+      );
+    }
+
+    final tabs = _tabs;
+    final ctrl = _tabController!;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
@@ -100,14 +138,14 @@ class _ChatScreenState extends State<ChatScreen>
             style: TextStyle(
                 color: Color(0xFF1F2A20), fontWeight: FontWeight.w900)),
         bottom: TabBar(
-          controller: _tabController,
+          controller: ctrl,
           labelColor: const Color(0xFF86A788),
           unselectedLabelColor: const Color(0xFF6D766A),
           indicatorColor: const Color(0xFF86A788),
           labelStyle:
               const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-          tabs: List.generate(_tabs.length, (i) {
-            final t = _tabs[i];
+          tabs: List.generate(tabs.length, (i) {
+            final t = tabs[i];
             final hasUnread = _unreadTabIndices.contains(i);
             return Tab(
               child: Stack(
@@ -143,14 +181,14 @@ class _ChatScreenState extends State<ChatScreen>
         ),
       ),
       body: TabBarView(
-        controller: _tabController,
-        children: List.generate(_tabs.length, (i) {
-          final t = _tabs[i];
+        controller: ctrl,
+        children: List.generate(tabs.length, (i) {
+          final t = tabs[i];
           if (t.roomType == 'AI') return _AiChatRoom(seniorId: widget.seniorId);
           return _HumanChatRoom(
             seniorId: widget.seniorId,
             roomType: t.roomType,
-            isActive: _tabController.index == i,
+            isActive: ctrl.index == i,
             onRead: () {
               if (mounted) setState(() => _unreadTabIndices.remove(i));
             },
@@ -408,6 +446,12 @@ class _AiChatRoomState extends State<_AiChatRoom> {
   String _sttLocaleId = 'ko_KR';
   Map<String, dynamic> _senior = {};
   Map<String, dynamic> _healthInfo = {};
+  // 전화 연결용 연락처
+  String _guardianPhone = '';
+  String _guardianName = '';
+  String _guardianRelation = '';   // 아들, 딸 등 프로필에 저장된 관계
+  String _welfarePhone = '';
+  String _welfareName = '';
   String? _pendingImageBase64;
   String? _pendingImageMime;
   String? _pendingOcrContext;
@@ -537,7 +581,17 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       final raw = await _api.fetchProfile(widget.seniorId);
       final s = raw['senior'] as Map<String, dynamic>? ?? {};
       final h = raw['healthInfo'] as Map<String, dynamic>? ?? {};
-      if (mounted) setState(() { _senior = s; _healthInfo = h; });
+      if (mounted) {
+        setState(() {
+          _senior = s;
+          _healthInfo = h;
+          _guardianPhone    = (raw['guardianPhone']      as String? ?? '').trim();
+          _guardianName     = (raw['guardianName']       as String? ?? '').trim();
+          _guardianRelation = (raw['relation']           as String? ?? '').trim();
+          _welfarePhone     = (raw['socialWorkerPhone']  as String? ?? '').trim();
+          _welfareName      = (raw['socialWorkerName']   as String? ?? '').trim();
+        });
+      }
     } catch (_) {}
   }
 
@@ -666,6 +720,119 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       _pendingImageMime = mime;
       _pendingOcrContext = ocrResult;
     });
+  }
+
+  // ──────────────────────────────────────────────
+  // 전화 연결 기능
+  // ──────────────────────────────────────────────
+
+  /// 메시지에서 전화 요청 의도를 감지한다.
+  /// 반환값: 'guardian' | 'welfare' | null
+  String? _detectCallIntent(String message) {
+    // 전화 관련 동작 키워드
+    const callVerbs = ['전화', '통화', '연락', '연결', '불러'];
+    if (!callVerbs.any((k) => message.contains(k))) return null;
+
+    // 복지사 키워드 (선생님은 복지사 먼저 매칭)
+    final welfareKeywords = <String>[
+      '복지사', '사회복지사', '담당자', '선생님', '선생',
+      if (_welfareName.isNotEmpty) _welfareName,
+    ];
+
+    // 보호자 키워드 (프로필 이름·관계 포함)
+    final guardianKeywords = <String>[
+      '보호자', '가족',
+      // 일반적인 가족 호칭
+      '엄마', '아빠', '어머니', '아버지', '아들', '딸',
+      '남편', '아내', '오빠', '언니', '형', '누나',
+      '할머니', '할아버지', '손자', '손녀',
+      '며느리', '사위', '삼촌', '이모', '고모', '조카',
+      if (_guardianRelation.isNotEmpty) _guardianRelation,
+      if (_guardianName.isNotEmpty) _guardianName,
+    ];
+
+    // 복지사 먼저 체크 (선생님 → 복지사 우선)
+    if (welfareKeywords.any((k) => k.isNotEmpty && message.contains(k))) {
+      return 'welfare';
+    }
+    if (guardianKeywords.any((k) => k.isNotEmpty && message.contains(k))) {
+      return 'guardian';
+    }
+
+    // "전화해줘"처럼 대상 불명확 → 보호자를 기본으로
+    return 'guardian';
+  }
+
+  /// 전화 확인 다이얼로그를 표시하고 확인 시 전화를 건다.
+  Future<void> _showCallConfirmDialog(String target) async {
+    final isGuardian = target == 'guardian';
+    final name  = isGuardian ? _guardianName  : _welfareName;
+    final phone = isGuardian ? _guardianPhone : _welfarePhone;
+    final label = isGuardian ? '보호자' : '복지사';
+
+    if (phone.isEmpty) {
+      final msg = '$label 전화번호가 등록되어 있지 않아요.';
+      if (mounted) {
+        setState(() => _history.add(_AiMsg(role: 'assistant', text: msg)));
+        _speak(msg);
+      }
+      return;
+    }
+
+    final displayName = name.isNotEmpty ? '$name $label' : label;
+
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.phone, color: Color(0xFF86A788), size: 28),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('$displayName\n전화할까요?',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+          ),
+        ]),
+        content: Text(phone,
+            style: const TextStyle(
+                fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32),
+                letterSpacing: 1.5)),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(ctx, false),
+            icon: const Icon(Icons.close),
+            label: const Text('취소', style: TextStyle(fontSize: 16)),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF86A788)),
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.phone),
+            label: const Text('전화하기', style: TextStyle(fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _makeCall(phone);
+    }
+  }
+
+  /// 플랫폼 채널을 통해 전화를 건다.
+  Future<void> _makeCall(String phone) async {
+    final number = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (number.isEmpty) return;
+    try {
+      await const MethodChannel('com.woori/phone').invokeMethod('dial', number);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('전화 앱을 열 수 없어요. ($number)')),
+        );
+      }
+    }
   }
 
   String _buildSystemPrompt() {
@@ -820,6 +987,16 @@ class _AiChatRoomState extends State<_AiChatRoom> {
         _scrollToBottom();
       }
       return;
+    }
+
+    // 전화 요청 감지 (이미지 없는 텍스트 메시지에만 적용)
+    if (sentImageBase64 == null) {
+      final callTarget = _detectCallIntent(q);
+      if (callTarget != null) {
+        if (mounted) setState(() => _sending = false);
+        await _showCallConfirmDialog(callTarget);
+        return;
+      }
     }
 
     // 매 질문마다 최신 건강·복약 정보로 갱신

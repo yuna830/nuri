@@ -93,6 +93,7 @@ public class SeniorController {
         senior.setDisabilityGrade(request.disabilityGrade());
         senior.setDisabilityType(request.disabilityType());
         senior.setProfileImageUrl(request.profileImageUrl());
+        senior.setHasGuardian(request.hasGuardian());
 
         Senior savedSenior = seniorRepository.save(senior);
 
@@ -353,6 +354,13 @@ public class SeniorController {
         senior.setProfileImageUrl(request.profileImageUrl());
         if (request.fallApiUrl() != null) {
             senior.setFallApiUrl(request.fallApiUrl().isBlank() ? null : request.fallApiUrl().trim());
+        }
+        if (request.hasGuardian() != null) {
+            senior.setHasGuardian(request.hasGuardian());
+            // 보호자 없음으로 변경 시 실제 연동도 해제
+            if (Boolean.FALSE.equals(request.hasGuardian())) {
+                guardianSeniorRepository.deleteBySeniorId(id);
+            }
         }
 
         Senior savedSenior = seniorRepository.save(senior);
@@ -994,7 +1002,8 @@ public class SeniorController {
             List<String> hopeJobType,
             List<String> hopeCondition,
             String memo,
-            String fallApiUrl) {
+            String fallApiUrl,
+            Boolean hasGuardian) {
     }
 
     public record SeniorLoginRequest(
