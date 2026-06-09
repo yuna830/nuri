@@ -49,6 +49,16 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
 
     @Query("""
         select s from Senior s
+        where function('regexp_replace', s.phone, '[^0-9]', '', 'g') = :phone
+          and s.id <> :id
+        """)
+    Optional<Senior> findByNormalizedPhoneAndIdNot(
+            @Param("phone") String phone,
+            @Param("id") Long id
+    );
+
+    @Query("""
+        select s from Senior s
         where s.name = :name
           and s.region = :region
         order by s.createdAt desc

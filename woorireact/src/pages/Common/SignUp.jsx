@@ -5,6 +5,7 @@ import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { saveCurrentSeniorProfile } from "../../utils/user/currentSeniorStorage.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
@@ -158,7 +159,7 @@ export default function SignUp() {
       }
 
       const profile = await response.json();
-      sessionStorage.setItem("currentSenior", JSON.stringify(profile));
+      saveCurrentSeniorProfile(profile);
       localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
       localStorage.removeItem("login_temp");
       navigate("/user");

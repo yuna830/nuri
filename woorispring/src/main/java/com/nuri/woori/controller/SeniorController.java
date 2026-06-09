@@ -342,6 +342,13 @@ public class SeniorController {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
+        if (request.phone() != null && !request.phone().isBlank()) {
+            String normalizedPhone = normalizePhone(request.phone());
+            seniorRepository.findByNormalizedPhoneAndIdNot(normalizedPhone, id).ifPresent(existing -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 전화번호입니다.");
+            });
+        }
+
         senior.setName(request.name());
         senior.setBirthDate(toLocalDate(request.birthDate()));
         senior.setAge(toAge(request.birthDate(), request.age()));

@@ -6,6 +6,7 @@ import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { readAlert, resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
 import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
+import { saveCurrentSeniorProfile } from "../../utils/user/currentSeniorStorage.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import {
   CHRONIC,
@@ -75,7 +76,7 @@ export default function ProfilePage() {
               .then((r) => r.ok ? r.json() : null)
               .then((freshProfile) => {
                 if (!freshProfile || isDirty.current) return;
-                sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+                saveCurrentSeniorProfile(freshProfile);
                 setForm(profileToForm(freshProfile));
               })
               .catch(() => {});
@@ -83,13 +84,23 @@ export default function ProfilePage() {
           return;
         }
 
-        const response = await fetch(`${SPRING_API_BASE}/api/seniors`);
-        if (!response.ok) return;
-        const profiles = await response.json();
-        const latestProfile = profiles[profiles.length - 1];
-        if (!latestProfile) return;
-        sessionStorage.setItem("currentSenior", JSON.stringify(latestProfile));
-        setForm(profileToForm(latestProfile));
+        const storedSeniorId = localStorage.getItem("current_senior_id");
+        if (storedSeniorId) {
+          const response = await fetch(`${SPRING_API_BASE}/api/seniors/${storedSeniorId}`);
+          if (response.ok) {
+            const profile = await response.json();
+            saveCurrentSeniorProfile(profile);
+            setForm(profileToForm(profile));
+            setIsLoaded(true);
+            return;
+          }
+
+          if (response.status === 404) {
+            localStorage.removeItem("current_senior_id");
+          }
+        }
+
+        navigate("/login");
         setIsLoaded(true);
       } catch (error) {
         console.error("프로필 정보 조회 실패:", error);
@@ -180,7 +191,7 @@ export default function ProfilePage() {
       throw new Error(`프로필 수정 실패 (${response.status})${text ? `: ${text}` : ""}`);
     }
     const updatedProfile = await response.json();
-    sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+    saveCurrentSeniorProfile(updatedProfile);
     isDirty.current = false;
     setForm(profileToForm(updatedProfile));
     return updatedProfile;
