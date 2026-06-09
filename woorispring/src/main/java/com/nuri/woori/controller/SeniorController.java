@@ -532,6 +532,14 @@ public class SeniorController {
             healthInfo.setHouseholdType(request.householdType());
         }
 
+        if (request.smoking() != null) {
+            healthInfo.setSmoking(request.smoking());
+        }
+
+        if (request.drinking() != null) {
+            healthInfo.setDrinking(request.drinking());
+        }
+
         if (request.diabetes() != null) {
             healthInfo.setDiabetes(request.diabetes());
         }
@@ -621,6 +629,8 @@ public class SeniorController {
             String householdType,
             String disabilityGrade,
             String disabilityType,
+            String smoking,
+            String drinking,
             String diabetes,
             String hypertension,
             String heartDisease,
@@ -746,14 +756,13 @@ public class SeniorController {
                 isFilled(senior.getDisabilityGrade()) && isFilled(senior.getDisabilityType()),
                 healthInfo != null && healthInfo.getHeight() != null && healthInfo.getWeight() != null,
                 healthInfo != null &&
-                    isFilled(healthInfo.getSmoking()) && isFilled(healthInfo.getDrinking()) &&
                     isFilled(healthInfo.getDiabetes()) && isFilled(healthInfo.getHypertension()) &&
                     isFilled(healthInfo.getHeartDisease()) && isFilled(healthInfo.getJointDisease()) &&
                     isFilled(healthInfo.getStroke()) && isFilled(healthInfo.getKidneyDisease()) &&
                     isFilled(healthInfo.getLungDisease()) && isFilled(healthInfo.getLiverDisease()) &&
                     isFilled(healthInfo.getCancer()) && isFilled(healthInfo.getWalkingAid()) &&
                     isFilled(healthInfo.getDementia()) && isFilled(healthInfo.getVision()) &&
-                    isFilled(healthInfo.getHearing()) && isFilled(healthInfo.getRecentFall()),
+                    isFilled(healthInfo.getHearing()),
                 healthInfo != null && isFilled(healthInfo.getMedicineCount()),
                 healthInfo != null &&
                         isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType()) &&

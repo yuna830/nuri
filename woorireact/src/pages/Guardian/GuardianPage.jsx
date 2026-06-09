@@ -36,12 +36,15 @@ import {
 import { buildDisplayedAlerts } from "../../utils/guardian/guardianAlert";
 import { fetchActivityTrend, fetchFallPattern } from "../../api/userPageApi";
 import { fetchUnreadChatCount } from "../../api/chatApi";
+import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi";
 
 import CommonHeader from "../../components/CommonHeader.jsx";
 import TripartiteChatModal from "../../components/TripartiteChatModal.jsx";
+import GuardianToast from "../../components/GuardianToast.jsx";
 import UserPanel from "./UserPanel";
 import LocationPanel from "./LocationPanel";
 import EmergencyPanel from "./EmergencyPanel";
+import { gToast } from "../../utils/guardian/guardianToast";
 
 import "leaflet/dist/leaflet.css";
 import "../../css/guardian/GuardianPage.css";
@@ -117,7 +120,7 @@ const INFO_REQUEST_FIELDS = [
   {
     key: "disabilityType",
     label: "장애 유형",
-    aliases: ["장애 유형"],
+    aliases: ["장애 정보", "장애 유형"],
     type: "select",
     options: [NONE, "지체장애", "시각장애", "청각장애", "언어장애", "지적장애", "정신장애", "기타"],
   },
@@ -133,77 +136,165 @@ const INFO_REQUEST_FIELDS = [
   {
     key: "hypertension",
     label: "고혈압",
-    aliases: [],
+    aliases: ["건강 정보", "만성질환"],
     type: "select",
     options: [NONE, "약으로 관리 중", "최근 혈압 변동이 크거나 도움이 필요함"],
   },
   {
     key: "heartDisease",
     label: "심장질환",
-    aliases: [],
+    aliases: ["건강 정보", "만성질환"],
     type: "select",
     options: [NONE, "정기 진료/약으로 관리 중", "숨참/가슴통증 등으로 활동 제한"],
   },
   {
     key: "jointDisease",
     label: "관절질환",
-    aliases: [],
+    aliases: ["건강 정보", "만성질환"],
     type: "select",
     options: [NONE, "가끔 통증이 있으나 보행 가능", "통증 때문에 보행/작업 제한"],
+  },
+  {
+    key: "stroke",
+    label: "뇌졸중",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "후유증이 조금 있으나 일상 가능", "마비/언어 등으로 도움이 필요함"],
+  },
+  {
+    key: "kidneyDisease",
+    label: "신장질환",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "정기 진료로 관리 중", "투석/잦은 치료가 필요함"],
+  },
+  {
+    key: "lungDisease",
+    label: "호흡기질환",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "가끔 숨참/기침이 있음", "호흡 문제로 활동 제한"],
+  },
+  {
+    key: "liverDisease",
+    label: "간질환",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "정기 진료로 관리 중", "치료/생활 제한이 필요함"],
+  },
+  {
+    key: "cancer",
+    label: "암",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "완치 후 관리 중", "현재 치료 중"],
+  },
+  {
+    key: "smoking",
+    label: "흡연 여부",
+    aliases: ["건강 정보", "신체 정보"],
+    type: "select",
+    options: [NONE, "금연 중", "과거 흡연", "가끔 흡연", "흡연 중"],
+  },
+  {
+    key: "drinking",
+    label: "음주 여부",
+    aliases: ["건강 정보", "신체 정보"],
+    type: "select",
+    options: [NONE, "금주 실천 중", "가끔", "주 1~2회", "자주"],
   },
 
   // ── 건강 정보 (거동/인지) ───────────────────────────
   {
     key: "walkingAid",
     label: "보행 보조기구",
-    aliases: [],
+    aliases: ["건강 정보", "거동"],
     type: "select",
     options: [NONE, "지팡이", "보행기", "휠체어"],
   },
   {
     key: "dementia",
     label: "기억/판단",
-    aliases: [],
+    aliases: ["건강 정보", "거동"],
     type: "select",
     options: [NONE, "가끔 헷갈림", "도움이 자주 필요함"],
   },
   {
     key: "vision",
     label: "시력",
-    aliases: [],
+    aliases: ["건강 정보", "거동"],
     type: "select",
     options: [NONE, "글씨가 조금 흐림", "큰 글씨만 보임", "거의 보이지 않음"],
   },
   {
     key: "hearing",
     label: "청력",
-    aliases: [],
+    aliases: ["건강 정보", "거동"],
     type: "select",
     options: [NONE, "작은 소리가 잘 안 들림", "큰 소리로 말해야 들림", "거의 들리지 않음"],
+  },
+  {
+    key: "recentFall",
+    label: "최근 1년 낙상 경험",
+    aliases: ["건강 정보", "거동"],
+    type: "select",
+    options: [NONE, "1회", "2~3회", "4회 이상"],
+  },
+  {
+    key: "hasSurgery",
+    label: "수술 이력",
+    aliases: ["건강 정보", "거동"],
+    type: "select",
+    options: [NONE, "있음"],
+  },
+  {
+    key: "otherDisease",
+    label: "기타 건강 참고사항",
+    aliases: ["건강 정보"],
+    type: "text",
+    placeholder: "기타 건강 관련 참고사항을 입력해주세요",
   },
 ];
 
 const isEmptyInfoValue = (value) => {
   const text = String(value ?? "").trim();
-  return !text || text === "-" || text.includes("미등록") || text.includes("없음");
+  return !text || text === "-" || text.includes("미등록");
+};
+
+const HEALTH_INFO_KEYS = [
+  "smoking", "drinking",
+  "diabetes", "hypertension", "heartDisease", "jointDisease",
+  "stroke", "kidneyDisease", "lungDisease", "liverDisease", "cancer",
+  "walkingAid", "dementia", "vision", "hearing",
+  "recentFall", "hasSurgery", "otherDisease",
+];
+
+const isFieldEmpty = (field, elder) => {
+  if (field.key === "region") return isEmptyInfoValue(elder?.address);
+  if (field.key === "birthDate") return isEmptyInfoValue(elder?.birthDate) && isEmptyInfoValue(elder?.age);
+  if (HEALTH_INFO_KEYS.includes(field.key)) return isEmptyInfoValue(elder?.healthInfo?.[field.key]);
+  return isEmptyInfoValue(elder?.[field.key]);
 };
 
 const getInfoRequestFieldKeys = (alert, elder) => {
   const message = `${alert?.message ?? ""} ${alert?.title ?? ""}`;
-  const requestedKeys = INFO_REQUEST_FIELDS
-    .filter((field) => field.aliases.some((alias) => message.includes(alias)))
-    .map((field) => field.key);
+  const matchedByAlias = INFO_REQUEST_FIELDS
+    .filter((field) => field.aliases.some((alias) => message.includes(alias)));
 
-  if (requestedKeys.length > 0) {
-    return requestedKeys;
+  if (matchedByAlias.length > 0) {
+    // alias 매칭된 카테고리 내에서 실제로 비어 있는 필드만 반환
+    const emptyKeys = matchedByAlias
+      .filter((field) => isFieldEmpty(field, elder))
+      .map((field) => field.key);
+
+    // 비어 있는 게 없으면 카테고리 전체를 보여줌 (이미 모두 입력된 경우)
+    return emptyKeys.length > 0
+      ? emptyKeys
+      : matchedByAlias.map((field) => field.key);
   }
 
   return INFO_REQUEST_FIELDS
-    .filter((field) => {
-      if (field.key === "region") return isEmptyInfoValue(elder?.address);
-      if (field.key === "birthDate") return isEmptyInfoValue(elder?.birthDate) && isEmptyInfoValue(elder?.age);
-      return isEmptyInfoValue(elder?.[field.key]);
-    })
+    .filter((field) => isFieldEmpty(field, elder))
     .map((field) => field.key);
 };
 
@@ -212,6 +303,26 @@ const buildInfoRequestForm = (elder) => ({
   phone: elder?.phone || "",
   birthDate: elder?.birthDate || "",
   region: isEmptyInfoValue(elder?.address) ? "" : elder.address,
+  disabilityGrade: elder?.disabilityGrade || "",
+  disabilityType: elder?.disabilityType || "",
+  diabetes: elder?.healthInfo?.diabetes || "",
+  hypertension: elder?.healthInfo?.hypertension || "",
+  heartDisease: elder?.healthInfo?.heartDisease || "",
+  jointDisease: elder?.healthInfo?.jointDisease || "",
+  stroke: elder?.healthInfo?.stroke || "",
+  kidneyDisease: elder?.healthInfo?.kidneyDisease || "",
+  lungDisease: elder?.healthInfo?.lungDisease || "",
+  liverDisease: elder?.healthInfo?.liverDisease || "",
+  cancer: elder?.healthInfo?.cancer || "",
+  smoking: elder?.healthInfo?.smoking || "",
+  drinking: elder?.healthInfo?.drinking || "",
+  walkingAid: elder?.healthInfo?.walkingAid || "",
+  dementia: elder?.healthInfo?.dementia || "",
+  vision: elder?.healthInfo?.vision || "",
+  hearing: elder?.healthInfo?.hearing || "",
+  recentFall: elder?.healthInfo?.recentFall || "",
+  hasSurgery: elder?.healthInfo?.hasSurgery || "",
+  otherDisease: elder?.healthInfo?.otherDisease || "",
 });
 
 const isInfoRequestStillNeeded = (alert, elders) => {
@@ -223,11 +334,8 @@ const isInfoRequestStillNeeded = (alert, elders) => {
     return true;
   }
 
-  return getInfoRequestFieldKeys(alert, targetElder).some((key) => {
-    if (key === "region") return isEmptyInfoValue(targetElder.address);
-    if (key === "birthDate") return isEmptyInfoValue(targetElder.birthDate) && isEmptyInfoValue(targetElder.age);
-    return isEmptyInfoValue(targetElder[key]);
-  });
+  // getInfoRequestFieldKeys 가 이미 빈 필드만 반환하므로 길이로 판단
+  return getInfoRequestFieldKeys(alert, targetElder).length > 0;
 };
 
 function GuardianPage() {
@@ -836,7 +944,7 @@ function GuardianPage() {
       setIsRouteVisible(true);
     } catch (error) {
       console.error("날짜별 동선 경로 조회 실패:", error);
-      alert("선택한 날짜의 동선 경로를 불러오지 못했습니다.");
+      gToast.error("선택한 날짜의 동선 경로를 불러오지 못했습니다.");
     }
   };
 
@@ -870,7 +978,7 @@ function GuardianPage() {
       const currentZones = prev[activeElderId] ?? getDefaultSafeZones(selectedElder);
 
       if (currentZones.length >= 3) {
-        alert("안전 반경은 최대 3개까지 등록할 수 있습니다.");
+        gToast.warn("안전 반경은 최대 3개까지 등록할 수 있습니다.");
         return prev;
       }
 
@@ -928,7 +1036,7 @@ function GuardianPage() {
     const seniorId = activeElderId;
 
     if (!seniorId) {
-      alert("보호 대상자를 먼저 선택해주세요.");
+      gToast.warn("보호 대상자를 먼저 선택해주세요.");
       return false;
     }
 
@@ -937,7 +1045,7 @@ function GuardianPage() {
       const exists = currentZones.some((zone) => String(zone.id) === String(safeZoneForm.id));
 
       if (!exists && currentZones.length >= 3) {
-        alert("안전 반경은 최대 3개까지 등록할 수 있습니다.");
+        gToast.warn("안전 반경은 최대 3개까지 등록할 수 있습니다.");
         return false;
       }
 
@@ -964,11 +1072,11 @@ function GuardianPage() {
         [seniorId]: savedSafeZone.id,
       }));
 
-      alert("안전 반경이 저장되었습니다.");
+      gToast.success("안전 반경이 저장되었습니다.");
       return true;
     } catch (error) {
       console.error("안전 반경 저장 실패:", error);
-      alert("안전 반경 저장에 실패했습니다.");
+      gToast.error("안전 반경 저장에 실패했습니다.");
       return false;
     }
   };
@@ -981,7 +1089,7 @@ function GuardianPage() {
     const currentZones = safeZoneForms[seniorId] ?? getDefaultSafeZones(selectedElder);
 
     if (currentZones.length <= 1) {
-      alert("안전 반경은 최소 1개 이상 필요합니다.");
+      gToast.warn("안전 반경은 최소 1개 이상 필요합니다.");
       return;
     }
 
@@ -1007,10 +1115,10 @@ function GuardianPage() {
         [seniorId]: nextZones[0]?.id,
       }));
 
-      alert("안전 반경이 삭제되었습니다.");
+      gToast.success("안전 반경이 삭제되었습니다.");
     } catch (error) {
       console.error("안전 반경 삭제 실패:", error);
-      alert("안전 반경 삭제에 실패했습니다.");
+      gToast.error("안전 반경 삭제에 실패했습니다.");
     }
   };
 
@@ -1033,7 +1141,7 @@ function GuardianPage() {
     if (!searchName || !searchPhone) {
       setHasSearchedSenior(false);
       setSeniorSearchResults([]);
-      alert("이름과 전화번호를 모두 입력해주세요.");
+      gToast.warn("이름과 전화번호를 모두 입력해주세요.");
       return;
     }
 
@@ -1060,7 +1168,7 @@ function GuardianPage() {
       setSeniorSearchResults(results);
     } catch (error) {
       console.error("사용자 검색 실패:", error);
-      alert("사용자 검색에 실패했습니다.");
+      gToast.error("사용자 검색에 실패했습니다.");
     } finally {
       setIsSearchingSenior(false);
     }
@@ -1088,17 +1196,17 @@ function GuardianPage() {
       setSeniorSearchResults([]);
       setHasSearchedSenior(false);
 
-      alert("보호 대상자가 추가되었습니다.");
+      gToast.success("보호 대상자가 추가되었습니다.");
     } catch (error) {
       console.error("보호 대상자 연결 실패:", error);
-      alert("보호 대상자 추가에 실패했습니다.");
+      gToast.error("보호 대상자 추가에 실패했습니다.");
     }
   };
 
   const handleCreateAndConnectSenior = async () => {
     try {
       if (!newSeniorForm.name.trim()) {
-        alert("이름을 입력해주세요.");
+        gToast.warn("이름을 입력해주세요.");
         return;
       }
 
@@ -1124,10 +1232,10 @@ function GuardianPage() {
         relation: "보호 대상자",
       });
 
-      alert("신규 보호 대상자가 추가되었습니다.");
+      gToast.success("신규 보호 대상자가 추가되었습니다.");
     } catch (error) {
       console.error("신규 보호 대상자 등록 실패:", error);
-      alert("신규 보호 대상자 등록에 실패했습니다.");
+      gToast.error("신규 보호 대상자 등록에 실패했습니다.");
     }
   };
 
@@ -1158,10 +1266,10 @@ function GuardianPage() {
 
       await reloadGuardianSeniors();
 
-      alert("보호 대상자의 연결이 해제되었습니다.");
+      gToast.success("보호 대상자의 연결이 해제되었습니다.");
     } catch (error) {
       console.error("연결 해제 실패:", error);
-      alert("해제에 실패했습니다.");
+      gToast.error("해제에 실패했습니다.");
     }
   };
 
@@ -1187,7 +1295,7 @@ function GuardianPage() {
     );
 
     if (!targetElder) {
-      window.alert("정보를 입력할 보호 대상자를 찾을 수 없습니다.");
+      gToast.error("정보를 입력할 보호 대상자를 찾을 수 없습니다.");
       return;
     }
 
@@ -1197,11 +1305,7 @@ function GuardianPage() {
     setEditingElder(targetElder);
     setInfoRequestFormAlert(alert);
     const fallbackKeys = INFO_REQUEST_FIELDS
-      .filter((field) => {
-        if (field.key === "region") return isEmptyInfoValue(targetElder?.address);
-        if (field.key === "birthDate") return isEmptyInfoValue(targetElder?.birthDate) && isEmptyInfoValue(targetElder?.age);
-        return isEmptyInfoValue(targetElder?.[field.key]);
-      })
+      .filter((field) => isFieldEmpty(field, targetElder))
       .map((field) => field.key);
 
     setInfoRequestFieldKeys(
@@ -1236,12 +1340,19 @@ function GuardianPage() {
     }, {});
 
     if (Object.keys(payload).length === 0) {
-      window.alert("입력할 정보를 작성해주세요.");
+      gToast.warn("입력할 정보를 작성해주세요.");
       return;
     }
 
     try {
       await updateSeniorRequestedInfo(editingElder.id, payload);
+
+      // 보호자가 입력했을 때: 이 senior의 모든 INFO_UPDATE_REQUEST 알림 읽음 처리
+      // (사용자 쪽 알림도 함께 닫힘 — 중복 입력 요청 방지)
+      await notifyProfileUpdateComplete({
+        seniorId: editingElder.id,
+        alertId: infoRequestFormAlert?.id ?? null,
+      }).catch(() => {});
 
       if (infoRequestFormAlert?.id) {
         setDismissedInfoRequestIds((prev) => [
@@ -1256,10 +1367,10 @@ function GuardianPage() {
       setEditingElder(null);
       setInfoRequestFormAlert(null);
       setInfoRequestFieldKeys([]);
-      window.alert("보호 대상자 정보가 저장되었습니다.");
+      gToast.success("보호 대상자 정보가 저장되었습니다.");
     } catch (error) {
       console.error("정보 입력 저장 실패:", error);
-      window.alert("정보 저장에 실패했습니다.");
+      gToast.error("정보 저장에 실패했습니다.");
     }
   };
 
@@ -1275,7 +1386,7 @@ function GuardianPage() {
     const phone = targetElder?.phone;
 
     if (!phone) {
-      window.alert("전화번호 정보가 없습니다.");
+      gToast.warn("전화번호 정보가 없습니다.");
       return;
     }
 
@@ -1397,7 +1508,7 @@ function GuardianPage() {
 
       loadGuardianAlerts();
 
-      alert("실종 신고가 등록되었습니다.");
+      gToast.success("실종 신고가 등록되었습니다.");
       setMissingDescription("");
       setMissingImageFile(null);
       setMissingImagePreview("");
@@ -1405,7 +1516,7 @@ function GuardianPage() {
       setIsMissingReportOpen(false);
     } catch (error) {
       console.error("실종 신고 등록 실패:", error);
-      alert("실종 신고 등록에 실패했습니다.");
+      gToast.error("실종 신고 등록에 실패했습니다.");
     } finally {
       setIsSubmittingMissingReport(false);
     }
@@ -1461,7 +1572,7 @@ function GuardianPage() {
 
   const handleSendMedicineAlert = async () => {
     if (!activeElderId) {
-      alert("보호 대상자를 먼저 선택해주세요.");
+      gToast.warn("보호 대상자를 먼저 선택해주세요.");
       return;
     }
 
@@ -1481,12 +1592,12 @@ function GuardianPage() {
         message: medicineMessage.trim() || "복용 중인 약을 확인하고 제때 복용해주세요.",
       });
 
-      alert("복약 알림을 보냈습니다.");
+      gToast.success("복약 알림을 보냈습니다.");
       setIsMedicineAlertOpen(false);
       setMedicineMessage("");
     } catch (error) {
       console.error("복약 알림 전송 실패:", error);
-      alert("복약 알림 전송에 실패했습니다.");
+      gToast.error("복약 알림 전송에 실패했습니다.");
     } finally {
       setIsSendingMedicineAlert(false);
     }
@@ -1509,7 +1620,7 @@ function GuardianPage() {
       });
     } catch (error) {
       console.error("이상 없음 알림 전송 실패:", error);
-      window.alert("이상 없음 알림 전송에 실패했습니다.");
+      gToast.error("이상 없음 알림 전송에 실패했습니다.");
       return;
     }
 
@@ -1517,7 +1628,7 @@ function GuardianPage() {
       await handleReadAlert(targetAlert.id);
     }
 
-    window.alert("복지사에게 이상 없음 알림을 보냈습니다.");
+    gToast.success("복지사에게 이상 없음 알림을 보냈습니다.");
   };
 
   const handleWelfareConsultationSchedule = async (targetAlert, scheduleDate) => {
@@ -1530,10 +1641,10 @@ function GuardianPage() {
       });
 
       await handleReadAlert(targetAlert.id);
-      window.alert("상담 날짜를 복지사에게 보냈습니다.");
+      gToast.success("상담 날짜를 복지사에게 보냈습니다.");
     } catch (error) {
       console.error("상담 날짜 응답 실패:", error);
-      window.alert("상담 날짜 전송에 실패했습니다.");
+      gToast.error("상담 날짜 전송에 실패했습니다.");
     }
   };
 
@@ -1541,6 +1652,7 @@ function GuardianPage() {
 
   return (
     <main className="guardian-page">
+      <GuardianToast />
       <GuardianHeader
         displayedAlerts={displayedAlerts}
         onReadAlert={handleReadAlert}
@@ -1897,9 +2009,12 @@ function GuardianPage() {
               <button
                 type="button"
                 onClick={() => {
+                  // 쌓인 모든 INFO_UPDATE_REQUEST를 한 번에 dismissed 처리
+                  const allInfoRequestIds = apiAlerts
+                    .filter((a) => a.type === "INFO_UPDATE_REQUEST" && a.isRead !== true)
+                    .map((a) => String(a.id));
                   setDismissedInfoRequestIds((prev) => [
-                    ...prev,
-                    String(infoRequestAlert.id),
+                    ...new Set([...prev, ...allInfoRequestIds]),
                   ]);
                   setInfoRequestAlert(null);
                 }}
@@ -2197,7 +2312,7 @@ function GuardianHeader({
       <div className="guardian-alert-actions-below">
         <button
           type="button"
-          className="guardian-alert-primary-action"
+          className="guardian-alert-danger-action" 
           onClick={(event) => {
             event.stopPropagation();
             onCallAlert?.(alert);

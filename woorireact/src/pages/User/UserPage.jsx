@@ -1881,9 +1881,10 @@ export default function UserPage() {
                 className="up-modal-cancel"
                 type="button"
                 onClick={() => {
-                  if (infoUpdateRequestAlert?.id) {
-                    dismissedInfoAlertIdsRef.current.add(String(infoUpdateRequestAlert.id));
-                  }
+                  // 현재 알림뿐 아니라 쌓인 모든 INFO_UPDATE_REQUEST를 세션 동안 무시
+                  userAlerts
+                    .filter((a) => a.type === "INFO_UPDATE_REQUEST" && !a.isRead)
+                    .forEach((a) => dismissedInfoAlertIdsRef.current.add(String(a.id)));
                   setInfoUpdateRequestAlert(null);
                 }}
               >

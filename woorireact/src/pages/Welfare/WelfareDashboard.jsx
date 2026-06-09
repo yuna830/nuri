@@ -138,6 +138,26 @@ function WelfareDashboard() {
     const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
     const [emergencySeniorId, setEmergencySeniorId] = useState("");
 
+    const emergencySeniorIds = new Set([
+        // 1. 보호자가 SOS에 미응답한 사용자
+        ...seniors
+            .filter((s) => s.alertStatus === "미응답 SOS")
+            .map((s) => s.id),
+
+        // 2. 복지사에게 전화 요청을 보낸 사용자
+        ...dbWelfareAlerts
+            .filter((a) => a.type === "CALL_REQUEST" && !a.isRead)
+            .map((a) => a.seniorId),
+
+        // 3. 보호자 없는 사용자가 SOS를 요청한 경우
+        ...dbWelfareAlerts
+            .filter((a) => a.type === "SOS" && !a.isRead)
+            .map((a) => a.seniorId)
+            .filter((id) => seniors.find((s) => s.id === id && !s.hasGuardian)),
+    ]);
+
+    const emergencySeniors = seniors.filter((s) => emergencySeniorIds.has(s.id));
+
     useEffect(() => {
         if (!currentWorker) {
             navigate("/wlogin", { replace: true });
@@ -489,10 +509,16 @@ function WelfareDashboard() {
         };
     });
 
+    const dbUnansweredSosSeniorIds = new Set(
+        dbWelfareAlerts
+            .filter((a) => a.type === "UNANSWERED_SOS")
+            .map((a) => String(a.seniorId))
+    );
+
     const welfareNotifications = notificationSeniors.flatMap((senior) => {
         const notifications = [];
 
-        if (senior.alertStatus === "미응답 SOS") {
+        if (senior.alertStatus === "미응답 SOS" && !dbUnansweredSosSeniorIds.has(String(senior.id))) {
             notifications.push({
                 id: `${senior.id}-sos`,
                 seniorId: senior.id,
@@ -512,25 +538,6 @@ function WelfareDashboard() {
                 message: `${senior.name} 대상자가 일자리 신청을 보냈습니다.`,
                 category: "일자리",
                 detailCategory: "일자리 요청 상태",
-            });
-        }
-
-        const missingFields = getMissingSeniorInfoFields(senior);
-        if (missingFields.length > 0) {
-            const isInfoUpdateRequested = infoUpdateRequestedSeniorIds.includes(String(senior.id));
-
-            notifications.push({
-                id: `${senior.id}-missing-info`,
-                seniorId: senior.id,
-                seniorName: senior.name,
-                title: isInfoUpdateRequested ? "정보 입력 요청 대기" : "정보 입력 필요",
-                message: isInfoUpdateRequested
-                    ? `${senior.name} 대상자에게 ${missingFields.join(", ")} 정보 입력을 요청했습니다. 아직 수정이 완료되지 않았습니다.`
-                    : `${senior.name} 대상자의 ${missingFields.join(", ")} 정보가 비어 있습니다. 사용자 또는 보호자에게 정보 입력을 요청해주세요.`,
-                category: MISSING_INFO_NOTIFICATION_CATEGORY,
-                detailCategory: "기본 정보",
-                danger: false,
-                isRead: readSyntheticAlertIds.includes(`${senior.id}-missing-info`),  // 추가
             });
         }
 
@@ -794,12 +801,31 @@ function WelfareDashboard() {
             );
         }
 
-        if (notification?.type === "UNANSWERED_SOS" || notification?.title === "미응답 SOS") {
+        if (notification?.type === "SOS" || notification?.raw?.type === "SOS") {
+            if (notification.isRead) return null;
             return (
                 <div className="welfare-alert-actions-below">
                     <button
                         type="button"
-                        className="welfare-alert-primary-action"
+                        className="welfare-alert-danger-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleConfirmUnansweredSosAlert(notification, closeNotificationPanel);
+                        }}
+                    >
+                        긴급 확인
+                    </button>
+                </div>
+            );
+        }
+
+        if (notification?.type === "UNANSWERED_SOS" || notification?.title === "미응답 SOS") {
+            if (notification.isRead) return null;
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-danger-action"
                         onClick={(event) => {
                             event.stopPropagation();
                             handleConfirmUnansweredSosAlert(notification, closeNotificationPanel);
@@ -880,6 +906,10 @@ function WelfareDashboard() {
         if (!infoRequestTarget) return;
 
         const missingFields = getMissingSeniorInfoFields(infoRequestTarget);
+
+        if (infoUpdateRequestedSeniorIds.includes(String(infoRequestTarget.id))) {
+            if (!window.confirm("이미 정보 입력 요청을 보낸 대상자입니다. 다시 요청할까요?")) return;
+        }
 
         if (!infoRequestTargets.toSenior && !infoRequestTargets.toGuardian) {
             alert("요청 대상을 선택해주세요.");
@@ -982,7 +1012,7 @@ function WelfareDashboard() {
                         imageUrl: notification.raw?.imageAccessUrl || notification.raw?.imageUrl || notification.imageUrl || "",
                     },
                 }))}
-                notificationTabs={["전체", "긴급", "낙상", "정보 미입력", "일자리", "복지", "읽지 않음"]}
+                notificationTabs={["전체", "긴급", "낙상", "일자리", "복지", "읽지 않음"]}
                 onReadNotification={async (notification) => {
                     if (!notification?.id) return;
 
@@ -1033,7 +1063,7 @@ function WelfareDashboard() {
                         className="common-app-danger-button"
                         type="button"
                         onClick={() => {
-                            setEmergencySeniorId(seniors[0]?.id ? String(seniors[0].id) : "");
+                            setEmergencySeniorId(emergencySeniors[0]?.id ? String(emergencySeniors[0].id) : "");
                             setIsEmergencyModalOpen(true);
                         }}
                     >
@@ -1374,33 +1404,76 @@ function WelfareDashboard() {
                         </div>
 
                         {/* 대상자 선택 */}
+                        {/* 대상자 선택 */}
                         <div style={{ padding: "0 20px 16px" }}>
-                            <label style={{ fontSize: "13px", color: "#666", display: "block", marginBottom: "6px" }}>
+                            <label style={{ fontSize: "13px", color: "#888", display: "block", marginBottom: "8px", fontWeight: "600" }}>
                                 긴급 상황 대상자
                             </label>
-                            <select
-                                value={emergencySeniorId}
-                                onChange={(e) => setEmergencySeniorId(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "10px 12px",
-                                    border: "1px solid #e0e0e0",
-                                    borderRadius: "8px",
-                                    fontSize: "14px",
-                                    background: "#fafafa",
-                                }}
-                            >
-                                {seniors.map((s) => (
-                                    <option key={s.id} value={String(s.id)}>
-                                        {s.name}{s.guardianName ? ` (보호자: ${s.guardianName})` : ""}
-                                    </option>
-                                ))}
-                            </select>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "200px", overflowY: "auto" }}>
+                                {emergencySeniors.length > 0 ? (
+                                    emergencySeniors.map((s) => (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => setEmergencySeniorId(String(s.id))}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                padding: "10px 14px",
+                                                borderRadius: "8px",
+                                                border: `1.5px solid ${emergencySeniorId === String(s.id) ? "#b85252" : "#e8e0e0"}`,
+                                                background: emergencySeniorId === String(s.id) ? "#fdf3f3" : "#fafafa",
+                                                cursor: "pointer",
+                                                textAlign: "left",
+                                                transition: "all 0.15s",
+                                            }}
+                                        >
+                                            <span style={{ fontSize: "14px", fontWeight: "600", color: "#1c1c1e" }}>
+                                                {s.name}
+                                                {s.guardianName && (
+                                                    <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px", fontWeight: "400" }}>
+                                                        보호자: {s.guardianName}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span style={{
+                                                fontSize: "11px",
+                                                fontWeight: "700",
+                                                padding: "2px 8px",
+                                                borderRadius: "99px",
+                                                background: s.alertStatus === "미응답 SOS"
+                                                    ? "#fdeaea"
+                                                    : dbWelfareAlerts.some((a) => a.type === "CALL_REQUEST" && !a.isRead && a.seniorId === s.id)
+                                                        ? "#e8f0fe"
+                                                        : "#fff4e5",
+                                                color: s.alertStatus === "미응답 SOS"
+                                                    ? "#b85252"
+                                                    : dbWelfareAlerts.some((a) => a.type === "CALL_REQUEST" && !a.isRead && a.seniorId === s.id)
+                                                        ? "#2c5adb"
+                                                        : "#cc7a00",
+                                                color: s.alertStatus === "미응답 SOS" ? "#b85252" : "#cc7a00",
+                                            }}>
+                                                {(() => {
+                                                    if (s.alertStatus === "미응답 SOS") return "미응답 SOS";
+                                                    if (dbWelfareAlerts.some((a) => a.type === "CALL_REQUEST" && !a.isRead && a.seniorId === s.id))
+                                                        return "전화 요청";
+                                                    return "SOS (보호자 없음)";
+                                                })()}
+                                            </span>
+                                        </button>
+                                    ))
+                                ) : (
+                                    <p style={{ fontSize: "13px", color: "#aaa", textAlign: "center", padding: "16px 0" }}>
+                                        현재 긴급 대상자 없음
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         {/* 전화 버튼들 */}
                         {(() => {
-                            const target = seniors.find((s) => String(s.id) === emergencySeniorId);
+                            const target = emergencySeniors.find((s) => String(s.id) === emergencySeniorId);
                             return (
                                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 20px 20px" }}>
                                     <a

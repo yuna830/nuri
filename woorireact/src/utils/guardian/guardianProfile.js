@@ -63,6 +63,8 @@ export const mapSeniorProfileToElder = (profile) => {
   const medications = readMedications(healthInfo ?? {});
 
   return {
+    disabilityGrade: senior.disabilityGrade || "",
+    disabilityType: senior.disabilityType || "",
     id: senior.id,
     name: senior.name || "이름 없음",
     relation: profile.relation || senior.guardianRelation || "보호 대상자",

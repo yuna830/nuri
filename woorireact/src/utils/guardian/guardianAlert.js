@@ -78,7 +78,6 @@ const isWithinDays = (value, days) => {
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
   const today = new Date();
   const seenIds = new Set();
-  const isCandidateConfirm = alert.type === "AI_CANDIDATE_CONFIRM";
 
   return apiAlerts
     .filter((alert) => {
@@ -105,6 +104,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
     })
     .map((alert) => {
       const isReported = reportedAlertIds.includes(String(alert.id));
+      const isCandidateConfirm = alert.type === "AI_CANDIDATE_CONFIRM";
       const isSafeZone = alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT";
       const isFall = FALL_ALERT_TYPES.has(alert.type);
 
