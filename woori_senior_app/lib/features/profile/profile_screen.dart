@@ -196,6 +196,7 @@ List<Map<String, String>> _parseMedications(dynamic raw) {
     if (trimmed.isEmpty || trimmed == '[]') return [];
     try {
       source = jsonDecode(trimmed);
+      widget.onSaved?.call();
     } catch (_) {
       return [];
     }
@@ -377,12 +378,14 @@ class ProfileScreen extends StatefulWidget {
     this.onRegisterAction,
     this.initialSectionIndex,
     this.pendingAlertId,
+    this.onSaved,
   });
   final int seniorId;
   final bool hideAppBar;
   final ActionRegistrar? onRegisterAction;
   final int? initialSectionIndex;
   final int? pendingAlertId;
+  final VoidCallback? onSaved;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();

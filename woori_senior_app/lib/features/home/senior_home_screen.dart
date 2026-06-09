@@ -510,6 +510,9 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
           seniorId: widget.seniorId,
           initialSectionIndex: sectionIndex,
           pendingAlertId: alertId,
+          onSaved: () {
+            if (context.mounted) Navigator.pop(context);
+          },
         ),
       ),
     );
@@ -1940,7 +1943,14 @@ class _AppFeatureGrid extends StatelessWidget {
       (
         Icons.person_outline,
         '내 정보',
-        _go(context, 4, () => ProfileScreen(seniorId: seniorId)),
+        _go(
+          context,
+          4,
+          () => ProfileScreen(
+            seniorId: seniorId,
+            onSaved: () => Navigator.pop(context),
+          ),
+        ),
       ),
       (
         Icons.work_outline,
