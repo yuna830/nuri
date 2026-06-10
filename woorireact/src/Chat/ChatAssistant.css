@@ -673,6 +673,30 @@
   max-width: min(72%, 420px);
 }
 
+.chat-mobile-image-notice {
+  box-sizing: border-box;
+  width: min(320px, 100%);
+  padding: 16px 20px;
+  border: 1px solid #c7ddc9;
+  border-radius: 14px;
+  background: #eef6ef;
+  box-shadow: 0 2px 8px rgba(80, 120, 84, 0.12);
+  text-align: left;
+}
+
+.chat-mobile-image-notice strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #38583c;
+  font-size: 15px;
+}
+
+.chat-mobile-image-notice p {
+  margin: 0;
+  color: #708a72;
+  font-size: 13px;
+}
+
 .chat-typing-indicator {
   display: flex;
   min-width: 68px;
@@ -1366,4 +1390,5 @@ button.selected {
   .schedule-list-scroll {
     overflow-y: auto;
   }
+
 }

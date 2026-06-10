@@ -1,5 +1,6 @@
 package com.nuri.woori.controller;
 
+import com.nuri.woori.service.FcmPushService;
 import com.nuri.woori.entity.Alert;
 import com.nuri.woori.entity.GuardianSenior;
 import com.nuri.woori.entity.LocationStatus;
@@ -21,6 +22,7 @@ import java.util.List;
 @RequestMapping("/api/locations")
 @CrossOrigin(origins = "*")
 public class LocationController {
+    private final FcmPushService fcmPushService;
     private final LocationStatusRepository locationStatusRepository;
     private final SafeZonesRepository safeZonesRepository;
     private final AlertRepository alertRepository;
@@ -32,13 +34,15 @@ public class LocationController {
             SafeZonesRepository safeZonesRepository,
             AlertRepository alertRepository,
             GuardianSeniorRepository guardianSeniorRepository,
-            SeniorRepository seniorRepository
+            SeniorRepository seniorRepository,
+            FcmPushService fcmPushService
     ) {
         this.locationStatusRepository = locationStatusRepository;
         this.safeZonesRepository = safeZonesRepository;
         this.alertRepository = alertRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.seniorRepository = seniorRepository;
+        this.fcmPushService = fcmPushService;
     }
 
     @PostMapping
@@ -163,7 +167,15 @@ public class LocationController {
             alert.setLongitude(request.longitude());
             alert.setIsRead(false);
 
-            alertRepository.save(alert);
+            Alert savedAlert = alertRepository.save(alert);
+
+            fcmPushService.sendToUser(
+                    "GUARDIAN",
+                    savedAlert.getGuardianId(),
+                    savedAlert.getTitle(),
+                    savedAlert.getMessage(),
+                    savedAlert.getType()
+            );
         }
     }
 

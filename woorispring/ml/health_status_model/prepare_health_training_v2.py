@@ -28,7 +28,8 @@ EXTERNAL_COLUMN_ALIASES = {
     "hearing": ["hearing", "Hearing"],
     "recent_fall": ["recent_fall", "Recent Fall", "falls"],
     "has_surgery": ["has_surgery", "Surgery", "surgery_history"],
-    "physical_limitation_count": ["physical_limitation_count", "physical_limitations"],
+    "walking_limited": ["walking_limited", "walking_difficulty", "mobility_limited"],
+    "fine_motor_limited": ["fine_motor_limited", "fine_motor_difficulty"],
     "max_hours": ["max_hours", "Max Hours"],
     "label": ["label", "health_status", "Health Status", "risk_level", "Risk Level"],
 }
@@ -213,9 +214,6 @@ def build_recent_fall_policy_samples(df: pd.DataFrame, count: int) -> pd.DataFra
     samples = candidates.sample(n=min(count, len(candidates)), random_state=42).copy()
     samples["recent_fall"] = "\uc788\uc74c"
     samples["label"] = "\uc704\ud5d8"
-    samples["physical_limitation_count"] = samples["physical_limitation_count"].map(
-        lambda value: str(max(int(number(value) or 0), 1))
-    )
     samples["max_hours"] = samples["max_hours"].replace("", "3").fillna("3")
     return samples[REQUIRED_COLUMNS]
 
@@ -243,12 +241,12 @@ def fill_defaults(df: pd.DataFrame) -> pd.DataFrame:
         "has_surgery",
     ]
     for column in disease_columns:
-        df[column] = df[column].replace("", "없음").fillna("없음")
-    df["walking_aid"] = df["walking_aid"].replace("", "없음").fillna("없음")
-    df["vision"] = df["vision"].replace("", "정상").fillna("정상")
-    df["hearing"] = df["hearing"].replace("", "정상").fillna("정상")
+        if column in df.columns:
+            df[column] = df[column].replace("", "없음").fillna("없음")
+    for col, default in [("walking_aid", "없음"), ("vision", "정상"), ("hearing", "정상")]:
+        if col in df.columns:
+            df[col] = df[col].replace("", default).fillna(default)
     df["medicine_count"] = df["medicine_count"].replace("", "0").fillna("0")
-    df["physical_limitation_count"] = df["physical_limitation_count"].replace("", "0").fillna("0")
     df["max_hours"] = df["max_hours"].replace("", "5").fillna("5")
     return df
 
@@ -261,7 +259,11 @@ def filter_by_age(df: pd.DataFrame, min_age: int) -> pd.DataFrame:
 def weak_label(row: pd.Series) -> str:
     serious = sum(problem(row[column]) for column in ["heart_disease", "stroke", "kidney_disease", "lung_disease", "cancer", "dementia"])
     chronic = sum(problem(row[column]) for column in ["hypertension", "diabetes", "joint_disease", "liver_disease"])
-    limitations = int(number(row["physical_limitation_count"]) or 0)
+    limitations = 0
+    if problem(row["walking_limited"]):
+        limitations += 1
+    if problem(row["fine_motor_limited"]):
+        limitations += 1
     if limited(row["walking_aid"]):
         limitations += 1
     if limited(row["vision"]):

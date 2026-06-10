@@ -241,6 +241,14 @@ const toTelHref = (phone = "") => {
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("currentSenior");
+    localStorage.removeItem("current_senior_id");
+    localStorage.removeItem("pending_sos");
+    navigate("/");
+  };
+
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);

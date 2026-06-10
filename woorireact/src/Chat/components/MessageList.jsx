@@ -1,7 +1,33 @@
-import { forwardRef, Fragment } from "react";
+import { forwardRef, Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
 const FALLBACK_MESSAGE_TIME = Date.now();
+
+function ChatAttachmentImage({ imageUrl, imageIndex }) {
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  if (loadFailed) {
+    return (
+      <div className="chat-mobile-image-notice">
+        {/* <span className="chat-mobile-image-icon">📱</span> */}
+
+        <div>
+          <strong>모바일에서 보낸 사진</strong>
+          <p>사진은 모바일 앱에서 확인할 수 있어요.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      className="chat-message-image"
+      src={imageUrl}
+      alt={`첨부한 사진 ${imageIndex + 1}`}
+      onError={() => setLoadFailed(true)}
+    />
+  );
+}
 
 function formatMessageTime(value) {
   return new Intl.DateTimeFormat("ko-KR", {
@@ -197,11 +223,10 @@ const MessageList = forwardRef(function MessageList(
               <div className={`chat-message-row image ${message.role}`}>
                 <div className="chat-message-images">
                   {imageUrls.map((imageUrl, imageIndex) => (
-                    <img
-                      className="chat-message-image"
-                      src={imageUrl}
-                      alt={`첨부한 사진 ${imageIndex + 1}`}
+                    <ChatAttachmentImage
                       key={imageUrl}
+                      imageUrl={imageUrl}
+                      imageIndex={imageIndex}
                     />
                   ))}
                 </div>

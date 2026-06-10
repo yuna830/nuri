@@ -196,7 +196,12 @@ def main() -> None:
     for p in [Path(p.strip()) for p in args.input.split(",")]:
         print(f"  파일 로드: {p.name}")
         part = load_rows(p)
-        validate_columns(part, REQUIRED_COLUMNS)
+        missing = [c for c in REQUIRED_COLUMNS if c not in part.columns and c != "label"]
+        if missing:
+            print(f"  [경고] {p.name} 누락 컬럼 — 빈 값으로 채움: {', '.join(missing)}")
+            for col in missing:
+                part[col] = ""
+        validate_columns(part, ["label"])
         frames.append(part)
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 

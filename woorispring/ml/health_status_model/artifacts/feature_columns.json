@@ -24,5 +24,13 @@
   "disease_count",
   "serious_disease_count",
   "chronic_disease_count",
-  "comorbidity_score"
+  "comorbidity_score",
+  "recent_fall_flag",
+  "recent_fall_count",
+  "max_hours_num",
+  "short_hours_flag",
+  "very_short_hours_flag",
+  "vision_limited_flag",
+  "hearing_limited_flag",
+  "walking_aid_flag"
 ]
