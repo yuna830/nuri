@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import WelfareDashboard from "../pages/Welfare/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
@@ -35,6 +35,14 @@ function RequireAdmin({ children }) {
     : <Navigate to="/admin/login" replace />;
 }
 
+function RequireSenior({ children }) {
+  useLocation(); // 경로 변경(뒤로가기 포함)마다 재평가
+  if (!sessionStorage.getItem("currentSenior")) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 function AppRoutes() {
   return (
     <BrowserRouter>
@@ -64,13 +72,13 @@ function AppRoutes() {
         <Route path="/guardian" element={<GuardianPage />} />
 
         {/* User */}
-        <Route path="/user" element={<UserPage />} />
-        <Route path="/weather" element={<WeatherAlert />} />
-        <Route path="/fall-history" element={<FallHistory />} />
-        <Route path="/location" element={<LocationPage />} />
-        <Route path="/jobs" element={<JobPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/weather-graph" element={<WeatherGraph />} />
+        <Route path="/user" element={<RequireSenior><UserPage /></RequireSenior>} />
+        <Route path="/weather" element={<RequireSenior><WeatherAlert /></RequireSenior>} />
+        <Route path="/fall-history" element={<RequireSenior><FallHistory /></RequireSenior>} />
+        <Route path="/location" element={<RequireSenior><LocationPage /></RequireSenior>} />
+        <Route path="/jobs" element={<RequireSenior><JobPage /></RequireSenior>} />
+        <Route path="/profile" element={<RequireSenior><ProfilePage /></RequireSenior>} />
+        <Route path="/weather-graph" element={<RequireSenior><WeatherGraph /></RequireSenior>} />
 
         {/* Admin */}
         <Route path="/admin/login" element={<AdminLogin />} />

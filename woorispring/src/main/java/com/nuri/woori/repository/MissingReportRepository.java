@@ -9,4 +9,6 @@ public interface MissingReportRepository extends JpaRepository<MissingReport, Lo
     List<MissingReport> findByGuardianId(Long guardianId);
     List<MissingReport> findBySeniorId(Long seniorId);
     List<MissingReport> findByStatus(String status);
+    // 신고 취소
+    List<MissingReport> findByStatusAndCancelledAtBefore(String status, java.time.LocalDateTime cutoff);
 }

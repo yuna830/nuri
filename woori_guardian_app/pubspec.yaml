@@ -43,7 +43,7 @@ dev_dependencies:
 
 # 앱 아이콘 설정
 flutter_launcher_icons:
-  android: true
+  android: true     
   ios: true
   image_path: "assets/icon/icon_guardian.png"
   min_sdk_android: 21

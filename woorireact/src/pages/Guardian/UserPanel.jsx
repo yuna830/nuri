@@ -5,6 +5,9 @@ import { resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi";
 import { updateGuardianSeniorRelation, updateSeniorRequestedInfo } from "../../api/guardianApi";
 import { getCurrentGuardianId } from "../../utils/guardian/guardianSession.js";
 
+import { gToast } from "../../utils/guardian/guardianToast.js";
+import { saveCurrentSenior } from "../../utils/common/session.js";
+
 const ACTIVITY_LABELS = {
   activity: "활동성",
   stability: "안정성",
@@ -147,7 +150,7 @@ function UserPanel({
       },
     };
 
-    sessionStorage.setItem("currentSenior", JSON.stringify(seniorProfile));
+    saveCurrentSenior(seniorProfile);
     localStorage.setItem("current_senior_id", String(selectedElder.id));
 
     navigate("/user");
@@ -209,7 +212,7 @@ function UserPanel({
       setIsProfileEditOpen(false);
     } catch (error) {
       console.error("보호 대상자 정보 수정 실패:", error);
-      alert("보호 대상자 정보 수정에 실패했습니다.");
+      gToast.error("보호 대상자 정보 수정에 실패했습니다.");
     } finally {
       setIsSavingProfileEdit(false);
     }
@@ -287,7 +290,7 @@ function UserPanel({
       setIsProfileMenuOpen(false);
     } catch {
       console.error("프로필 사진 저장 실패");
-      alert("프로필 사진 저장에 실패했습니다.");
+      gToast.error("프로필 사진 저장에 실패했습니다.");
     } finally {
       event.target.value = "";
     }
@@ -318,7 +321,7 @@ function UserPanel({
       setIsProfileMenuOpen(false);
     } catch {
       console.error("프로필 사진 삭제 실패");
-      alert("프로필 사진 삭제에 실패했습니다.");
+      gToast.error("프로필 사진 삭제에 실패했습니다.");
     }
   };
 

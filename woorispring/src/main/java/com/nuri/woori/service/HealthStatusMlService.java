@@ -157,6 +157,11 @@ public class HealthStatusMlService {
         row.put("dementia", healthInfo.getDementia());
         row.put("walking_limited", inferWalkingLimited(healthInfo));
         row.put("fine_motor_limited", inferFineMotorLimited(healthInfo));
+        row.put("recent_fall", healthInfo.getRecentFall());
+        row.put("max_hours", healthInfo.getMaxHours());
+        row.put("vision", healthInfo.getVision());
+        row.put("hearing", healthInfo.getHearing());
+        row.put("walking_aid", healthInfo.getWalkingAid());
         return row;
     }
 
@@ -170,7 +175,7 @@ public class HealthStatusMlService {
 
     private String inferFineMotorLimited(HealthInfo healthInfo) {
         boolean limited = containsAny(safe(healthInfo.getDisabledWork()), "손", "수공예", "반복", "컴퓨터", "글씨", "정밀")
-                || hasLimitedValue(healthInfo.getVision());
+                || isNonNormal(healthInfo.getVision());
         return limited ? "있음" : "없음";
     }
 
@@ -248,13 +253,13 @@ public class HealthStatusMlService {
 
         addIf(reasons, "보행 보조", healthInfo.getWalkingAid(), "주의",
                 "이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.",
-                hasLimitedValue(healthInfo.getWalkingAid()));
+                isNonNormal(healthInfo.getWalkingAid()));
         addIf(reasons, "시각", healthInfo.getVision(), "주의",
                 "시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.",
-                hasLimitedValue(healthInfo.getVision()));
+                isNonNormal(healthInfo.getVision()));
         addIf(reasons, "청각", healthInfo.getHearing(), "주의",
                 "안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.",
-                hasLimitedValue(healthInfo.getHearing()));
+                isNonNormal(healthInfo.getHearing()));
         addIf(reasons, "어려운 업무", healthInfo.getDisabledWork(), "주의",
                 "입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.",
                 hasLimitedText(healthInfo.getDisabledWork()));
@@ -347,13 +352,13 @@ public class HealthStatusMlService {
             score += 10;
         }
 
-        if (hasLimitedValue(healthInfo.getWalkingAid())) {
+        if (isNonNormal(healthInfo.getWalkingAid())) {
             score += 20;
         }
-        if (hasLimitedValue(healthInfo.getVision())) {
+        if (isNonNormal(healthInfo.getVision())) {
             score += 10;
         }
-        if (hasLimitedValue(healthInfo.getHearing())) {
+        if (isNonNormal(healthInfo.getHearing())) {
             score += 10;
         }
         if (hasLimitedText(healthInfo.getDisabledWork())) {
@@ -512,9 +517,9 @@ public class HealthStatusMlService {
 
     private int inferPhysicalLimitationCount(HealthInfo healthInfo) {
         int count = 0;
-        if (hasLimitedValue(healthInfo.getWalkingAid())) count++;
-        if (hasLimitedValue(healthInfo.getVision())) count++;
-        if (hasLimitedValue(healthInfo.getHearing())) count++;
+        if (isNonNormal(healthInfo.getWalkingAid())) count++;
+        if (isNonNormal(healthInfo.getVision())) count++;
+        if (isNonNormal(healthInfo.getHearing())) count++;
         if (hasLimitedText(healthInfo.getDisabledWork())) count++;
         return count;
     }
@@ -530,6 +535,12 @@ public class HealthStatusMlService {
         return containsAny(text, "있음", "있다", "주의", "위험", "질환", "진단", "치료", "관리", "제한", "중증", "경증", "yes", "true", "1");
     }
 
+    private boolean isNonNormal(String value) {
+        String text = safe(value).toLowerCase();
+        if (text.isBlank()) return false;
+        return !containsAny(text, "없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0");
+    }
+
     private boolean hasLimitedValue(String value) {
         String text = safe(value).toLowerCase();
         if (text.isBlank()) {
@@ -538,7 +549,8 @@ public class HealthStatusMlService {
         if (containsAny(text, "없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0")) {
             return false;
         }
-        return containsAny(text, "불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "힘듦", "yes", "true", "1");
+        return containsAny(text, "불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "힘듦",
+                "침침", "흐림", "저하", "안보", "안들", "보청기", "yes", "true", "1");
     }
 
     private boolean hasLimitedText(String value) {

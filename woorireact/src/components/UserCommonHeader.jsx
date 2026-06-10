@@ -12,6 +12,7 @@ import {
   getCurrentSeniorId,
   readAlert,
 } from "../api/userPageApi.js";
+import { getInfoAlertCategories } from "../utils/welfare/welfareSummaryStats";
 import CommonHeader from "./CommonHeader.jsx";
 import TripartiteChatModal from "./TripartiteChatModal.jsx";
 import FontSizeControl from "./FontSizeControl.jsx";
@@ -240,6 +241,14 @@ const toTelHref = (phone = "") => {
 
 export function UserCommonHeader({ showSos = true, onSosClick }) {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("currentSenior");
+    localStorage.removeItem("current_senior_id");
+    localStorage.removeItem("pending_sos");
+    navigate("/");
+  };
+
   const [showModal, setShowModal] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   const [isAlertPanelOpen, setIsAlertPanelOpen] = useState(false);
@@ -682,7 +691,11 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
                       <div className="uch-alert-title-row">
                         <strong>{userAlert.title}</strong>
                       </div>
-                      <p>{userAlert.message}</p>
+                      <p>
+                        {userAlert.type === "INFO_UPDATE_REQUEST"
+                          ? getInfoAlertCategories(userAlert.message || "").join(" · ") || userAlert.message
+                          : userAlert.message}
+                      </p>
                     </div>
                     <div className="uch-alert-action">
                       {userAlert.requiresGuardianConfirm ? (

@@ -28,10 +28,12 @@ import {
   sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const getInitialSeniorProfile = () => {
   try {
@@ -324,19 +326,19 @@ const formatPhone = (value) => {
   const digits = String(value).replace(/[^0-9]/g, "");
   if (digits.startsWith("02")) {
     if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return `${digits.slice(0,2)}-${digits.slice(2)}`;
-    if (digits.length <= 9) return `${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`;
-    return `${digits.slice(0,2)}-${digits.slice(2,6)}-${digits.slice(6,10)}`;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
   }
   if (digits.startsWith("010")) {
     if (digits.length <= 3) return digits;
-    if (digits.length <= 7) return `${digits.slice(0,3)}-${digits.slice(3)}`;
-    return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
   }
   if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
-  return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 };
 
 const getLocalCareTeam = (seniorId) => {
@@ -461,6 +463,7 @@ export default function UserPage() {
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
   const [activityInfoModal, setActivityInfoModal] = useState(null);
+  const [showWelfarePrograms, setShowWelfarePrograms] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   // eslint-disable-next-line no-unused-vars
   const [dateStr, setDateStr] = useState("");
@@ -496,8 +499,32 @@ export default function UserPage() {
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
+
   const dismissedMedicineAlertIdsRef = useRef(new Set());
-  const dismissedInfoAlertIdsRef = useRef(new Set());
+
+  // localStorage에서 초기값을 불러와 한 번 닫은 INFO_UPDATE_REQUEST는
+  // 재접속 후에도 자동으로 뜨지 않게 저장해두는 ref
+  const dismissedInfoAlertIdsRef = useRef(
+    (() => {
+      try {
+        const stored = localStorage.getItem("woori_dismissed_info_alerts");
+        return new Set(stored ? JSON.parse(stored) : []);
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+
+  /** dismissedInfoAlertIdsRef에 id를 추가하고 localStorage에 동기화 */
+  const dismissInfoAlert = (ids) => {
+    ids.forEach((id) => dismissedInfoAlertIdsRef.current.add(String(id)));
+    try {
+      localStorage.setItem(
+        "woori_dismissed_info_alerts",
+        JSON.stringify([...dismissedInfoAlertIdsRef.current])
+      );
+    } catch { /* 스토리지 오류 무시 */ }
+  };
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -685,14 +712,14 @@ export default function UserPage() {
     const lastSavedLocation = lastSavedLocationRef.current;
     const movedMeters = lastSavedLocation
       ? Math.sqrt(
-          Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
-            Math.pow(
-              (lon - lastSavedLocation.lon) *
-                111000 *
-                Math.cos((lat * Math.PI) / 180),
-              2
-            )
+        Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
+        Math.pow(
+          (lon - lastSavedLocation.lon) *
+          111000 *
+          Math.cos((lat * Math.PI) / 180),
+          2
         )
+      )
       : Infinity;
 
     if (lastSavedLocation && movedMeters < 35) {
@@ -744,12 +771,12 @@ export default function UserPage() {
       setChanged(setIsInRange, zones.some((zone) => {
         const dist = Math.sqrt(
           Math.pow((lat - zone.centerLatitude) * 111000, 2) +
-            Math.pow(
-              (lon - zone.centerLongitude) *
-                111000 *
-                Math.cos((lat * Math.PI) / 180),
-              2
-            )
+          Math.pow(
+            (lon - zone.centerLongitude) *
+            111000 *
+            Math.cos((lat * Math.PI) / 180),
+            2
+          )
         );
 
         return dist <= getSafeZoneAlertRadius(zone, accuracy);
@@ -781,7 +808,7 @@ export default function UserPage() {
         pos.coords.longitude,
         pos.coords.accuracy
       ),
-      () => {},
+      () => { },
       options
     );
 
@@ -831,7 +858,7 @@ export default function UserPage() {
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           const zones = Array.isArray(data) ? data : data ? [data] : [];
-          
+
 
           setSafeZones((prevZones) => {
             if (isSameSafeZones(prevZones, zones)) {
@@ -863,7 +890,7 @@ export default function UserPage() {
             return isSameZone ? prevZone : nextZone;
           });
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     loadSafeZoneForHome();
@@ -925,7 +952,7 @@ export default function UserPage() {
             if (response.ok) {
               const freshProfile = await response.json();
 
-              sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+              saveCurrentSenior(freshProfile);
               setChanged(setCurrentProfile, freshProfile);
               setChanged(setUserName, freshProfile?.senior?.name || "사용자");
               setChanged(setUserRegion, freshProfile?.senior?.region || freshProfile?.senior?.address || "");
@@ -961,7 +988,7 @@ export default function UserPage() {
 
         if (!latest) return;
 
-        sessionStorage.setItem("currentSenior", JSON.stringify(latest));
+        saveCurrentSenior(latest);
         localStorage.setItem("current_senior_id", String(latest.senior.id));
         setChanged(setCurrentProfile, latest);
         setChanged(setUserName, latest?.senior?.name || "사용자");
@@ -979,7 +1006,7 @@ export default function UserPage() {
 
     const currentDate = new Date();
     const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-     
+
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
@@ -1043,7 +1070,7 @@ export default function UserPage() {
     })).sort((first, second) => first.distance - second.distance);
 
     if (distances[0]?.zone) {
-       
+
       setSafeZone(distances[0].zone);
     }
 
@@ -1190,7 +1217,7 @@ export default function UserPage() {
       .map((alert) => alert.id)
       .filter(Boolean);
     markCallAlertHandled(incomingCallAlert?.id);
-    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => { })));
 
     setIncomingCallAlert(null);
 
@@ -1213,7 +1240,7 @@ export default function UserPage() {
     setMedicineAlert(null);
 
     if (medicineAlert?.id) {
-      await readAlert(medicineAlert.id).catch(() => {});
+      await readAlert(medicineAlert.id).catch(() => { });
     }
   };
 
@@ -1222,13 +1249,15 @@ export default function UserPage() {
     const alertId = infoUpdateRequestAlert?.id;
     const section = getProfileSectionFromInfoRequest(text);
 
+    // 수정하러 가기를 눌러도 dismiss 처리 — 돌아왔을 때 팝업 재노출 방지
+    if (alertId) dismissInfoAlert([alertId]);
     setInfoUpdateRequestAlert(null);
     navigate(`/profile?section=${section}${alertId ? `&alertId=${alertId}` : ""}`);
   };
 
   const handleReadCheckInMessageAlert = async () => {
     if (checkInMessageAlert?.id) {
-      await readAlert(checkInMessageAlert.id).catch(() => {});
+      await readAlert(checkInMessageAlert.id).catch(() => { });
     }
 
     setCheckInMessageAlert(null);
@@ -1312,7 +1341,7 @@ export default function UserPage() {
       if (!res.ok) throw new Error("edit_failed");
 
       const updated = await res.json();
-      sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+      saveCurrentSenior(updated);
       setCareTeam((prev) => ({
         ...prev,
         guardianName: guardianEditData.name.trim(),
@@ -1378,7 +1407,7 @@ export default function UserPage() {
       const profileRes = await fetch(`/api/seniors/${seniorId}`);
       if (profileRes.ok) {
         const updated = await profileRes.json();
-        sessionStorage.setItem("currentSenior", JSON.stringify(updated));
+        saveCurrentSenior(updated);
         setCurrentProfile(updated);
       }
       setCareTeam((prev) => ({
@@ -1462,6 +1491,34 @@ export default function UserPage() {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  const welfareInfo = currentProfile?.healthInfo ?? {};
+  const hasMeaningfulWelfareValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.some(hasMeaningfulWelfareValue);
+    }
+
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return ![
+      "",
+      "[]",
+      "{}",
+      "null",
+      "undefined",
+      "없음",
+      "미등록",
+      "정보 없음",
+      "확인 필요",
+    ].includes(normalized);
+  };
+  const hasWelfareInfo = [
+    welfareInfo.livingCostStatus,
+    welfareInfo.householdType,
+    welfareInfo.pensionStatus,
+    welfareInfo.housingType,
+    welfareInfo.currentBenefits,
+    welfareInfo.careNeeds,
+    welfareInfo.welfareMemo,
+  ].some(hasMeaningfulWelfareValue);
 
   return (
     <div className="up-root">
@@ -1469,147 +1526,162 @@ export default function UserPage() {
 
       <div className="up-layout">
         <aside className="up-aside">
-          <div className="up-profile-card">
-            <div className="up-profile-avatar">
-              {profileImageUrl ? (
-                <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
-              ) : (
-                "🙂"
-              )}
-            </div>
-            <div className="up-profile-name">{userName}</div>
-            <div className="up-profile-sub">우리 돌봄 서비스</div>
-            {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
-            <div className="up-dot-wrap">
-              <div className={`up-dot ${
-                sensorConnected === null ? "pending"
-                : sensorConnected ? ""
-                : "danger"
-              }`} />
-              {sensorConnected === null
-                ? "센서 확인 중"
-                : sensorConnected
-                  ? "낙상 센서 연결됨"
-                  : "센서 신호 없음"}
-            </div>
-            <div className="up-care-team">
-              <div>
-                <span>보호자</span>
-                {seniorHasGuardian ? (
-                  <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
-                    {careTeam.guardianName
-                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                      : "등록하기"}
-                  </button>
+          <div className="up-sticky-side-content">
+            <div className="up-profile-card">
+              <div className="up-profile-avatar">
+                {profileImageUrl ? (
+                  <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
+
                 ) : (
-                  <strong className="up-care-none">--</strong>
+                  "🙂"
                 )}
               </div>
-              <div>
-                <span>복지사</span>
-                {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
-                  <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
-                    {careTeam.socialWorkerName}
-                  </a>
-                ) : (
-                  <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
-                )}
+              <div className="up-profile-name">{userName}</div>
+              <div className="up-profile-sub">우리 돌봄 서비스</div>
+              {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
+              <div className="up-dot-wrap">
+                <div className={`up-dot ${sensorConnected === null ? "pending"
+                    : sensorConnected ? ""
+                      : "danger"
+                  }`} />
+                {sensorConnected === null
+                  ? "센서 확인 중"
+                  : sensorConnected
+                    ? "낙상 센서 연결됨"
+                    : "센서 신호 없음"}
               </div>
-            </div>
-          </div>
-
-          <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
-            <div className="up-card-head">
-              <div className="up-card-title">현재 위치</div>
-              <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
-            </div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "0.5rem",
-            }}>
-              <div style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: isInRange ? COLORS.green : COLORS.danger,
-                flexShrink: 0,
-              }} />
-              <span style={{
-                fontSize: "0.82rem",
-                fontWeight: "700",
-                color: isInRange ? COLORS.green : COLORS.danger,
-              }}>
-                {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
-              </span>
-            </div>
-            <div style={{
-              fontSize: "0.78rem",
-              color: COLORS.textMuted,
-              lineHeight: "1.5",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}>
-              {currentAddress}
-            </div>
-            {currentPos && (
-              <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.3rem" }}>
-                {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
+              <div className="up-care-team">
+                <div>
+                  <span>보호자</span>
+                  {seniorHasGuardian ? (
+                    <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
+                      {careTeam.guardianName
+                        ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                        : "등록하기"}
+                    </button>
+                  ) : (
+                    <strong className="up-care-none">--</strong>
+                  )}
+                </div>
+                <div>
+                  <span>복지사</span>
+                  {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
+                    <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
+                      {careTeam.socialWorkerName}
+                    </a>
+                  ) : (
+                    <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                  )}
+                </div>
               </div>
-            )}
-            {currentLocationTime && (
-              <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
-                갱신 시간 {currentLocationTime}
-              </div>
-            )}
-            {currentPos && (
-              <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
-                <KakaoMap
-                  center={{ lat: currentPos.lat, lng: currentPos.lon }}
-                  zoom={5}
-                  className="up-mini-map"
-                  safeZone={safeZone}
-                  safeZones={safeZones}
-                  currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
-                  currentLabel="현재 위치"
-                  safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
-                  autoFit={false}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="up-sidemenu">
-            {menus.map((menu, i) => (
               <button
-                key={i}
-                className="up-sidemenu-item"
+                className="up-logout-button"
                 type="button"
                 onClick={() => {
-                  if (menu.disabled) {
-                    alert("AI 챗봇 기능은 준비 중입니다.");
-                    return;
-                  }
-                  if (menu.badgeKey === "jobs") {
-                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
-                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
-                    setJobHasNew(false);
-                  }
-                  navigate(menu.route);
+                  sessionStorage.removeItem("currentSenior");
+                  localStorage.removeItem("current_senior_id");
+                  localStorage.removeItem("pending_sos");
+                  navigate("/", { replace: true });
                 }}
               >
-                <span className="up-sidemenu-icon">{menu.icon}</span>
-                <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
-                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
-                    {menu.badge || "NEW"}
-                  </span>
-                )}
+                로그아웃
               </button>
-            ))}
+            </div>
+            <div className="up-sidemenu">
+              {menus.map((menu, i) => (
+                <button
+                  key={i}
+                  className="up-sidemenu-item"
+                  type="button"
+                  onClick={() => {
+                    if (menu.disabled) {
+                      alert("AI 챗봇 기능은 준비 중입니다.");
+                      return;
+                    }
+                    if (menu.badgeKey === "jobs") {
+                      const latestJobId = localStorage.getItem("jobs_latest_job_id");
+                      if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+                      setJobHasNew(false);
+                    }
+                    navigate(menu.route);
+                  }}
+                >
+                  <span className="up-sidemenu-icon">{menu.icon}</span>
+                  <span className="up-sidemenu-label">{menu.label}</span>
+                  {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
+                    <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
+                      {menu.badge || "NEW"}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
+              <div className="up-card-head">
+                <div className="up-card-title">현재 위치</div>
+                <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                marginBottom: "0.5rem",
+              }}>
+                <div style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: isInRange ? COLORS.green : COLORS.danger,
+                  flexShrink: 0,
+                }} />
+                <span style={{
+                  fontSize: "0.82rem",
+                  fontWeight: "700",
+                  color: isInRange ? COLORS.green : COLORS.danger,
+                }}>
+                  {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
+                </span>
+              </div>
+              <div style={{
+                fontSize: "0.78rem",
+                color: COLORS.textMuted,
+                lineHeight: "1.5",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}>
+                {currentAddress}
+              </div>
+              {currentPos && (
+                <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.3rem" }}>
+                  {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
+                </div>
+              )}
+              {currentLocationTime && (
+                <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
+                  갱신 시간 {currentLocationTime}
+                </div>
+              )}
+              {currentPos && (
+                <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
+                  <KakaoMap
+                    center={{ lat: currentPos.lat, lng: currentPos.lon }}
+                    zoom={5}
+                    className="up-mini-map"
+                    safeZone={safeZone}
+                    safeZones={safeZones}
+                    currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
+                    currentLabel="현재 위치"
+                    safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                    autoFit={false}
+                  />
+                </div>
+              )}
+            </div>
           </div>
+
+
         </aside>
 
         <main>
@@ -1765,24 +1837,92 @@ export default function UserPage() {
                 <button
                   className="up-welfare-check-button"
                   type="button"
-                  onClick={() => navigate("/profile?section=welfare")}
+                  onClick={() => setShowWelfarePrograms(true)}
                 >
-                  복지정보 수정
+                  확인하기
                 </button>
-              </div>
-              <div className="up-welfare-programs">
-                {welfareMatches.map(({ program, reasons }) => (
-                  <article className="up-welfare-program" key={program.id}>
-                    <strong>{program.name}</strong>
-                    <p>{program.summary}</p>
-                    <span>{reasons[0]}</span>
-                  </article>
-                ))}
               </div>
             </div>
           </div>
         </main>
       </div>
+
+      <button
+        className="up-chatbot-fab"
+        type="button"
+        aria-label="AI 챗봇 열기"
+        title="AI 챗봇"
+        onClick={() => navigate("/chat")}
+      >
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 8v5" />
+          <circle cx="24" cy="6" r="2" />
+          <rect x="8" y="13" width="32" height="25" rx="10" />
+          <circle cx="18" cy="25" r="2.5" />
+          <circle cx="30" cy="25" r="2.5" />
+          <path d="M17 32c2 2 4.3 3 7 3s5-1 7-3M8 24H4v8h5M40 24h4v8h-5M18 38v4M30 38v4" />
+        </svg>
+      </button>
+
+      {showWelfarePrograms && (
+        <div className="up-overlay" onClick={() => setShowWelfarePrograms(false)}>
+          <div
+            className="up-modal up-welfare-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="up-welfare-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="up-welfare-modal-head">
+              <div>
+                <div className="up-modal-title" id="up-welfare-modal-title">
+                  내게 맞는 복지제도
+                </div>
+                <p className={!hasWelfareInfo ? "up-welfare-modal-warning" : ""}>
+                  {hasWelfareInfo
+                    ? "현재 등록된 정보를 기준으로 추천한 제도예요."
+                    : "현재 등록된 복지정보가 없어 기본 추천 3개를 보여드리고 있어요. 정확한 추천을 받으려면 복지정보를 입력해주세요."}
+                </p>
+              </div>
+              <button
+                className="up-welfare-modal-close"
+                type="button"
+                aria-label="맞춤 복지제도 닫기"
+                onClick={() => setShowWelfarePrograms(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <div className="up-welfare-programs up-welfare-modal-programs">
+              {welfareMatches.map(({ program, reasons }) => (
+                <article className="up-welfare-program" key={program.id}>
+                  <strong>{program.name}</strong>
+                  <p>{program.summary}</p>
+                  <span>{reasons[0]}</span>
+                </article>
+              ))}
+            </div>
+
+            <div className="up-modal-row up-welfare-modal-actions">
+              <button
+                className="up-modal-cancel"
+                type="button"
+                onClick={() => setShowWelfarePrograms(false)}
+              >
+                닫기
+              </button>
+              <button
+                className="up-modal-ok"
+                type="button"
+                onClick={() => navigate("/profile?section=welfare")}
+              >
+                복지정보 수정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAllSchedules && (
         <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
@@ -1873,7 +2013,31 @@ export default function UserPage() {
               {infoUpdateRequestAlert.title || "정보 수정 요청"}
             </div>
             <div className="up-modal-desc">
-              {infoUpdateRequestAlert.message || "복지사가 정보 수정을 요청했습니다."}
+              <p style={{ marginBottom: "10px" }}>
+                복지사가 아래 항목의 정보 입력을 요청했습니다.
+              </p>
+              {(() => {
+                const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "");
+                return cats.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
+                    {cats.map((cat) => (
+                      <span
+                        key={cat}
+                        style={{
+                          background: "#f0f4ee",
+                          color: "#4a7c5e",
+                          padding: "4px 12px",
+                          borderRadius: "12px",
+                          fontSize: "0.82rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="up-modal-row" style={{ marginTop: "2rem" }}>
@@ -1881,9 +2045,11 @@ export default function UserPage() {
                 className="up-modal-cancel"
                 type="button"
                 onClick={() => {
-                  if (infoUpdateRequestAlert?.id) {
-                    dismissedInfoAlertIdsRef.current.add(String(infoUpdateRequestAlert.id));
-                  }
+                  // 현재 알림 + 쌓인 모든 INFO_UPDATE_REQUEST를 영구 무시 (localStorage 저장)
+                  const ids = userAlerts
+                    .filter((a) => a.type === "INFO_UPDATE_REQUEST" && !a.isRead)
+                    .map((a) => String(a.id));
+                  dismissInfoAlert(ids);
                   setInfoUpdateRequestAlert(null);
                 }}
               >

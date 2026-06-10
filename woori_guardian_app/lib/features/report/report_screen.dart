@@ -633,7 +633,43 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel('신고 대상자', required: true),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              '신고 대상자',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kTextMain,
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Text('*', style: TextStyle(fontSize: 13, color: _kRed)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportHistoryScreen()),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '내역 보기',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: _kTextSub,
+                    ),
+                  ),
+                  SizedBox(width: 1),
+                  Icon(Icons.chevron_right, size: 14, color: _kTextHint),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
 
         Row(
@@ -2137,6 +2173,871 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+// ── 신고 내역 화면 ─────────────────────────────────────────────────────────────
+
+class ReportHistoryScreen extends StatefulWidget {
+  const ReportHistoryScreen({super.key});
+
+  @override
+  State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
+}
+
+class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
+  final _sessionStorage = GuardianSessionStorage();
+
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<Map<String, dynamic>> _reports = [];
+  int _selectedTab = 0; // 0=전체, 1=접수 완료, 2=취소
+
+  List<Map<String, dynamic>> get _filteredReports {
+    if (_selectedTab == 1) {
+      return _reports.where((r) {
+        final s = r['status']?.toString() ?? '';
+        return s != 'CANCELLED' && s != 'CANCELED';
+      }).toList();
+    }
+    if (_selectedTab == 2) {
+      return _reports.where((r) {
+        final s = r['status']?.toString() ?? '';
+        return s == 'CANCELLED' || s == 'CANCELED';
+      }).toList();
+    }
+    return _reports;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final info = await _sessionStorage.getGuardianInfo();
+      final guardianId = info['guardianId'];
+      if (guardianId == null || guardianId.isEmpty) {
+        throw Exception('로그인 정보가 없습니다.');
+      }
+
+      final url = Uri.parse(
+        '${AppConfig.apiBaseUrl}/missing-reports/guardian/$guardianId',
+      );
+      final res = await http.get(url).timeout(const Duration(seconds: 15));
+
+      if (res.statusCode != 200) {
+        throw Exception('신고 내역을 불러오지 못했습니다. (${res.statusCode})');
+      }
+
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = body is List
+          ? body
+          : (body['content'] ?? body['data'] ?? body['reports'] ?? []) as List;
+
+      if (!mounted) return;
+      setState(() {
+        _reports = list.cast<Map<String, dynamic>>();
+        _isLoading = false;
+      });
+
+      // 디버그용
+      for (final r in _reports) {
+        print('report imageUrl: ${r['imageUrl']}');
+        print('report imageUrls: ${r['imageUrls']}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('신고 내역'),
+        backgroundColor: _kGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildTabChip(int index, String label) {
+    final selected = _selectedTab == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTab = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? _kSafe : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? _kSafe : _kDivider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : _kTextSub,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: _kGreen));
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 40, color: _kRed),
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: _kRed),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadReports,
+                style: FilledButton.styleFrom(backgroundColor: _kGreen),
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_reports.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.campaign_outlined, size: 48, color: _kTextHint),
+            SizedBox(height: 12),
+            Text(
+              '접수된 신고 내역이 없습니다.',
+              style: TextStyle(fontSize: 15, color: _kTextSub),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // 탭 바
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
+            children: [
+              _buildTabChip(0, '전체'),
+              const SizedBox(width: 8),
+              _buildTabChip(1, '접수 완료'),
+              const SizedBox(width: 8),
+              _buildTabChip(2, '취소'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        // 기존 RefreshIndicator
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadReports,
+            color: _kGreen,
+            child: _filteredReports.isEmpty
+                ? const Center(
+                    child: Text(
+                      '해당 내역이 없습니다.',
+                      style: TextStyle(fontSize: 14, color: _kTextSub),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                    itemCount: _filteredReports.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => _ReportHistoryCard(
+                      report: _filteredReports[i],
+                      onCancelled: _loadReports,
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 신고 내역 카드 ─────────────────────────────────────────────────────────────
+
+class _ReportHistoryCard extends StatelessWidget {
+  final Map<String, dynamic> report;
+  final VoidCallback? onCancelled;
+  const _ReportHistoryCard({required this.report, this.onCancelled});
+
+  String get _typeLabel {
+    final type =
+        report['reportType']?.toString() ?? report['type']?.toString() ?? '';
+    const map = {
+      'missing': '실종 신고',
+      'danger': '위험 상황 신고',
+      'sos': 'SOS 미응답',
+      'zone': '위치 이탈',
+      'fall': '낙상 의심',
+      'other': '기타',
+    };
+    return map[type] ?? (type.isNotEmpty ? type : '신고');
+  }
+
+  String get _statusLabel {
+    final s = report['status']?.toString() ?? '';
+    const map = {
+      // 'PENDING': '접수 완료',
+      // 'ACTIVE': '처리 중',
+      // 'IN_PROGRESS': '처리 중',
+      // 'RESOLVED': '처리 완료',
+      // 'CLOSED': '종료',
+      'CANCELED': '취소',
+    };
+    return map[s] ?? '접수 완료';
+  }
+
+  Color get _statusColor {
+    final s = report['status']?.toString() ?? '';
+    if (s == 'CANCELED') return _kTextHint;
+    return _kTextSub; // 접수 완료 → 회색
+  }
+
+  String get _dateLabel {
+    final raw =
+        report['createdAt']?.toString() ??
+        report['reportedAt']?.toString() ??
+        '';
+    if (raw.length >= 16) return raw.substring(0, 16).replaceAll('T', ' ');
+    return raw;
+  }
+
+  // description에서 '대상자 이름: ...' 파싱
+  String _nameFromDescription(String desc) {
+    final match = RegExp(r'대상자 이름:\s*(.+)').firstMatch(desc);
+    return match?.group(1)?.trim() ?? '';
+  }
+
+  void _showDetail(BuildContext context) {
+    final description = report['description']?.toString() ?? '';
+    final location = report['lastSeenAddress']?.toString() ?? '';
+    // apiBaseUrl에서 /api 제거
+    final baseUrl = AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '');
+
+    final imageUrlRaw = report['imageUrl']?.toString() ?? '';
+    final imageUrlsRaw = report['imageUrls'];
+
+    List<String> imageUrls = [];
+
+    if (imageUrlsRaw is List) {
+      imageUrls = imageUrlsRaw
+          .whereType<String>()
+          .where((s) => s.isNotEmpty)
+          .map((s) => s.startsWith('http') ? s : '$baseUrl$s')
+          .toList();
+    }
+
+    if (imageUrls.isEmpty && imageUrlRaw.isNotEmpty) {
+      final imageUrl = imageUrlRaw.startsWith('http')
+          ? imageUrlRaw
+          : '$baseUrl$imageUrlRaw';
+      imageUrls = [imageUrl];
+    }
+
+    final seniorName =
+        report['seniorName']?.toString() ??
+        report['targetName']?.toString() ??
+        _nameFromDescription(description);
+
+    // description을 구조화: "키: 값" → 행, 빈 줄 이후는 메모
+    final lines = description.split('\n');
+    final List<MapEntry<String, String>> infoRows = [];
+    final List<String> memoLines = [];
+    bool inMemo = false;
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) {
+        inMemo = true;
+        continue;
+      }
+      if (!inMemo) {
+        final idx = line.indexOf(': ');
+        if (idx > 0) {
+          infoRows.add(
+            MapEntry(line.substring(0, idx), line.substring(idx + 2)),
+          );
+        } else {
+          memoLines.add(line);
+        }
+      } else {
+        memoLines.add(line);
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            // 드래그 핸들
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: _kDivider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // 신고 유형 + 상태
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF0F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _typeLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _kRed,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _statusLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 이름
+            Text(
+              seniorName.isNotEmpty ? seniorName : '이름 없음',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _kTextMain,
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // 날짜
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time_outlined,
+                  size: 13,
+                  color: _kTextHint,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _dateLabel,
+                  style: const TextStyle(fontSize: 13, color: _kTextHint),
+                ),
+              ],
+            ),
+
+            // 위치
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 13,
+                    color: _kTextHint,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location,
+                      style: const TextStyle(fontSize: 13, color: _kTextSub),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // 신고 상세 정보 (구조화된 행)
+            if (infoRows.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(color: _kDivider),
+              const SizedBox(height: 12),
+              const Text(
+                '신고 정보',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F8F8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < infoRows.length; i++) ...[
+                      if (i > 0) const Divider(height: 1, color: _kDivider),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 90,
+                              child: Text(
+                                infoRows[i].key,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: _kTextSub,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                infoRows[i].value,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: _kTextMain,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            // 추가 메모 (자유 입력 텍스트)
+            if (memoLines.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                '상황 설명',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                memoLines.join('\n'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: _kTextMain,
+                  height: 1.6,
+                ),
+              ),
+            ],
+
+            // 첨부 사진 (여러 장)
+            if (imageUrls.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(color: _kDivider),
+              const SizedBox(height: 12),
+              Text(
+                '첨부 사진 (${imageUrls.length}장)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildImageGrid(imageUrls, context),
+            ],
+
+            // 취소 상태가 아닐 때만 표시
+            if (report['status']?.toString() != 'CANCELLED' &&
+                report['status']?.toString() != 'CANCELED') ...[
+              const SizedBox(height: 20),
+              const Divider(color: _kDivider),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kRed,
+                    side: const BorderSide(color: _kRed),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text(
+                          '신고를 취소하시겠어요?',
+                          textAlign: TextAlign.center,
+                        ),
+                        content: const Text(
+                          '취소된 신고는 3일 후 자동 삭제됩니다.',
+                          textAlign: TextAlign.center,
+                        ),
+                        actionsAlignment: MainAxisAlignment.center,
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text(
+                              '닫기',
+                              style: TextStyle(color: _kTextSub),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              '취소하기',
+                              style: TextStyle(color: _kRed),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirmed != true) return;
+
+                    try {
+                      final id = report['id'];
+                      final res = await http
+                          .patch(
+                            Uri.parse(
+                              '${AppConfig.apiBaseUrl}/missing-reports/$id/cancel',
+                            ),
+                          )
+                          .timeout(const Duration(seconds: 10));
+
+                      if (res.statusCode == 200) {
+                        if (context.mounted) Navigator.pop(context);
+                        onCancelled?.call();
+                      }
+                    } catch (_) {}
+                  },
+                  child: const Text(
+                    '신고 취소',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final description = report['description']?.toString() ?? '';
+    final seniorName =
+        report['seniorName']?.toString() ??
+        report['targetName']?.toString() ??
+        _nameFromDescription(description);
+    final location = report['lastSeenAddress']?.toString() ?? '';
+
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kDivider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF0F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _typeLabel,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _kRed,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _statusLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              seniorName.isNotEmpty ? seniorName : '이름 없음',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _kTextMain,
+              ),
+            ),
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 12,
+                    color: _kTextHint,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: _kTextSub),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time_outlined,
+                  size: 12,
+                  color: _kTextHint,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _dateLabel,
+                  style: const TextStyle(fontSize: 12, color: _kTextHint),
+                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, size: 14, color: _kTextHint),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageTile(List<String> urls, int index, BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _ImageViewerScreen(urls: urls, initialIndex: index),
+        ),
+      ),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            color: const Color(0xFFF2F2F2),
+            child: Image.network(
+              urls[index],
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : const Center(
+                      child: CircularProgressIndicator(
+                        color: _kGreen,
+                        strokeWidth: 2,
+                      ),
+                    ),
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image_outlined, color: _kTextHint),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageGrid(List<String> urls, BuildContext context) {
+    const gap = 4.0;
+
+    if (urls.length <= 3) {
+      return Row(
+        children: [
+          for (int i = 0; i < urls.length; i++) ...[
+            if (i > 0) const SizedBox(width: gap),
+            Expanded(child: _buildImageTile(urls, i, context)),
+          ],
+        ],
+      );
+    }
+
+    // 4장: 2×2
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildImageTile(urls, 0, context)),
+            const SizedBox(width: gap),
+            Expanded(child: _buildImageTile(urls, 1, context)),
+          ],
+        ),
+        const SizedBox(height: gap),
+        Row(
+          children: [
+            Expanded(child: _buildImageTile(urls, 2, context)),
+            const SizedBox(width: gap),
+            Expanded(child: _buildImageTile(urls, 3, context)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ImageViewerScreen extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+  const _ImageViewerScreen({required this.urls, required this.initialIndex});
+
+  @override
+  State<_ImageViewerScreen> createState() => _ImageViewerScreenState();
+}
+
+class _ImageViewerScreenState extends State<_ImageViewerScreen> {
+  late final PageController _ctrl;
+  late int _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex;
+    _ctrl = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          '${_current + 1} / ${widget.urls.length}',
+          style: const TextStyle(fontSize: 15),
+        ),
+      ),
+      body: PageView.builder(
+        controller: _ctrl,
+        itemCount: widget.urls.length,
+        onPageChanged: (i) => setState(() => _current = i),
+        itemBuilder: (_, i) => InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Center(
+            child: Image.network(
+              widget.urls[i],
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white54,
+                size: 48,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

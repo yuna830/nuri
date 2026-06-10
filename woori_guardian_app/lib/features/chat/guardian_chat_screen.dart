@@ -20,7 +20,7 @@ extension _GuardianChatTargetValue on _GuardianChatTarget {
       case _GuardianChatTarget.senior:
         return 'SENIOR_GUARDIAN';
       case _GuardianChatTarget.socialWorker:
-        return 'GUARDIAN_SOCIAL_WORKER';
+        return 'GUARDIAN_WELFARE';
     }
   }
 

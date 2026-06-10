@@ -710,10 +710,14 @@
 
 .guardian-info-form-modal {
   width: min(460px, 100%);
+  max-height: min(560px, calc(100dvh - 48px));
   border-radius: 12px;
-  padding: 24px;
   background: #ffffff;
   box-shadow: 0 24px 70px rgba(20, 24, 20, 0.24);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* padding은 각 영역(header/fields/actions)에 분산 */
 }
 
 .guardian-info-form-header {
@@ -721,6 +725,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  padding: 24px 24px 0;
+  flex-shrink: 0;
   margin-bottom: 20px;
 }
 
@@ -752,6 +758,10 @@
 .guardian-info-form-fields {
   display: grid;
   gap: 14px;
+  overflow-y: auto;
+  padding: 0 24px 20px;
+  flex: 1;
+  min-height: 0;
 }
 
 .guardian-info-form-field {
@@ -788,7 +798,10 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 22px;
+  padding: 16px 24px 24px;
+  flex-shrink: 0;
+  border-top: 1px solid #eef3ee;
+  margin-top: 0;
 }
 
 .guardian-info-form-cancel,

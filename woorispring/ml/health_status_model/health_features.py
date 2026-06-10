@@ -42,6 +42,11 @@ REQUIRED_COLUMNS = [
     "dementia",
     "walking_limited",
     "fine_motor_limited",
+    "recent_fall",
+    "max_hours",
+    "vision",
+    "hearing",
+    "walking_aid",
 ]
 
 PREDICT_REQUIRED_COLUMNS = [c for c in REQUIRED_COLUMNS if c != "label"]
@@ -110,6 +115,16 @@ FEATURE_COLUMNS = [
     "serious_disease_count", # 중증 질환 수
     "chronic_disease_count", # 만성 질환 수
     "comorbidity_score",     # 중증*2 + 만성*1 가중 합계
+    # 낙상 및 활동 시간 (이전 버전에서 라벨 생성에만 쓰였던 항목 → 피처로 승격)
+    "recent_fall_flag",       # 최근 낙상 이력 (있음/없음)
+    "recent_fall_count",      # 낙상 횟수 (0/1/2~3/4+ 레벨)
+    "max_hours_num",          # 하루 활동 가능 시간 (숫자)
+    "short_hours_flag",       # 3시간 이하
+    "very_short_hours_flag",  # 2시간 이하
+    # 감각/이동 기능 (직접 전달 — 이전에는 추론에만 활용)
+    "vision_limited_flag",    # 시력 제한
+    "hearing_limited_flag",   # 청력 제한
+    "walking_aid_flag",       # 보행 보조기구 사용
 ]
 
 
@@ -181,6 +196,19 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     feat["chronic_disease_count"] = feat[[f"{c}_flag" for c in CHRONIC_DISEASE_COLUMNS]].sum(axis=1)
     feat["comorbidity_score"]     = feat["serious_disease_count"] * 2 + feat["chronic_disease_count"]
 
+    # 낙상 및 활동 시간
+    feat["recent_fall_flag"]      = w["recent_fall"].map(has_condition).astype(int)
+    feat["recent_fall_count"]     = w["recent_fall"].map(extract_number).fillna(0).astype(int)
+    hours = w["max_hours"].map(extract_number).fillna(0)
+    feat["max_hours_num"]         = hours
+    feat["short_hours_flag"]      = ((hours > 0) & (hours <= 3)).astype(int)
+    feat["very_short_hours_flag"] = ((hours > 0) & (hours <= 2)).astype(int)
+
+    # 감각/이동 기능 (없음/정상이 아닌 모든 값 → 제한 있음)
+    feat["vision_limited_flag"]   = w["vision"].map(not_normal).astype(int)
+    feat["hearing_limited_flag"]  = w["hearing"].map(not_normal).astype(int)
+    feat["walking_aid_flag"]      = w["walking_aid"].map(not_normal).astype(int)
+
     return feat[FEATURE_COLUMNS]
 
 
@@ -210,6 +238,14 @@ def normalize_label(value: object) -> str:
 # ---------------------------------------------------------------------------
 # 내부 헬퍼
 # ---------------------------------------------------------------------------
+
+def not_normal(value: object) -> bool:
+    """없음/정상/양호가 아닌 값 → True. 시력·청력·보조기구 등 단계형 항목에 사용."""
+    text = _normalize_text(value).lower()
+    if not text:
+        return False
+    return not any(kw in text for kw in ["없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0"])
+
 
 def has_condition(value: object) -> bool:
     """'있음', 1, True, 'yes' 등 → True"""

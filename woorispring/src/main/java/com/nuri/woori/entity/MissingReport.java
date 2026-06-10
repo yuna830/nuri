@@ -28,6 +28,8 @@ public class MissingReport {
 
     private String imageUrl;
 
+    private LocalDateTime cancelledAt;
+
     public Long getId() {
         return id;
     }
@@ -107,4 +109,7 @@ public class MissingReport {
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }
+
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
 }
