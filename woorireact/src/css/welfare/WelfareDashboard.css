@@ -1134,23 +1134,36 @@
     margin: 0 0 10px;
 }
 
-.wd-info-request-field-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+.wd-info-request-category-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 0 0 22px;
 }
 
-.wd-info-request-field-item {
+.wd-info-request-category-card {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 14px;
-    background: #f8faf8;
-    border-left: 3px solid #6f9272;
-    border-radius: 0 6px 6px 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 16px;
+    background: #f4f8f4;
+    border: 1px solid #d4e8d6;
+    border-radius: 10px;
+}
+
+.wd-info-request-category-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d4a30;
+}
+
+.wd-info-request-category-count {
+    font-size: 13px;
+    font-weight: 800;
+    color: #4a7c4e;
+    background: #dff0df;
+    padding: 2px 9px;
+    border-radius: 10px;
 }
 
 .wd-info-request-field-name {

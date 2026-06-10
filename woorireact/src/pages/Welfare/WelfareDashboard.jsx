@@ -23,6 +23,7 @@ import {
     getSeniorSummaryCounts,
     hasMissingRequiredSeniorInfo,
     isEmergencyPendingSenior,
+    groupFieldsByCategory,
 } from "../../utils/welfare/welfareSummaryStats";
 import {
     FILTER_GROUPS,
@@ -141,24 +142,24 @@ function WelfareDashboard() {
     const [callRequestModal, setCallRequestModal] = useState(null);
 
     const emergencySeniorIds = new Set([
-    // 1. 보호자가 SOS에 미응답한 사용자
-    ...notificationSeniors
-        .filter((s) => s.alertStatus === "미응답 SOS")
-        .map((s) => s.id),
+        // 1. 보호자가 SOS에 미응답한 사용자
+        ...notificationSeniors
+            .filter((s) => s.alertStatus === "미응답 SOS")
+            .map((s) => s.id),
 
-    // 2. 사용자가 SOS 요청을 한 경우
-    ...dbWelfareAlerts
-        .filter((a) => a.type === "SOS" && !a.isRead)
-        .map((a) => a.seniorId),
+        // 2. 사용자가 SOS 요청을 한 경우
+        ...dbWelfareAlerts
+            .filter((a) => a.type === "SOS" && !a.isRead)
+            .map((a) => a.seniorId),
 
-    // // 3. 보호자 없는 사용자가 SOS를 요청한 경우
-    // ...dbWelfareAlerts
-    //     .filter((a) => a.type === "SOS" && !a.isRead)
-    //     .map((a) => a.seniorId)
-    //     .filter((id) => notificationSeniors.find((s) => s.id === id && !s.hasGuardian)),
-]);
+        // // 3. 보호자 없는 사용자가 SOS를 요청한 경우
+        // ...dbWelfareAlerts
+        //     .filter((a) => a.type === "SOS" && !a.isRead)
+        //     .map((a) => a.seniorId)
+        //     .filter((id) => notificationSeniors.find((s) => s.id === id && !s.hasGuardian)),
+    ]);
 
-const emergencySeniors = notificationSeniors.filter((s) => emergencySeniorIds.has(s.id));
+    const emergencySeniors = notificationSeniors.filter((s) => emergencySeniorIds.has(s.id));
 
     useEffect(() => {
         if (!currentWorker) {
@@ -1674,19 +1675,17 @@ const emergencySeniors = notificationSeniors.filter((s) => emergencySeniorIds.ha
                             {infoRequestTarget.name}님의 미입력 항목
                         </p>
 
-                        {/* 미입력 항목 목록 */}
-                        <ul className="wd-info-request-field-list">
-                            {getMissingSeniorInfoFields(infoRequestTarget).map((field) => (
-                                <li key={field} className="wd-info-request-field-item">
-                                    <span className="wd-info-request-field-name">{field}</span>
-                                    {MISSING_FIELD_DETAILS[field] && (
-                                        <span className="wd-info-request-field-detail">
-                                            {MISSING_FIELD_DETAILS[field]}
-                                        </span>
-                                    )}
-                                </li>
+                        {/* 카테고리 카드 그리드 */}
+                        <div className="wd-info-request-category-grid">
+                            {Object.entries(
+                                groupFieldsByCategory(getMissingSeniorInfoFields(infoRequestTarget))
+                            ).map(([category, fields]) => (
+                                <div key={category} className="wd-info-request-category-card">
+                                    <span className="wd-info-request-category-name">{category}</span>
+                                    <span className="wd-info-request-category-count">{fields.length}개</span>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
 
                         {/* 요청 대상 체크박스 */}
                         <div className="wd-info-request-options">

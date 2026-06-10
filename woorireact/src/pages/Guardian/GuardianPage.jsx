@@ -18,7 +18,14 @@ import {
   updateSeniorRequestedInfo,
   sendCheckInReply,
 } from "../../api/guardianApi";
+import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
+import {
+  LIVING_COST_STATUSES,
+  HOUSEHOLD_TYPES,
+  PENSION_STATUSES,
+  HOUSING_TYPES,
+} from "../../utils/user/profileForm";
 import { getCurrentGuardian, getCurrentGuardianId } from "../../utils/guardian/guardianSession";
 import { getDistanceMeters, formatShortAddress } from "../../utils/guardian/location";
 import {
@@ -254,7 +261,75 @@ const INFO_REQUEST_FIELDS = [
     type: "text",
     placeholder: "기타 건강 관련 참고사항을 입력해주세요",
   },
+  {
+    key: "otherDisease",
+    label: "기타 건강 참고사항",
+    aliases: ["건강 정보"],
+    type: "text",
+    placeholder: "기타 건강 관련 참고사항을 입력해주세요",
+  },
+
+  // ── 복지 정보 ──────────────────────────────────────
+  {
+    key: "livingCostStatus",
+    label: "생계비 현황",
+    aliases: ["복지 정보", "복지정보", "생계비"],
+    type: "select",
+    options: ["", ...LIVING_COST_STATUSES],
+  },
+  {
+    key: "householdType",
+    label: "가구 유형",
+    aliases: ["복지 정보", "복지정보", "가구"],
+    type: "select",
+    options: ["", ...HOUSEHOLD_TYPES],
+  },
+  {
+    key: "pensionStatus",
+    label: "연금 현황",
+    aliases: ["복지 정보", "복지정보", "연금"],
+    type: "select",
+    options: ["", ...PENSION_STATUSES],
+  },
+  {
+    key: "housingType",
+    label: "주거 유형",
+    aliases: ["복지 정보", "복지정보", "주거"],
+    type: "select",
+    options: ["", ...HOUSING_TYPES],
+  },
 ];
+
+// 알림 메시지에서 직접 필드 라벨 → 키 매핑
+const MESSAGE_LABEL_TO_KEY = {
+  "성별": "gender",
+  "연락처": "phone",
+  "생년월일/나이": "birthDate",
+  "주소": "region",
+  "장애 등급": "disabilityGrade",
+  "장애 유형": "disabilityType",
+  "흡연": "smoking",
+  "음주": "drinking",
+  "당뇨": "diabetes",
+  "고혈압": "hypertension",
+  "심장질환": "heartDisease",
+  "관절질환": "jointDisease",
+  "뇌졸중": "stroke",
+  "신장질환": "kidneyDisease",
+  "호흡기질환": "lungDisease",
+  "간질환": "liverDisease",
+  "암": "cancer",
+  "보행 보조기": "walkingAid",
+  "치매": "dementia",
+  "시력": "vision",
+  "청력": "hearing",
+  "최근 낙상": "recentFall",
+  "수술 이력": "hasSurgery",
+  "생계비 현황": "livingCostStatus",
+  "가구 유형": "householdType",
+  "연금 현황": "pensionStatus",
+  "주거 유형": "housingType",
+};
 
 const isEmptyInfoValue = (value) => {
   const text = String(value ?? "").trim();
@@ -267,6 +342,7 @@ const HEALTH_INFO_KEYS = [
   "stroke", "kidneyDisease", "lungDisease", "liverDisease", "cancer",
   "walkingAid", "dementia", "vision", "hearing",
   "recentFall", "hasSurgery", "otherDisease",
+  "livingCostStatus", "householdType", "pensionStatus", "housingType",
 ];
 
 const isFieldEmpty = (field, elder) => {
@@ -278,21 +354,33 @@ const isFieldEmpty = (field, elder) => {
 
 const getInfoRequestFieldKeys = (alert, elder) => {
   const message = `${alert?.message ?? ""} ${alert?.title ?? ""}`;
+
+  // 1. 메시지에서 직접 필드 라벨 매핑 → 그 중 실제 비어있는 것만
+  const directKeys = Object.entries(MESSAGE_LABEL_TO_KEY)
+    .filter(([label]) => message.includes(label))
+    .map(([, key]) => key);
+
+  if (directKeys.length > 0) {
+    return directKeys.filter((key) => {
+      const field = INFO_REQUEST_FIELDS.find((f) => f.key === key);
+      return field ? isFieldEmpty(field, elder) : false;
+    });
+  }
+
+  // 2. alias 카테고리 매칭 → 비어있는 것만
   const matchedByAlias = INFO_REQUEST_FIELDS
     .filter((field) => field.aliases.some((alias) => message.includes(alias)));
 
   if (matchedByAlias.length > 0) {
-    // alias 매칭된 카테고리 내에서 실제로 비어 있는 필드만 반환
     const emptyKeys = matchedByAlias
       .filter((field) => isFieldEmpty(field, elder))
       .map((field) => field.key);
-
-    // 비어 있는 게 없으면 카테고리 전체를 보여줌 (이미 모두 입력된 경우)
     return emptyKeys.length > 0
       ? emptyKeys
       : matchedByAlias.map((field) => field.key);
   }
 
+  // 3. fallback — 현재 비어있는 필드 전체
   return INFO_REQUEST_FIELDS
     .filter((field) => isFieldEmpty(field, elder))
     .map((field) => field.key);
@@ -323,6 +411,10 @@ const buildInfoRequestForm = (elder) => ({
   recentFall: elder?.healthInfo?.recentFall || "",
   hasSurgery: elder?.healthInfo?.hasSurgery || "",
   otherDisease: elder?.healthInfo?.otherDisease || "",
+  livingCostStatus: elder?.healthInfo?.livingCostStatus || "",
+  householdType: elder?.healthInfo?.householdType || "",
+  pensionStatus: elder?.healthInfo?.pensionStatus || "",
+  housingType: elder?.healthInfo?.housingType || "",
 });
 
 const isInfoRequestStillNeeded = (alert, elders) => {
@@ -1350,7 +1442,7 @@ function GuardianPage() {
       await notifyProfileUpdateComplete({
         seniorId: editingElder.id,
         alertId: infoRequestFormAlert?.id ?? null,
-      }).catch(() => {});
+      }).catch(() => { });
 
       if (infoRequestFormAlert?.id) {
         setDismissedInfoRequestIds((prev) => [
@@ -1975,7 +2067,25 @@ function GuardianPage() {
         <div className="guardian-info-request-backdrop">
           <section className="guardian-info-request-modal">
             <h2>보호 대상자 정보 입력 요청</h2>
-            <p>{infoRequestAlert.message || "보호 대상자의 미입력 정보를 입력해주세요."}</p>
+            {(() => {
+              const cats = getInfoAlertCategories(infoRequestAlert.message || "");
+              return cats.length > 0 ? (
+                <>
+                  <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 12px" }}>
+                    아래 카테고리에 미입력 정보가 있습니다.
+                  </p>
+                  <div className="guardian-info-request-category-grid">
+                    {cats.map((cat) => (
+                      <div key={cat} className="guardian-info-request-category-card">
+                        {cat}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p>보호 대상자의 미입력 정보를 입력해주세요.</p>
+              );
+            })()}
 
             <div className="guardian-info-request-actions">
               <button
@@ -2284,7 +2394,7 @@ function GuardianHeader({
       <div className="guardian-alert-actions-below">
         <button
           type="button"
-          className="guardian-alert-danger-action" 
+          className="guardian-alert-danger-action"
           onClick={(event) => {
             event.stopPropagation();
             onCallAlert?.(alert);

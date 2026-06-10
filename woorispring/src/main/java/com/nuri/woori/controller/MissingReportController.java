@@ -79,8 +79,11 @@ public class MissingReportController {
     }
 
     @GetMapping("/guardian/{guardianId}")
-    public List<MissingReport> getMissingReportsByGuardian(@PathVariable Long guardianId) {
-        return missingReportRepository.findByGuardianId(guardianId);
+    public List<MissingReportResponse> getMissingReportsByGuardian(@PathVariable Long guardianId) {
+        return missingReportRepository.findByGuardianId(guardianId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @GetMapping("/face-targets")
@@ -137,6 +140,16 @@ public class MissingReportController {
         reloadFaceServer();
 
         return savedReport;
+    }
+
+    // 신고 취소
+    @PatchMapping("/{id}/cancel")
+    public MissingReportResponse cancelMissingReport(@PathVariable Long id) {
+        MissingReport report = missingReportRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Missing report not found"));
+        report.setStatus("CANCELLED");
+        report.setCancelledAt(java.time.LocalDateTime.now());
+        return toResponse(missingReportRepository.save(report));
     }
 
     private void reloadFaceServer() {
@@ -210,6 +223,51 @@ public class MissingReportController {
             String imageUrl,
             List<String> imageUrls
     ) {
+    }
+
+    public record MissingReportResponse(
+            Long id,
+            Long seniorId,
+            Long guardianId,
+            String status,
+            String lastSeenAddress,
+            Double lastSeenLatitude,
+            Double lastSeenLongitude,
+            String description,
+            java.time.LocalDateTime reportedAt,
+            String imageUrl,
+            List<String> imageUrls
+    ) {
+    }
+
+    // 헬퍼 메서드 추가
+    private MissingReportResponse toResponse(MissingReport report) {
+        List<String> imageUrls = missingReportImageRepository
+                .findByMissingReportIdOrderBySortOrderAscIdAsc(report.getId())
+                .stream()
+                .map(MissingReportImage::getImageUrl)
+                .filter(url -> url != null && !url.isBlank())
+                .toList();
+
+        if (imageUrls.isEmpty()
+                && report.getImageUrl() != null
+                && !report.getImageUrl().isBlank()) {
+            imageUrls = List.of(report.getImageUrl());
+        }
+
+        return new MissingReportResponse(
+                report.getId(),
+                report.getSeniorId(),
+                report.getGuardianId(),
+                report.getStatus(),
+                report.getLastSeenAddress(),
+                report.getLastSeenLatitude(),
+                report.getLastSeenLongitude(),
+                report.getDescription(),
+                report.getReportedAt(),
+                report.getImageUrl(),
+                imageUrls
+        );
     }
 
     private List<String> normalizeImageUrls(String imageUrl, List<String> imageUrls) {

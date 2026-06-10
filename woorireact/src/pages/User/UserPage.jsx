@@ -28,6 +28,7 @@ import {
   sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
@@ -497,7 +498,7 @@ export default function UserPage() {
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
-  
+
   const dismissedMedicineAlertIdsRef = useRef(new Set());
 
   // localStorage에서 초기값을 불러와 한 번 닫은 INFO_UPDATE_REQUEST는
@@ -1509,8 +1510,8 @@ export default function UserPage() {
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
               <div className={`up-dot ${sensorConnected === null ? "pending"
-                  : sensorConnected ? ""
-                    : "danger"
+                : sensorConnected ? ""
+                  : "danger"
                 }`} />
               {sensorConnected === null
                 ? "센서 확인 중"
@@ -1899,7 +1900,31 @@ export default function UserPage() {
               {infoUpdateRequestAlert.title || "정보 수정 요청"}
             </div>
             <div className="up-modal-desc">
-              {infoUpdateRequestAlert.message || "복지사가 정보 수정을 요청했습니다."}
+              <p style={{ marginBottom: "10px" }}>
+                복지사가 아래 항목의 정보 입력을 요청했습니다.
+              </p>
+              {(() => {
+                const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "");
+                return cats.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
+                    {cats.map((cat) => (
+                      <span
+                        key={cat}
+                        style={{
+                          background: "#f0f4ee",
+                          color: "#4a7c5e",
+                          padding: "4px 12px",
+                          borderRadius: "12px",
+                          fontSize: "0.82rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="up-modal-row" style={{ marginTop: "2rem" }}>

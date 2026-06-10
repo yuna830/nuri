@@ -532,6 +532,16 @@ public class SeniorController {
             healthInfo.setHouseholdType(request.householdType());
         }
 
+        if (request.livingCostStatus() != null) {
+            healthInfo.setLivingCostStatus(request.livingCostStatus());
+        }
+        if (request.pensionStatus() != null) {
+            healthInfo.setPensionStatus(request.pensionStatus());
+        }
+        if (request.housingType() != null) {
+            healthInfo.setHousingType(request.housingType());
+        }
+
         if (request.smoking() != null) {
             healthInfo.setSmoking(request.smoking());
         }
@@ -627,6 +637,9 @@ public class SeniorController {
             String profileImageUrl,
             String incomeLevel,
             String householdType,
+            String livingCostStatus,
+            String pensionStatus,
+            String housingType,
             String disabilityGrade,
             String disabilityType,
             String smoking,
