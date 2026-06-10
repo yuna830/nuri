@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
+import { gToast } from "../../utils/guardian/guardianToast.js";
 
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 import { sendCheckInMessage, sendMedicineAlert, getPolicePhotoUrl } from "../../api/guardianApi.js";
@@ -160,7 +161,7 @@ function EmergencyPanel({
 
   const handleSendMedicationReminder = async () => {
     if (!medicationReminderMessage.trim()) {
-      alert("알림 내용을 입력해주세요.");
+      gToast.warn("알림 내용을 입력해주세요.");
       return;
     }
 
@@ -176,7 +177,7 @@ function EmergencyPanel({
 
       setMedicationReminderStatus("sent");
     } catch {
-      alert("복약 알림 전송에 실패했습니다.");
+      gToast.error("복약 알림 전송에 실패했습니다.");
     }
   };
 
@@ -232,7 +233,7 @@ function EmergencyPanel({
     const keyword = safeZoneKeyword.trim();
 
     if (!keyword) {
-      alert("검색할 주소를 입력해주세요.");
+      gToast.warn("검색할 주소를 입력해주세요.");
       return;
     }
 
@@ -242,7 +243,7 @@ function EmergencyPanel({
       const results = await searchPlacesByKakao(keyword, { size: 5 });
       setSafeZoneResults(results);
     } catch {
-      alert("주소 검색에 실패했습니다.");
+      gToast.error("주소 검색에 실패했습니다.");
       setSafeZoneResults([]);
     } finally {
       setIsSearchingSafeZone(false);
@@ -306,22 +307,22 @@ function EmergencyPanel({
     const message = checkInMessage.trim();
 
     if (!message) {
-      alert("저장할 메시지 내용을 입력해주세요.");
+      gToast.warn("저장할 메시지 내용을 입력해주세요.");
       return;
     }
 
     if (savedCheckInMessages.includes(message)) {
-      alert("이미 저장된 메시지입니다.");
+      gToast.warn("이미 저장된 메시지입니다.");
       return;
     }
 
     if (savedCheckInMessages.length >= 3) {
-      alert("안부 메시지는 최대 3개까지 저장할 수 있습니다.");
+      gToast.warn("안부 메시지는 최대 3개까지 저장할 수 있습니다.");
       return;
     }
 
     setSavedCheckInMessages((prev) => [...prev, message]);
-    alert("안부 메시지가 저장되었습니다.");
+    gToast.success("안부 메시지가 저장되었습니다.");
   };
 
   const openCheckInMessage = () => {
@@ -335,7 +336,7 @@ function EmergencyPanel({
 
   const handleSendCheckInMessage = async () => {
     if (!checkInMessage.trim()) {
-      alert("메시지 내용을 입력해주세요.");
+      gToast.warn("메시지 내용을 입력해주세요.");
       return;
     }
 
@@ -361,12 +362,12 @@ function EmergencyPanel({
         }),
       ]);
 
-      alert("안부 메시지를 보냈습니다.");
+      gToast.success("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
       onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
-      alert("안부 메시지 전송에 실패했습니다.");
+      gToast.error("안부 메시지 전송에 실패했습니다.");
     } finally {
       setIsSendingCheckInMessage(false);
     }
@@ -399,12 +400,12 @@ function EmergencyPanel({
         }),
       ]);
 
-      alert("안부 메시지를 보냈습니다.");
+      gToast.success("안부 메시지를 보냈습니다.");
       setIsCheckInMessageOpen(false);
       onOpenUserChat?.();
     } catch (error) {
       console.error("안부 메시지 전송 실패:", error);
-      alert("안부 메시지 전송에 실패했습니다.");
+      gToast.error("안부 메시지 전송에 실패했습니다.");
     } finally {
       setIsSendingCheckInMessage(false);
     }

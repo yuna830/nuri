@@ -61,7 +61,11 @@ public class AlertController {
             @RequestParam(defaultValue = "50") int size
     ) {
         return alertRepository.findBySeniorIdOrderByCreatedAtDesc(
-                seniorId, PageRequest.of(0, Math.min(size, 200)));
+                        seniorId, PageRequest.of(0, Math.min(size, 200)))
+                .stream()
+                // guardianId가 있는 알림은 보호자 전용 — 사용자 앱에 노출 안 함
+                .filter(alert -> alert.getGuardianId() == null)
+                .toList();
     }
 
     @PostMapping("/sos")
@@ -119,26 +123,38 @@ public class AlertController {
         boolean sendToGuardian = request.toGuardian() == null || request.toGuardian();
 
         if (sendToSenior) {
-            Alert seniorAlert = new Alert();
-            seniorAlert.setSeniorId(request.seniorId());
-            seniorAlert.setGuardianId(null);
-            seniorAlert.setType("INFO_UPDATE_REQUEST");
-            seniorAlert.setTitle("정보 입력 요청");
-            seniorAlert.setMessage(buildInfoUpdateMessage(senior.getName(), request.missingFields()));
-            seniorAlert.setIsRead(false);
-            alerts.add(saveAndPushToSenior(seniorAlert));
+            // 이미 미읽음 요청이 있으면 중복 생성 방지
+            boolean hasPending = alertRepository.findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
+                    request.seniorId(), "INFO_UPDATE_REQUEST")
+                    .stream().anyMatch(a -> a.getGuardianId() == null);
+            if (!hasPending) {
+                Alert seniorAlert = new Alert();
+                seniorAlert.setSeniorId(request.seniorId());
+                seniorAlert.setGuardianId(null);
+                seniorAlert.setType("INFO_UPDATE_REQUEST");
+                seniorAlert.setTitle("정보 입력 요청");
+                seniorAlert.setMessage(buildInfoUpdateMessage(senior.getName(), request.missingFields()));
+                seniorAlert.setIsRead(false);
+                alerts.add(saveAndPushToSenior(seniorAlert));
+            }
         }
 
         if (sendToGuardian) {
             guardianSeniorRepository.findBySeniorId(request.seniorId()).forEach(link -> {
-                Alert guardianAlert = new Alert();
-                guardianAlert.setSeniorId(request.seniorId());
-                guardianAlert.setGuardianId(link.getGuardianId());
-                guardianAlert.setType("INFO_UPDATE_REQUEST");
-                guardianAlert.setTitle("보호 대상자 정보 입력 요청");
-                guardianAlert.setMessage(buildGuardianInfoUpdateMessage(senior.getName(), request.missingFields()));
-                guardianAlert.setIsRead(false);
-                alerts.add(saveAndPushToGuardian(guardianAlert));
+                // 해당 보호자에게도 미읽음 요청이 없을 때만 생성
+                boolean hasPending = alertRepository.findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
+                        request.seniorId(), "INFO_UPDATE_REQUEST")
+                        .stream().anyMatch(a -> link.getGuardianId().equals(a.getGuardianId()));
+                if (!hasPending) {
+                    Alert guardianAlert = new Alert();
+                    guardianAlert.setSeniorId(request.seniorId());
+                    guardianAlert.setGuardianId(link.getGuardianId());
+                    guardianAlert.setType("INFO_UPDATE_REQUEST");
+                    guardianAlert.setTitle("보호 대상자 정보 입력 요청");
+                    guardianAlert.setMessage(buildGuardianInfoUpdateMessage(senior.getName(), request.missingFields()));
+                    guardianAlert.setIsRead(false);
+                    alerts.add(saveAndPushToGuardian(guardianAlert));
+                }
             });
         }
 
@@ -149,12 +165,13 @@ public class AlertController {
     public Alert createProfileUpdateCompleteAlert(@RequestBody ProfileUpdateCompleteRequest request) {
         Senior senior = findSenior(request.seniorId());
 
-        // 원본 INFO_UPDATE_REQUEST 알림 읽음 처리
-        if (request.alertId() != null) {
-            alertRepository.findById(request.alertId()).ifPresent(orig -> {
-                orig.setIsRead(true);
-                alertRepository.save(orig);
-            });
+        // 해당 대상자의 모든 미읽음 INFO_UPDATE_REQUEST 알림 읽음 처리
+        // (사용자·보호자 중 누가 입력했든 나머지 쪽 알림도 함께 닫힘)
+        List<Alert> pendingRequests = alertRepository
+                .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(request.seniorId(), "INFO_UPDATE_REQUEST");
+        for (Alert orig : pendingRequests) {
+            orig.setIsRead(true);
+            alertRepository.save(orig);
         }
 
         // 복지사에게 완료 알림 생성
@@ -565,9 +582,21 @@ public class AlertController {
                 .map(alert -> toWelfareResponse(alert, "consult-response-", "보호자 상담 응답", "WELFARE_CONSULT_RESPONSE"))
                 .toList();
 
+        // 전화 요청 알림 (당일 미확인 건만)
+        LocalDateTime callRequestCutoff = LocalDateTime.now().minusDays(1);
+        List<WelfareAlertResponse> callRequestAlerts = managedSeniorIds.isEmpty()
+                ? List.of()
+                : alertRepository.findBySeniorIdInAndTypeAndCreatedAtAfterOrderByCreatedAtDesc(
+                        managedSeniorIds, "CALL_REQUEST", callRequestCutoff)
+                .stream()
+                .filter(alert -> !alert.getIsRead())
+                .map(alert -> toWelfareResponse(alert, "call-req-", "전화 요청", "CALL_REQUEST"))
+                .toList();
+
         List<WelfareAlertResponse> responses = new ArrayList<>();
         responses.addAll(fallAlerts);
         responses.addAll(sosAlerts);
+        responses.addAll(callRequestAlerts);
         responses.addAll(checkInOkAlerts);
         responses.addAll(inactiveAlerts);
         responses.addAll(profileUpdateAlerts);

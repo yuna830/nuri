@@ -75,10 +75,26 @@ const isWithinDays = (value, days) => {
   return Date.now() - date.getTime() <= days * 24 * 60 * 60 * 1000;
 };
 
+// 알림 유형별 보관 기간
+// - 중요 알림 (SOS, 낙상, 안전반경): 7일
+// - 정보 입력 요청: 7일
+// - 안부 확인·일반 알림: 3일
+const ALERT_RETENTION_DAYS = {
+  SOS:              7,
+  UNANSWERED_SOS:   7,
+  FALL_DETECTED:    7,
+  FALL_RISK:        7,
+  SAFE_ZONE_EXIT:   7,
+  SAFE_ZONE:        7,
+  INFO_UPDATE_REQUEST: 7,
+};
+const DEFAULT_RETENTION_DAYS = 3;
+
+const getRetentionDays = (type) =>
+  ALERT_RETENTION_DAYS[type] ?? DEFAULT_RETENTION_DAYS;
+
 export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
-  const today = new Date();
   const seenIds = new Set();
-  const isCandidateConfirm = alert.type === "AI_CANDIDATE_CONFIRM";
 
   return apiAlerts
     .filter((alert) => {
@@ -90,6 +106,8 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
     })
     .filter((alert) => {
       if (alert.type === "CALL_REQUEST") return false;
+      // 복지사 전용 알림 — 보호자 패널에서 제외
+      if (alert.type === "WELFARE_CONSULT_RESPONSE") return false;
 
       if (!alert.createdAt) return false;
 
@@ -97,14 +115,11 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
 
       if (Number.isNaN(createdAt.getTime())) return false;
 
-      if (alert.type === "INFO_UPDATE_REQUEST") {
-        return isWithinDays(alert.createdAt, 30);
-      }
-
-      return isSameDate(createdAt, today);
+      return isWithinDays(alert.createdAt, getRetentionDays(alert.type));
     })
     .map((alert) => {
       const isReported = reportedAlertIds.includes(String(alert.id));
+      const isCandidateConfirm = alert.type === "AI_CANDIDATE_CONFIRM";
       const isSafeZone = alert.type === "SAFE_ZONE" || alert.type === "SAFE_ZONE_EXIT";
       const isFall = FALL_ALERT_TYPES.has(alert.type);
 

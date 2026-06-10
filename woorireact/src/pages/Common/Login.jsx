@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import "../../css/common/Login.css";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const FEATURES = [
   { icon: "🚨", title: "긴급 상황 알림", desc: "SOS와 위치 정보를 보호자에게 빠르게 전달해요" },
@@ -56,7 +57,7 @@ export default function Login() {
       if (response.ok) {
         const profile = await response.json();
 
-        sessionStorage.setItem("currentSenior", JSON.stringify(profile));
+        saveCurrentSenior(profile);
         localStorage.setItem("current_senior_id", String(profile?.senior?.id || ""));
         localStorage.removeItem("login_temp");
 

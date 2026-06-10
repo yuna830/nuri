@@ -1534,6 +1534,29 @@ class _SmallStatusCard extends StatelessWidget {
   }
 }
 
+String _toNoun(String value) {
+  const map = {
+    // 생활비 상황
+    '수입이 거의 없어요': '수입 거의 없음',
+    '기초연금 정도만 받아요': '기초연금만',
+    '가족에게 일부 도움을 받아요': '가족 지원',
+    '연금이나 월급 수입이 있어요': '연금·월급 수입',
+    '생계비/의료비/주거비 지원을 받고 있어요': '생계·의료·주거비 지원',
+    // 가구 형태
+    '혼자 살아요': '혼자',
+    '배우자와 살아요': '배우자와',
+    '자녀/가족과 살아요': '자녀·가족과',
+    '시설이나 요양원에 있어요': '시설·요양원',
+    // 연금 수급
+    '기초연금을 받고 있어요': '기초연금',
+    '국민연금을 받고 있어요': '국민연금',
+    '기초연금과 국민연금을 모두 받고 있어요': '기초연금과 국민연금',
+    '신청했지만 기다리는 중이에요': '신청 후 대기 중',
+    '신청한 적 없어요': '미신청',
+  };
+  return map[value] ?? value;
+}
+
 class _WelfareCheckCard extends StatelessWidget {
   const _WelfareCheckCard({
     required this.livingCostStatus,
@@ -1556,13 +1579,13 @@ class _WelfareCheckCard extends StatelessWidget {
     // 입력된 항목만 표시
     final lines = <(String, String)>[
       if (livingCostStatus.isNotEmpty && livingCostStatus != '잘 모르겠어요')
-        ('생활비 상황', livingCostStatus),
+        ('생활비 상황', _toNoun(livingCostStatus)),
       if (householdType.isNotEmpty && householdType != '잘 모르겠어요')
-        ('가구 형태', householdType),
+        ('가구 형태', _toNoun(householdType)),
       if (pensionStatus.isNotEmpty && pensionStatus != '잘 모르겠어요')
-        ('연금 수급', pensionStatus),
+        ('연금 수급', _toNoun(pensionStatus)),
       if (housingType.isNotEmpty && housingType != '잘 모르겠어요')
-        ('주거 형태', housingType),
+        ('주거 형태', _toNoun(housingType)),
     ];
 
     return _BaseCard(

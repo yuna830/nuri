@@ -7,6 +7,7 @@ import { readAlert, resolveUploadUrl, uploadProfileImage } from "../../api/userP
 import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
+import { saveCurrentSenior } from "../../utils/common/session.js";
 import {
   CHRONIC,
   AVOID_ENVIRONMENTS,
@@ -38,6 +39,17 @@ import {
 } from "../../utils/user/profileForm.js";
 import "../../css/user/ProfilePage.css";
 
+// 섹션별 요청 대상 필드 키 목록
+const SECTION_FIELD_KEYS = {
+  personal:  ["disabilityGrade", "disabilityType"],
+  body:      ["smoking", "drinking"],
+  chronic:   CHRONIC.map(({ key }) => key),
+  mobility:  ["walkingAid", "dementia", "vision", "hearing", "recentFall", "hasSurgery"],
+  welfare:   ["livingCostStatus", "householdType", "pensionStatus", "housingType"],
+  activity:  ["maxHours", "maxDistance", "restNeed"],
+  job:       ["payType"],
+};
+
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -48,6 +60,34 @@ export default function ProfilePage() {
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const isDirty = useRef(false);
+
+  const alertId = searchParams.get("alertId");
+
+  // alertId가 있을 때, 현재 섹션에서 비어 있는 필드 키 집합
+  const highlightKeys = useMemo(() => {
+    if (!alertId || !isLoaded) return new Set();
+    const sectionKeys = SECTION_FIELD_KEYS[activeSection] ?? [];
+    return new Set(
+      sectionKeys.filter((key) => {
+        const val = form[key];
+        return val === "" || val === null || val === undefined;
+      })
+    );
+  }, [alertId, isLoaded, form, activeSection]);
+
+  // alertId가 있을 때, 섹션별 비어 있는 필드 개수 맵 (사이드바 배지용)
+  const sectionEmptyCount = useMemo(() => {
+    if (!alertId || !isLoaded) return {};
+    const map = {};
+    for (const [section, keys] of Object.entries(SECTION_FIELD_KEYS)) {
+      const count = keys.filter((key) => {
+        const val = form[key];
+        return val === "" || val === null || val === undefined;
+      }).length;
+      if (count > 0) map[section] = count;
+    }
+    return map;
+  }, [alertId, isLoaded, form]);
 
   useEffect(() => {
     const requestedSection = searchParams.get("section");
@@ -75,7 +115,7 @@ export default function ProfilePage() {
               .then((r) => r.ok ? r.json() : null)
               .then((freshProfile) => {
                 if (!freshProfile || isDirty.current) return;
-                sessionStorage.setItem("currentSenior", JSON.stringify(freshProfile));
+                saveCurrentSenior(freshProfile);
                 setForm(profileToForm(freshProfile));
               })
               .catch(() => {});
@@ -88,7 +128,7 @@ export default function ProfilePage() {
         const profiles = await response.json();
         const latestProfile = profiles[profiles.length - 1];
         if (!latestProfile) return;
-        sessionStorage.setItem("currentSenior", JSON.stringify(latestProfile));
+        saveCurrentSenior(latestProfile);
         setForm(profileToForm(latestProfile));
         setIsLoaded(true);
       } catch (error) {
@@ -180,7 +220,7 @@ export default function ProfilePage() {
       throw new Error(`프로필 수정 실패 (${response.status})${text ? `: ${text}` : ""}`);
     }
     const updatedProfile = await response.json();
-    sessionStorage.setItem("currentSenior", JSON.stringify(updatedProfile));
+    saveCurrentSenior(updatedProfile);
     isDirty.current = false;
     setForm(profileToForm(updatedProfile));
     return updatedProfile;
@@ -233,6 +273,46 @@ export default function ProfilePage() {
     }
   };
 
+  const RequestBanner = () => {
+    if (!alertId || highlightKeys.size === 0) return null;
+    const sectionKeys = SECTION_FIELD_KEYS[activeSection] ?? [];
+    const emptyLabels = CHRONIC
+      .concat([
+        { key: "disabilityGrade",  label: "장애 등급" },
+        { key: "disabilityType",   label: "장애 유형" },
+        { key: "smoking",          label: "흡연 여부" },
+        { key: "drinking",         label: "음주 여부" },
+        { key: "walkingAid",       label: "보행 보조기구" },
+        { key: "dementia",         label: "기억/판단 어려움" },
+        { key: "vision",           label: "시력" },
+        { key: "hearing",          label: "청력" },
+        { key: "recentFall",       label: "최근 낙상 경험" },
+        { key: "hasSurgery",       label: "수술 이력" },
+        { key: "livingCostStatus", label: "생활비 상황" },
+        { key: "householdType",    label: "가구 형태" },
+        { key: "pensionStatus",    label: "연금 수급 상태" },
+        { key: "housingType",      label: "주거 형태" },
+        { key: "maxHours",         label: "최대 활동 시간" },
+        { key: "maxDistance",      label: "이동 가능 거리" },
+        { key: "restNeed",         label: "쉬는 시간" },
+        { key: "payType",          label: "희망 급여 형태" },
+      ])
+      .filter(({ key }) => sectionKeys.includes(key) && highlightKeys.has(key))
+      .map(({ label }) => label);
+
+    return (
+      <div className="pr-request-banner">
+        <span className="pr-request-banner-icon">✎</span>
+        <div className="pr-request-banner-body">
+          <strong>복지사가 입력을 요청한 항목이 있어요</strong>
+          {emptyLabels.length > 0 && (
+            <p>아직 비어 있는 항목: <span>{emptyLabels.join(", ")}</span></p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case "personal":
@@ -276,9 +356,9 @@ export default function ProfilePage() {
             </div>
             <div className="pr-row">
               <InputField label="연락처" value={form.phone} onChange={(value) => set("phone", formatPhoneNumber(value))} />
-              <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} onChange={(value) => set("disabilityGrade", value)} />
+              <SelectField label="장애 등급" value={form.disabilityGrade} options={DISABILITY_GRADES} highlight={highlightKeys.has("disabilityGrade")} onChange={(value) => set("disabilityGrade", value)} />
             </div>
-            <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} onChange={(value) => set("disabilityType", value)} />
+            <SelectField label="장애 유형" value={form.disabilityType} options={DISABILITY_TYPES} highlight={highlightKeys.has("disabilityType")} onChange={(value) => set("disabilityType", value)} />
 
             {/* 보호자 유무 */}
             <div className="su-toggle-row">
@@ -309,8 +389,8 @@ export default function ProfilePage() {
                 <div className="pr-bmi-guide">{bmi.guide}</div>
               </div>
             )}
-            <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "금연 중", "과거 흡연", "가끔 흡연", "흡연 중"]} onSelect={(value) => set("smoking", value)} />
-            <ChipField label="음주 여부" value={form.drinking} options={[NONE, "금주 실천 중", "가끔", "주 1~2회", "자주"]} onSelect={(value) => set("drinking", value)} />
+            <ChipField label="흡연 여부" value={form.smoking} options={[NONE, "금연 중", "과거 흡연", "가끔 흡연", "흡연 중"]} highlight={highlightKeys.has("smoking")} onSelect={(value) => set("smoking", value)} />
+            <ChipField label="음주 여부" value={form.drinking} options={[NONE, "금주 실천 중", "가끔", "주 1~2회", "자주"]} highlight={highlightKeys.has("drinking")} onSelect={(value) => set("drinking", value)} />
             <InputField label="알레르기 정보" value={form.allergies} onChange={(value) => set("allergies", value)} />
           </section>
         );
@@ -366,7 +446,7 @@ export default function ProfilePage() {
             <div className="pr-section-title">만성질환</div>
             <div className="pr-hint">의학적 등급보다 실제 생활 기준에 맞춰 선택해주세요.</div>
             {CHRONIC.map(({ key, label, levels }) => (
-              <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
+              <ChipField key={key} label={label} value={form[key]} options={levels} highlight={highlightKeys.has(key)} onSelect={(value) => set(key, value)} />
             ))}
           </section>
         );
@@ -375,12 +455,12 @@ export default function ProfilePage() {
         return (
           <section className="pr-section">
             <div className="pr-section-title">거동/인지/감각</div>
-            <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} onSelect={(value) => set("walkingAid", value)} />
-            <ChipField label="기억하거나 판단하는 데 어려움" value={form.dementia} options={[NONE, "가끔 헷갈림", "도움이 자주 필요함"]} onSelect={(value) => set("dementia", value)} />
-            <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} onSelect={(value) => set("vision", value)} />
-            <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
-            <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
-            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} onSelect={(value) => set("hasSurgery", value)} />
+            <ChipField label="보행 보조기구" value={form.walkingAid} options={[NONE, "지팡이", "보행기", "휠체어"]} highlight={highlightKeys.has("walkingAid")} onSelect={(value) => set("walkingAid", value)} />
+            <ChipField label="기억하거나 판단하는 데 어려움" value={form.dementia} options={[NONE, "가끔 헷갈림", "도움이 자주 필요함"]} highlight={highlightKeys.has("dementia")} onSelect={(value) => set("dementia", value)} />
+            <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} highlight={highlightKeys.has("vision")} onSelect={(value) => set("vision", value)} />
+            <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} highlight={highlightKeys.has("hearing")} onSelect={(value) => set("hearing", value)} />
+            <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} highlight={highlightKeys.has("recentFall")} onSelect={(value) => set("recentFall", value)} />
+            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} highlight={highlightKeys.has("hasSurgery")} onSelect={(value) => set("hasSurgery", value)} />
             {form.hasSurgery === "있음" && <TextareaField label="수술 내용" value={form.surgeryDetail} onChange={(value) => set("surgeryDetail", value)} />}
             <TextareaField label="기타 건강 참고사항" value={form.otherDisease} onChange={(value) => set("otherDisease", value)} />
           </section>
@@ -391,11 +471,11 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-title">활동 조건</div>
             <div className="pr-row">
-              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} />
-              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} onChange={(value) => set("maxDistance", value)} />
+              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
-            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
+            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
           </section>
         );
@@ -413,11 +493,11 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-title">복지정보</div>
             <div className="pr-hint">복지 지원 대상 여부와 필요한 서비스를 파악하기 위한 정보입니다.</div>
-            <ChipField label="생활비 상황" value={form.livingCostStatus} options={LIVING_COST_STATUSES} onSelect={(value) => set("livingCostStatus", value)} />
-            <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} onSelect={(value) => set("householdType", value)} />
+            <ChipField label="생활비 상황" value={form.livingCostStatus} options={LIVING_COST_STATUSES} highlight={highlightKeys.has("livingCostStatus")} onSelect={(value) => set("livingCostStatus", value)} />
+            <ChipField label="가구 형태" value={form.householdType} options={HOUSEHOLD_TYPES} highlight={highlightKeys.has("householdType")} onSelect={(value) => set("householdType", value)} />
             <MultiChipField label="현재 받고 있는 복지 혜택" values={form.currentBenefits} options={CURRENT_BENEFITS} onToggle={(value) => toggleArr("currentBenefits", value)} />
-            <ChipField label="연금 수급 상태" value={form.pensionStatus} options={PENSION_STATUSES} onSelect={(value) => set("pensionStatus", value)} />
-            <ChipField label="주거 형태" value={form.housingType} options={HOUSING_TYPES} onSelect={(value) => set("housingType", value)} />
+            <ChipField label="연금 수급 상태" value={form.pensionStatus} options={PENSION_STATUSES} highlight={highlightKeys.has("pensionStatus")} onSelect={(value) => set("pensionStatus", value)} />
+            <ChipField label="주거 형태" value={form.housingType} options={HOUSING_TYPES} highlight={highlightKeys.has("housingType")} onSelect={(value) => set("housingType", value)} />
             <MultiChipField label="도움이 필요한 일" values={form.careNeeds} options={CARE_NEEDS} onToggle={(value) => toggleArr("careNeeds", value)} />
             <TextareaField label="그 밖에 참고사항" value={form.welfareMemo} onChange={(value) => set("welfareMemo", value)} rows={4} />
             {needsCheck && (
@@ -434,7 +514,7 @@ export default function ProfilePage() {
         return (
           <section className="pr-section">
             <div className="pr-section-title">일자리 희망 조건</div>
-            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} highlight={highlightKeys.has("payType")} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
             <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />
@@ -457,6 +537,11 @@ export default function ProfilePage() {
             {SECTIONS.map((section) => (
               <button key={section.id} className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""}`} type="button" onClick={() => setActiveSection(section.id)}>
                 {section.label}
+                {sectionEmptyCount[section.id] > 0 && (
+                  <span className="pr-sidenav-badge" aria-label={`${sectionEmptyCount[section.id]}개 입력 필요`}>
+                    {sectionEmptyCount[section.id]}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -470,7 +555,10 @@ export default function ProfilePage() {
           </div>
         </aside>
 
-        <main className="pr-main">{renderSection()}</main>
+        <main className="pr-main">
+          <RequestBanner />
+          {renderSection()}
+        </main>
       </div>
 
       {saveToast && (
@@ -512,10 +600,13 @@ function TextareaField({ label, value, onChange, rows = 3 }) {
   );
 }
 
-function SelectField({ label, value, options, labels = {}, onChange }) {
+function SelectField({ label, value, options, labels = {}, onChange, highlight = false }) {
   return (
     <div className="pr-field">
-      <label className="pr-label">{label}</label>
+      <label className="pr-label">
+        {label}
+        {highlight && <span className="pr-field-required-star" aria-hidden="true">*</span>}
+      </label>
       <select className="pr-select" value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => <option key={option} value={option}>{labels[option] ?? option}</option>)}
       </select>
@@ -523,10 +614,13 @@ function SelectField({ label, value, options, labels = {}, onChange }) {
   );
 }
 
-function ChipField({ label, value, options, onSelect }) {
+function ChipField({ label, value, options, onSelect, highlight = false }) {
   return (
     <div className="pr-field">
-      <label className="pr-label">{label}</label>
+      <label className="pr-label">
+        {label}
+        {highlight && <span className="pr-field-required-star" aria-hidden="true">*</span>}
+      </label>
       <div className="pr-chip-group">
         {options.map((option) => (
           <button key={option} className={`pr-chip ${value === option ? "on" : ""}`} type="button" onClick={() => onSelect(value === option ? "" : option)}>{option}</button>

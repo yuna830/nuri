@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import 'core/config/app_config.dart';
@@ -11,7 +12,9 @@ import 'features/shell/app_shell.dart';
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
   await dotenv.load(fileName: '.env');
 
   if (!_disableKakaoMap) {
@@ -21,6 +24,7 @@ Future<void> main() async {
     );
   }
 
+  FlutterNativeSplash.remove();
   runApp(const WooriSeniorApp());
 }
 

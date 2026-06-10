@@ -51,22 +51,82 @@ const isBlank = (value) =>
     String(value).trim() === "주소 미등록" ||
     String(value).trim() === "기록 없음";
 
+// 개별 필드가 API에서 내려온 경우 직접 체크, 없으면 has...Info 플래그로 폴백
+const checkField = (value, flagFallback) => {
+    if (value !== undefined) return isBlank(value);
+    return flagFallback;
+};
+
 export const hasMissingRequiredSeniorInfo = (senior) =>
     getMissingSeniorInfoFields(senior).length > 0;
 
 export const getMissingSeniorInfoFields = (senior) => {
     const fields = [];
 
+    // ── 기본 정보 ───────────────────────────────────────────────────────
     if (isBlank(senior.phone)) fields.push("연락처");
     if (isBlank(senior.address) && isBlank(senior.region)) fields.push("주소");
     if (isBlank(senior.birthDate) && isBlank(senior.age)) fields.push("생년월일/나이");
     if (isBlank(senior.gender)) fields.push("성별");
 
-    if (!senior.hasDisabilityInfo) fields.push("장애 정보");
-    if (!senior.hasBodyInfo) fields.push("신체 정보");
-    if (!senior.hasHealthInfo) fields.push("건강 정보");
-    if (!senior.hasMedicationInfo) fields.push("복약 정보");
-    if (!senior.hasWelfareInfo) fields.push("복지 정보");
+    // ── 인적사항: 장애 정보 ──────────────────────────────────────────────
+    if (checkField(senior.disabilityGrade, !senior.hasDisabilityInfo)) fields.push("장애 등급");
+    if (checkField(senior.disabilityType, !senior.hasDisabilityInfo)) fields.push("장애 유형");
+
+    // ── 신체 정보 ────────────────────────────────────────────────────────
+    if (checkField(senior.smoking, !senior.hasBodyInfo)) fields.push("흡연");
+    if (checkField(senior.drinking, !senior.hasBodyInfo)) fields.push("음주");
+
+    // ── 복약 정보 ────────────────────────────────────────────────────────
+    if (checkField(senior.medicineCount, !senior.hasMedicationInfo)) fields.push("복약 정보");
+
+    // ── 만성질환 ─────────────────────────────────────────────────────────
+    const chronicFields = [
+        { key: "diabetes",    label: "당뇨" },
+        { key: "hypertension",label: "고혈압" },
+        { key: "heart",       label: "심장질환" },
+        { key: "joint",       label: "관절질환" },
+        { key: "stroke",      label: "뇌졸중" },
+        { key: "kidney",      label: "신장질환" },
+        { key: "lung",        label: "호흡기질환" },
+        { key: "liver",       label: "간질환" },
+        { key: "cancer",      label: "암" },
+    ];
+    for (const { key, label } of chronicFields) {
+        if (checkField(senior[key], !senior.hasHealthInfo)) fields.push(label);
+    }
+
+    // ── 거동/인지 ────────────────────────────────────────────────────────
+    const mobilityFields = [
+        { key: "walkingAid", label: "보행 보조기" },
+        { key: "dementia",   label: "치매" },
+        { key: "vision",     label: "시력" },
+        { key: "hearing",    label: "청력" },
+        { key: "recentFall", label: "최근 낙상" },
+        { key: "hasSurgery", label: "수술 이력" },
+    ];
+    for (const { key, label } of mobilityFields) {
+        if (checkField(senior[key], !senior.hasHealthInfo)) fields.push(label);
+    }
+
+    // ── 복지 정보 ────────────────────────────────────────────────────────
+    const welfareFields = [
+        { key: "livingCostStatus", label: "생계비 현황" },
+        { key: "householdType",    label: "가구 유형" },
+        { key: "pensionStatus",    label: "연금 현황" },
+        { key: "housingType",      label: "주거 유형" },
+    ];
+    for (const { key, label } of welfareFields) {
+        if (checkField(senior[key], !senior.hasWelfareInfo)) fields.push(label);
+    }
+
+    // ── 활동 조건 ────────────────────────────────────────────────────────
+    if (checkField(senior.maxHours, false)) fields.push("최대 근무 시간");
+    if (checkField(senior.maxDistance, false)) fields.push("이동 가능 거리");
+    if (checkField(senior.restNeed, false)) fields.push("휴식 필요");
+
+    // ── 일자리 ───────────────────────────────────────────────────────────
+    if (checkField(senior.payType, false)) fields.push("희망 급여 유형");
 
     return fields;
 };

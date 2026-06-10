@@ -633,7 +633,43 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel('신고 대상자', required: true),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              '신고 대상자',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kTextMain,
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Text('*', style: TextStyle(fontSize: 13, color: _kRed)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportHistoryScreen()),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '내역 보기',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: _kTextSub,
+                    ),
+                  ),
+                  SizedBox(width: 1),
+                  Icon(Icons.chevron_right, size: 14, color: _kTextHint),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
 
         Row(
@@ -2137,6 +2173,283 @@ class _ReportMapPickScreenState extends State<_ReportMapPickScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+// ── 신고 내역 화면 ─────────────────────────────────────────────────────────────
+
+class ReportHistoryScreen extends StatefulWidget {
+  const ReportHistoryScreen({super.key});
+
+  @override
+  State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
+}
+
+class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
+  final _sessionStorage = GuardianSessionStorage();
+
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<Map<String, dynamic>> _reports = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final info = await _sessionStorage.getGuardianInfo();
+      final guardianId = info['guardianId'];
+      if (guardianId == null || guardianId.isEmpty) {
+        throw Exception('로그인 정보가 없습니다.');
+      }
+
+      final url = Uri.parse(
+        '${AppConfig.apiBaseUrl}/missing-reports?guardianId=$guardianId',
+      );
+      final res = await http.get(url).timeout(const Duration(seconds: 15));
+
+      if (res.statusCode != 200) {
+        throw Exception('신고 내역을 불러오지 못했습니다. (${res.statusCode})');
+      }
+
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = body is List
+          ? body
+          : (body['content'] ?? body['data'] ?? body['reports'] ?? []) as List;
+
+      if (!mounted) return;
+      setState(() {
+        _reports = list.cast<Map<String, dynamic>>();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('신고 내역'),
+        backgroundColor: _kGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: _kGreen));
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 40, color: _kRed),
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: _kRed),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _loadReports,
+                style: FilledButton.styleFrom(backgroundColor: _kGreen),
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_reports.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.campaign_outlined, size: 48, color: _kTextHint),
+            SizedBox(height: 12),
+            Text(
+              '접수된 신고 내역이 없습니다.',
+              style: TextStyle(fontSize: 15, color: _kTextSub),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadReports,
+      color: _kGreen,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        itemCount: _reports.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _ReportHistoryCard(report: _reports[i]),
+      ),
+    );
+  }
+}
+
+// ── 신고 내역 카드 ─────────────────────────────────────────────────────────────
+
+class _ReportHistoryCard extends StatelessWidget {
+  final Map<String, dynamic> report;
+  const _ReportHistoryCard({required this.report});
+
+  String get _typeLabel {
+    final type = report['reportType']?.toString() ?? report['type']?.toString() ?? '';
+    const map = {
+      'missing': '실종 신고',
+      'danger': '위험 상황 신고',
+      'sos': 'SOS 미응답',
+      'zone': '위치 이탈',
+      'fall': '낙상 의심',
+      'other': '기타',
+    };
+    return map[type] ?? (type.isNotEmpty ? type : '신고');
+  }
+
+  String get _statusLabel {
+    final s = report['status']?.toString() ?? '';
+    const map = {
+      'PENDING': '접수 완료',
+      'IN_PROGRESS': '처리 중',
+      'RESOLVED': '처리 완료',
+      'CLOSED': '종료',
+    };
+    return map[s] ?? (s.isNotEmpty ? s : '접수 완료');
+  }
+
+  Color get _statusColor {
+    final s = report['status']?.toString() ?? 'PENDING';
+    if (s == 'RESOLVED' || s == 'CLOSED') return _kSafe;
+    if (s == 'IN_PROGRESS') return _kWarn;
+    return _kTextSub;
+  }
+
+  String get _dateLabel {
+    final raw = report['createdAt']?.toString() ??
+        report['reportedAt']?.toString() ??
+        '';
+    if (raw.length >= 16) return raw.substring(0, 16).replaceAll('T', ' ');
+    return raw;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final seniorName = report['seniorName']?.toString() ??
+        report['targetName']?.toString() ??
+        '직접 입력';
+    final location = report['lastSeenAddress']?.toString() ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kDivider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0F0),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _typeLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _kRed,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _statusLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _statusColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            seniorName,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _kTextMain,
+            ),
+          ),
+          if (location.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 12, color: _kTextHint),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    location,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: _kTextSub),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.access_time_outlined, size: 12, color: _kTextHint),
+              const SizedBox(width: 4),
+              Text(
+                _dateLabel,
+                style: const TextStyle(fontSize: 12, color: _kTextHint),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

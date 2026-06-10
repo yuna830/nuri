@@ -162,7 +162,8 @@
 }
 
 .pr-sidenav-item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   padding: 0.85rem 1.1rem;
   text-align: left;
@@ -172,6 +173,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid #d4e8d6;
+  border-left: 3px solid transparent;
   cursor: pointer;
 }
 
@@ -629,3 +631,69 @@
 .su-slider::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
 .su-switch input:checked + .su-slider { background: #86a788; }
 .su-switch input:checked + .su-slider::before { transform: translateX(22px); }
+
+/* ── 정보 입력 요청 배너 ───────────────────────────────────────────── */
+.pr-request-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fef3cd;
+  border: 1px solid #f0c040;
+  border-left: 4px solid #e6a800;
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+.pr-request-banner-icon {
+  font-size: 17px;
+  line-height: 1.4;
+  color: #b87c00;
+  flex-shrink: 0;
+}
+.pr-request-banner-body {
+  flex: 1;
+}
+.pr-request-banner-body strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b4a00;
+  margin-bottom: 3px;
+}
+.pr-request-banner-body p {
+  font-size: 13px;
+  color: #7a5c00;
+  margin: 0;
+}
+.pr-request-banner-body p span {
+  font-weight: 700;
+}
+
+/* ── 필드 필수 입력 별표 ──────────────────────────────────────────── */
+.pr-field-required-star {
+  margin-left: 4px;
+  color: #d63c3c;
+  font-weight: 700;
+  font-size: 15px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+/* ── 사이드바 입력 필요 숫자 배지 ───────────────────────────────── */
+.pr-sidenav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #d63c3c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 9px;
+  margin-left: auto;
+  flex-shrink: 0;
+  line-height: 1;
+}

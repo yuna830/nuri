@@ -29,6 +29,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final Set<int> _selectedAlertIds = {};
   final Set<int> _confirmedWhileUnreadTab = {};
   int? _guardianId;
+  int? _selectedSeniorId;
 
   @override
   void initState() {
@@ -414,7 +415,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   void _toggleSelection(AlertModel alert) {
-    if (!alert.isRead) return;
+    if (!alert.isRead) return; // 미읽음은 선택 불가
     setState(() {
       if (_selectedAlertIds.contains(alert.id)) {
         _selectedAlertIds.remove(alert.id);
@@ -433,6 +434,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
   List<AlertModel> get _filteredAlerts {
     return _alerts.where((alert) {
+      // 시니어 필터
+      if (_selectedSeniorId != null && alert.seniorId != _selectedSeniorId) {
+        return false;
+      }
       switch (_selectedFilter) {
         case _AlertFilter.all:
           return true;
@@ -645,6 +650,17 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               ? null
               : _deleteSelectedAlerts,
         ),
+        if (_seniorMap.isNotEmpty)
+          _SeniorFilterBar(
+            seniors: _seniorMap.values.toList(),
+            selectedSeniorId: _selectedSeniorId,
+            onChanged: (id) {
+              setState(() {
+                _selectedSeniorId = id;
+                _selectedAlertIds.clear();
+              });
+            },
+          ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadAlerts,
@@ -882,62 +898,41 @@ class _AlertTile extends StatelessWidget {
               ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 왼쪽: 아이콘
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Icon(
                 config.icon,
                 color: isRead ? Colors.grey : config.iconColor,
-                size: 26,
+                size: 24,
               ),
             ),
             const SizedBox(width: 12),
+
+            // 가운데+오른쪽 전체
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 변경 후
+                  // 제목 + (버튼 1개이거나 읽음이면 오른쪽에 표시)
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: GestureDetector(
-                          onTap: onScheduleTap,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  alert.title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: onScheduleTap != null
-                                        ? const Color(0xFF86A788)
-                                        : isRead
-                                        ? Colors.black54
-                                        : Colors.black87,
-                                    decoration: onScheduleTap != null
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                    decorationColor: const Color(0xFF86A788),
-                                  ),
-                                ),
-                              ),
-                              if (onScheduleTap != null) ...[
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.calendar_today_outlined,
-                                  size: 15,
-                                  color: Color(0xFF86A788),
-                                ),
-                              ],
-                            ],
+                        child: Text(
+                          alert.title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isRead ? Colors.black54 : Colors.black87,
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       if (isRead)
                         SizedBox(
                           width: 28,
@@ -950,7 +945,9 @@ class _AlertTile extends StatelessWidget {
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
                           ),
-                        ),
+                        )
+                      else if (actions.length == 1)
+                        _buildActionButton(actions.first),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -967,69 +964,16 @@ class _AlertTile extends StatelessWidget {
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
 
-                  // 액션 버튼 (미확인일 때)
-                  if (!isRead) ...[
-                    const SizedBox(height: 10),
-                    const Divider(height: 1, color: Color(0xFFE5E5EA)),
+                  // 버튼 2개 이상: 하단에 가로로
+                  if (!isRead && actions.length >= 2) ...[
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: actions.map((action) {
-                        if (action.primary) {
-                          return FilledButton.icon(
-                            onPressed: action.onTap,
-                            icon: action.icon != null
-                                ? Icon(action.icon, size: 14)
-                                : const SizedBox.shrink(),
-                            label: Text(
-                              action.label,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: action.color,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              minimumSize: const Size(0, 30),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          );
-                        }
-                        return OutlinedButton.icon(
-                          onPressed: action.onTap,
-                          icon: action.icon != null
-                              ? Icon(action.icon, size: 13)
-                              : const SizedBox.shrink(),
-                          label: Text(
-                            action.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: action.color,
-                            side: BorderSide(
-                              color: action.color.withValues(alpha: 0.6),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            minimumSize: const Size(0, 30),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
+                    Row(
+                      children: actions.asMap().entries.map((entry) {
+                        final isLast = entry.key == actions.length - 1;
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: isLast ? 0 : 4),
+                            child: _buildActionButton(entry.value),
                           ),
                         );
                       }).toList(),
@@ -1041,6 +985,61 @@ class _AlertTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActionButton(_AlertAction action) {
+    final label = Text(
+      action.label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: action.primary ? FontWeight.w700 : FontWeight.w600,
+      ),
+    );
+    final filledStyle = FilledButton.styleFrom(
+      backgroundColor: action.color,
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      minimumSize: const Size(0, 30),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    );
+    final outlinedStyle = OutlinedButton.styleFrom(
+      foregroundColor: action.color,
+      side: BorderSide(color: action.color.withValues(alpha: 0.5)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      minimumSize: const Size(0, 30),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    );
+
+    if (action.primary) {
+      if (action.icon != null) {
+        return FilledButton.icon(
+          onPressed: action.onTap,
+          icon: Icon(action.icon, size: 13),
+          label: label,
+          style: filledStyle,
+        );
+      }
+      return FilledButton(
+        onPressed: action.onTap,
+        style: filledStyle,
+        child: label,
+      );
+    }
+    if (action.icon != null) {
+      return OutlinedButton.icon(
+        onPressed: action.onTap,
+        icon: Icon(action.icon, size: 12),
+        label: label,
+        style: outlinedStyle,
+      );
+    }
+    return OutlinedButton(
+      onPressed: action.onTap,
+      style: outlinedStyle,
+      child: label,
     );
   }
 
@@ -1065,89 +1064,62 @@ class AlertDisplayConfig {
   });
 }
 
-AlertDisplayConfig alertConfig(String type) {
+// ── 긴급/일반 구분 상수 ─────────────────────────────────────────────
+const _kUrgentTypes = {
+  'SOS',
+  'UNANSWERED_SOS',
+  'FALL_DETECTED',
+  'FALL_RISK',
+  'SAFE_ZONE_EXIT',
+  'CHECK_IN_REQUEST',
+};
+
+// ── 타입별 아이콘 (색은 alertConfig에서 통합 관리) ──────────────────
+IconData _alertIcon(String type) {
   switch (type) {
     case 'SOS':
-      return const AlertDisplayConfig(
-        icon: Icons.warning_amber_rounded,
-        iconColor: Color(0xFFB85252),
-        bgColor: Color(0xFFF5EAEA),
-      );
+    case 'UNANSWERED_SOS':
+      return Icons.warning_amber_rounded;
     case 'SOS_CANCEL':
-      return AlertDisplayConfig(
-        icon: Icons.cancel,
-        iconColor: Colors.orange,
-        bgColor: Colors.orange.shade50,
-      );
+      return Icons.cancel;
     case 'FALL_DETECTED':
     case 'FALL_RISK':
-      return AlertDisplayConfig(
-        icon: Icons.personal_injury,
-        iconColor: Colors.deepOrange,
-        bgColor: Colors.deepOrange.shade50,
-      );
+      return Icons.personal_injury;
     case 'SAFE_ZONE':
     case 'SAFE_ZONE_EXIT':
-      return AlertDisplayConfig(
-        icon: Icons.location_off,
-        iconColor: Colors.purple,
-        bgColor: Colors.purple.shade50,
-      );
+      return Icons.location_off;
     case 'CALL_REQUEST':
-      return AlertDisplayConfig(
-        icon: Icons.phone_callback,
-        iconColor: Colors.green,
-        bgColor: Colors.green.shade50,
-      );
+      return Icons.phone_callback;
     case 'CHECK_IN_REQUEST':
-      return AlertDisplayConfig(
-        icon: Icons.health_and_safety_outlined,
-        iconColor: Colors.redAccent,
-        bgColor: Colors.redAccent.shade100.withValues(alpha: 0.18),
-      );
+      return Icons.health_and_safety_outlined;
     case 'CHECK_IN_OK':
     case 'CHECK_IN_MESSAGE':
-      return AlertDisplayConfig(
-        icon: Icons.task_alt,
-        iconColor: Colors.green,
-        bgColor: Colors.green.shade50,
-      );
+      return Icons.task_alt;
     case 'MEDICINE':
-      return AlertDisplayConfig(
-        icon: Icons.medication,
-        iconColor: Colors.teal,
-        bgColor: Colors.teal.shade50,
-      );
+      return Icons.medication;
     case 'INFO_UPDATE_REQUEST':
     case 'PROFILE_UPDATE_REQUEST':
     case 'PROFILE_UPDATE':
     case 'CONSENT_REQUEST':
     case 'CONSENT_CONFIRMED':
-      return AlertDisplayConfig(
-        icon: Icons.info_outline,
-        iconColor: Colors.blue,
-        bgColor: Colors.blue.shade50,
-      );
+      return Icons.info_outline;
     case 'WELFARE_CONSULT_REQUEST':
-      return AlertDisplayConfig(
-        icon: Icons.support_agent,
-        iconColor: Colors.indigo,
-        bgColor: Colors.indigo.shade50,
-      );
+      return Icons.support_agent;
     case 'FACE_MATCH':
     case 'PERSON_DETECTED':
-      return AlertDisplayConfig(
-        icon: Icons.videocam,
-        iconColor: Colors.indigo,
-        bgColor: Colors.indigo.shade50,
-      );
+      return Icons.videocam;
     default:
-      return AlertDisplayConfig(
-        icon: Icons.notifications,
-        iconColor: Colors.grey,
-        bgColor: Colors.grey.shade50,
-      );
+      return Icons.notifications;
   }
+}
+
+AlertDisplayConfig alertConfig(String type) {
+  final isUrgent = _kUrgentTypes.contains(type);
+  return AlertDisplayConfig(
+    icon: _alertIcon(type),
+    iconColor: isUrgent ? const Color(0xFFB85252) : const Color(0xFF9E9E9E),
+    bgColor: isUrgent ? const Color(0xFFF5EAEA) : const Color(0xFFF3F4F6),
+  );
 }
 
 // ── 상담 일정 선택 바텀시트 ──────────────────────────────────────────────
@@ -1293,6 +1265,69 @@ class _ConsultScheduleSheetState extends State<_ConsultScheduleSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── 시니어 필터 바 ────────────────────────────────────────────────────────
+class _SeniorFilterBar extends StatelessWidget {
+  const _SeniorFilterBar({
+    required this.seniors,
+    required this.selectedSeniorId,
+    required this.onChanged,
+  });
+
+  final List<Senior> seniors;
+  final int? selectedSeniorId;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE5E5EA), width: 0.6),
+        ),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        children: [
+          _chip('전체', selectedSeniorId == null, () => onChanged(null)),
+          ...seniors.map(
+            (s) =>
+                _chip(s.name, selectedSeniorId == s.id, () => onChanged(s.id)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: selected ? _kGreen : const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : const Color(0xFF6C6C70),
+            ),
+          ),
+        ),
       ),
     );
   }
