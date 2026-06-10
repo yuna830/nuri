@@ -32,10 +32,27 @@ function AdminLogin() {
       sessionStorage.setItem("currentAdmin", JSON.stringify(admin));
       navigate("/admin");
     } catch (requestError) {
-      if (requestError.status === 423) {
+      const errorDescription = [
+        requestError.message,
+        requestError.detail,
+        requestError.code,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const isRejected =
+        requestError.status === 423 ||
+        /rejected|reject|denied|거절/.test(errorDescription);
+      const isPending =
+        requestError.status === 403 ||
+        /pending|not approved|unapproved|approval required|승인 대기|미승인|승인되지/.test(
+          errorDescription,
+        );
+
+      if (isRejected) {
         setError("관리자 가입 승인이 거절된 계정입니다.");
-      } else if (requestError.status === 403) {
-        setError("아직 승인되지 않은 관리자 계정입니다.");
+      } else if (isPending) {
+        setError("아직 관리자 승인이 완료되지 않은 계정입니다.");
       } else if (requestError.status === 401) {
         setError("관리자 아이디 또는 비밀번호를 확인해주세요.");
       } else {
