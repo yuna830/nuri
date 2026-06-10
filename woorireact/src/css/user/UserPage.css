@@ -229,6 +229,26 @@
   color: #f3fff3;
 }
 
+.up-logout-button {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.55rem 0;
+  border: none;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5f8a62;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  transition: background 0.15s;
+}
+
+.up-logout-button:hover {
+  background: #f0f7f0;
+}
+
 .up-care-edit-btn {
   background: none;
   border: none;

@@ -49,6 +49,29 @@
   font-size: 1rem;
 }
 
+.uch-logout-button {
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  padding: 0 1.2rem;
+  background: #86a788;
+  color: #ffffff;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(134, 167, 136, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.uch-logout-button:hover {
+  background: #6f9271;
+  transform: scale(1.03);
+}
+
 .uch-alert-backdrop {
   position: fixed;
   inset: 0;

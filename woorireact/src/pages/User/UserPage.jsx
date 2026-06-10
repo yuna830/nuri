@@ -1542,6 +1542,18 @@ export default function UserPage() {
                 )}
               </div>
             </div>
+            <button
+              className="up-logout-button"
+              type="button"
+              onClick={() => {
+                sessionStorage.removeItem("currentSenior");
+                localStorage.removeItem("current_senior_id");
+                localStorage.removeItem("pending_sos");
+                navigate("/");
+              }}
+            >
+              로그아웃
+            </button>
           </div>
 
           <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
