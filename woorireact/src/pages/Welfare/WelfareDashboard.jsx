@@ -141,24 +141,24 @@ function WelfareDashboard() {
     const [callRequestModal, setCallRequestModal] = useState(null);
 
     const emergencySeniorIds = new Set([
-        // 1. 보호자가 SOS에 미응답한 사용자
-        ...seniors
-            .filter((s) => s.alertStatus === "미응답 SOS")
-            .map((s) => s.id),
+    // 1. 보호자가 SOS에 미응답한 사용자
+    ...notificationSeniors
+        .filter((s) => s.alertStatus === "미응답 SOS")
+        .map((s) => s.id),
 
-        // 2. 복지사에게 전화 요청을 보낸 사용자
-        ...dbWelfareAlerts
-            .filter((a) => a.type === "CALL_REQUEST" && !a.isRead)
-            .map((a) => a.seniorId),
+    // 2. 사용자가 SOS 요청을 한 경우
+    ...dbWelfareAlerts
+        .filter((a) => a.type === "SOS" && !a.isRead)
+        .map((a) => a.seniorId),
 
-        // 3. 보호자 없는 사용자가 SOS를 요청한 경우
-        ...dbWelfareAlerts
-            .filter((a) => a.type === "SOS" && !a.isRead)
-            .map((a) => a.seniorId)
-            .filter((id) => seniors.find((s) => s.id === id && !s.hasGuardian)),
-    ]);
+    // // 3. 보호자 없는 사용자가 SOS를 요청한 경우
+    // ...dbWelfareAlerts
+    //     .filter((a) => a.type === "SOS" && !a.isRead)
+    //     .map((a) => a.seniorId)
+    //     .filter((id) => notificationSeniors.find((s) => s.id === id && !s.hasGuardian)),
+]);
 
-    const emergencySeniors = seniors.filter((s) => emergencySeniorIds.has(s.id));
+const emergencySeniors = notificationSeniors.filter((s) => emergencySeniorIds.has(s.id));
 
     useEffect(() => {
         if (!currentWorker) {
