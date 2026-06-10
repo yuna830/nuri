@@ -325,19 +325,19 @@ const formatPhone = (value) => {
   const digits = String(value).replace(/[^0-9]/g, "");
   if (digits.startsWith("02")) {
     if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return `${digits.slice(0,2)}-${digits.slice(2)}`;
-    if (digits.length <= 9) return `${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`;
-    return `${digits.slice(0,2)}-${digits.slice(2,6)}-${digits.slice(6,10)}`;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
   }
   if (digits.startsWith("010")) {
     if (digits.length <= 3) return digits;
-    if (digits.length <= 7) return `${digits.slice(0,3)}-${digits.slice(3)}`;
-    return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
   }
   if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
-  return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7,11)}`;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
 };
 
 const getLocalCareTeam = (seniorId) => {
@@ -497,8 +497,32 @@ export default function UserPage() {
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
   const [todayFallCount, setTodayFallCount] = useState(0);
+  
   const dismissedMedicineAlertIdsRef = useRef(new Set());
-  const dismissedInfoAlertIdsRef = useRef(new Set());
+
+  // localStorage에서 초기값을 불러와 한 번 닫은 INFO_UPDATE_REQUEST는
+  // 재접속 후에도 자동으로 뜨지 않게 저장해두는 ref
+  const dismissedInfoAlertIdsRef = useRef(
+    (() => {
+      try {
+        const stored = localStorage.getItem("woori_dismissed_info_alerts");
+        return new Set(stored ? JSON.parse(stored) : []);
+      } catch {
+        return new Set();
+      }
+    })()
+  );
+
+  /** dismissedInfoAlertIdsRef에 id를 추가하고 localStorage에 동기화 */
+  const dismissInfoAlert = (ids) => {
+    ids.forEach((id) => dismissedInfoAlertIdsRef.current.add(String(id)));
+    try {
+      localStorage.setItem(
+        "woori_dismissed_info_alerts",
+        JSON.stringify([...dismissedInfoAlertIdsRef.current])
+      );
+    } catch { /* 스토리지 오류 무시 */ }
+  };
 
   // 위치 관련 state
   const [currentPos, setCurrentPos] = useState(null);
@@ -686,14 +710,14 @@ export default function UserPage() {
     const lastSavedLocation = lastSavedLocationRef.current;
     const movedMeters = lastSavedLocation
       ? Math.sqrt(
-          Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
-            Math.pow(
-              (lon - lastSavedLocation.lon) *
-                111000 *
-                Math.cos((lat * Math.PI) / 180),
-              2
-            )
+        Math.pow((lat - lastSavedLocation.lat) * 111000, 2) +
+        Math.pow(
+          (lon - lastSavedLocation.lon) *
+          111000 *
+          Math.cos((lat * Math.PI) / 180),
+          2
         )
+      )
       : Infinity;
 
     if (lastSavedLocation && movedMeters < 35) {
@@ -745,12 +769,12 @@ export default function UserPage() {
       setChanged(setIsInRange, zones.some((zone) => {
         const dist = Math.sqrt(
           Math.pow((lat - zone.centerLatitude) * 111000, 2) +
-            Math.pow(
-              (lon - zone.centerLongitude) *
-                111000 *
-                Math.cos((lat * Math.PI) / 180),
-              2
-            )
+          Math.pow(
+            (lon - zone.centerLongitude) *
+            111000 *
+            Math.cos((lat * Math.PI) / 180),
+            2
+          )
         );
 
         return dist <= getSafeZoneAlertRadius(zone, accuracy);
@@ -782,7 +806,7 @@ export default function UserPage() {
         pos.coords.longitude,
         pos.coords.accuracy
       ),
-      () => {},
+      () => { },
       options
     );
 
@@ -832,7 +856,7 @@ export default function UserPage() {
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
           const zones = Array.isArray(data) ? data : data ? [data] : [];
-          
+
 
           setSafeZones((prevZones) => {
             if (isSameSafeZones(prevZones, zones)) {
@@ -864,7 +888,7 @@ export default function UserPage() {
             return isSameZone ? prevZone : nextZone;
           });
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     loadSafeZoneForHome();
@@ -980,7 +1004,7 @@ export default function UserPage() {
 
     const currentDate = new Date();
     const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-     
+
     setDateStr(
       `${currentDate.getFullYear()}년 ${currentDate.getMonth() + 1}월 ${currentDate.getDate()}일 (${days[currentDate.getDay()]})`
     );
@@ -1044,7 +1068,7 @@ export default function UserPage() {
     })).sort((first, second) => first.distance - second.distance);
 
     if (distances[0]?.zone) {
-       
+
       setSafeZone(distances[0].zone);
     }
 
@@ -1191,7 +1215,7 @@ export default function UserPage() {
       .map((alert) => alert.id)
       .filter(Boolean);
     markCallAlertHandled(incomingCallAlert?.id);
-    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => {})));
+    await Promise.all([...new Set(callAlertIds)].map((alertId) => readAlert(alertId).catch(() => { })));
 
     setIncomingCallAlert(null);
 
@@ -1214,7 +1238,7 @@ export default function UserPage() {
     setMedicineAlert(null);
 
     if (medicineAlert?.id) {
-      await readAlert(medicineAlert.id).catch(() => {});
+      await readAlert(medicineAlert.id).catch(() => { });
     }
   };
 
@@ -1223,13 +1247,15 @@ export default function UserPage() {
     const alertId = infoUpdateRequestAlert?.id;
     const section = getProfileSectionFromInfoRequest(text);
 
+    // 수정하러 가기를 눌러도 dismiss 처리 — 돌아왔을 때 팝업 재노출 방지
+    if (alertId) dismissInfoAlert([alertId]);
     setInfoUpdateRequestAlert(null);
     navigate(`/profile?section=${section}${alertId ? `&alertId=${alertId}` : ""}`);
   };
 
   const handleReadCheckInMessageAlert = async () => {
     if (checkInMessageAlert?.id) {
-      await readAlert(checkInMessageAlert.id).catch(() => {});
+      await readAlert(checkInMessageAlert.id).catch(() => { });
     }
 
     setCheckInMessageAlert(null);
@@ -1482,11 +1508,10 @@ export default function UserPage() {
             <div className="up-profile-sub">우리 돌봄 서비스</div>
             {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
             <div className="up-dot-wrap">
-              <div className={`up-dot ${
-                sensorConnected === null ? "pending"
-                : sensorConnected ? ""
-                : "danger"
-              }`} />
+              <div className={`up-dot ${sensorConnected === null ? "pending"
+                  : sensorConnected ? ""
+                    : "danger"
+                }`} />
               {sensorConnected === null
                 ? "센서 확인 중"
                 : sensorConnected
@@ -1882,10 +1907,11 @@ export default function UserPage() {
                 className="up-modal-cancel"
                 type="button"
                 onClick={() => {
-                  // 현재 알림뿐 아니라 쌓인 모든 INFO_UPDATE_REQUEST를 세션 동안 무시
-                  userAlerts
+                  // 현재 알림 + 쌓인 모든 INFO_UPDATE_REQUEST를 영구 무시 (localStorage 저장)
+                  const ids = userAlerts
                     .filter((a) => a.type === "INFO_UPDATE_REQUEST" && !a.isRead)
-                    .forEach((a) => dismissedInfoAlertIdsRef.current.add(String(a.id)));
+                    .map((a) => String(a.id));
+                  dismissInfoAlert(ids);
                   setInfoUpdateRequestAlert(null);
                 }}
               >

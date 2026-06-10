@@ -71,7 +71,7 @@ function CommonHeader({
       return normalizedNotifications;
     }
 
-    if (activeNotificationTab === "읽지 않음") {
+    if (activeNotificationTab === "읽지 않음" || activeNotificationTab === "미확인") {
       return normalizedNotifications.filter((notification) => !notification.isRead);
     }
 
@@ -83,7 +83,7 @@ function CommonHeader({
       return normalizedNotifications.length;
     }
 
-    if (tab === "읽지 않음") {
+    if (tab === "읽지 않음" || tab === "미확인") {
       return unreadCount;
     }
 

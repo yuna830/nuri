@@ -368,8 +368,6 @@ function GuardianPage() {
   const [apiAlerts, setApiAlerts] = useState([]);
   const knownAlertIdsRef = useRef(new Set());
   const didLoadAlertsRef = useRef(false);
-  const [guardianToast, setGuardianToast] = useState(null);
-
   const [reportingAlertId, setReportingAlertId] = useState(null);
   const [reportedAlertIds, setReportedAlertIds] = useState(() => {
     try {
@@ -555,7 +553,13 @@ function GuardianPage() {
     const map = {};
 
     buildDisplayedAlerts(apiAlerts, reportedAlertIds)
-      .filter((alert) => alert.rawAlert?.isRead !== true)
+      .filter((alert) => {
+        if (alert.rawAlert?.isRead === true) return false;
+        // 알림 패널에 표시하지 않는 타입은 dot 카운트에서도 제외
+        const type = alert.type || alert.rawAlert?.type || "";
+        if (type === "CHECK_IN_OK") return false;
+        return true;
+      })
       .forEach((alert) => {
         if (!alert.seniorId) return;
         const id = String(alert.seniorId);
@@ -714,19 +718,6 @@ function GuardianPage() {
         if (didLoadAlertsRef.current && newAlerts.length > 0) {
           const latestAlert = newAlerts[0];
 
-          const isCheckInOk =
-            latestAlert.type === "CHECK_IN_OK" ||
-            latestAlert.title?.includes("안부 확인 완료") ||
-            latestAlert.message?.includes("안부 확인 결과 이상 없습니다");
-
-          if (!isCheckInOk) {
-            setGuardianToast({
-              id: latestAlert.id,
-              type: latestAlert.type,
-              title: latestAlert.title || "새 알림이 도착했어요",
-              message: latestAlert.message || "보호 대상자의 새 알림을 확인해주세요.",
-            });
-          }
         }
 
         didLoadAlertsRef.current = true;
@@ -1278,7 +1269,14 @@ function GuardianPage() {
       const updatedAlert = await readAlert(alertId);
 
       setApiAlerts((prev) =>
-        prev.map((alert) => (String(alert.id) === String(alertId) ? updatedAlert : alert))
+        prev.map((alert) => {
+          if (String(alert.id) !== String(alertId)) return alert;
+          // 응답이 유효한 객체면 교체, 아니면 기존 alert에 isRead만 덮어씀
+          if (updatedAlert && typeof updatedAlert === "object" && updatedAlert.id) {
+            return updatedAlert;
+          }
+          return { ...alert, isRead: true };
+        })
       );
 
       setInfoRequestAlert((currentAlert) =>
@@ -1970,32 +1968,6 @@ function GuardianPage() {
               </button>
             </div>
           </section>
-        </div>
-      )}
-
-      {guardianToast && (
-        <div className={`guardian-toast ${guardianToast.type === "SOS" ? "danger" : "normal"}`}>
-          <div>
-            <strong>{guardianToast.title}</strong>
-            <p>{guardianToast.message}</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setGuardianToast(null);
-            }}
-          >
-            확인
-          </button>
-
-          <button
-            type="button"
-            className="guardian-toast-close"
-            onClick={() => setGuardianToast(null)}
-          >
-            닫기
-          </button>
         </div>
       )}
 

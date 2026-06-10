@@ -251,6 +251,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   String? _routeHistoryError;
   DateTime _routeHistoryDate = DateTime.now();
 
+  int _fetchGeneration = 0;
+  int? _selectedSeniorId;
+
   // ── 생명주기 ──────────────────────────────────────────────────────────────
 
   @override
@@ -316,6 +319,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Future<void> _selectSenior(Senior senior) async {
+    _fetchGeneration++;
+    final gen = _fetchGeneration;
+
     setState(() {
       _selectedSenior = senior;
       _locationLoading = true;
@@ -332,17 +338,21 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     });
 
     await Future.wait([
-      _fetchLocation(senior),
-      _fetchZones(senior.id),
+      _fetchLocation(senior, gen),
+      _fetchZones(senior.id, gen),
       _fetchRouteHistory(senior.id, _routeHistoryDate),
     ]);
+
+    // stale 응답이면 무시, 아니면 한 번만 오버레이 갱신
+    if (gen != _fetchGeneration) return;
+    await _syncMapOverlays();
   }
 
-  Future<void> _fetchLocation(Senior senior) async {
+  Future<void> _fetchLocation(Senior senior, int gen) async {
     try {
       final data = await _api.fetchLatestLocation(senior.id);
 
-      if (!mounted) return;
+      if (!mounted || gen != _fetchGeneration) return;
 
       final rawTime = data['receivedAt']?.toString() ?? '-';
       final timeStr = rawTime.length > 16
@@ -363,11 +373,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       if (lat != null && lng != null) {
         await _moveMap(lat, lng);
       }
-
-      await _syncMapOverlays();
+      // _syncMapOverlays() 제거 — _selectSenior에서 한 번만 호출
     } catch (e) {
-      if (!mounted) return;
-
+      if (!mounted || gen != _fetchGeneration) return;
       setState(() {
         _locationError = e.toString().replaceAll('Exception: ', '');
         _locationLoading = false;
@@ -375,7 +383,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     }
   }
 
-  Future<void> _fetchZones(int seniorId) async {
+  Future<void> _fetchZones(int seniorId, int gen) async {
     setState(() {
       _zonesLoading = true;
       _zonesError = null;
@@ -384,17 +392,15 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     try {
       final zones = await _api.fetchSafeZones(seniorId);
 
-      if (!mounted) return;
+      if (!mounted || gen != _fetchGeneration) return;
 
       setState(() {
         _zones = zones;
         _zonesLoading = false;
       });
-
-      await _syncMapOverlays();
+      // _syncMapOverlays() 제거 — _selectSenior에서 한 번만 호출
     } catch (e) {
-      if (!mounted) return;
-
+      if (!mounted || gen != _fetchGeneration) return;
       setState(() {
         _zonesError = e.toString().replaceAll('Exception: ', '');
         _zonesLoading = false;

@@ -754,21 +754,26 @@ public class SeniorController {
                 latestLocation == null ? null : latestLocation.getReceivedAt(),
                 hasGuardian,
                 isFilled(senior.getDisabilityGrade()) && isFilled(senior.getDisabilityType()),
-                healthInfo != null && healthInfo.getHeight() != null && healthInfo.getWeight() != null,
-                healthInfo != null &&
-                    isFilled(healthInfo.getDiabetes()) && isFilled(healthInfo.getHypertension()) &&
-                    isFilled(healthInfo.getHeartDisease()) && isFilled(healthInfo.getJointDisease()) &&
-                    isFilled(healthInfo.getStroke()) && isFilled(healthInfo.getKidneyDisease()) &&
-                    isFilled(healthInfo.getLungDisease()) && isFilled(healthInfo.getLiverDisease()) &&
-                    isFilled(healthInfo.getCancer()) && isFilled(healthInfo.getWalkingAid()) &&
-                    isFilled(healthInfo.getDementia()) && isFilled(healthInfo.getVision()) &&
-                    isFilled(healthInfo.getHearing()),
+                healthInfo != null
+                        && healthInfo.getHeight() != null
+                        && healthInfo.getWeight() != null
+                        && isFilled(healthInfo.getSmoking())
+                        && isFilled(healthInfo.getDrinking()),
+                healthInfo != null
+                        && isFilled(healthInfo.getDiabetes()) && isFilled(healthInfo.getHypertension())
+                        && isFilled(healthInfo.getHeartDisease()) && isFilled(healthInfo.getJointDisease())
+                        && isFilled(healthInfo.getStroke()) && isFilled(healthInfo.getKidneyDisease())
+                        && isFilled(healthInfo.getLungDisease()) && isFilled(healthInfo.getLiverDisease())
+                        && isFilled(healthInfo.getCancer()) && isFilled(healthInfo.getWalkingAid())
+                        && isFilled(healthInfo.getDementia()) && isFilled(healthInfo.getVision())
+                        && isFilled(healthInfo.getHearing())
+                        && isFilled(healthInfo.getRecentFall()) && isFilled(healthInfo.getHasSurgery()),
                 healthInfo != null && isFilled(healthInfo.getMedicineCount()),
-                healthInfo != null &&
-                        isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType()) &&
-                        isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()),
-                    senior.getGuardianName(),    
-                    senior.getGuardianPhone());
+                healthInfo != null
+                        && isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType())
+                        && isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()),
+                senior.getGuardianName(),
+                senior.getGuardianPhone());
     }
 
     public record WelfareSeniorListResponse(

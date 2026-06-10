@@ -325,6 +325,10 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .guardian-alert-secondary-action {
@@ -347,6 +351,10 @@
   cursor: pointer;
   background: #b85252 !important;
   color: #ffffff !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .guardian-alert-date-action {
@@ -360,6 +368,10 @@
   font-size: 0.95rem;
   font-weight: 800;
   padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .guardian-alert-danger-action {
@@ -434,6 +446,10 @@
     padding: 0 16px;
     font-weight: 800;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .welfare-alert-primary-action {
@@ -451,6 +467,10 @@
     padding: 0 16px;
     font-weight: 800;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     width: 100%;
 }
 

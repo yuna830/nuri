@@ -138,6 +138,8 @@ function WelfareDashboard() {
     const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
     const [emergencySeniorId, setEmergencySeniorId] = useState("");
 
+    const [callRequestModal, setCallRequestModal] = useState(null);
+
     const emergencySeniorIds = new Set([
         // 1. 보호자가 SOS에 미응답한 사용자
         ...seniors
@@ -467,9 +469,21 @@ function WelfareDashboard() {
             message: isFallAlert
                 ? `${alert.message || "대상자의 낙상이 감지되었습니다."} 보호자 확인 또는 대처 응답이 없으면 신고 조치를 검토해주세요.`
                 : alert.message,
-            category: isFallAlert ? "낙상" : isLastAccessAlert ? "복지" : isCheckInOkAlert ? "정보" : "긴급",
+            category: isFallAlert ? "낙상"
+                : isLastAccessAlert ? "복지"
+                    : isCheckInOkAlert ? "정보"
+                        : (alert.type === "WELFARE_CONSULT_RESPONSE"
+                            || alert.type === "INFO_UPDATE_REQUEST" || alert.type === "PROFILE_UPDATE"
+                            || alert.type === "CONSENT_CONFIRMED" || alert.type === "WELFARE_CONSULT_REQUEST")
+                            ? "정보"
+                            : "긴급",
             detailCategory: isFallAlert ? "낙상 대응" : isLastAccessAlert ? "기본 정보" : isCheckInOkAlert ? "복지" : "안전구역 관리",
-            danger: !isLastAccessAlert && !isCheckInOkAlert,
+            danger: !isLastAccessAlert && !isCheckInOkAlert
+                && alert.type !== "WELFARE_CONSULT_RESPONSE"
+                && alert.type !== "INFO_UPDATE_REQUEST"
+                && alert.type !== "PROFILE_UPDATE"
+                && alert.type !== "CONSENT_CONFIRMED"
+                && alert.type !== "WELFARE_CONSULT_REQUEST",
             statusLabel: isCheckInOkAlert ? null : undefined,
             isRead: alert.isRead === true,
             time: alert.createdAt
@@ -750,6 +764,38 @@ function WelfareDashboard() {
         }
     };
 
+    // 전화 요청 알림: 모달 열어서 전화번호 확인 후 전화
+    const handleCallRequestAlert = (notification) => {
+        const seniorId = notification.seniorId ?? notification.raw?.seniorId;
+        const senior =
+            seniors.find((s) => String(s.id) === String(seniorId)) ||
+            notificationSeniors.find((s) => String(s.id) === String(seniorId));
+        setCallRequestModal({ notification, senior });
+    };
+
+    const handleCallRequestConfirm = async () => {
+        const { notification, senior } = callRequestModal;
+        const phone = senior?.phone;
+
+        const serverAlertId = getServerAlertId(notification.id);
+        if (serverAlertId) {
+            try {
+                await readWelfareAlert(serverAlertId);
+                setDbWelfareAlerts((prev) =>
+                    prev.map((a) => `db-${a.id}` === notification.id ? { ...a, isRead: true } : a)
+                );
+            } catch {
+                // 읽음 실패해도 계속 진행
+            }
+        }
+
+        setCallRequestModal(null);
+
+        if (phone) {
+            window.location.href = `tel:${phone.replace(/[^0-9]/g, "")}`;
+        }
+    };
+
     const handleConfirmUnansweredSosAlert = async (notification, closeNotificationPanel) => {
         if (!notification?.seniorId) return;
 
@@ -832,6 +878,24 @@ function WelfareDashboard() {
                         }}
                     >
                         긴급 확인
+                    </button>
+                </div>
+            );
+        }
+
+        if (notification?.type === "CALL_REQUEST" || notification?.raw?.type === "CALL_REQUEST") {
+            if (notification.isRead) return null;
+            return (
+                <div className="welfare-alert-actions-below">
+                    <button
+                        type="button"
+                        className="welfare-alert-danger-action"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleCallRequestAlert(notification);
+                        }}
+                    >
+                        전화하기
                     </button>
                 </div>
             );
@@ -1012,7 +1076,7 @@ function WelfareDashboard() {
                         imageUrl: notification.raw?.imageAccessUrl || notification.raw?.imageUrl || notification.imageUrl || "",
                     },
                 }))}
-                notificationTabs={["전체", "긴급", "낙상", "일자리", "복지", "읽지 않음"]}
+                notificationTabs={["전체", "미확인", "긴급", "정보"]}
                 onReadNotification={async (notification) => {
                     if (!notification?.id) return;
 
@@ -1534,6 +1598,57 @@ function WelfareDashboard() {
                                 </div>
                             );
                         })()}
+                    </section>
+                </div>
+            )}
+
+            {callRequestModal && (
+                <div
+                    className="call-result-backdrop"
+                    onClick={() => setCallRequestModal(null)}
+                >
+                    <section
+                        className="call-result-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="call-result-header">
+                            <h2>{callRequestModal.notification?.seniorName ?? "대상자"}님의 전화 요청</h2>
+                            <button type="button" onClick={() => setCallRequestModal(null)}>
+                                닫기
+                            </button>
+                        </div>
+
+                        <p className="call-result-text">
+                            {callRequestModal.senior?.phone ? (
+                                <>전화번호: <strong>{callRequestModal.senior.phone}</strong></>
+                            ) : (
+                                <span style={{ color: "#d63c3c" }}>전화번호 정보가 없습니다.</span>
+                            )}
+                        </p>
+
+                        <div className="call-result-actions">
+                            <button
+                                className="call-resolved-button"
+                                type="button"
+                                onClick={handleCallRequestConfirm}
+                                disabled={!callRequestModal.senior?.phone}
+                            >
+                                전화하기
+                            </button>
+                            <button
+                                className="call-report-button"
+                                type="button"
+                                onClick={() => {
+                                    const { notification } = callRequestModal;
+                                    setCallRequestModal(null);
+                                    navigate(`/welfare/seniors/${notification.seniorId ?? notification.raw?.seniorId}`, {
+                                        state: { category: "기관 연계", agencyLinkNeeded: true },
+                                    });
+                                }}
+                            >
+                                기관 연계
+                            </button>
+                        </div>
                     </section>
                 </div>
             )}
