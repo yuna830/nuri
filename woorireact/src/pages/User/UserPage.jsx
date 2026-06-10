@@ -1531,6 +1531,7 @@ export default function UserPage() {
               <div className="up-profile-avatar">
                 {profileImageUrl ? (
                   <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
+
                 ) : (
                   "🙂"
                 )}
