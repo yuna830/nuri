@@ -462,6 +462,7 @@ export default function UserPage() {
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [showSOS, setShowSOS] = useState(false);
   const [activityInfoModal, setActivityInfoModal] = useState(null);
+  const [showWelfarePrograms, setShowWelfarePrograms] = useState(false);
   const [pendingSos, setPendingSos] = useState(() => localStorage.getItem("pending_sos") === "true");
   // eslint-disable-next-line no-unused-vars
   const [dateStr, setDateStr] = useState("");
@@ -1489,6 +1490,34 @@ export default function UserPage() {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  const welfareInfo = currentProfile?.healthInfo ?? {};
+  const hasMeaningfulWelfareValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.some(hasMeaningfulWelfareValue);
+    }
+
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return ![
+      "",
+      "[]",
+      "{}",
+      "null",
+      "undefined",
+      "없음",
+      "미등록",
+      "정보 없음",
+      "확인 필요",
+    ].includes(normalized);
+  };
+  const hasWelfareInfo = [
+    welfareInfo.livingCostStatus,
+    welfareInfo.householdType,
+    welfareInfo.pensionStatus,
+    welfareInfo.housingType,
+    welfareInfo.currentBenefits,
+    welfareInfo.careNeeds,
+    welfareInfo.welfareMemo,
+  ].some(hasMeaningfulWelfareValue);
 
   return (
     <div className="up-root">
@@ -1496,158 +1525,161 @@ export default function UserPage() {
 
       <div className="up-layout">
         <aside className="up-aside">
-          <div className="up-profile-card">
-            <div className="up-profile-avatar">
-              {profileImageUrl ? (
-                <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
-              ) : (
-                "🙂"
-              )}
-            </div>
-            <div className="up-profile-name">{userName}</div>
-            <div className="up-profile-sub">우리 돌봄 서비스</div>
-            {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
-            <div className="up-dot-wrap">
-              <div className={`up-dot ${sensorConnected === null ? "pending"
-                  : sensorConnected ? ""
-                    : "danger"
-                }`} />
-              {sensorConnected === null
-                ? "센서 확인 중"
-                : sensorConnected
-                  ? "낙상 센서 연결됨"
-                  : "센서 신호 없음"}
-            </div>
-            <div className="up-care-team">
-              <div>
-                <span>보호자</span>
-                {seniorHasGuardian ? (
-                  <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
-                    {careTeam.guardianName
-                      ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
-                      : "등록하기"}
-                  </button>
+          <div className="up-sticky-side-content">
+            <div className="up-profile-card">
+              <div className="up-profile-avatar">
+                {profileImageUrl ? (
+                  <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
                 ) : (
-                  <strong className="up-care-none">--</strong>
+                  "🙂"
                 )}
               </div>
-              <div>
-                <span>복지사</span>
-                {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
-                  <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
-                    {careTeam.socialWorkerName}
-                  </a>
-                ) : (
-                  <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
-                )}
+              <div className="up-profile-name">{userName}</div>
+              <div className="up-profile-sub">우리 돌봄 서비스</div>
+              {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
+              <div className="up-dot-wrap">
+                <div className={`up-dot ${sensorConnected === null ? "pending"
+                    : sensorConnected ? ""
+                      : "danger"
+                  }`} />
+                {sensorConnected === null
+                  ? "센서 확인 중"
+                  : sensorConnected
+                    ? "낙상 센서 연결됨"
+                    : "센서 신호 없음"}
               </div>
-            </div>
-            <button
-              className="up-logout-button"
-              type="button"
-              onClick={() => {
-                sessionStorage.removeItem("currentSenior");
-                localStorage.removeItem("current_senior_id");
-                localStorage.removeItem("pending_sos");
-                navigate("/");
-              }}
-            >
-              로그아웃
-            </button>
-          </div>
-
-          <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
-            <div className="up-card-head">
-              <div className="up-card-title">현재 위치</div>
-              <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
-            </div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "0.5rem",
-            }}>
-              <div style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: isInRange ? COLORS.green : COLORS.danger,
-                flexShrink: 0,
-              }} />
-              <span style={{
-                fontSize: "0.82rem",
-                fontWeight: "700",
-                color: isInRange ? COLORS.green : COLORS.danger,
-              }}>
-                {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
-              </span>
-            </div>
-            <div style={{
-              fontSize: "0.78rem",
-              color: COLORS.textMuted,
-              lineHeight: "1.5",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}>
-              {currentAddress}
-            </div>
-            {currentPos && (
-              <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.3rem" }}>
-                {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
+              <div className="up-care-team">
+                <div>
+                  <span>보호자</span>
+                  {seniorHasGuardian ? (
+                    <button className="up-care-edit-btn" type="button" onClick={openGuardianEdit}>
+                      {careTeam.guardianName
+                        ? `${careTeam.guardianName}${careTeam.guardianRelation ? ` (${careTeam.guardianRelation})` : ""}`
+                        : "등록하기"}
+                    </button>
+                  ) : (
+                    <strong className="up-care-none">--</strong>
+                  )}
+                </div>
+                <div>
+                  <span>복지사</span>
+                  {careTeam.socialWorkerName && toTelHref(careTeam.socialWorkerPhone) ? (
+                    <a className="up-care-call" href={toTelHref(careTeam.socialWorkerPhone)}>
+                      {careTeam.socialWorkerName}
+                    </a>
+                  ) : (
+                    <strong>{careTeam.socialWorkerName || "매칭 전"}</strong>
+                  )}
+                </div>
               </div>
-            )}
-            {currentLocationTime && (
-              <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
-                갱신 시간 {currentLocationTime}
-              </div>
-            )}
-            {currentPos && (
-              <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
-                <KakaoMap
-                  center={{ lat: currentPos.lat, lng: currentPos.lon }}
-                  zoom={5}
-                  className="up-mini-map"
-                  safeZone={safeZone}
-                  safeZones={safeZones}
-                  currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
-                  currentLabel="현재 위치"
-                  safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
-                  autoFit={false}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="up-sidemenu">
-            {menus.map((menu, i) => (
               <button
-                key={i}
-                className="up-sidemenu-item"
+                className="up-logout-button"
                 type="button"
                 onClick={() => {
-                  if (menu.disabled) {
-                    alert("AI 챗봇 기능은 준비 중입니다.");
-                    return;
-                  }
-                  if (menu.badgeKey === "jobs") {
-                    const latestJobId = localStorage.getItem("jobs_latest_job_id");
-                    if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
-                    setJobHasNew(false);
-                  }
-                  navigate(menu.route);
+                  sessionStorage.removeItem("currentSenior");
+                  localStorage.removeItem("current_senior_id");
+                  localStorage.removeItem("pending_sos");
+                  navigate("/");
                 }}
               >
-                <span className="up-sidemenu-icon">{menu.icon}</span>
-                <span className="up-sidemenu-label">{menu.label}</span>
-                {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
-                  <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
-                    {menu.badge || "NEW"}
-                  </span>
-                )}
+                로그아웃
               </button>
-            ))}
+            </div>
+            <div className="up-sidemenu">
+              {menus.map((menu, i) => (
+                <button
+                  key={i}
+                  className="up-sidemenu-item"
+                  type="button"
+                  onClick={() => {
+                    if (menu.disabled) {
+                      alert("AI 챗봇 기능은 준비 중입니다.");
+                      return;
+                    }
+                    if (menu.badgeKey === "jobs") {
+                      const latestJobId = localStorage.getItem("jobs_latest_job_id");
+                      if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
+                      setJobHasNew(false);
+                    }
+                    navigate(menu.route);
+                  }}
+                >
+                  <span className="up-sidemenu-icon">{menu.icon}</span>
+                  <span className="up-sidemenu-label">{menu.label}</span>
+                  {(menu.badge || (menu.badgeKey === "jobs" && jobHasNew) || hasUnreadByRoute(menu.route)) && (
+                    <span className="up-sidemenu-badge" style={menu.disabled ? { background: "#7a9a7c" } : {}}>
+                      {menu.badge || "NEW"}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="up-card up-location-card" style={{ cursor: "pointer" }} onClick={() => navigate("/location")}>
+              <div className="up-card-head">
+                <div className="up-card-title">현재 위치</div>
+                <span style={{ fontSize: "0.72rem", color: COLORS.textMuted }}>상세 보기</span>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                marginBottom: "0.5rem",
+              }}>
+                <div style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: isInRange ? COLORS.green : COLORS.danger,
+                  flexShrink: 0,
+                }} />
+                <span style={{
+                  fontSize: "0.82rem",
+                  fontWeight: "700",
+                  color: isInRange ? COLORS.green : COLORS.danger,
+                }}>
+                  {isInRange ? "안전 반경 안" : "안전 반경 이탈"}
+                </span>
+              </div>
+              <div style={{
+                fontSize: "0.78rem",
+                color: COLORS.textMuted,
+                lineHeight: "1.5",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}>
+                {currentAddress}
+              </div>
+              {currentPos && (
+                <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.3rem" }}>
+                  {currentPos.lat.toFixed(4)}, {currentPos.lon.toFixed(4)}
+                </div>
+              )}
+              {currentLocationTime && (
+                <div style={{ fontSize: "0.68rem", color: COLORS.textMuted, marginTop: "0.25rem" }}>
+                  갱신 시간 {currentLocationTime}
+                </div>
+              )}
+              {currentPos && (
+                <div className="up-mini-map-wrap" onClick={(event) => event.stopPropagation()}>
+                  <KakaoMap
+                    center={{ lat: currentPos.lat, lng: currentPos.lon }}
+                    zoom={5}
+                    className="up-mini-map"
+                    safeZone={safeZone}
+                    safeZones={safeZones}
+                    currentLocation={{ lat: currentPos.lat, lng: currentPos.lon }}
+                    currentLabel="현재 위치"
+                    safeZoneLabel={safeZone ? `${safeZone.name} 안전 반경` : "안전 반경"}
+                    autoFit={false}
+                  />
+                </div>
+              )}
+            </div>
           </div>
+
+
         </aside>
 
         <main>
@@ -1803,24 +1835,92 @@ export default function UserPage() {
                 <button
                   className="up-welfare-check-button"
                   type="button"
-                  onClick={() => navigate("/profile?section=welfare")}
+                  onClick={() => setShowWelfarePrograms(true)}
                 >
-                  복지정보 수정
+                  확인하기
                 </button>
-              </div>
-              <div className="up-welfare-programs">
-                {welfareMatches.map(({ program, reasons }) => (
-                  <article className="up-welfare-program" key={program.id}>
-                    <strong>{program.name}</strong>
-                    <p>{program.summary}</p>
-                    <span>{reasons[0]}</span>
-                  </article>
-                ))}
               </div>
             </div>
           </div>
         </main>
       </div>
+
+      <button
+        className="up-chatbot-fab"
+        type="button"
+        aria-label="AI 챗봇 열기"
+        title="AI 챗봇"
+        onClick={() => navigate("/chat")}
+      >
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 8v5" />
+          <circle cx="24" cy="6" r="2" />
+          <rect x="8" y="13" width="32" height="25" rx="10" />
+          <circle cx="18" cy="25" r="2.5" />
+          <circle cx="30" cy="25" r="2.5" />
+          <path d="M17 32c2 2 4.3 3 7 3s5-1 7-3M8 24H4v8h5M40 24h4v8h-5M18 38v4M30 38v4" />
+        </svg>
+      </button>
+
+      {showWelfarePrograms && (
+        <div className="up-overlay" onClick={() => setShowWelfarePrograms(false)}>
+          <div
+            className="up-modal up-welfare-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="up-welfare-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="up-welfare-modal-head">
+              <div>
+                <div className="up-modal-title" id="up-welfare-modal-title">
+                  내게 맞는 복지제도
+                </div>
+                <p className={!hasWelfareInfo ? "up-welfare-modal-warning" : ""}>
+                  {hasWelfareInfo
+                    ? "현재 등록된 정보를 기준으로 추천한 제도예요."
+                    : "현재 등록된 복지정보가 없어 기본 추천 3개를 보여드리고 있어요. 정확한 추천을 받으려면 복지정보를 입력해주세요."}
+                </p>
+              </div>
+              <button
+                className="up-welfare-modal-close"
+                type="button"
+                aria-label="맞춤 복지제도 닫기"
+                onClick={() => setShowWelfarePrograms(false)}
+              >
+                X
+              </button>
+            </div>
+
+            <div className="up-welfare-programs up-welfare-modal-programs">
+              {welfareMatches.map(({ program, reasons }) => (
+                <article className="up-welfare-program" key={program.id}>
+                  <strong>{program.name}</strong>
+                  <p>{program.summary}</p>
+                  <span>{reasons[0]}</span>
+                </article>
+              ))}
+            </div>
+
+            <div className="up-modal-row up-welfare-modal-actions">
+              <button
+                className="up-modal-cancel"
+                type="button"
+                onClick={() => setShowWelfarePrograms(false)}
+              >
+                닫기
+              </button>
+              <button
+                className="up-modal-ok"
+                type="button"
+                onClick={() => navigate("/profile?section=welfare")}
+              >
+                복지정보 수정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAllSchedules && (
         <div className="up-overlay" onClick={() => setShowAllSchedules(false)}>
