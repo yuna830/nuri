@@ -224,7 +224,7 @@ public class SeniorController {
         return toProfileResponseWithHealthEvaluation(senior);
     }
 
-//    @PatchMapping("/{id}/welfare-worker")
+    //    @PatchMapping("/{id}/welfare-worker")
 //    public SeniorProfileResponse updateSeniorWelfareWorker(
 //            @PathVariable Long id,
 //            @RequestBody SeniorWelfareWorkerRequest request

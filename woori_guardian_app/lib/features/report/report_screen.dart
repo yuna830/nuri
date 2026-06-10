@@ -2337,6 +2337,7 @@ class _ReportHistoryCard extends StatelessWidget {
     final s = report['status']?.toString() ?? '';
     const map = {
       'PENDING': '접수 완료',
+      'ACTIVE': '처리 중',
       'IN_PROGRESS': '처리 중',
       'RESOLVED': '처리 완료',
       'CLOSED': '종료',
@@ -2347,7 +2348,7 @@ class _ReportHistoryCard extends StatelessWidget {
   Color get _statusColor {
     final s = report['status']?.toString() ?? 'PENDING';
     if (s == 'RESOLVED' || s == 'CLOSED') return _kSafe;
-    if (s == 'IN_PROGRESS') return _kWarn;
+    if (s == 'IN_PROGRESS' || s == 'ACTIVE') return _kWarn;
     return _kTextSub;
   }
 
@@ -2359,96 +2360,257 @@ class _ReportHistoryCard extends StatelessWidget {
     return raw;
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // description에서 '대상자 이름: ...' 파싱
+  String _nameFromDescription(String desc) {
+    final match = RegExp(r'대상자 이름:\s*(.+)').firstMatch(desc);
+    return match?.group(1)?.trim() ?? '';
+  }
+
+  void _showDetail(BuildContext context) {
+    final description = report['description']?.toString() ?? '';
+    final location = report['lastSeenAddress']?.toString() ?? '';
+    final imageUrl = report['imageUrl']?.toString() ?? '';
     final seniorName = report['seniorName']?.toString() ??
         report['targetName']?.toString() ??
-        '직접 입력';
-    final location = report['lastSeenAddress']?.toString() ?? '';
+        _nameFromDescription(description);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kDivider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF0F0),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  _typeLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _kRed,
-                  ),
+                  color: _kDivider,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const Spacer(),
-              Text(
-                _statusLabel,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _statusColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            seniorName,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: _kTextMain,
             ),
-          ),
-          if (location.isNotEmpty) ...[
-            const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 12, color: _kTextHint),
-                const SizedBox(width: 4),
-                Expanded(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF0F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                   child: Text(
-                    location,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: _kTextSub),
+                    _typeLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _kRed,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _statusLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
                   ),
                 ),
               ],
             ),
-          ],
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.access_time_outlined, size: 12, color: _kTextHint),
-              const SizedBox(width: 4),
-              Text(
-                _dateLabel,
-                style: const TextStyle(fontSize: 12, color: _kTextHint),
+            const SizedBox(height: 12),
+            Text(
+              seniorName.isNotEmpty ? seniorName : '이름 없음',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _kTextMain,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.access_time_outlined, size: 13, color: _kTextHint),
+                const SizedBox(width: 4),
+                Text(
+                  _dateLabel,
+                  style: const TextStyle(fontSize: 13, color: _kTextHint),
+                ),
+              ],
+            ),
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 13, color: _kTextHint),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location,
+                      style: const TextStyle(fontSize: 13, color: _kTextSub),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(color: _kDivider),
+              const SizedBox(height: 12),
+              const Text(
+                '신고 내용',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: _kTextMain,
+                  height: 1.6,
+                ),
+              ),
+            ],
+            if (imageUrl.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(color: _kDivider),
+              const SizedBox(height: 12),
+              const Text(
+                '첨부 사진',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextSub,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final description = report['description']?.toString() ?? '';
+    final seniorName = report['seniorName']?.toString() ??
+        report['targetName']?.toString() ??
+        _nameFromDescription(description);
+    final location = report['lastSeenAddress']?.toString() ?? '';
+
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kDivider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF0F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _typeLabel,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _kRed,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _statusLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _statusColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              seniorName.isNotEmpty ? seniorName : '이름 없음',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _kTextMain,
+              ),
+            ),
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 12, color: _kTextHint),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: _kTextSub),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.access_time_outlined, size: 12, color: _kTextHint),
+                const SizedBox(width: 4),
+                Text(
+                  _dateLabel,
+                  style: const TextStyle(fontSize: 12, color: _kTextHint),
+                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, size: 14, color: _kTextHint),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
