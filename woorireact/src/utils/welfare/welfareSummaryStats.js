@@ -1,3 +1,47 @@
+// ── 필드 → 카테고리 매핑 ───────────────────────────────
+export const FIELD_CATEGORY_MAP = {
+  "연락처": "인적사항", "주소": "인적사항",
+  "생년월일/나이": "인적사항", "성별": "인적사항",
+  "장애 등급": "인적사항", "장애 유형": "인적사항",
+  "흡연": "신체정보", "음주": "신체정보",
+  "복약 정보": "복약정보",
+  "당뇨": "만성질환", "고혈압": "만성질환",
+  "심장질환": "만성질환", "관절질환": "만성질환",
+  "뇌졸중": "만성질환", "신장질환": "만성질환",
+  "호흡기질환": "만성질환", "간질환": "만성질환", "암": "만성질환",
+  "보행 보조기": "거동/인지", "치매": "거동/인지",
+  "시력": "거동/인지", "청력": "거동/인지",
+  "최근 낙상": "거동/인지", "수술 이력": "거동/인지",
+  "생계비 현황": "복지정보", "가구 유형": "복지정보",
+  "연금 현황": "복지정보", "주거 유형": "복지정보",
+  "최대 근무 시간": "활동조건", "이동 가능 거리": "활동조건",
+  "휴식 필요": "활동조건", "희망 급여 유형": "일자리",
+};
+
+/** fields 배열 → { 카테고리: [필드명, ...], ... } */
+export const groupFieldsByCategory = (fields = []) => {
+  const result = {};
+  for (const field of fields) {
+    const cat = FIELD_CATEGORY_MAP[field] ?? "기타";
+    if (!result[cat]) result[cat] = [];
+    result[cat].push(field);
+  }
+  return result;
+};
+
+/** 알림 message 문자열 → 포함된 카테고리 배열 (중복 제거, 순서 유지) */
+export const getInfoAlertCategories = (message = "") => {
+  const seen = new Set();
+  const categories = [];
+  for (const [field, cat] of Object.entries(FIELD_CATEGORY_MAP)) {
+    if (message.includes(field) && !seen.has(cat)) {
+      seen.add(cat);
+      categories.push(cat);
+    }
+  }
+  return categories;
+};
+
 const EMERGENCY_ALERT_STATUSES = [
     "SOS",
     "미응답 SOS",

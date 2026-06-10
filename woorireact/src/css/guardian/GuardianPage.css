@@ -160,6 +160,24 @@
   color: var(--deep-green);
 }
 
+.guardian-info-request-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.guardian-info-request-category-card {
+  padding: 10px 14px;
+  background: #f4f8f4;
+  border: 1px solid #d4e8d6;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d4a30;
+  text-align: center;
+}
+
 .alarm-count {
   position: absolute;
   top: -6px;
