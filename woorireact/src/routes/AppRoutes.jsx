@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import WelfareDashboard from "../pages/Welfare/WelfareDashboard";
 import WelfareSeniorDetail from "../pages/Welfare/WelfareSeniorDetail";
 import WelfareJobPostings from "../pages/Welfare/WelfareJobPostings";
@@ -36,9 +36,11 @@ function RequireAdmin({ children }) {
 }
 
 function RequireSenior({ children }) {
-  return sessionStorage.getItem("currentSenior")
-    ? children
-    : <Navigate to="/" replace />;
+  useLocation(); // 경로 변경(뒤로가기 포함)마다 재평가
+  if (!sessionStorage.getItem("currentSenior")) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
 }
 
 function AppRoutes() {
