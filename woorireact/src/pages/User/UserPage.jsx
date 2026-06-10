@@ -1581,7 +1581,7 @@ export default function UserPage() {
                   sessionStorage.removeItem("currentSenior");
                   localStorage.removeItem("current_senior_id");
                   localStorage.removeItem("pending_sos");
-                  navigate("/");
+                  navigate("/", { replace: true });
                 }}
               >
                 로그아웃

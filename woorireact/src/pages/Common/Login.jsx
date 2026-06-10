@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { formatPhoneNumber } from "../../utils/common/phone.js";
@@ -17,6 +17,13 @@ export default function Login() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+
+  // 로그인 페이지에 오면 기존 세션 초기화 → 반드시 재로그인
+  useEffect(() => {
+    sessionStorage.removeItem("currentSenior");
+    localStorage.removeItem("current_senior_id");
+    localStorage.removeItem("pending_sos");
+  }, []);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
