@@ -38,6 +38,12 @@ function WelfareCommonHeader({ rightText }) {
     const [addSeniorForm, setAddSeniorForm] = useState({ name: "", phone: "" });
     const [addSeniorStatus, setAddSeniorStatus] = useState("");
     const [isAddingSenior, setIsAddingSenior] = useState(false);
+    const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
+    const [emergencySeniorId, setEmergencySeniorId] = useState("");
+
+    const emergencySeniors = seniors.filter(
+        (s) => s.alertStatus === "미응답 SOS" || s.healthStatus === "위험"
+    );
 
     useEffect(() => {
         if (!currentWorker) return;
@@ -71,7 +77,7 @@ function WelfareCommonHeader({ rightText }) {
 
     useEffect(() => {
         if (!currentWorker?.id) return;
-        fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: currentWorker.id })
+        fetchWelfareSeniors({ welfareWorkerId: currentWorker.id })
             .then((data) => {
                 const raw = Array.isArray(data) ? data : data.content || [];
                 setSeniors(raw.map(mapWelfareSenior));
@@ -454,9 +460,12 @@ function WelfareCommonHeader({ rightText }) {
                     <button
                         className="common-app-danger-button"
                         type="button"
-                        onClick={openAddSeniorModal}
+                        onClick={() => {
+                            setEmergencySeniorId(emergencySeniors[0]?.id ? String(emergencySeniors[0].id) : "");
+                            setIsEmergencyModalOpen(true);
+                        }}
                     >
-                        대상자 추가
+                        긴급 신고
                     </button>
                 }
             />
@@ -529,6 +538,120 @@ function WelfareCommonHeader({ rightText }) {
                                 추가하기
                             </button>
                         </div>
+                    </section>
+                </div>
+            )}
+
+            {isEmergencyModalOpen && (
+                <div className="wd-modal-backdrop" onClick={() => setIsEmergencyModalOpen(false)}>
+                    <section
+                        className="wd-info-request-modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ maxWidth: "420px" }}
+                    >
+                        <div className="wd-info-request-header">
+                            <h2 style={{ color: "#b85252" }}>🚨 긴급 신고</h2>
+                            <button
+                                type="button"
+                                className="wd-info-request-close"
+                                onClick={() => setIsEmergencyModalOpen(false)}
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        {/* 대상자 선택 */}
+                        <div style={{ padding: "0 20px 16px" }}>
+                            <label style={{ fontSize: "13px", color: "#666", display: "block", marginBottom: "6px" }}>
+                                긴급 상황 대상자
+                            </label>
+                            <select
+                                value={emergencySeniorId}
+                                onChange={(e) => setEmergencySeniorId(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    border: "1px solid #e0e0e0",
+                                    borderRadius: "8px",
+                                    fontSize: "14px",
+                                    background: "#fafafa",
+                                }}
+                            >
+                                {emergencySeniors.length > 0 ? (
+                                    emergencySeniors.map((s) => (
+                                        <option key={s.id} value={String(s.id)}>
+                                            {s.name}{s.guardianName ? ` (보호자: ${s.guardianName})` : ""}
+                                        </option>
+                                    ))
+                                ) : (
+                                    <option value="">현재 긴급 대상자 없음</option>
+                                )}
+                            </select>
+                        </div>
+
+                        {/* 전화 버튼들 */}
+                        {(() => {
+                            const target = emergencySeniors.find((s) => String(s.id) === emergencySeniorId);
+                            return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 20px 20px" }}>
+                                    <a
+                                        href="tel:119"
+                                        className="wd-info-request-submit"
+                                        style={{
+                                            display: "block",
+                                            textAlign: "center",
+                                            padding: "12px",
+                                            borderRadius: "8px",
+                                            background: "#b85252",
+                                            color: "#fff",
+                                            fontWeight: "700",
+                                            fontSize: "15px",
+                                            textDecoration: "none",
+                                        }}
+                                    >
+                                        🚑 119 신고
+                                    </a>
+
+                                    {target?.phone && (
+                                        <a
+                                            href={`tel:${target.phone.replace(/[^0-9]/g, "")}`}
+                                            style={{
+                                                display: "block",
+                                                textAlign: "center",
+                                                padding: "11px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #b85252",
+                                                color: "#b85252",
+                                                fontWeight: "600",
+                                                fontSize: "14px",
+                                                textDecoration: "none",
+                                            }}
+                                        >
+                                            📞 {target.name}님에게 전화 ({target.phone})
+                                        </a>
+                                    )}
+
+                                    {target?.guardianPhone && (
+                                        <a
+                                            href={`tel:${target.guardianPhone.replace(/[^0-9]/g, "")}`}
+                                            style={{
+                                                display: "block",
+                                                textAlign: "center",
+                                                padding: "11px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #6f9272",
+                                                color: "#6f9272",
+                                                fontWeight: "600",
+                                                fontSize: "14px",
+                                                textDecoration: "none",
+                                            }}
+                                        >
+                                            📞 보호자에게 전화 ({target.guardianPhone})
+                                        </a>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </section>
                 </div>
             )}

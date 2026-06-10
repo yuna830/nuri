@@ -1,4 +1,4 @@
-import { Link, useParams, useLocation } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
 import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
@@ -13,7 +13,7 @@ import {
     fetchWelfareSeniorDetail,
     requestGuardianConsultation,
     fetchSeniorAlerts,
-    requestSeniorInfoUpdate,
+    removeWelfareSenior,
 } from "../../api/welfareDashboardApi";
 import KakaoMap from "../../components/KakaoMap";
 
@@ -32,49 +32,6 @@ const getSavedCounselingRecords = () => {
 };
 
 const findWelfareDemoCounselingRecords = () => [];
-
-const INFO_UPDATE_REQUEST_GROUPS = [
-    {
-        key: "personal",
-        label: "인적사항",
-        fields: ["이름", "생년월일", "성별", "연락처", "주소"],
-    },
-    {
-        key: "body",
-        label: "신체정보",
-        fields: ["키", "몸무게", "흡연 여부", "음주 여부", "알레르기 정보"],
-    },
-    {
-        key: "medication",
-        label: "복약정보",
-        fields: ["복용 약", "복용 시작일", "복용 간격", "하루 복용 횟수"],
-    },
-    {
-        key: "chronic",
-        label: "만성질환",
-        fields: ["당뇨", "고혈압", "심장질환", "관절질환", "수술 이력"],
-    },
-    {
-        key: "mobility",
-        label: "거동/인지/감각",
-        fields: ["보행", "기억/판단", "시력", "청력", "최근 낙상 경험"],
-    },
-    {
-        key: "welfare",
-        label: "복지정보",
-        fields: ["소득 구분", "가구 형태", "현재 받고 있는 복지 혜택", "복지 참고사항"],
-    },
-    {
-        key: "activity",
-        label: "활동 조건",
-        fields: ["하루 최대 활동 시간", "이동 가능 거리", "쉬는 시간", "하기 어려운 작업"],
-    },
-    {
-        key: "job",
-        label: "일자리 희망조건",
-        fields: ["희망 급여", "희망 요일", "희망 직종", "희망 근무 형태"],
-    },
-];
 
 const formatPhoneForDetail = (value) => {
     const digits = String(value || "").replace(/\D/g, "");
@@ -327,15 +284,18 @@ function WelfareSeniorDetail() {
     const [isConsultRequestModalOpen, setIsConsultRequestModalOpen] = useState(false);
     const [consultRequestMemo, setConsultRequestMemo] = useState("");
     const [seniorAlerts, setSeniorAlerts] = useState([]);
-    const [isInfoRequestModalOpen, setIsInfoRequestModalOpen] = useState(false);
-    const [selectedInfoRequestKeys, setSelectedInfoRequestKeys] = useState([]);
-    const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
-    const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
+    // const [isInfoRequestModalOpen, setIsInfoRequestModalOpen] = useState(false);
+    // const [selectedInfoRequestKeys, setSelectedInfoRequestKeys] = useState([]);
+    // const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
+    // const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
 
     const [agencyPlaces, setAgencyPlaces] = useState([]);
     const [isAgencyLoading, setIsAgencyLoading] = useState(false);
     const [agencyError, setAgencyError] = useState("");
     const [linkedAgencyId, setLinkedAgencyId] = useState(null);
+
+    const navigate = useNavigate();
+    const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
 
     const AGENCY_LINK_CATEGORY = "기관 연계";
 
@@ -759,46 +719,15 @@ function WelfareSeniorDetail() {
         }
     };
 
-    const toggleInfoRequestKey = (key) => {
-        setSelectedInfoRequestKeys((previousKeys) =>
-            previousKeys.includes(key)
-                ? previousKeys.filter((item) => item !== key)
-                : [...previousKeys, key]
-        );
-    };
-
-    const handleInfoUpdateRequest = async () => {
-        if (!senior?.id || selectedInfoRequestKeys.length === 0) {
-            setInfoRequestStatusMessage("수정을 요청할 항목을 하나 이상 선택해주세요.");
-            return;
-        }
-
-        const selectedLabels = INFO_UPDATE_REQUEST_GROUPS
-            .filter((group) => selectedInfoRequestKeys.includes(group.key))
-            .map((group) => group.label);
-
-        const confirmed = window.confirm(`${senior.name}님에게 ${selectedLabels.join(", ")} 정보수정 요청을 보내겠습니까?`);
-        if (!confirmed) return;
-
+    const handleRemoveSenior = async () => {
         try {
-            setIsSendingInfoRequest(true);
-            setInfoRequestStatusMessage("");
-
-            await requestSeniorInfoUpdate({
-                seniorId: senior.id,
-                missingFields: selectedLabels,
-                toSenior: true,
-                toGuardian: false,
-            });
-
-            setInfoRequestStatusMessage("사용자에게 정보수정 요청을 보냈습니다.");
-            setSelectedInfoRequestKeys([]);
-            setIsInfoRequestModalOpen(false);
+            await removeWelfareSenior(senior.id);
+            setIsRemoveConfirmOpen(false);
+            navigate("/welfare");
         } catch (error) {
-            console.error("정보수정 요청 전송 실패:", error);
-            setInfoRequestStatusMessage("정보수정 요청 전송에 실패했습니다.");
-        } finally {
-            setIsSendingInfoRequest(false);
+            console.error("대상자 제거 실패:", error);
+            setIsRemoveConfirmOpen(false);
+            window.alert("대상자 제거에 실패했습니다.");
         }
     };
 
@@ -1312,14 +1241,10 @@ function WelfareSeniorDetail() {
 
                                 <button
                                     type="button"
-                                    className="wsd-small-button"
-                                    style={{ width: "100%" }}
-                                    onClick={() => {
-                                        setInfoRequestStatusMessage("");
-                                        setIsInfoRequestModalOpen(true);
-                                    }}
+                                    className="wsd-remove-senior-btn"
+                                    onClick={() => setIsRemoveConfirmOpen(true)}
                                 >
-                                    정보수정 요청
+                                    대상자 제거
                                 </button>
                             </div>
 
@@ -1330,70 +1255,6 @@ function WelfareSeniorDetail() {
                     </>
                 )}
             </main>
-
-            {isInfoRequestModalOpen && (
-                <div className="wsd-consult-modal-backdrop">
-                    <section className="wsd-consult-modal wsd-info-request-modal">
-                        <div className="wsd-consult-modal-header">
-                            <h3>정보수정 요청</h3>
-
-                            <button
-                                type="button"
-                                onClick={() => setIsInfoRequestModalOpen(false)}
-                                disabled={isSendingInfoRequest}
-                            >
-                                닫기
-                            </button>
-                        </div>
-
-                        <div className="wsd-consult-modal-body">
-                            <div className="wsd-consult-modal-summary">
-                                <span>대상자</span>
-                                <strong>{senior.name}</strong>
-                                <small>{[formatAgeGender(senior), detail.address].filter(Boolean).join(" · ")}</small>
-                            </div>
-
-                            <div className="wsd-info-request-list">
-                                {INFO_UPDATE_REQUEST_GROUPS.map((group) => (
-                                    <label className="wsd-info-request-option" key={group.key} style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "10px" }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedInfoRequestKeys.includes(group.key)}
-                                            onChange={() => toggleInfoRequestKey(group.key)}
-                                            style={{ flexShrink: 0, marginTop: "3px", width: "16px", height: "16px", accentColor: "#6f9272", cursor: "pointer" }}
-                                        />
-                                        <span style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                            <strong>{group.label}</strong>
-                                            <small>{group.fields.join(", ")}</small>
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-
-                            {infoRequestStatusMessage && (
-                                <p className="wsd-status-message">{infoRequestStatusMessage}</p>
-                            )}
-                        </div>
-
-                        <div className="wsd-consult-modal-actions">
-                            <button
-                                type="button"
-                                onClick={() => setIsInfoRequestModalOpen(false)}
-                                disabled={isSendingInfoRequest}
-                            >
-                                취소
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleInfoUpdateRequest}
-                                disabled={isSendingInfoRequest || selectedInfoRequestKeys.length === 0}
-                            >
-                                요청 보내기
-                            </button>
-                        </div>
-                    </section>
-                </div>
-            )}
 
             {isConsultRequestModalOpen && (
                 <div className="wsd-consult-modal-backdrop">
@@ -1454,6 +1315,34 @@ function WelfareSeniorDetail() {
                 </div>
             )}
 
+            {isRemoveConfirmOpen && (
+                <div className="wsd-consult-modal-backdrop" onClick={() => setIsRemoveConfirmOpen(false)}>
+                    <section className="wsd-consult-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "400px" }}>
+
+                        <div className="wsd-consult-modal-body">
+                            <p style={{ margin: "8px 0 4px", fontSize: "18px", fontWeight: "700", textAlign: "center" }}>
+                                {senior?.name}님을 담당 대상자에서 제거할까요?
+                            </p>
+                            <p style={{ fontSize: "13px", color: "#888", marginTop: "10px", textAlign: "center" }}>
+                                계정과 데이터는 유지되며, 담당 복지사 연결만 해제됩니다.
+                            </p>
+                        </div>
+
+                        <div className="wsd-consult-modal-actions">
+                            <button type="button" onClick={() => setIsRemoveConfirmOpen(false)}>
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                style={{ background: "#b85252", color: "#fff", border: "none" }}
+                                onClick={handleRemoveSenior}
+                            >
+                                제거
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
         </div>
     );
 }

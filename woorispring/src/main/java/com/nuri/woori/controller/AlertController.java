@@ -754,7 +754,7 @@ public class AlertController {
                 ? "필수 정보"
                 : String.join(", ", missingFields);
 
-        return seniorName + "님의 " + fieldsText + " 입력이 필요합니다. 정보를 확인하고 입력해주세요.";
+        return fieldsText + " 입력이 필요합니다. 정보를 확인하고 입력해주세요.";
     }
 
     private String buildGuardianInfoUpdateMessage(String seniorName, List<String> missingFields) {
@@ -762,7 +762,7 @@ public class AlertController {
                 ? "필수 정보"
                 : String.join(", ", missingFields);
 
-        return "연결된 보호 대상자 " + seniorName + "님의 " + fieldsText + " 입력이 필요합니다.";
+        return fieldsText + " 입력이 필요합니다.";
     }
 
     public record InfoUpdateRequest(

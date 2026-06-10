@@ -275,3 +275,18 @@ export const readSeniorSosAlerts = async (seniorId) => {
 
     return response.json();
 };
+
+// 사용자 제거
+export const removeWelfareSenior = async (seniorId) => {
+    const response = await fetch(`/api/seniors/${seniorId}/welfare-worker`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ welfareWorkerId: null }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to remove welfare senior");
+    }
+
+    return response.json();
+};

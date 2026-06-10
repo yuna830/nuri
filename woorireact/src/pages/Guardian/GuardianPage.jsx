@@ -74,13 +74,16 @@ const saveLocalCareTeamMap = (profiles, guardian) => {
   }
 };
 
+const NONE = "없음";
+
 const INFO_REQUEST_FIELDS = [
+  // ── 기본 정보 ──────────────────────────────────────
   {
     key: "gender",
     label: "성별",
     aliases: ["성별"],
     type: "select",
-    options: ["남성", "여성"],
+    options: ["", "여성", "남성", "기타"],
   },
   {
     key: "phone",
@@ -92,7 +95,7 @@ const INFO_REQUEST_FIELDS = [
   {
     key: "birthDate",
     label: "생년월일",
-    aliases: ["생년월일", "나이"],
+    aliases: ["생년월일", "나이", "생년월일/나이"],
     type: "date",
   },
   {
@@ -101,6 +104,82 @@ const INFO_REQUEST_FIELDS = [
     aliases: ["주소", "거주 지역"],
     type: "text",
     placeholder: "서울 광진구 자양동 794-10",
+  },
+
+  // ── 장애 정보 ──────────────────────────────────────
+  {
+    key: "disabilityGrade",
+    label: "장애 등급",
+    aliases: ["장애 정보", "장애 등급"],
+    type: "select",
+    options: [NONE, "1급", "2급", "3급", "4급", "5급", "6급"],
+  },
+  {
+    key: "disabilityType",
+    label: "장애 유형",
+    aliases: ["장애 유형"],
+    type: "select",
+    options: [NONE, "지체장애", "시각장애", "청각장애", "언어장애", "지적장애", "정신장애", "기타"],
+  },
+
+  // ── 건강 정보 (만성질환) ────────────────────────────
+  {
+    key: "diabetes",
+    label: "당뇨",
+    aliases: ["건강 정보", "만성질환"],
+    type: "select",
+    options: [NONE, "약이나 식단으로 관리 중", "최근 조절이 어렵거나 도움이 필요함"],
+  },
+  {
+    key: "hypertension",
+    label: "고혈압",
+    aliases: [],
+    type: "select",
+    options: [NONE, "약으로 관리 중", "최근 혈압 변동이 크거나 도움이 필요함"],
+  },
+  {
+    key: "heartDisease",
+    label: "심장질환",
+    aliases: [],
+    type: "select",
+    options: [NONE, "정기 진료/약으로 관리 중", "숨참/가슴통증 등으로 활동 제한"],
+  },
+  {
+    key: "jointDisease",
+    label: "관절질환",
+    aliases: [],
+    type: "select",
+    options: [NONE, "가끔 통증이 있으나 보행 가능", "통증 때문에 보행/작업 제한"],
+  },
+
+  // ── 건강 정보 (거동/인지) ───────────────────────────
+  {
+    key: "walkingAid",
+    label: "보행 보조기구",
+    aliases: [],
+    type: "select",
+    options: [NONE, "지팡이", "보행기", "휠체어"],
+  },
+  {
+    key: "dementia",
+    label: "기억/판단",
+    aliases: [],
+    type: "select",
+    options: [NONE, "가끔 헷갈림", "도움이 자주 필요함"],
+  },
+  {
+    key: "vision",
+    label: "시력",
+    aliases: [],
+    type: "select",
+    options: [NONE, "글씨가 조금 흐림", "큰 글씨만 보임", "거의 보이지 않음"],
+  },
+  {
+    key: "hearing",
+    label: "청력",
+    aliases: [],
+    type: "select",
+    options: [NONE, "작은 소리가 잘 안 들림", "큰 소리로 말해야 들림", "거의 들리지 않음"],
   },
 ];
 
@@ -1117,7 +1196,17 @@ function GuardianPage() {
     setSelectedElderId(targetElder.id);
     setEditingElder(targetElder);
     setInfoRequestFormAlert(alert);
-    setInfoRequestFieldKeys(requestedKeys.length > 0 ? requestedKeys : ["gender"]);
+    const fallbackKeys = INFO_REQUEST_FIELDS
+      .filter((field) => {
+        if (field.key === "region") return isEmptyInfoValue(targetElder?.address);
+        if (field.key === "birthDate") return isEmptyInfoValue(targetElder?.birthDate) && isEmptyInfoValue(targetElder?.age);
+        return isEmptyInfoValue(targetElder?.[field.key]);
+      })
+      .map((field) => field.key);
+
+    setInfoRequestFieldKeys(
+      requestedKeys.length > 0 ? requestedKeys : fallbackKeys.length > 0 ? fallbackKeys : ["gender"]
+    );
     setInfoRequestForm((prev) => ({
       ...prev,
       ...buildInfoRequestForm(targetElder),
