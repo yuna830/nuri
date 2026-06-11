@@ -627,6 +627,17 @@ export const fetchFallEvents = async (days = 1) => {
   }
 };
 
+export const fetchStoredFallEvents = async ({ page = 1, size = 50 } = {}) => {
+  const response = await fetch(`${API_BASE}/api/fall-events?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`);
+
+  if (!response.ok) {
+    throw new Error("Stored fall events failed");
+  }
+
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+};
+
 export const fetchActivitySlots = async (seniorId) => {
   return trySpringThenFall(
     seniorId ? `${API_BASE}/api/seniors/${seniorId}/activity/slots` : null,

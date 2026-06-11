@@ -823,3 +823,52 @@
   background: #86a788;
   color: #ffffff;
 }
+
+.guardian-surgery-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.guardian-surgery-card {
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 14px 16px 10px;
+  background: #f8fbf8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guardian-surgery-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #5f7d61;
+  margin-bottom: 4px;
+}
+
+.guardian-surgery-card-remove {
+  background: none;
+  border: 1px solid #c8ddc9;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.8rem;
+  color: #8aaa8c;
+  cursor: pointer;
+}
+
+.guardian-surgery-add-btn {
+  background: none;
+  border: 1.5px dashed #86a788;
+  border-radius: 8px;
+  padding: 10px;
+  color: #5f7d61;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  font-size: 0.9rem;
+}

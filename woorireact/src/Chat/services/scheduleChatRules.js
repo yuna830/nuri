@@ -1,5 +1,5 @@
 import { TIME_EXPRESSION_PATTERN_SOURCE, normalizeScheduleText, parseDateFromText, parseTimeExpression, parseTimeFromText, } from "./scheduleParser";
-import { formatCurrentTimeKorean, formatDateKorean, formatScheduleList, formatTodayKorean, pad, scheduleToText, todayValue, } from "../utils/scheduleText";
+import { formatCurrentTimeKorean, formatDateKorean, formatScheduleList, formatTodayKorean, isPastSchedule, pad, scheduleToText, todayValue, } from "../utils/scheduleText";
 
 /*  제미나이가 뽑아준 결과를 일정 객체로 변환  */ 
 export function scheduleFromExtractedIntent(extracted) {
@@ -101,7 +101,8 @@ export function getScheduleCommandAction({ text, pendingSchedule, savedSchedules
 /*  특정 날짜 일정 조회  */
 function getLookupAction(text, savedSchedules) {
   const date = parseDateFromText(text) || todayValue();
-  const matches = schedulesByDate(savedSchedules, date);
+  const matches = schedulesByDate(savedSchedules, date)
+    .filter((schedule) => date !== todayValue() || !isPastSchedule(schedule));
 
   return {
     type: "answer",
@@ -154,6 +155,13 @@ function getUpdateAction(text, savedSchedules) {
 
 /*  현재 날짜 답변  */
 function getCurrentDateTimeAnswer(text) {
+  if (
+    /(운영|영업|진료|접수)\s*시간|시간.*(운영|영업|진료|접수)/.test(text) ||
+    /(병원|의원|약국|가게|매장|그곳|거기).*(몇\s*시|언제).*(까지|열|닫|해)/.test(text)
+  ) {
+    return "";
+  }
+
   const asksTime = /(지금|현재)?\s*(몇\s*시|시간|시각)/.test(text);
   const asksToday = /(오늘|현재)?\s*(날짜|며칠|무슨\s*요일)/.test(text);
 
@@ -308,5 +316,3 @@ function extractScheduleKeywords(text) {
 function scheduleToSearchText(schedule) {
   return `${schedule.title || ""} ${schedule.detail || ""} ${schedule.text || ""}`;
 }
-
-

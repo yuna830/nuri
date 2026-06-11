@@ -32,12 +32,16 @@ import {
   calculateAge,
   calcBMI,
   createMedicine,
+  createSurgery,
   defaultForm,
   normalizeForm,
   profileToForm,
   syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
 import "../../css/user/ProfilePage.css";
+
+const CURRENT_YEAR = new Date().getFullYear();
+const SURGERY_YEARS = ["", ...Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) => String(CURRENT_YEAR - i))];
 
 // 섹션별 요청 대상 필드 키 목록
 const SECTION_FIELD_KEYS = {
@@ -169,6 +173,13 @@ export default function ProfilePage() {
     setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
   };
 
+  const addSurgery = () => { isDirty.current = true; setForm((prev) => ({ ...prev, surgeries: [...(prev.surgeries || []), createSurgery()] })); };
+  const removeSurgery = (index) => { isDirty.current = true; setForm((prev) => ({ ...prev, surgeries: prev.surgeries.filter((_, i) => i !== index) })); };
+  const setSurgery = (index, key, value) => {
+    isDirty.current = true;
+    setForm((prev) => ({ ...prev, surgeries: prev.surgeries.map((s, i) => i === index ? { ...s, [key]: value } : s) }));
+  };
+
   const handleMedicineCountChange = (value) => {
     isDirty.current = true;
     setForm((prev) => ({
@@ -250,6 +261,13 @@ export default function ProfilePage() {
       const age = calculateAge(form.birthDate);
       if (!age || age < 14) {
         alert("생년월일은 만 14세 이상이어야 해요.");
+        return;
+      }
+    }
+    if (form.hasSurgery === "있음") {
+      const hasName = (form.surgeries || []).some((s) => s.name && String(s.name).trim());
+      if (!hasName) {
+        alert("수술 이력이 '있음'으로 선택되어 있습니다.\n수술명을 입력해주세요.");
         return;
       }
     }
@@ -447,19 +465,25 @@ export default function ProfilePage() {
           </section>
         );
 
-      case "chronic":
+      case "chronic": {
+        const allNone = CHRONIC.every(({ key }) => form[key] === NONE);
         return (
           <section className="pr-section">
             <div className="pr-section-title">만성질환</div>
             <div className="pr-hint">의학적 등급보다 실제 생활 기준에 맞춰 선택해주세요.</div>
             <div style={{ textAlign: "right", marginBottom: "0.5rem" }}>
-              <button className="pr-chip" type="button" onClick={() => CHRONIC.forEach(({ key }) => set(key, NONE))}>전체 없음</button>
+              <button
+                className={`pr-chip ${allNone ? "on" : ""}`}
+                type="button"
+                onClick={() => CHRONIC.forEach(({ key }) => set(key, allNone ? "" : NONE))}
+              >전체 없음</button>
             </div>
             {CHRONIC.map(({ key, label, levels }) => (
               <ChipField key={key} label={label} value={form[key]} options={levels} highlight={highlightKeys.has(key)} onSelect={(value) => set(key, value)} />
             ))}
           </section>
         );
+      }
 
       case "mobility":
         return (
@@ -470,8 +494,26 @@ export default function ProfilePage() {
             <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} highlight={highlightKeys.has("vision")} onSelect={(value) => set("vision", value)} />
             <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} highlight={highlightKeys.has("hearing")} onSelect={(value) => set("hearing", value)} />
             <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} highlight={highlightKeys.has("recentFall")} onSelect={(value) => set("recentFall", value)} />
-            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} highlight={highlightKeys.has("hasSurgery")} onSelect={(value) => set("hasSurgery", value)} />
-            {form.hasSurgery === "있음" && <TextareaField label="수술 내용" value={form.surgeryDetail} onChange={(value) => set("surgeryDetail", value)} />}
+            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} highlight={highlightKeys.has("hasSurgery")} onSelect={(value) => {
+              set("hasSurgery", value);
+              if (value === "있음" && (form.surgeries || []).length === 0) addSurgery();
+            }} />
+            {form.hasSurgery === "있음" && (
+              <>
+                {(form.surgeries || []).map((surgery, index) => (
+                  <div className="pr-medication-card" key={`surgery-${index}`}>
+                    <div className="pr-medication-head">
+                      <strong>수술 {index + 1}</strong>
+                      <button type="button" onClick={() => removeSurgery(index)}>삭제</button>
+                    </div>
+                    <InputField label="수술명" value={surgery.name} onChange={(value) => setSurgery(index, "name", value)} />
+                    <InputField label="수술 날짜" type="date" value={surgery.date} onChange={(value) => setSurgery(index, "date", value)} />
+                    <SelectField label="회복 여부" value={surgery.recovery} options={["", "모름", "회복중", "회복완료", "미회복"]} labels={{ "": "선택해주세요" }} onChange={(value) => setSurgery(index, "recovery", value)} />
+                  </div>
+                ))}
+                <button className="pr-add-line-btn" type="button" onClick={addSurgery}>+ 수술 이력 추가</button>
+              </>
+            )}
             <TextareaField label="기타 건강 참고사항" value={form.otherDisease} onChange={(value) => set("otherDisease", value)} />
           </section>
         );
@@ -517,7 +559,7 @@ export default function ProfilePage() {
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
             <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
-            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} highlight={highlightKeys.has("payType")} onSelect={(value) => set("payType", value)} />
+            <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} highlight={highlightKeys.has("payType")} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
             <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />

@@ -58,7 +58,7 @@ const _restNeeds = [
   '2시간마다 10분', '2시간마다 15분', '3시간마다 15분', '필요할 때 짧게 쉬기',
 ];
 const _avoidEnvironments = [
-  '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'
+  '상관없음', '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'
 ];
 // 웹앱 LIVING_COST_STATUSES 와 동일
 const _livingCostStatuses = [
@@ -92,18 +92,18 @@ const _careNeeds = [
 ];
 const _days = ['월', '화', '수', '목', '금', '토', '일'];
 const _jobTypes = [
-  '경비/청소', '급식/조리 보조', '사무 보조', '돌봄 보조',
-  '작업/수공예', '판매/안내', '환경 정비', '상관없음',
+  '상관없음', '경비/청소', '급식/조리 보조', '사무 보조', '돌봄 보조',
+  '작업/수공예', '판매/안내', '환경 정비',
 ];
 const _jobConditions = [
-  '실내 근무 선호', '안전 근무', '오후 근무', '주 3일 이하', '단기 가능', '앉아서 근무'
+  '상관없음', '실내 근무 선호', '안전 근무', '오후 근무', '주 3일 이하', '단기 가능', '앉아서 근무'
 ];
 const _workTypes = [
-  '장시간 서있기', '실외 작업', '야간 근무', '무거운 물건 운반',
+  '상관없음', '장시간 서있기', '실외 작업', '야간 근무', '무거운 물건 운반',
   '컴퓨터 작업', '계단 이동', '반복 작업', '고객 응대',
 ];
 const _yesNo = [_none, '예', '아니오'];
-const _payTypes = [_none, '시급', '일급', '월급', '무관'];
+const _payTypes = ['상관없음', '시급', '월급', '일당'];
 const _maxHoursOptions = [
   _none, '상관없음', '1시간', '2시간', '3시간', '4시간', '5시간', '6시간', '8시간'
 ];
@@ -197,6 +197,7 @@ class _ProfileForm {
   String recentFall = _none;
   String hasSurgery = _none;
   String surgeryDetail = '';
+  List<Map<String, dynamic>> surgeries = [];
   String otherDisease = '';
 
   // 활동조건
@@ -243,6 +244,20 @@ List<String> _parseList(dynamic v) {
   } catch (_) {}
   // CSV 문자열 (웹에서 join(",")으로 저장한 형식)
   return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+}
+
+List<Map<String, dynamic>> _parseSurgeries(dynamic raw) {
+  dynamic source = raw;
+  if (source is String) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty || trimmed == '[]') return [];
+    try { source = jsonDecode(trimmed); } catch (_) { return []; }
+  }
+  if (source is! List) return [];
+  return source.whereType<Map>().map((m) => {
+    'name': '${m['name'] ?? ''}',
+    'year': '${m['year'] ?? ''}',
+  }).where((s) => (s['name'] as String).isNotEmpty).toList();
 }
 
 List<Map<String, String>> _parseMedications(dynamic raw) {
@@ -335,6 +350,7 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   form.recentFall   = _orNone(h['recentFall']);
   form.hasSurgery   = _orNone(h['hasSurgery']);
   form.surgeryDetail = '${h['surgeryDetail'] ?? ''}';
+  form.surgeries = _parseSurgeries(h['surgeriesJson'] ?? h['surgeries']);
   form.otherDisease  = '${h['otherDisease'] ?? ''}';
 
   // ── 활동조건 (Spring: restNeed / avoidEnvironment — 단수) ──
@@ -397,6 +413,8 @@ Map<String, dynamic> _formToApi(_ProfileForm f) {
     'recentFall': f.recentFall == _none ? '' : f.recentFall,
     'hasSurgery': f.hasSurgery == _none ? '' : f.hasSurgery,
     'surgeryDetail': f.surgeryDetail,
+    'surgeries': f.surgeries,
+    'surgeriesJson': jsonEncode(f.surgeries),
     'otherDisease': f.otherDisease,
     'maxHours': f.maxHours == _none ? '' : f.maxHours,
     'maxDistance': f.maxDistance == _none ? '' : f.maxDistance,
@@ -1541,6 +1559,127 @@ class _MedicationRowState extends State<_MedicationRow> {
   }
 }
 
+// ─── 수술 이력 행 ─────────────────────────────────────────────────────────────
+
+class _SurgeryRow extends StatefulWidget {
+  const _SurgeryRow({required this.index, required this.surgery, required this.onRemove, required this.onChanged});
+  final int index;
+  final Map<String, dynamic> surgery;
+  final VoidCallback onRemove;
+  final VoidCallback onChanged;
+
+  @override
+  State<_SurgeryRow> createState() => _SurgeryRowState();
+}
+
+class _SurgeryRowState extends State<_SurgeryRow> {
+  late final TextEditingController _name;
+  DateTime? _selectedDate;
+  String? _recovery;
+
+  static const _recoveryOptions = ['모름', '회복중', '회복완료', '미회복'];
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: '${widget.surgery['name'] ?? ''}');
+    final raw = widget.surgery['date']?.toString() ?? widget.surgery['year']?.toString() ?? '';
+    if (raw.length >= 10) {
+      _selectedDate = DateTime.tryParse(raw);
+    }
+    final r = widget.surgery['recovery']?.toString() ?? '';
+    _recovery = _recoveryOptions.contains(r) ? r : null;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime(2000),
+      firstDate: DateTime(1940),
+      lastDate: DateTime.now(),
+      locale: const Locale('ko'),
+    );
+    if (picked != null) {
+      final formatted = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      setState(() => _selectedDate = picked);
+      widget.surgery['date'] = formatted;
+      widget.onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText = _selectedDate != null
+        ? '${_selectedDate!.year}년 ${_selectedDate!.month}월 ${_selectedDate!.day}일'
+        : '날짜 선택';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F5E8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4E8D6)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('수술 ${widget.index + 1}',
+              style: const TextStyle(color: Color(0xFF1F2A20), fontSize: 15, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          GestureDetector(
+            onTap: widget.onRemove,
+            child: const Icon(Icons.close, size: 18, color: Color(0xFFD94E4E)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        const _FieldLabel('수술명'),
+        TextField(
+          controller: _name,
+          decoration: _deco(hint: '예: 무릎 인공관절 수술'),
+          onChanged: (v) { widget.surgery['name'] = v; widget.onChanged(); },
+        ),
+        const SizedBox(height: 10),
+        const _FieldLabel('수술 날짜'),
+        GestureDetector(
+          onTap: _pickDate,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F5E8),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFD4E8D6)),
+            ),
+            child: Row(children: [
+              Expanded(child: Text(dateText,
+                  style: TextStyle(color: _selectedDate != null ? const Color(0xFF1F2A20) : const Color(0xFF9E9E9E), fontSize: 14))),
+              const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF86A788)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 10),
+        const _FieldLabel('회복 여부'),
+        DropdownButtonFormField<String>(
+          value: _recovery,
+          hint: const Text('선택해주세요'),
+          items: _recoveryOptions.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          onChanged: (v) {
+            setState(() => _recovery = v);
+            widget.surgery['recovery'] = v ?? '';
+            widget.onChanged();
+          },
+          decoration: _deco(hint: '선택해주세요'),
+          isExpanded: true,
+        ),
+      ]),
+    );
+  }
+}
+
 // ─── 만성질환 ─────────────────────────────────────────────────────────────────
 
 class _ChronicSection extends StatelessWidget {
@@ -1551,6 +1690,7 @@ class _ChronicSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final allNone = _chronicDiseases.every((d) => form.chronic[d['key']!] == _none);
     return _SectionScroll(
       missingLabels: missingLabels,
       children: [
@@ -1558,10 +1698,22 @@ class _ChronicSection extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
-              for (final d in _chronicDiseases) { form.chronic[d['key']!] = _none; }
+              if (allNone) {
+                for (final d in _chronicDiseases) { form.chronic[d['key']!] = ''; }
+              } else {
+                for (final d in _chronicDiseases) { form.chronic[d['key']!] = _none; }
+              }
               onChanged();
             },
-            child: const Text('전체 없음', style: TextStyle(color: Color(0xFF86a788))),
+            style: allNone
+                ? TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF86a788),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  )
+                : null,
+            child: const Text('전체 없음'),
           ),
         ),
         ..._chronicDiseases.map((d) {
@@ -1597,21 +1749,30 @@ class _MobilitySection extends StatefulWidget {
 }
 
 class _MobilitySectionState extends State<_MobilitySection> {
-  late final TextEditingController _surgeryDetail;
   late final TextEditingController _otherDisease;
 
   @override
   void initState() {
     super.initState();
-    _surgeryDetail = TextEditingController(text: widget.form.surgeryDetail);
     _otherDisease = TextEditingController(text: widget.form.otherDisease);
   }
 
   @override
   void dispose() {
-    _surgeryDetail.dispose();
     _otherDisease.dispose();
     super.dispose();
+  }
+
+  void _addSurgery() {
+    widget.form.surgeries.add({'name': '', 'year': ''});
+    widget.onChanged();
+    setState(() {});
+  }
+
+  void _removeSurgery(int i) {
+    widget.form.surgeries.removeAt(i);
+    widget.onChanged();
+    setState(() {});
   }
 
   @override
@@ -1663,18 +1824,35 @@ class _MobilitySectionState extends State<_MobilitySection> {
           items: _yesNo,
           onChanged: (v) {
             widget.form.hasSurgery = v;
+            if (v == '예' && widget.form.surgeries.isEmpty) _addSurgery();
             widget.onChanged();
           }),
       if (widget.form.hasSurgery == '예') ...[
-        const _FieldLabel('수술 내용'),
-        _FormField(
-          controller: _surgeryDetail,
-          hint: '예: 무릎 인공관절 수술',
-          onChanged: (v) {
-            widget.form.surgeryDetail = v;
-            widget.onChanged();
-          },
-        ),
+        Row(children: [
+          const Expanded(child: Text('수술 이력 목록', style: TextStyle(color: Color(0xFF111827), fontSize: 15, fontWeight: FontWeight.w700))),
+          TextButton.icon(
+            onPressed: _addSurgery,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('추가'),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
+          ),
+        ]),
+        if (widget.form.surgeries.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('아래 추가 버튼을 눌러 수술 이력을 입력해주세요', style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
+          )
+        else
+          ...widget.form.surgeries.asMap().entries.map((entry) {
+            final i = entry.key;
+            final s = entry.value;
+            return _SurgeryRow(
+              index: i,
+              surgery: s,
+              onRemove: () => _removeSurgery(i),
+              onChanged: () { widget.onChanged(); setState(() {}); },
+            );
+          }),
       ],
       const _FieldLabel('기타 질환'),
       _FormField(

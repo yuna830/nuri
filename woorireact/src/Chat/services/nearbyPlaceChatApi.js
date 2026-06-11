@@ -1,6 +1,9 @@
 const DEFAULT_RADIUS_METERS = 2000;
 
-export async function getNearbyPlaceChatAnswer(text) {
+export async function getNearbyPlaceChatAnswer(text, previousSearch = null) {
+  const hoursFollowUp = getOperatingHoursFollowUp(text, previousSearch);
+  if (hoursFollowUp) return hoursFollowUp;
+
   const request = parseNearbyPlaceRequest(text);
   if (!request) return "";
 
@@ -17,18 +20,24 @@ export async function getNearbyPlaceChatAnswer(text) {
       return `현재 위치 근처에서 ${request.label}을 찾지 못했어요. 다른 검색어로 다시 말해주세요.`;
     }
 
-    return `현재 위치 기준 가까운 ${request.label}입니다.\n${places.map(formatPlace).join("\n")}`;
+    return {
+      answer: `현재 위치 기준 가까운 ${request.label}입니다.\n${places.map(formatPlace).join("\n")}`,
+      context: {
+        label: request.label,
+        places,
+      },
+    };
   } catch (error) {
     console.error("주변 장소 검색 오류:", error);
 
     if (error.message === "KAKAO_KEY_MISSING") {
-      return "장소 검색을 하려면 카카오 REST API 키 설정이 필요해요.";
+      return { answer: "장소 검색을 하려면 카카오 REST API 키 설정이 필요해요." };
     }
     if (error.message === "KAKAO_RATE_LIMIT" || error.message === "KAKAO_COOLDOWN") {
-      return "장소 검색 요청이 잠시 많아요. 조금 뒤 다시 말해주세요.";
+      return { answer: "장소 검색 요청이 잠시 많아요. 조금 뒤 다시 말해주세요." };
     }
 
-    return "현재 위치 권한이 필요해요. 브라우저 위치 권한을 허용한 뒤 다시 말해주세요.";
+    return { answer: "현재 위치 권한이 필요해요. 브라우저 위치 권한을 허용한 뒤 다시 말해주세요." };
   }
 }
 
@@ -62,8 +71,31 @@ async function searchNearbyPlaces(keyword, { lat, lon, radius, size }) {
       distance: place.distance,
       lat: place.y,
       lon: place.x,
+      phone: place.phone,
+      place_url: place.place_url,
     }))
     .filter((place) => place.name && place.lat && place.lon);
+}
+
+function getOperatingHoursFollowUp(text, previousSearch) {
+  if (!/(운영|영업|진료|접수).*(시간|몇\s*시)|몇\s*시.*(열어|닫아|까지)/.test(String(text || ""))) {
+    return null;
+  }
+
+  const places = previousSearch?.places || [];
+  if (places.length === 0) return null;
+
+  const selectedPlace =
+    places.find((place) => String(text).includes(place.name)) ||
+    places[0];
+  const contact = selectedPlace.phone
+    ? `전화번호는 ${selectedPlace.phone}입니다.`
+    : "전화번호는 검색 결과에 제공되지 않았어요.";
+
+  return {
+    answer: `${selectedPlace.name}의 운영시간은 현재 장소 검색 결과에 포함되지 않아요. ${contact} 방문 전에 전화나 병원 공식 안내로 진료시간을 확인해 주세요.`,
+    context: previousSearch,
+  };
 }
 
 function parseNearbyPlaceRequest(text) {

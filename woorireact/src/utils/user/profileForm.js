@@ -15,6 +15,7 @@ export const CHRONIC = [
 ];
 
 export const WORK_TYPES = [
+  "상관없음",
   "장시간 서있기",
   "실외 작업",
   "야간 근무",
@@ -28,6 +29,7 @@ export const WORK_TYPES = [
 export const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export const JOB_TYPES = [
+  "상관없음",
   "경비/청소",
   "급식/조리 보조",
   "사무 보조",
@@ -35,10 +37,10 @@ export const JOB_TYPES = [
   "작업/수공예",
   "판매/안내",
   "환경 정비",
-  "상관없음",
 ];
 
 export const JOB_CONDITIONS = [
+  "상관없음",
   "실내 근무 선호",
   "안전 근무",
   "오후 근무",
@@ -62,7 +64,7 @@ export const REST_NEEDS = [
   "3시간마다 15분",
   "필요할 때 짧게 쉬기",
 ];
-export const AVOID_ENVIRONMENTS = ["소음 많은 곳", "먼지 많은 곳", "덥거나 추운 곳", "미끄러운 바닥", "사람 많은 곳", "혼자 하는 작업"];
+export const AVOID_ENVIRONMENTS = ["상관없음", "소음 많은 곳", "먼지 많은 곳", "덥거나 추운 곳", "미끄러운 바닥", "사람 많은 곳", "혼자 하는 작업"];
 export const LIVING_COST_STATUSES = [
   "잘 모르겠어요",
   "수입이 거의 없어요",
@@ -322,13 +324,14 @@ export const defaultForm = {
   recentFall: "",
   hasSurgery: "",
   surgeryDetail: "",
+  surgeries: [],
   otherDisease: "",
   maxHours: "",
   maxDistance: "",
   disabledWork: [],
   restNeed: "",
   avoidEnvironment: [],
-  payType: "무관",
+  payType: "",
   hopeDays: [],
   hopeJobType: [],
   hopeCondition: [],
@@ -368,6 +371,20 @@ const readMedications = (healthInfo = {}) => {
   return [];
 };
 
+export const createSurgery = () => ({ name: "", date: "", recovery: "" });
+
+const readSurgeries = (healthInfo = {}) => {
+  const normalize = (s) => ({ ...createSurgery(), ...s, name: s.name ?? "", date: s.date ?? s.year ?? "", recovery: s.recovery ?? "" });
+  if (Array.isArray(healthInfo.surgeries)) return healthInfo.surgeries.map(normalize);
+  if (typeof healthInfo.surgeriesJson === "string") {
+    try {
+      const parsed = JSON.parse(healthInfo.surgeriesJson);
+      return Array.isArray(parsed) ? parsed.map(normalize) : [];
+    } catch { return []; }
+  }
+  return [];
+};
+
 export const profileToForm = (profile = {}) => {
   const senior = profile.senior ?? {};
   const healthInfo = profile.healthInfo ?? {};
@@ -376,6 +393,7 @@ export const profileToForm = (profile = {}) => {
   const mergedHealthInfo = { ...flatInfo, ...healthInfo };
   const mergedJobPreference = { ...flatInfo, ...jobPreference };
   const medications = readMedications(mergedHealthInfo);
+  const surgeries = readSurgeries(mergedHealthInfo);
   const savedRegion = senior.region ?? senior.address ?? "";
   const splitAddress = splitRegion(savedRegion);
   const city = senior.city ?? splitAddress.city;
@@ -436,13 +454,14 @@ export const profileToForm = (profile = {}) => {
     recentFall: mergedHealthInfo.recentFall ?? NONE,
     hasSurgery: mergedHealthInfo.hasSurgery ?? NONE,
     surgeryDetail: mergedHealthInfo.surgeryDetail ?? "",
+    surgeries,
     otherDisease: mergedHealthInfo.otherDisease ?? "",
     maxHours: mergedHealthInfo.maxHours ?? "",
     maxDistance: mergedHealthInfo.maxDistance ?? "",
     disabledWork: splitCsv(mergedHealthInfo.disabledWork),
     restNeed: mergedHealthInfo.restNeed ?? NONE,
     avoidEnvironment: splitCsv(mergedHealthInfo.avoidEnvironment),
-    payType: mergedJobPreference.payType ?? "무관",
+    payType: mergedJobPreference.payType ?? "",
     hopeDays: splitCsv(mergedJobPreference.hopeDays),
     hopeJobType: splitCsv(mergedJobPreference.hopeJobType),
     hopeCondition: splitCsv(mergedJobPreference.hopeCondition),
@@ -462,6 +481,10 @@ export const normalizeForm = (form) => {
 
   const welfareRag = mapWelfareInfoForRag(form);
 
+  const surgeries = (form.surgeries || []).filter((s) =>
+    s.name && String(s.name).trim()
+  );
+
   return {
     ...form,
     age: form.birthDate ? String(calculateAge(form.birthDate) || "") : form.age,
@@ -471,6 +494,8 @@ export const normalizeForm = (form) => {
     seniorRelationToGuardian,
     medications,
     medicationsJson: JSON.stringify(medications),
+    surgeries,
+    surgeriesJson: JSON.stringify(surgeries),
     lastLoginAt: form.lastLoginAt || new Date().toISOString(),
     // UI 선택값 (복원용)
     careNeeds: (form.careNeeds || []).join(","),
@@ -555,6 +580,8 @@ export const formToProfile = (profile, form) => {
       recentFall: normalized.recentFall,
       hasSurgery: normalized.hasSurgery,
       surgeryDetail: normalized.surgeryDetail,
+      surgeries: normalized.surgeries,
+      surgeriesJson: JSON.stringify(normalized.surgeries),
       otherDisease: normalized.otherDisease,
       maxHours: normalized.maxHours,
       maxDistance: normalized.maxDistance,

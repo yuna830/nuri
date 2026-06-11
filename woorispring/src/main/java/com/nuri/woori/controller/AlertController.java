@@ -543,45 +543,43 @@ public class AlertController {
     ) {
         PageRequest recentPage = PageRequest.of(0, 30);
 
-        List<WelfareAlertResponse> fallAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED", recentPage)
+        // 담당 시니어 목록을 먼저 조회해서 모든 알림 필터링에 공통 사용
+        List<Senior> managedSeniors = welfareWorkerId == null
+                ? seniorRepository.findAll()
+                : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+        List<Long> managedSeniorIds = managedSeniors.stream()
+                .map(Senior::getId)
+                .toList();
+
+        List<WelfareAlertResponse> fallAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED", recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndIsReadFalseOrderByCreatedAtDesc(managedSeniorIds, "FALL_DETECTED", recentPage))
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "fall-", "낙상 감지 알림", "FALL_DETECTED"))
                 .toList();
 
-//        List<WelfareAlertResponse> sosAlerts = alertRepository
-//                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
-//                .stream()
-//                .map(alert -> toWelfareResponse(alert, "sos-", "SOS 요청 미응답", "SOS"))
-//                .toList();
         // 보호자에게 직접 전달되는 SOS 요청은 복지사 알림함에 바로 노출하지 않습니다.
         // 복지사에게는 보호자가 아직 확인하지 않은 경우의 "미응답 SOS" 상태 알림만 보여줍니다.
-
-        List<WelfareAlertResponse> sosAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
+        List<WelfareAlertResponse> sosAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndIsReadFalseOrderByCreatedAtDesc(managedSeniorIds, "SOS", recentPage))
                 .stream()
-                .map(alert -> toWelfareResponse(
-                        alert,
-                        "sos-",
-                        "미응답 SOS",
-                        "UNANSWERED_SOS"
-                ))
+                .map(alert -> toWelfareResponse(alert, "sos-", "미응답 SOS", "UNANSWERED_SOS"))
                 .toList();
 
-
         LocalDateTime checkInOkCutoff = LocalDateTime.now().minusDays(7);
-        List<WelfareAlertResponse> checkInOkAlerts = alertRepository
-                .findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff, recentPage)
+        List<WelfareAlertResponse> checkInOkAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff, recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndCreatedAtAfterOrderByCreatedAtDesc(managedSeniorIds, "CHECK_IN_OK", checkInOkCutoff))
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "check-in-ok-", "안부 확인 완료", "CHECK_IN_OK"))
                 .toList();
 
         LocalDateTime threshold = LocalDateTime.now().minusHours(4);
-        List<Senior> inactiveAlertTargets = welfareWorkerId == null
-                ? seniorRepository.findAll()
-                : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
-
-        List<WelfareAlertResponse> inactiveAlerts = inactiveAlertTargets
+        List<WelfareAlertResponse> inactiveAlerts = managedSeniors
                 .stream()
                 .filter(senior -> senior.getLastLoginAt() != null)
                 .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
@@ -597,11 +595,6 @@ public class AlertController {
                         null,
                         false
                 ))
-                .toList();
-
-        // 정보 수정 완료 알림 (복지사가 담당하는 시니어만)
-        List<Long> managedSeniorIds = inactiveAlertTargets.stream()
-                .map(Senior::getId)
                 .toList();
 
         LocalDateTime profileUpdateCutoff = LocalDateTime.now().minusDays(30);
