@@ -35,6 +35,10 @@ class SeniorSessionStorage {
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
+    final seniorId = prefs.getInt(_seniorIdKey);
     await prefs.remove(_seniorIdKey);
+    if (seniorId != null) {
+      await prefs.remove('$_profilePrefix$seniorId');
+    }
   }
 }

@@ -52,9 +52,10 @@ class _AppShellState extends State<AppShell> {
   Timer? _notiTimer;
   final _api = const SeniorApi();
 
-  VoidCallback? _currentAction;
-  IconData? _currentActionIcon;
-  String? _currentActionTooltip;
+  // 탭별 액션 버튼 (IndexedStack 유지 시 각 탭이 자신의 액션을 등록)
+  final Map<int, VoidCallback> _pageActions = {};
+  final Map<int, IconData> _pageActionIcons = {};
+  final Map<int, String> _pageActionTooltips = {};
 
   @override
   void initState() {
@@ -104,9 +105,6 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _index = i;
       if (i == 4) _hasInfoRequest = false;
-      _currentAction = null;
-      _currentActionIcon = null;
-      _currentActionTooltip = null;
     });
   }
 
@@ -115,23 +113,19 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     if (profile == null) {
       // 프로필 미로드 시 막지 않고 그냥 이동
-      setState(() { _index = 3; _currentAction = null; _currentActionIcon = null; _currentActionTooltip = null; });
+      setState(() { _index = 3; });
       return;
     }
     final healthInfo = (profile['healthInfo'] as Map<String, dynamic>?) ?? {};
     final maxHours = healthInfo['maxHours'] as String? ?? '';
     final maxDistance = healthInfo['maxDistance'] as String? ?? '';
-    final noConditions = (maxHours.isEmpty || maxHours == '상관없음') &&
-        (maxDistance.isEmpty || maxDistance == '상관없음');
+    // '상관없음'은 사용자가 명시적으로 선택한 유효한 조건이므로 막지 않음
+    // 아직 한 번도 설정하지 않은 경우(빈 문자열)만 안내 모달 표시
+    final noConditions = maxHours.isEmpty && maxDistance.isEmpty;
     if (noConditions) {
       _showJobConditionsModal();
     } else {
-      setState(() {
-        _index = 3;
-        _currentAction = null;
-        _currentActionIcon = null;
-        _currentActionTooltip = null;
-      });
+      setState(() { _index = 3; });
     }
   }
 
@@ -156,9 +150,6 @@ class _AppShellState extends State<AppShell> {
               setState(() {
                 _index = 4;
                 _hasInfoRequest = false;
-                _currentAction = null;
-                _currentActionIcon = null;
-                _currentActionTooltip = null;
               });
             },
             child: const Text('내 정보 수정',
@@ -178,9 +169,9 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
-          _currentAction = action;
-          _currentActionIcon = icon;
-          _currentActionTooltip = tooltip;
+          _pageActions[_index] = action;
+          _pageActionIcons[_index] = icon;
+          _pageActionTooltips[_index] = tooltip;
         });
       }
     });
@@ -352,6 +343,14 @@ class _AppShellState extends State<AppShell> {
                 ),
             ],
           ),
+          // 탭별 등록 액션 버튼
+          if (_pageActions.containsKey(_index))
+            IconButton(
+              icon: Icon(_pageActionIcons[_index]!, color: const Color(0xFF86A788)),
+              tooltip: _pageActionTooltips[_index],
+              onPressed: _pageActions[_index],
+              visualDensity: VisualDensity.compact,
+            ),
           // 설정
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Color(0xFF86A788)),
@@ -371,7 +370,10 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
-      body: _buildCurrentPage(),
+      body: IndexedStack(
+        index: _index,
+        children: _buildAllPages(),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _go,
@@ -399,45 +401,37 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _buildCurrentPage() {
-    switch (_index) {
-      case 0:
-        return SeniorHomeScreen(
-          seniorId: widget.seniorId,
-          onTabSwitch: _go,
-          hideAppBar: true,
-        );
-      case 1:
-        return LocationScreen(
-          seniorId: widget.seniorId,
-          hideAppBar: true,
-          onRegisterAction: _registerAction,
-        );
-      case 2:
-        return WeatherScreen(
-          seniorId: widget.seniorId,
-          hideAppBar: true,
-          onRegisterAction: _registerAction,
-        );
-      case 3:
-        return JobScreen(
-          seniorId: widget.seniorId,
-          hideAppBar: true,
-          onRegisterAction: _registerAction,
-        );
-      case 4:
-        return ProfileScreen(
-          seniorId: widget.seniorId,
-          hideAppBar: true,
-          onRegisterAction: _registerAction,
-          onSaved: () => _go(0),
-        );
-      default:
-        return SeniorHomeScreen(
-          seniorId: widget.seniorId,
-          onTabSwitch: _go,
-          hideAppBar: true,
-        );
-    }
+  // IndexedStack: 모든 페이지를 한 번만 생성, 탭 전환 시 상태 보존
+  List<Widget>? _cachedPages;
+  List<Widget> _buildAllPages() {
+    _cachedPages ??= [
+      SeniorHomeScreen(
+        seniorId: widget.seniorId,
+        onTabSwitch: _go,
+        hideAppBar: true,
+      ),
+      LocationScreen(
+        seniorId: widget.seniorId,
+        hideAppBar: true,
+        onRegisterAction: _registerAction,
+      ),
+      WeatherScreen(
+        seniorId: widget.seniorId,
+        hideAppBar: true,
+        onRegisterAction: _registerAction,
+      ),
+      JobScreen(
+        seniorId: widget.seniorId,
+        hideAppBar: true,
+        onRegisterAction: _registerAction,
+      ),
+      ProfileScreen(
+        seniorId: widget.seniorId,
+        hideAppBar: true,
+        onRegisterAction: _registerAction,
+        onSaved: () => _go(0),
+      ),
+    ];
+    return _cachedPages!;
   }
 }
