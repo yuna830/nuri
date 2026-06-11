@@ -140,12 +140,13 @@ export function searchSeniorExact({ name, phone }) {
   );
 }
 
-export function connectSeniorToGuardian(guardianId, { seniorId, relation }) {
+export function connectSeniorToGuardian(guardianId, { seniorId, relation, guardianRelationToSenior }) {
   return request(API_BASE_URL, `/api/guardians/${guardianId}/seniors`, {
     method: "POST",
     body: JSON.stringify({
       seniorId,
       relation,
+      guardianRelationToSenior,
     }),
   });
 }

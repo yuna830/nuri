@@ -319,50 +319,66 @@ class _MypageScreenState extends State<MypageScreen> {
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        content: const Padding(
-          padding: EdgeInsets.only(top: 12),
-          child: Text(
-            '로그아웃 하시겠습니까?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: _kTextSub),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '로그아웃',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '로그아웃 하시겠습니까?',
+                style: TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6F5F3),
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kRed,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('로그아웃', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: _kTextSub,
-                    textStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('취소'),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: _kRed,
-                    textStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('로그아웃'),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
     if (ok == true && mounted) {

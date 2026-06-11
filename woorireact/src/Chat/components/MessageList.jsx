@@ -37,6 +37,22 @@ function formatMessageTime(value) {
   }).format(new Date(value));
 }
 
+function formatDateSeparator(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric", month: "long", day: "numeric", weekday: "short",
+  });
+}
+
+function getDateKey(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 function parseFoodAnalysis(content) {
   const normalizedContent = String(content || "").replace(/^\d+번째 사진\s*\n/, "");
   if (!normalizedContent.startsWith("성분표 분석이 끝났어요.")) return null;
@@ -203,7 +219,7 @@ const MessageList = forwardRef(function MessageList(
 ) {
   return (
     <div className="chatbot-messages" aria-live="polite">
-      {messages.filter((message) => !message.hidden).map((message, index) => {
+      {messages.filter((message) => !message.hidden).reduce((acc, message, index, visible) => {
         const messageKey = `${message.role}-${index}`;
         const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
@@ -217,7 +233,19 @@ const MessageList = forwardRef(function MessageList(
             ? "action-card-message"
             : "";
 
-        return (
+        const currDateKey = getDateKey(message.createdAt);
+        const prevDateKey = index > 0 ? getDateKey(visible[index - 1].createdAt) : null;
+        const showDateSep = currDateKey && currDateKey !== prevDateKey;
+
+        if (showDateSep) {
+          acc.push(
+            <div key={`date-${messageKey}`} className="chat-date-separator">
+              <span>{formatDateSeparator(message.createdAt)}</span>
+            </div>
+          );
+        }
+
+        acc.push(
           <Fragment key={messageKey}>
             {imageUrls.length > 0 && (
               <div className={`chat-message-row image ${message.role}`}>
@@ -251,7 +279,8 @@ const MessageList = forwardRef(function MessageList(
             )}
           </Fragment>
         );
-      })}
+        return acc;
+      }, [])}
 
       {isLoading && (
         <div className="chat-message-row assistant">

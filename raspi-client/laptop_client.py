@@ -24,20 +24,51 @@ MATCH_THRESHOLD = 0.62
 CANDIDATE_THRESHOLD = 0.55
 FACE_ALERT_COOLDOWN_SECONDS = 60
 KNOWN_FACE_QUALITY_MIN_SCORE = 0.45
-LIVE_FACE_QUALITY_MIN_SCORE = 0.45
+LIVE_FACE_QUALITY_MIN_SCORE = 0.55
 MIN_FACE_SIZE = 100
 MATCH_HISTORY_SIZE = 10
 MATCH_HISTORY_REQUIRED = 6
 FACE_ANALYSIS_EVERY_N_FRAMES = 8
 YOLO_EVERY_N_FRAMES = 10
+LOCATION_SAVE_DISTANCE_METERS = 10
+ARCFACE_SIMILARITY_THRESHOLD = MATCH_THRESHOLD
+FACE_RECOGNITION_TOLERANCE = 1 - MATCH_THRESHOLD
 
-KNOWN_FACE_QUALITY_MIN_SCORE = 0.45
-LIVE_FACE_QUALITY_MIN_SCORE = 0.55
 PERSON_TRACK_IOU_THRESHOLD = 0.35
 FULL_BODY_CANDIDATE_DIR = "body_candidates"
 FULL_BODY_SAVE_COOLDOWN_SECONDS = 10
+BODY_CANDIDATE_CLOTHING_THRESHOLD = 0.5
+TARGET_COLORS_RELOAD_SECONDS = 60
 
 TRACK_EXPIRE_SECONDS = 5
+
+COLOR_KEYWORDS = {
+    "black": ["black", "검", "까만"],
+    "white": ["white", "흰", "하얀"],
+    "gray": ["gray", "grey", "회색"],
+    "red": ["red", "빨", "붉"],
+    "orange": ["orange", "주황"],
+    "yellow": ["yellow", "노란"],
+    "green": ["green", "초록", "녹색"],
+    "blue": ["blue", "navy", "파란", "남색"],
+    "purple": ["purple", "보라"],
+    "pink": ["pink", "분홍"],
+    "brown": ["brown", "beige", "갈색", "베이지"],
+}
+
+COLOR_HSV_RANGES = {
+    "black": [((0, 0, 0), (179, 255, 55))],
+    "white": [((0, 0, 190), (179, 60, 255))],
+    "gray": [((0, 0, 56), (179, 55, 189))],
+    "red": [((0, 70, 60), (10, 255, 255)), ((170, 70, 60), (179, 255, 255))],
+    "orange": [((11, 70, 70), (24, 255, 255))],
+    "yellow": [((25, 70, 80), (35, 255, 255))],
+    "green": [((36, 45, 50), (85, 255, 255))],
+    "blue": [((86, 45, 45), (130, 255, 255))],
+    "purple": [((131, 45, 45), (155, 255, 255))],
+    "pink": [((156, 45, 80), (169, 255, 255))],
+    "brown": [((8, 40, 40), (25, 190, 170))],
+}
 
 
 def cosine_similarity(left, right):
@@ -255,8 +286,8 @@ def estimate_face_quality(frame, face, min_face_size=MIN_FACE_SIZE):
     return quality_score, reasons
 
 
-def can_send_face_alert(last_alert_time_by_senior_id, senior_id, now):
-    last_alert_at = last_alert_time_by_senior_id.get(senior_id, 0)
+def can_send_face_alert(last_alert_time_by_key, alert_key, now):
+    last_alert_at = last_alert_time_by_key.get(alert_key, 0)
     return now - last_alert_at >= FACE_ALERT_COOLDOWN_SECONDS
 
 
@@ -280,6 +311,7 @@ def save_body_candidate(frame, senior_id, track_id, person_box, now, last_saved_
     last_saved_at_by_track[track_id] = now
 
     return path
+
 
 def cleanup_expired_tracks(
     active_track_ids,
@@ -323,26 +355,128 @@ def post_location(server_url, senior_id, latitude, longitude):
         print(f"location send failed: {error}")
 
 
-def post_camera_alert(server_url, senior_id, alert_type, message, latitude=None, longitude=None):
+def post_camera_alert(
+    server_url,
+    senior_id,
+    alert_type,
+    message,
+    latitude=None,
+    longitude=None,
+    image_url=None,
+    similarity_score=None,
+    candidate_kind=None,
+):
     if alert_type == "AI_CANDIDATE_CONFIRM" and "?" in message:
         message = "유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다."
 
     try:
+        payload = {
+            "seniorId": senior_id,
+            "type": alert_type,
+            "message": message,
+            "latitude": latitude,
+            "longitude": longitude,
+            "imageUrl": image_url,
+            "similarityScore": similarity_score,
+            "candidateKind": candidate_kind,
+        }
         response = requests.post(
             f"{server_url}/api/alerts/camera",
-            json={
-                "seniorId": senior_id,
-                "type": alert_type,
-                "message": message,
-                "latitude": latitude,
-                "longitude": longitude,
-            },
+            json={key: value for key, value in payload.items() if value is not None},
             timeout=10,
         )
         response.raise_for_status()
         print(f"camera alert sent: {alert_type}")
     except requests.RequestException as error:
         print(f"camera alert failed: {error}")
+
+
+def upload_candidate_image(server_url, image_path):
+    try:
+        with open(image_path, "rb") as image_file:
+            response = requests.post(
+                f"{server_url}/api/uploads/candidates",
+                files={"image": (os.path.basename(image_path), image_file, "image/jpeg")},
+                timeout=15,
+            )
+        response.raise_for_status()
+        return response.json().get("imageUrl")
+    except (OSError, requests.RequestException, ValueError) as error:
+        print(f"candidate image upload failed: {error}")
+        return None
+
+
+def load_target_clothing_colors(server_url, senior_id):
+    try:
+        response = requests.get(f"{server_url}/api/missing-reports/face-targets", timeout=10)
+        response.raise_for_status()
+        reports = response.json()
+    except requests.RequestException as error:
+        print(f"missing target load failed: {error}")
+        return set()
+
+    text = " ".join(
+        report.get("description") or ""
+        for report in reports
+        if report.get("seniorId") == senior_id
+    ).lower()
+
+    colors = set()
+    for color, keywords in COLOR_KEYWORDS.items():
+        if any(keyword in text for keyword in keywords):
+            colors.add(color)
+
+    print(f"target clothing colors: {sorted(colors)}")
+    return colors
+
+
+def detect_crop_colors(crop):
+    if crop.size == 0:
+        return set()
+
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    pixel_count = hsv.shape[0] * hsv.shape[1]
+    detected = set()
+
+    if pixel_count <= 0:
+        return detected
+
+    for color, ranges in COLOR_HSV_RANGES.items():
+        mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        for lower, upper in ranges:
+            mask = cv2.bitwise_or(
+                mask,
+                cv2.inRange(hsv, np.array(lower, dtype=np.uint8), np.array(upper, dtype=np.uint8)),
+            )
+
+        if cv2.countNonZero(mask) / pixel_count >= 0.08:
+            detected.add(color)
+
+    return detected
+
+
+def score_clothing_similarity(frame, person_box, target_colors):
+    # 신고서에 옷차림 색 정보가 없으면 후보로 올리지 않음
+    if not target_colors:
+        return 0.0
+
+    x1, y1, x2, y2 = person_box
+    crop = frame[y1:y2, x1:x2]
+
+    if crop.size == 0:
+        return 0.0
+
+    height = crop.shape[0]
+    upper = crop[: max(1, int(height * 0.55)), :]
+    lower = crop[int(height * 0.45):, :]
+    detected_colors = detect_crop_colors(upper) | detect_crop_colors(lower)
+
+    if not detected_colors:
+        return 0.0
+
+    score = len(target_colors & detected_colors) / len(target_colors)
+    print(f"clothing score={score:.2f}, target={sorted(target_colors)}, detected={sorted(detected_colors)}")
+    return score
 
 
 def list_image_files(image_path=None, image_dir=None):
@@ -474,6 +608,9 @@ def main():
     if not image_files:
         raise RuntimeError("등록 얼굴 사진 경로가 필요합니다. --known-face 또는 --known-face-dir를 입력하세요.")
 
+    target_clothing_colors = load_target_clothing_colors(args.server, args.senior_id)
+    last_colors_loaded_at = time.time()
+
     yolo = YOLO(args.yolo_model)
 
     scrfd_arcface_app = create_scrfd_arcface_app()
@@ -482,6 +619,13 @@ def main():
         if scrfd_arcface_app is not None
         else []
     )
+
+    # 평균 임베딩을 대표값으로 추가 — 사진별 노이즈가 상쇄돼 유사도가 안정적으로 올라감
+    if len(arcface_embeddings) >= 2:
+        mean_embedding = np.mean(arcface_embeddings, axis=0)
+        mean_embedding = mean_embedding / np.linalg.norm(mean_embedding)
+        arcface_embeddings.append(mean_embedding)
+        print("mean embedding added to known embeddings")
 
     fallback_encodings = [] if arcface_embeddings else load_face_recognition_encodings(image_files)
 
@@ -494,8 +638,8 @@ def main():
         raise RuntimeError(f"카메라를 열 수 없습니다. camera-index={args.camera_index}")
 
     camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     camera.set(cv2.CAP_PROP_FPS, 30)
 
     last_location_checked_at = 0
@@ -504,7 +648,7 @@ def main():
     tracked_persons = {}
     next_track_id = 1
     match_history_by_track = defaultdict(lambda: deque(maxlen=MATCH_HISTORY_SIZE))
-    last_alert_time_by_senior_id = {}
+    last_alert_time_by_key = {}
     last_body_candidate_saved_at = {}
     track_last_seen_at = {}
 
@@ -528,6 +672,11 @@ def main():
             tick,
             args.simulate_move,
         )
+
+        # 실행 중 신고서가 갱신되면 옷차림 색을 다시 반영
+        if now - last_colors_loaded_at >= TARGET_COLORS_RELOAD_SECONDS:
+            target_clothing_colors = load_target_clothing_colors(args.server, args.senior_id)
+            last_colors_loaded_at = now
 
         if now - last_location_checked_at >= args.interval:
             should_send_location = False
@@ -685,16 +834,15 @@ def main():
                         f"match={is_match}"
                     )
 
+                # 화질이 좋은데 비매치 = 명확히 다른 사람 -> 옷차림 후보에서 제외
                 if is_match:
                     current_track_matches[track_id] = True
-                elif is_inside_person:
-                    current_track_candidate[track_id] = True
 
                 color = (0, 0, 255) if is_match else (80, 80, 80)
                 person_hint = f"TRACK {track_id}" if is_inside_person else "FACE ONLY"
 
                 label = (
-                    f"ArcFace CANDIDATE {accuracy:.0f}% Q{quality_score:.2f} {person_hint}"
+                    f"ArcFace MATCH {accuracy:.0f}% Q{quality_score:.2f} {person_hint}"
                     if is_match
                     else f"ArcFace NO MATCH {accuracy:.0f}% Q{quality_score:.2f} {person_hint}"
                 )
@@ -744,10 +892,9 @@ def main():
                 accuracy = distance_to_accuracy(best_distance)
                 is_match = best_distance <= FACE_RECOGNITION_TOLERANCE and is_inside_person
 
+                # 화질이 좋은데 비매치 = 명확히 다른 사람 -> 옷차림 후보에서 제외
                 if is_match:
                     current_track_matches[track_id] = True
-                elif is_inside_person:
-                    current_track_candidate[track_id] = True
 
                 print(
                     f"track={track_id}, face_recognition distance={best_distance:.3f}, "
@@ -784,8 +931,8 @@ def main():
                 stable_match = sum(match_history_by_track[track_id]) >= MATCH_HISTORY_REQUIRED
 
                 if stable_match and can_send_face_alert(
-                    last_alert_time_by_senior_id,
-                    args.senior_id,
+                    last_alert_time_by_key,
+                    (args.senior_id, "FACE_MATCH"),
                     now,
                 ):
                     post_camera_alert(
@@ -795,13 +942,21 @@ def main():
                         "등록된 실종자 얼굴과 일치하는 사람이 카메라에 감지되었습니다.",
                         current_latitude,
                         current_longitude,
+                        similarity_score=1.0,
+                        candidate_kind="FACE_MATCH",
                     )
-                    last_alert_time_by_senior_id[args.senior_id] = now
+                    last_alert_time_by_key[(args.senior_id, "FACE_MATCH")] = now
                     match_history_by_track[track_id].clear()
 
+                # 얼굴이 아예 안 잡혔거나 저화질이라 판단 불가한 트랙만 옷차림 분석
                 should_save_body_candidate = not track_has_face or track_candidate
 
                 if should_save_body_candidate and not track_matched:
+                    clothing_score = score_clothing_similarity(frame, person_box, target_clothing_colors)
+
+                    if clothing_score < BODY_CANDIDATE_CLOTHING_THRESHOLD:
+                        continue
+
                     candidate_path = save_body_candidate(
                         frame,
                         args.senior_id,
@@ -813,9 +968,10 @@ def main():
 
                     if candidate_path:
                         print(f"body candidate saved: {candidate_path}")
+                        candidate_image_url = upload_candidate_image(args.server, candidate_path)
                         if can_send_face_alert(
-                            last_alert_time_by_senior_id,
-                            args.senior_id,
+                            last_alert_time_by_key,
+                            (args.senior_id, "BODY_CANDIDATE"),
                             now,
                         ):
                             post_camera_alert(
@@ -825,8 +981,11 @@ def main():
                                 "얼굴이 명확하지 않아 전신 후보를 저장했습니다. 보호자 확인이 필요합니다.",
                                 current_latitude,
                                 current_longitude,
+                                image_url=candidate_image_url,
+                                similarity_score=clothing_score,
+                                candidate_kind="BODY_CANDIDATE",
                             )
-                            last_alert_time_by_senior_id[args.senior_id] = now
+                            last_alert_time_by_key[(args.senior_id, "BODY_CANDIDATE")] = now
 
         cv2.imshow("Nuri YOLO Camera Prototype", frame)
 

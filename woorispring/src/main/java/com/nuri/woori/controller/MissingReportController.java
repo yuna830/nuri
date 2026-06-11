@@ -228,6 +228,7 @@ public class MissingReportController {
     public record MissingReportResponse(
             Long id,
             Long seniorId,
+            String seniorName,
             Long guardianId,
             String status,
             String lastSeenAddress,
@@ -255,9 +256,17 @@ public class MissingReportController {
             imageUrls = List.of(report.getImageUrl());
         }
 
+        String seniorName = null;
+        if (report.getSeniorId() != null) {
+            seniorName = seniorRepository.findById(report.getSeniorId())
+                    .map(Senior::getName)
+                    .orElse(null);
+        }
+
         return new MissingReportResponse(
                 report.getId(),
                 report.getSeniorId(),
+                seniorName,
                 report.getGuardianId(),
                 report.getStatus(),
                 report.getLastSeenAddress(),

@@ -131,7 +131,6 @@ class _ReportScreenState extends State<ReportScreen> {
     _otherNameCtrl.dispose();
     _otherAgeCtrl.dispose();
     _otherPhoneCtrl.dispose();
-    _otherClothesCtrl.dispose();
     super.dispose();
   }
 
@@ -451,7 +450,6 @@ class _ReportScreenState extends State<ReportScreen> {
     final incidentTimeText = _formatDateTime(_incidentTime);
     final description = _descCtrl.text.trim();
     final locationText = _locationCtrl.text.trim();
-    final clothesText = _otherClothesCtrl.text.trim();
 
     final targetLines = _targetMode == _TargetMode.otherPerson
         ? [
@@ -462,7 +460,6 @@ class _ReportScreenState extends State<ReportScreen> {
             '연락처: ${_otherPhoneCtrl.text.trim()}',
             if (locationText.isNotEmpty) '마지막 위치: $locationText',
             '마지막 목격 시간: $incidentTimeText',
-            if (clothesText.isNotEmpty) '옷차림: $clothesText',
           ]
         : [
             '신고 대상: 등록된 보호 대상자',
@@ -506,7 +503,6 @@ class _ReportScreenState extends State<ReportScreen> {
       _otherNameCtrl.clear();
       _otherAgeCtrl.clear();
       _otherPhoneCtrl.clear();
-      _otherClothesCtrl.clear();
       _otherGender = '여성';
       _selectedLocationLatitude = null;
       _selectedLocationLongitude = null;
@@ -528,19 +524,53 @@ class _ReportScreenState extends State<ReportScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('신고 접수 완료'),
-          content: const Text('신고가 정상적으로 접수되었습니다. 얼굴 확인 대상에도 반영됩니다.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _resetForm();
-                widget.onCompleted?.call();
-              },
-              child: const Text('확인'),
+        return Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '신고 접수 완료',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextMain,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '신고가 정상적으로 접수되었습니다.\n얼굴 확인 대상에도 반영됩니다.',
+                  style: TextStyle(fontSize: 13, color: _kTextSub),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      _resetForm();
+                      widget.onCompleted?.call();
+                    },
+                    child: const Text('확인', style: TextStyle(fontSize: 13)),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -577,15 +607,8 @@ class _ReportScreenState extends State<ReportScreen> {
                     _buildLocationSection(),
                     const SizedBox(height: 14),
 
-                    // ④ 마지막 목격 시간 + 옷차림
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildCompactTimePicker()),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildClothesInput()),
-                      ],
-                    ),
+                    // ④ 마지막 목격 시간
+                    _buildCompactTimePicker(),
                     const SizedBox(height: 14),
                   ] else ...[
                     // ③ 발생 시간
@@ -609,7 +632,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     maxLines: 4,
                     style: const TextStyle(fontSize: 14, color: _kTextMain),
                     decoration: _inputDeco(
-                      '상황을 자세히 적어주세요. 마지막 연락, 주변 상황, 특이사항 등을 입력하면 신고 처리에 도움이 됩니다.',
+                      '착의, 마지막 연락, 주변 상황, 특이사항 등을 자세히 입력하면 신고 처리에 도움이 됩니다.',
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -2319,9 +2342,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? _kSafe : Colors.white,
+          color: selected ? _kGreen : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? _kSafe : _kDivider),
+          border: Border.all(color: selected ? _kGreen : _kDivider),
         ),
         child: Text(
           label,
@@ -2455,13 +2478,14 @@ class _ReportHistoryCard extends StatelessWidget {
       // 'RESOLVED': '처리 완료',
       // 'CLOSED': '종료',
       'CANCELED': '취소',
+      'CANCELLED': '취소',
     };
     return map[s] ?? '접수 완료';
   }
 
   Color get _statusColor {
     final s = report['status']?.toString() ?? '';
-    if (s == 'CANCELED') return _kTextHint;
+    if (s == 'CANCELED' || s == 'CANCELLED') return _kTextHint;
     return _kTextSub; // 접수 완료 → 회색
   }
 
@@ -2568,45 +2592,27 @@ class _ReportHistoryCard extends StatelessWidget {
             // 신고 유형 + 상태
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF0F0),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                Expanded(
                   child: Text(
-                    _typeLabel,
+                    seniorName.isNotEmpty ? seniorName : '이름 없음',
                     style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _kRed,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextMain,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   _statusLabel,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: _statusColor,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-
-            // 이름
-            Text(
-              seniorName.isNotEmpty ? seniorName : '이름 없음',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: _kTextMain,
-              ),
             ),
             const SizedBox(height: 4),
 
@@ -2768,32 +2774,88 @@ class _ReportHistoryCard extends StatelessWidget {
                   onPressed: () async {
                     final confirmed = await showDialog<bool>(
                       context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text(
-                          '신고를 취소하시겠어요?',
-                          textAlign: TextAlign.center,
+                      builder: (ctx) => Dialog(
+                        backgroundColor: Colors.white,
+                        surfaceTintColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        content: const Text(
-                          '취소된 신고는 3일 후 자동 삭제됩니다.',
-                          textAlign: TextAlign.center,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                '신고를 취소하시겠어요?',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kTextMain,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                '취소된 신고는 3일 후 자동 삭제됩니다.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: _kTextSub,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFFF6F5F3,
+                                        ),
+                                        foregroundColor: _kTextSub,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text(
+                                        '닫기',
+                                        style: TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: FilledButton(
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: _kRed,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text(
+                                        '취소하기',
+                                        style: TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                        actionsAlignment: MainAxisAlignment.center,
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text(
-                              '닫기',
-                              style: TextStyle(color: _kTextSub),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text(
-                              '취소하기',
-                              style: TextStyle(color: _kRed),
-                            ),
-                          ),
-                        ],
                       ),
                     );
 
@@ -2836,10 +2898,14 @@ class _ReportHistoryCard extends StatelessWidget {
         report['targetName']?.toString() ??
         _nameFromDescription(description);
     final location = report['lastSeenAddress']?.toString() ?? '';
+    final isCancelled = report['status']?.toString() == 'CANCELLED' ||
+        report['status']?.toString() == 'CANCELED';
 
-    return GestureDetector(
-      onTap: () => _showDetail(context),
-      child: Container(
+    return Opacity(
+      opacity: isCancelled ? 0.45 : 1.0,
+      child: GestureDetector(
+        onTap: () => _showDetail(context),
+        child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2858,25 +2924,18 @@ class _ReportHistoryCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF0F0),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                Expanded(
                   child: Text(
-                    _typeLabel,
+                    seniorName.isNotEmpty ? seniorName : '이름 없음',
                     style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _kRed,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextMain,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   _statusLabel,
                   style: TextStyle(
@@ -2886,15 +2945,6 @@ class _ReportHistoryCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              seniorName.isNotEmpty ? seniorName : '이름 없음',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: _kTextMain,
-              ),
             ),
             if (location.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -2937,6 +2987,7 @@ class _ReportHistoryCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 

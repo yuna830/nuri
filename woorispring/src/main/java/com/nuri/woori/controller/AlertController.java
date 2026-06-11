@@ -368,9 +368,7 @@ public class AlertController {
                     alert.setGuardianId(link.getGuardianId());
                     alert.setType(request.type());
                     alert.setTitle(title);
-                    alert.setMessage(
-                            senior.getName() + "님과 유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다."
-                    );
+                    alert.setMessage(buildCameraAlertMessage(senior, request));
                     alert.setImageUrl(request.imageUrl());
                     alert.setLatitude(request.latitude());
                     alert.setLongitude(request.longitude());
@@ -378,6 +376,31 @@ public class AlertController {
                     return saveAndPushToGuardian(alert);
                 })
                 .toList();
+    }
+
+    private String buildCameraAlertMessage(Senior senior, CameraAlertRequest request) {
+        String message = request.message() == null ? "" : request.message().trim();
+
+        if (!message.isBlank() && !message.contains("?")) {
+            return message;
+        }
+
+        String seniorName = senior.getName() == null || senior.getName().isBlank()
+                ? "보호 대상자"
+                : senior.getName();
+        String scoreText = request.similarityScore() == null
+                ? ""
+                : " 유사도 " + Math.round(request.similarityScore() * 100) + "%.";
+
+        if ("BODY_CANDIDATE".equals(request.candidateKind())) {
+            return seniorName + "님과 옷차림이 비슷한 후보가 감지되었습니다." + scoreText + " 보호자 확인이 필요합니다.";
+        }
+
+        if ("FACE_MATCH".equals(request.candidateKind()) || "FACE_MATCH".equals(request.type())) {
+            return seniorName + "님과 얼굴이 유사한 후보가 감지되었습니다." + scoreText + " 보호자 확인이 필요합니다.";
+        }
+
+        return seniorName + "님과 유사한 후보가 감지되었습니다." + scoreText + " 보호자 확인이 필요합니다.";
     }
 
     @DeleteMapping("/{id}")

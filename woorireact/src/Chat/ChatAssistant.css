@@ -736,6 +736,7 @@
 }
 
 @keyframes chat-typing-bounce {
+
   0%,
   60%,
   100% {
@@ -1306,7 +1307,25 @@ button.selected {
   color: #ffffff;
 }
 
+.chat-date-separator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.chat-date-separator::before,
+.chat-date-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e5ea;
+}
+
 @media (max-width: 900px) {
+
   .chatbot-page,
   .schedule-register-page {
     height: auto;

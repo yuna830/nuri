@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/api/guardian_api.dart';
@@ -9,10 +12,7 @@ import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 
-enum _GuardianChatTarget {
-  senior,
-  socialWorker,
-}
+enum _GuardianChatTarget { senior, socialWorker }
 
 extension _GuardianChatTargetValue on _GuardianChatTarget {
   String get roomType {
@@ -94,9 +94,7 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(16),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -131,8 +129,9 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
                       radius: 18,
-                      backgroundColor:
-                          const Color(0xFF86A788).withValues(alpha: 0.16),
+                      backgroundColor: const Color(
+                        0xFF86A788,
+                      ).withValues(alpha: 0.16),
                       child: const Icon(
                         Icons.person,
                         size: 18,
@@ -169,10 +168,7 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
                     },
                   ),
                   if (senior != _seniors.last)
-                    const Divider(
-                      height: 1,
-                      color: Color(0xFFE5E5EA),
-                    ),
+                    const Divider(height: 1, color: Color(0xFFE5E5EA)),
                 ],
               ],
             ),
@@ -261,33 +257,29 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF86A788),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFF86A788)),
             )
           : _seniors.isEmpty
-              ? const Center(
-                  child: Text(
-                    '연결된 어르신이 없습니다.',
-                    style: TextStyle(
-                      color: Color(0xFF6D766A),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-              : selected == null || _guardianId == null
-                  ? const SizedBox.shrink()
-                  : _GuardianHumanChatRoom(
-                      key: ValueKey(
-                        '${selected.id}-${_selectedTarget.roomType}',
-                      ),
-                      seniorId: selected.id,
-                      guardianId: _guardianId!,
-                      guardianName: _guardianName,
-                      roomType: _selectedTarget.roomType,
-                      emptyText: _selectedTarget.emptyText,
-                      seniorProfileImageUrl: selected.profileImageUrl,
-                    ),
+          ? const Center(
+              child: Text(
+                '연결된 어르신이 없습니다.',
+                style: TextStyle(
+                  color: Color(0xFF6D766A),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          : selected == null || _guardianId == null
+          ? const SizedBox.shrink()
+          : _GuardianHumanChatRoom(
+              key: ValueKey('${selected.id}-${_selectedTarget.roomType}'),
+              seniorId: selected.id,
+              guardianId: _guardianId!,
+              guardianName: _guardianName,
+              roomType: _selectedTarget.roomType,
+              emptyText: _selectedTarget.emptyText,
+              seniorProfileImageUrl: selected.profileImageUrl,
+            ),
     );
   }
 }
@@ -369,9 +361,7 @@ class _AppBarTargetButton extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w900,
-            color: selected
-                ? const Color(0xFF4A7A4C)
-                : const Color(0xFF6D766A),
+            color: selected ? const Color(0xFF4A7A4C) : const Color(0xFF6D766A),
           ),
         ),
       ),
@@ -414,10 +404,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   void initState() {
     super.initState();
     _load();
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _load(),
-    );
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load());
   }
 
   @override
@@ -511,6 +498,129 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
     }
   }
 
+  Future<void> _pickAndSendAttachment() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('갤러리에서 사진 선택'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file_outlined),
+              title: const Text('파일 선택'),
+              onTap: () => Navigator.pop(context, 'file'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
+    String? filePath;
+    String? fileName;
+    String? mimeType;
+
+    if (choice == 'gallery' || choice == 'camera') {
+      final picker = ImagePicker();
+      final source = choice == 'camera'
+          ? ImageSource.camera
+          : ImageSource.gallery;
+      final picked = await picker.pickImage(source: source, imageQuality: 85);
+      if (picked == null) return;
+      filePath = picked.path;
+      fileName = picked.name;
+      mimeType = 'image/${picked.name.split('.').last.toLowerCase()}';
+    } else {
+      final result = await FilePicker.platform.pickFiles(withData: false);
+      if (result == null || result.files.single.path == null) return;
+      filePath = result.files.single.path!;
+      fileName = result.files.single.name;
+      mimeType = result.files.single.extension != null
+          ? 'application/${result.files.single.extension}'
+          : 'application/octet-stream';
+    }
+
+    setState(() => _sending = true);
+
+    try {
+      final baseUrl = AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '');
+      final uploadUri = Uri.parse('${AppConfig.apiBaseUrl}/uploads/chat');
+      final request = http.MultipartRequest('POST', uploadUri);
+      request.files.add(
+        await http.MultipartFile.fromPath('file', filePath, filename: fileName),
+      );
+      final uploadRes = await request.send();
+      final uploadBody = jsonDecode(await uploadRes.stream.bytesToString());
+
+      final fileUrl = uploadBody['fileUrl']?.toString() ?? '';
+      if (fileUrl.isEmpty) throw Exception('업로드 실패');
+
+      final isImage = mimeType?.startsWith('image/') ?? false;
+      final fullUrl = fileUrl.startsWith('http') ? fileUrl : '$baseUrl$fileUrl';
+
+      await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/chat/senior/${widget.seniorId}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'roomType': widget.roomType,
+          'senderRole': 'GUARDIAN',
+          'senderId': widget.guardianId,
+          'senderName': widget.guardianName,
+          'message': '',
+          'attachmentUrl': fullUrl,
+          'attachmentType': isImage ? 'image' : 'file',
+          'attachmentName': fileName,
+        }),
+      );
+
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('파일 전송에 실패했습니다.'),
+            backgroundColor: Color(0xFFD94E4E),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  String? _dateKey(dynamic value) {
+    if (value == null) return null;
+    try {
+      final dt = DateTime.parse('$value').toLocal();
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatDateLabel(String key) {
+    final parts = key.split('-');
+    if (parts.length < 3) return key;
+    final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    return '${dt.year}년 ${dt.month}월 ${dt.day}일 (${weekdays[dt.weekday - 1]})';
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
@@ -537,9 +647,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF86A788),
-        ),
+        child: CircularProgressIndicator(color: Color(0xFF86A788)),
       );
     }
 
@@ -565,11 +673,36 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                   itemCount: _messages.length,
                   itemBuilder: (_, index) {
                     final message = _messages[index];
+                    final currDate = _dateKey(message['createdAt']);
+                    final prevDate = index > 0 ? _dateKey(_messages[index - 1]['createdAt']) : null;
+                    final showSep = currDate != null && currDate != prevDate;
 
-                    return _MessageBubble(
-                      message: message,
-                      isMine: message['senderRole'] == 'GUARDIAN',
-                      profileImageUrl: _profileImageFor(message),
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showSep)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Row(
+                              children: [
+                                const Expanded(child: Divider(color: Color(0xFFE5E5EA))),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text(
+                                    _formatDateLabel(currDate!),
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFFAEAEB2)),
+                                  ),
+                                ),
+                                const Expanded(child: Divider(color: Color(0xFFE5E5EA))),
+                              ],
+                            ),
+                          ),
+                        _MessageBubble(
+                          message: message,
+                          isMine: message['senderRole'] == 'GUARDIAN',
+                          profileImageUrl: _profileImageFor(message),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -578,6 +711,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
           controller: _inputCtrl,
           sending: _sending,
           onSend: _send,
+          onAttach: _pickAndSendAttachment,
         ),
       ],
     );
@@ -613,24 +747,26 @@ class _MessageBubble extends StatelessWidget {
     final text = message['message']?.toString() ?? '';
     final senderName = message['senderName']?.toString() ?? '';
     final time = _formatTime(message['createdAt']);
+    final attachmentUrl = message['attachmentUrl']?.toString() ?? '';
+    final attachmentType = message['attachmentType']?.toString() ?? '';
+    final attachmentName = message['attachmentName']?.toString() ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisAlignment:
-            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) ...[
-            _ChatAvatar(
-              name: senderName,
-              imageUrl: profileImageUrl,
-            ),
+            _ChatAvatar(name: senderName, imageUrl: profileImageUrl),
             const SizedBox(width: 8),
           ],
           Column(
-            crossAxisAlignment:
-                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
               if (!isMine && senderName.isNotEmpty)
                 Padding(
@@ -668,13 +804,66 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    color: isMine ? Colors.white : const Color(0xFF1F2A20),
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (attachmentType == 'image' && attachmentUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          attachmentUrl,
+                          width: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    if (attachmentType == 'file' && attachmentUrl.isNotEmpty)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.insert_drive_file_outlined,
+                            size: 18,
+                            color: isMine
+                                ? Colors.white70
+                                : const Color(0xFF86A788),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              attachmentName.isNotEmpty ? attachmentName : '파일',
+                              style: TextStyle(
+                                color: isMine
+                                    ? Colors.white
+                                    : const Color(0xFF1F2A20),
+                                fontSize: 13,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (text.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: attachmentUrl.isNotEmpty ? 6 : 0,
+                        ),
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            color: isMine
+                                ? Colors.white
+                                : const Color(0xFF1F2A20),
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (time.isNotEmpty)
@@ -697,10 +886,7 @@ class _MessageBubble extends StatelessWidget {
 }
 
 class _ChatAvatar extends StatelessWidget {
-  const _ChatAvatar({
-    required this.name,
-    required this.imageUrl,
-  });
+  const _ChatAvatar({required this.name, required this.imageUrl});
 
   final String name;
   final String imageUrl;
@@ -763,11 +949,7 @@ String _resolveProfileImageUrl(String rawUrl) {
   if (apiUri == null) return imageUrl;
 
   final serverOrigin = apiUri
-      .replace(
-        path: '',
-        queryParameters: null,
-        fragment: null,
-      )
+      .replace(path: '', queryParameters: null, fragment: null)
       .toString()
       .replaceFirst(RegExp(r'/$'), '');
 
@@ -783,11 +965,13 @@ class _InputBar extends StatelessWidget {
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.onAttach,
   });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -801,6 +985,23 @@ class _InputBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          GestureDetector(
+            onTap: sending ? null : onAttach,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF0F0F0),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.attach_file,
+                size: 20,
+                color: Color(0xFF6C6C70),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,
@@ -846,11 +1047,7 @@ class _InputBar extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                  : const Icon(Icons.send, color: Colors.white, size: 20),
             ),
           ),
         ],

@@ -198,15 +198,28 @@ export const syncMedicationsWithCount = (medications = [], medicineCount = NONE)
   return next;
 };
 
-export const inferSeniorRelationFromGuardian = (guardianRelation = "", seniorGender = "") => {
-  const relation = guardianRelation.trim();
+export const inferGuardianRelationToSenior = (seniorRelationToGuardian = "", guardianGender = "") => {
+  const relation = seniorRelationToGuardian.trim();
 
-  if (relation.includes("할머니") || relation.includes("할아버지")) {
-    return seniorGender === "여성" ? "손녀" : seniorGender === "남성" ? "손자" : "손자/손녀";
+  const isFemale = ["여성", "여자", "F", "female"].includes(guardianGender);
+  const isMale = ["남성", "남자", "M", "male"].includes(guardianGender);
+
+  const byGender = (femaleLabel, maleLabel, fallbackLabel) => {
+    if (isFemale) return femaleLabel;
+    if (isMale) return maleLabel;
+    return fallbackLabel;
+  };
+
+  if (/(엄마|어머니|아빠|아버지|부모)/.test(relation)) {
+    return byGender("딸", "아들", "자녀");
   }
 
-  if (relation.includes("어머니") || relation.includes("아버지") || relation.includes("부모")) {
-    return "자녀";
+  if (/(할머니|할아버지|조모|조부|외할머니|외할아버지)/.test(relation)) {
+    return byGender("손녀", "손자", "손주");
+  }
+
+  if (/(고모|이모|삼촌|외삼촌|숙모|외숙모|고모부|이모부|큰엄마|작은엄마|큰아빠|작은아빠)/.test(relation)) {
+    return "조카";
   }
 
   return "";
@@ -214,6 +227,34 @@ export const inferSeniorRelationFromGuardian = (guardianRelation = "", seniorGen
 
 export const buildRegion = ({ city = "", district = "", dong = "", detailAddress = "" }) =>
   [city, district, dong, detailAddress].map((part) => part.trim()).filter(Boolean).join(" ");
+
+export const inferGuardianRelationToSeniorLabel = (seniorRelationToGuardian = "", guardianGender = "") => {
+  const relation = seniorRelationToGuardian.trim();
+  const gender = String(guardianGender || "").trim().toLowerCase();
+
+  const isFemale = ["여성", "여자", "f", "female"].includes(gender);
+  const isMale = ["남성", "남자", "m", "male"].includes(gender);
+
+  const byGender = (femaleLabel, maleLabel, fallbackLabel) => {
+    if (isFemale) return femaleLabel;
+    if (isMale) return maleLabel;
+    return fallbackLabel;
+  };
+
+  if (/(엄마|어머니|아빠|아버지|부모)/.test(relation)) {
+    return byGender("딸", "아들", "자녀");
+  }
+
+  if (/(할머니|할아버지|조모|조부|외할머니|외할아버지)/.test(relation)) {
+    return byGender("손녀", "손자", "손주");
+  }
+
+  if (/(고모|이모|삼촌|외삼촌|숙모|외숙모|고모부|이모부|큰엄마|작은엄마|큰아빠|작은아빠)/.test(relation)) {
+    return "조카";
+  }
+
+  return "";
+};
 
 export const splitRegion = (region = "") => {
   const parts = String(region)

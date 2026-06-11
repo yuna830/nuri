@@ -18,5 +18,6 @@ public class GuardianSenior {
     private Long guardianId;
     private Long seniorId;
     private String relation;
+    private String guardianRelationToSenior;
     private LocalDateTime connectedAt = LocalDateTime.now();
 }

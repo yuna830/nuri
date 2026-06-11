@@ -21,7 +21,6 @@ export default function GuardianLogin() {
     email: "",
     password: "",
   });
-  const [error, setError] = useState("");
 
   const [helpMode, setHelpMode] = useState(null);
   const [helpForm, setHelpForm] = useState({
@@ -41,7 +40,6 @@ export default function GuardianLogin() {
   const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
 
   const handleLogin = async () => {
-    setError("");
 
     if (!form.email.trim()) {
       alert("이메일을 입력해주세요.");
@@ -69,9 +67,9 @@ export default function GuardianLogin() {
 
       if (!response.ok) {
         if (response.status === 403) {
-          setError("\ube44\ud65c\uc131\ud654\ub41c \uacc4\uc815\uc785\ub2c8\ub2e4. \uad00\ub9ac\uc790\uc5d0\uac8c \ubb38\uc758\ud574\uc8fc\uc138\uc694.");
+          alert("비활성화된 계정입니다. 관리자에게 문의해주세요.");
         } else {
-          setError("\uc774\uba54\uc77c \ub610\ub294 \ube44\ubc00\ubc88\ud638\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.");
+          alert("이메일 또는 비밀번호를 확인해주세요.");
         }
         return;
       }
@@ -81,7 +79,7 @@ export default function GuardianLogin() {
       sessionStorage.setItem("currentGuardian", JSON.stringify(guardian));
       navigate("/guardian");
     } catch {
-      setError("\uc11c\ubc84\uc5d0 \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.");
+      alert("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -238,8 +236,6 @@ export default function GuardianLogin() {
               <br />
               더 안전한 돌봄을 돕습니다.
             </div>
-
-            {error && <div className="login-error">{error}</div>}
 
             <label className="login-label">이메일</label>
             <input
