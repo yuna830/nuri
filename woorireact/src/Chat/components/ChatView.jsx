@@ -102,10 +102,11 @@ export default function ChatView({
 
     if (foodWarningSpeechRef.current && isWarningRead) {
       setInput("");
+      const createdAt = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: "주의사항을 읽어드릴게요." },
+        { role: "user", content: text, createdAt },
+        { role: "assistant", content: "주의사항을 읽어드릴게요.", createdAt },
       ]);
       speak(foodWarningSpeechRef.current);
       return;
@@ -113,10 +114,11 @@ export default function ChatView({
 
     if (isGenericRead && lastAssistantMessage) {
       setInput("");
+      const createdAt = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: "방금 답변을 읽어드릴게요." },
+        { role: "user", content: text, createdAt },
+        { role: "assistant", content: "방금 답변을 읽어드릴게요.", createdAt },
       ]);
       speak(lastAssistantMessage);
       return;
@@ -124,10 +126,11 @@ export default function ChatView({
 
     if (foodAnalysisSpeechRef.current && (isConfirmedRead || isExplicitRead)) {
       setInput("");
+      const createdAt = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: "영양성분을 읽어드릴게요." },
+        { role: "user", content: text, createdAt },
+        { role: "assistant", content: "영양성분을 읽어드릴게요.", createdAt },
       ]);
       isWaitingForFoodAnalysisReadRef.current = false;
       speak(foodAnalysisSpeechRef.current);
@@ -453,6 +456,7 @@ export default function ChatView({
       role: "user",
       content: prompt || "사진을 보냈어요.",
       imageUrls: visibleImageUrls,
+      createdAt: new Date().toISOString(),
     };
     foodAnalysisSpeechRef.current = "";
     foodWarningSpeechRef.current = "";
@@ -475,8 +479,8 @@ export default function ChatView({
       setMessages((prev) => [
         ...prev,
         ...analysisItems.flatMap((item) => [
-          { role: "assistant", content: item.answer },
-          { role: "assistant", content: item.memory, hidden: true },
+          { role: "assistant", content: item.answer, createdAt: new Date().toISOString() },
+          { role: "assistant", content: item.memory, hidden: true, createdAt: new Date().toISOString() },
         ]),
       ]);
       foodAnalysisSpeechRef.current = analysisItems.map((item) => buildFoodNutritionSpeech(item.answer)).join(" ");
@@ -492,6 +496,7 @@ export default function ChatView({
         {
           role: "assistant",
           content: answer,
+          createdAt: new Date().toISOString(),
         },
       ]);
       if (options.speak) speak(answer);

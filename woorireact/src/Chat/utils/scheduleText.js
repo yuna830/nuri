@@ -46,6 +46,10 @@ export function isPastSchedule(schedule) {
   return schedule.time <= currentTimeValue();
 }
 
+export function isRemainingTodaySchedule(schedule) {
+  return schedule.date === todayValue() && !isPastSchedule(schedule);
+}
+
 export function todayValue() {
   const today = new Date();
   return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;

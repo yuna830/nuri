@@ -4,7 +4,7 @@ import "./ChatAssistant.css";
 import ChatView from "./components/ChatView";
 import ScheduleRegister from "./components/ScheduleRegister";
 import { createSchedule, deleteSchedule, fetchSchedulesByDate, fetchSeniorSchedules, getCurrentSeniorId, updateSchedule, } from "./services/scheduleApi";
-import { formatScheduleBrief, isPastSchedule, pad, scheduleToText, todayValue, } from "./utils/scheduleText";
+import { formatScheduleBrief, isPastSchedule, isRemainingTodaySchedule, pad, scheduleToText, todayValue, } from "./utils/scheduleText";
 import { withUserGreeting } from "./utils/userGreeting";
 import { createAssistantConversation, deleteAssistantConversation, fetchAssistantConversations, fetchAssistantMessages, saveAssistantMessage, updateAssistantConversationTitle, } from "./services/assistantConversationApi";
 
@@ -14,6 +14,7 @@ const createWelcomeMessages = () => [
   {
     role: "assistant",
     content: withUserGreeting("안녕하세요. 무엇을 도와드릴까요? 일정을 직접 선택하거나 채팅으로 말해주시면 등록할 수 있어요."),
+    createdAt: new Date().toISOString(),
   },
 ];
 
@@ -63,6 +64,8 @@ export default function ChatAssistant() {
   const saveQueueRef = useRef(Promise.resolve());
   // 오늘 일정 안내 중복 방지
   const didShowBriefingRef = useRef(false);
+  // 새로 만든 대화방에만 오늘 일정 브리핑
+  const briefingConversationIdRef = useRef(null);
   // 늦게 도착한 일정 조회가 최신 목록을 덮어쓰지 않도록 요청 순서를 보관
   const scheduleLoadRequestRef = useRef(0);
 
@@ -92,6 +95,7 @@ export default function ChatAssistant() {
         : createWelcomeMessages();
 
       persistedMessageCountRef.current = savedMessages.length;
+      briefingConversationIdRef.current = null;
       setActiveConversationId(conversationId);
       setMessages(nextMessages);
       if (closePanel) setIsConversationPanelOpen(false);
@@ -111,8 +115,20 @@ export default function ChatAssistant() {
     try {
       const conversation = await createAssistantConversation(seniorId);
       persistedMessageCountRef.current = 0;
+      didShowBriefingRef.current = false;
+      briefingConversationIdRef.current = conversation.id;
       setActiveConversationId(conversation.id);
-      setMessages(createWelcomeMessages());
+      const nextMessages = createWelcomeMessages();
+      const remainingTodaySchedules = chatSchedules.filter(isRemainingTodaySchedule);
+      if (remainingTodaySchedules.length > 0) {
+        nextMessages.push({
+          role: "assistant",
+          content: `남은 오늘 일정은 ${remainingTodaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
+          createdAt: new Date().toISOString(),
+        });
+        didShowBriefingRef.current = true;
+      }
+      setMessages(nextMessages);
       setConversations((prev) => [conversation, ...prev]);
       if (closePanel) setIsConversationPanelOpen(false);
     } catch (error) {
@@ -270,22 +286,23 @@ export default function ChatAssistant() {
 
   //챗봇 메시지 추가 
   function addAssistantMessage(content) {
-    setMessages((prev) => [...prev, { role: "assistant", content }]);
+    setMessages((prev) => [...prev, { role: "assistant", content, createdAt: new Date().toISOString() }]);
   }
 
   //오늘 일정 자동 안내 
   function showTodayBriefing(schedules) {
     if (didShowBriefingRef.current) return;
-    didShowBriefingRef.current = true;
 
-    const todaySchedules = schedules.filter((schedule) => schedule.date === todayValue());
+    const todaySchedules = schedules.filter(isRemainingTodaySchedule);
     if (todaySchedules.length === 0) return;
+    didShowBriefingRef.current = true;
 
     setMessages((prev) => [
       ...prev,
       {
         role: "assistant",
-        content: `오늘 일정은 ${todaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
+        content: `남은 오늘 일정은 ${todaySchedules.map(formatScheduleBrief).join(", ")}입니다.`,
+        createdAt: new Date().toISOString(),
       },
     ]);
   }
@@ -366,13 +383,24 @@ export default function ChatAssistant() {
 
         setSavedSchedules(normalizedDateSchedules);
         setChatSchedules(normalizedAllSchedules);
-        showTodayBriefing(normalizedAllSchedules);
       } catch (error) {
         console.error("일정 조회 오류:", error);
       }
     }
     loadSchedules();
   }, [selectedScheduleDate]);
+
+  useEffect(() => {
+    if (
+      !activeConversationId ||
+      briefingConversationIdRef.current !== activeConversationId ||
+      didShowBriefingRef.current
+    ) {
+      return;
+    }
+
+    showTodayBriefing(chatSchedules);
+  }, [activeConversationId, chatSchedules]);
 
   if (mode === "schedule") {
     return (

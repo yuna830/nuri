@@ -30,6 +30,7 @@ export function useChatFlow({
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingContactCall, setPendingContactCall] = useState(null);
   const [lastDeletedSchedules, setLastDeletedSchedules] = useState([]);
+  const [nearbyPlaceContext, setNearbyPlaceContext] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function sendMessage(customText = null, options = {}) {
@@ -38,7 +39,7 @@ export function useChatFlow({
 
     setInput("");
     setIsLoading(true);
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setMessages((prev) => [...prev, { role: "user", content: text, createdAt: new Date().toISOString() }]);
 
     try {
       if (pendingContactCall) {
@@ -170,8 +171,15 @@ export function useChatFlow({
         return;
       }
 
-      const nearbyPlaceAnswer = await getNearbyPlaceChatAnswer(text);
-      if (nearbyPlaceAnswer) {
+      const nearbyPlaceResult = await getNearbyPlaceChatAnswer(text, nearbyPlaceContext);
+      if (nearbyPlaceResult) {
+        const nearbyPlaceAnswer =
+          typeof nearbyPlaceResult === "string"
+            ? nearbyPlaceResult
+            : nearbyPlaceResult.answer;
+        if (nearbyPlaceResult.context) {
+          setNearbyPlaceContext(nearbyPlaceResult.context);
+        }
         answer(nearbyPlaceAnswer, options);
         return;
       }
@@ -355,12 +363,12 @@ export function useChatFlow({
   }
 
   function answer(content, options = {}) {
-    setMessages((prev) => [...prev, { role: "assistant", content }]);
+    setMessages((prev) => [...prev, { role: "assistant", content, createdAt: new Date().toISOString() }]);
     if (options.speak) speak(content);
   }
 
   function addAssistantMessage(content) {
-    setMessages((prev) => [...prev, { role: "assistant", content }]);
+    setMessages((prev) => [...prev, { role: "assistant", content, createdAt: new Date().toISOString() }]);
   }
 
   return {
