@@ -1279,6 +1279,7 @@ class _ProfileHeader extends StatelessWidget {
                     width: 62,
                     height: 62,
                     fit: BoxFit.cover,
+                    gaplessPlayback: true,
                     errorBuilder: (_, __, ___) => Text(initial,
                         style: const TextStyle(
                             color: Colors.white,

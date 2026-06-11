@@ -328,6 +328,8 @@ const MESSAGE_LABEL_TO_KEY = {
   "청력": "hearing",
   "최근 낙상": "recentFall",
   "수술 이력": "hasSurgery",
+  "수술 상세": "hasSurgery",
+  "수술 상세 미입력": "hasSurgery",
   "생계비 현황": "livingCostStatus",
   "가구 유형": "householdType",
   "연금 현황": "pensionStatus",
@@ -348,9 +350,26 @@ const HEALTH_INFO_KEYS = [
   "livingCostStatus", "householdType", "pensionStatus", "housingType",
 ];
 
+const isSurgeryDetailEmpty = (elder) => {
+  const raw = elder?.healthInfo?.surgeriesJson;
+  try {
+    const list = typeof raw === "string"
+      ? JSON.parse(raw)
+      : Array.isArray(raw) ? raw : [];
+    return !Array.isArray(list) || !list.some((s) => s.name && String(s.name).trim());
+  } catch { return true; }
+};
+
 const isFieldEmpty = (field, elder) => {
   if (field.key === "region") return isEmptyInfoValue(elder?.address);
   if (field.key === "birthDate") return isEmptyInfoValue(elder?.birthDate) && isEmptyInfoValue(elder?.age);
+  if (field.key === "hasSurgery") {
+    const val = elder?.healthInfo?.hasSurgery;
+    if (isEmptyInfoValue(val)) return true;
+    // "있음"이지만 수술 상세(이름)가 없으면 여전히 미입력으로 처리
+    if (val === "있음") return isSurgeryDetailEmpty(elder);
+    return false;
+  }
   if (HEALTH_INFO_KEYS.includes(field.key)) return isEmptyInfoValue(elder?.healthInfo?.[field.key]);
   return isEmptyInfoValue(elder?.[field.key]);
 };
@@ -521,6 +540,7 @@ function GuardianPage() {
 
   const [infoRequestFormAlert, setInfoRequestFormAlert] = useState(null);
   const [infoRequestFieldKeys, setInfoRequestFieldKeys] = useState([]);
+  const [infoRequestSurgeries, setInfoRequestSurgeries] = useState([]);
   const [infoRequestForm, setInfoRequestForm] = useState({
     gender: "",
     phone: "",
@@ -653,12 +673,16 @@ function GuardianPage() {
         || elder?.address
         || "";
     };
+    const getFallDetailsObject = (alert) => (
+      alert.fallDetails && typeof alert.fallDetails === "object" ? alert.fallDetails : {}
+    );
     const alertsWithLocation = apiAlerts.map((alert) => {
       const fallbackLocation = getFallbackLocation(alert);
 
       if (!fallbackLocation) return alert;
 
-      const currentLocationText = alert.address || alert.locationText || alert.fallDetails?.locationText;
+      const fallDetails = getFallDetailsObject(alert);
+      const currentLocationText = alert.address || alert.locationText || fallDetails.locationText;
 
       if (!isMissingLocationText(currentLocationText)) return alert;
 
@@ -667,10 +691,10 @@ function GuardianPage() {
         address: isMissingLocationText(alert.address) ? fallbackLocation : alert.address,
         locationText: isMissingLocationText(alert.locationText) ? fallbackLocation : alert.locationText,
         fallDetails: {
-          ...(alert.fallDetails || {}),
-          locationText: isMissingLocationText(alert.fallDetails?.locationText)
+          ...fallDetails,
+          locationText: isMissingLocationText(fallDetails.locationText)
             ? fallbackLocation
-            : alert.fallDetails.locationText,
+            : fallDetails.locationText,
         },
       };
     });
@@ -1502,6 +1526,27 @@ function GuardianPage() {
       ...prev,
       ...buildInfoRequestForm(targetElder),
     }));
+    try {
+      const raw = targetElder.healthInfo?.surgeriesJson;
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      const mapped = Array.isArray(parsed) && parsed.length > 0
+        ? parsed.map((s) => ({ name: s.name || "", date: s.date || s.year || "", recovery: s.recovery || "" }))
+        : [];
+      // hasSurgery가 "있음"인데 수술 상세가 없으면 빈 카드 1개 자동 추가
+      setInfoRequestSurgeries(
+        mapped.length > 0
+          ? mapped
+          : targetElder.healthInfo?.hasSurgery === "있음"
+            ? [{ name: "", date: "", recovery: "" }]
+            : []
+      );
+    } catch {
+      setInfoRequestSurgeries(
+        targetElder.healthInfo?.hasSurgery === "있음"
+          ? [{ name: "", date: "", recovery: "" }]
+          : []
+      );
+    }
     setIsElderEditOpen(true);
     setInfoRequestAlert(null);
   };
@@ -1511,7 +1556,23 @@ function GuardianPage() {
       ...prev,
       [key]: value,
     }));
+    if (key === "hasSurgery" && value === "있음") {
+      setInfoRequestSurgeries((prev) =>
+        prev.length === 0 ? [{ name: "", date: "", recovery: "" }] : prev
+      );
+    }
   };
+
+  const addInfoRequestSurgery = () =>
+    setInfoRequestSurgeries((prev) => [...prev, { name: "", date: "", recovery: "" }]);
+
+  const removeInfoRequestSurgery = (idx) =>
+    setInfoRequestSurgeries((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateInfoRequestSurgery = (idx, field, value) =>
+    setInfoRequestSurgeries((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
+    );
 
   const handleSubmitInfoRequestForm = async () => {
     if (!editingElder?.id) return;
@@ -1525,6 +1586,10 @@ function GuardianPage() {
 
       return nextPayload;
     }, {});
+
+    if (infoRequestForm.hasSurgery === "있음" && infoRequestSurgeries.length > 0) {
+      payload.surgeriesJson = JSON.stringify(infoRequestSurgeries);
+    }
 
     if (Object.keys(payload).length === 0) {
       gToast.warn("입력할 정보를 작성해주세요.");
@@ -1555,6 +1620,7 @@ function GuardianPage() {
       setEditingElder(null);
       setInfoRequestFormAlert(null);
       setInfoRequestFieldKeys([]);
+      setInfoRequestSurgeries([]);
       gToast.success("보호 대상자 정보가 저장되었습니다.");
     } catch (error) {
       console.error("정보 입력 저장 실패:", error);
@@ -2353,6 +2419,7 @@ function GuardianPage() {
                   setEditingElder(null);
                   setInfoRequestFormAlert(null);
                   setInfoRequestFieldKeys([]);
+                  setInfoRequestSurgeries([]);
                 }}
               >
                 닫기
@@ -2362,36 +2429,98 @@ function GuardianPage() {
             <div className="guardian-info-form-fields">
               {INFO_REQUEST_FIELDS
                 .filter((field) => infoRequestFieldKeys.includes(field.key))
-                .map((field) => (
-                  <label key={field.key} className="guardian-info-form-field">
-                    <span>{field.label}</span>
+                .flatMap((field) => {
+                  const fieldEl = (
+                    <label key={field.key} className="guardian-info-form-field">
+                      <span>{field.label}</span>
 
-                    {field.type === "select" ? (
-                      <select
-                        value={infoRequestForm[field.key] || ""}
-                        onChange={(event) =>
-                          handleInfoRequestFormChange(field.key, event.target.value)
-                        }
-                      >
-                        <option value="">선택해주세요</option>
-                        {field.options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                      {field.type === "select" ? (
+                        <select
+                          value={infoRequestForm[field.key] || ""}
+                          onChange={(event) =>
+                            handleInfoRequestFormChange(field.key, event.target.value)
+                          }
+                        >
+                          <option value="">선택해주세요</option>
+                          {field.options.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type}
+                          value={infoRequestForm[field.key] || ""}
+                          placeholder={field.placeholder || ""}
+                          onChange={(event) =>
+                            handleInfoRequestFormChange(field.key, event.target.value)
+                          }
+                        />
+                      )}
+                    </label>
+                  );
+
+                  if (field.key === "hasSurgery" && infoRequestForm.hasSurgery === "있음") {
+                    return [
+                      fieldEl,
+                      <div key="surgery-cards" className="guardian-surgery-cards">
+                        {infoRequestSurgeries.map((surgery, idx) => (
+                          <div key={idx} className="guardian-surgery-card">
+                            <div className="guardian-surgery-card-header">
+                              <span>수술 {idx + 1}</span>
+                              <button
+                                type="button"
+                                className="guardian-surgery-card-remove"
+                                onClick={() => removeInfoRequestSurgery(idx)}
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <label className="guardian-info-form-field">
+                              <span>수술명</span>
+                              <input
+                                type="text"
+                                value={surgery.name}
+                                placeholder="수술명을 입력해주세요"
+                                onChange={(e) => updateInfoRequestSurgery(idx, "name", e.target.value)}
+                              />
+                            </label>
+                            <label className="guardian-info-form-field">
+                              <span>수술 날짜</span>
+                              <input
+                                type="date"
+                                value={surgery.date}
+                                onChange={(e) => updateInfoRequestSurgery(idx, "date", e.target.value)}
+                              />
+                            </label>
+                            <label className="guardian-info-form-field">
+                              <span>회복 여부</span>
+                              <select
+                                value={surgery.recovery}
+                                onChange={(e) => updateInfoRequestSurgery(idx, "recovery", e.target.value)}
+                              >
+                                <option value="">선택해주세요</option>
+                                {["모름", "회복중", "회복완료", "미회복"].map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                         ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={field.type}
-                        value={infoRequestForm[field.key] || ""}
-                        placeholder={field.placeholder || ""}
-                        onChange={(event) =>
-                          handleInfoRequestFormChange(field.key, event.target.value)
-                        }
-                      />
-                    )}
-                  </label>
-                ))}
+                        <button
+                          type="button"
+                          className="guardian-surgery-add-btn"
+                          onClick={addInfoRequestSurgery}
+                        >
+                          + 수술 이력 추가
+                        </button>
+                      </div>,
+                    ];
+                  }
+
+                  return [fieldEl];
+                })}
             </div>
 
             <div className="guardian-info-form-actions">
@@ -2403,6 +2532,7 @@ function GuardianPage() {
                   setEditingElder(null);
                   setInfoRequestFormAlert(null);
                   setInfoRequestFieldKeys([]);
+                  setInfoRequestSurgeries([]);
                 }}
               >
                 취소
@@ -2517,12 +2647,13 @@ function GuardianHeader({
         message: isCheckInRequest
           ? `${seniorDisplayName}께서 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
           : alert.isFall
-            ? [alert.message, alert.detailMessage].filter(Boolean).join(" ")
+            ? alert.message
             : isInfoUpdateRequest
               ? `복지사가 ${seniorDisplayName}의 정보 입력을 요청했습니다.`
               : alert.detailMessage || "",
         category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
         time: alert.time,
+        imageUrl: alert.imageUrl || alert.rawAlert?.imageUrl || alert.rawAlert?.imageAccessUrl || "",
         isRead: alert.status !== "미확인",
         danger: alert.isSos || alert.isSafeZone || alert.isFall,
         raw: alert,

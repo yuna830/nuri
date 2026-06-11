@@ -827,7 +827,19 @@ function WelfareSeniorDetail() {
             ["청각", healthInfo.hearing],
             ["최근 낙상", healthInfo.recentFall],
             ["수술 이력", healthInfo.hasSurgery],
-            ["수술 내용", healthInfo.surgeryDetail],
+            ...(() => {
+                if (healthInfo.hasSurgery !== "있음") return [];
+                try {
+                    const list = typeof healthInfo.surgeriesJson === "string"
+                        ? JSON.parse(healthInfo.surgeriesJson)
+                        : (Array.isArray(healthInfo.surgeriesJson) ? healthInfo.surgeriesJson : []);
+                    if (!Array.isArray(list) || list.length === 0) return [];
+                    return list.map((s, i) => {
+                        const parts = [s.name, s.date, s.recovery].filter(Boolean);
+                        return [`수술 ${i + 1}`, parts.join(" · ") || "상세 미입력"];
+                    });
+                } catch { return []; }
+            })(),
             ["기타 참고사항", healthInfo.otherDisease],
         ].filter(([, value]) => hasValue(value));
 

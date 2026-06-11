@@ -18,6 +18,7 @@ import {
   fetchFallPattern,
   fetchFallDetectionStatus,
   fetchSeniorAlerts,
+  fetchStoredFallEvents,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId as getSavedSeniorId,
@@ -469,7 +470,12 @@ export default function UserPage() {
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
-  const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [profileImageUrl, setProfileImageUrl] = useState(
+    initialSenior?.profileImageUrl ||
+    localStorage.getItem(`up_profile_img_${initialSenior?.id || ""}`) ||
+    ""
+  );
+  const [profileImageLoaded, setProfileImageLoaded] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
@@ -1026,6 +1032,13 @@ export default function UserPage() {
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
+    if (profileImageUrl && seniorId) {
+      localStorage.setItem(`up_profile_img_${seniorId}`, profileImageUrl);
+    }
+  }, [profileImageUrl]);
+
+  useEffect(() => {
+    const seniorId = getCurrentSeniorId(initialSenior);
     if (!seniorId) return;
     const loadSelectedDateSchedules = () => fetch(`/api/schedules/senior/${seniorId}/date/${selectedScheduleDate}`)
       .then(r => r.ok ? r.json() : [])
@@ -1140,12 +1153,20 @@ export default function UserPage() {
 
       // fetchFallEvents는 최대 60초에 1번만 호출 (1초 폴링에서 제외)
       const now = Date.now();
-      if (now - lastFallCheck >= 60000 && !isFallApiDown()) {
+      if (now - lastFallCheck >= 60000) {
         lastFallCheck = now;
-        const fallEvents = await fetchFallEvents(1).catch(() => []);
+        const [fallEvents, storedFallEvents] = await Promise.all([
+          isFallApiDown() ? Promise.resolve([]) : fetchFallEvents(1).catch(() => []),
+          fetchStoredFallEvents({ size: 100 }).catch(() => []),
+        ]);
         if (!cancelled) {
           const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
-          setTodayFallCount(Math.max(alertFallCount, modelFallCount));
+          const storedFallCount = storedFallEvents.filter((event) => (
+            String(event.seniorId) === String(seniorId)
+            && isTodayDateTime(event.timestamp || event.createdAt)
+          )).length;
+
+          setTodayFallCount(Math.max(alertFallCount, modelFallCount, storedFallCount));
         }
       } else {
         setTodayFallCount((prev) => Math.max(alertFallCount, prev));
@@ -1532,7 +1553,13 @@ export default function UserPage() {
             <div className="up-profile-card">
               <div className="up-profile-avatar">
                 {profileImageUrl ? (
-                  <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
+                  <img
+                    src={resolveUploadUrl(profileImageUrl)}
+                    alt="프로필 사진"
+                    fetchpriority="high"
+                    className={profileImageLoaded ? "loaded" : ""}
+                    onLoad={() => setProfileImageLoaded(true)}
+                  />
                 ) : (
                   "🙂"
                 )}

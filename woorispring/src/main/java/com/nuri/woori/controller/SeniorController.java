@@ -129,6 +129,7 @@ public class SeniorController {
         healthInfo.setHearing(request.hearing());
         healthInfo.setRecentFall(request.recentFall());
         healthInfo.setHasSurgery(request.hasSurgery());
+        healthInfo.setSurgeriesJson(request.surgeriesJson());
         healthInfo.setSurgeryDetail(request.surgeryDetail());
         healthInfo.setOtherDisease(request.otherDisease());
         healthInfo.setMaxHours(request.maxHours());
@@ -400,6 +401,7 @@ public class SeniorController {
         healthInfo.setHearing(request.hearing());
         healthInfo.setRecentFall(request.recentFall());
         healthInfo.setHasSurgery(request.hasSurgery());
+        healthInfo.setSurgeriesJson(request.surgeriesJson());
         healthInfo.setSurgeryDetail(request.surgeryDetail());
         healthInfo.setOtherDisease(request.otherDisease());
         healthInfo.setMaxHours(request.maxHours());
@@ -610,6 +612,10 @@ public class SeniorController {
             healthInfo.setHasSurgery(request.hasSurgery());
         }
 
+        if (request.surgeriesJson() != null) {
+            healthInfo.setSurgeriesJson(request.surgeriesJson());
+        }
+
         if (request.surgeryDetail() != null) {
             healthInfo.setSurgeryDetail(request.surgeryDetail());
         }
@@ -659,6 +665,7 @@ public class SeniorController {
             String hearing,
             String recentFall,
             String hasSurgery,
+            String surgeriesJson,
             String surgeryDetail,
             String otherDisease,
             String medicationsJson,
@@ -783,7 +790,9 @@ public class SeniorController {
                         && (healthInfo.getLivingCostStatus() != null || healthInfo.getHouseholdType() != null
                         || healthInfo.getPensionStatus() != null || healthInfo.getHousingType() != null),
                 senior.getGuardianName(),
-                senior.getGuardianPhone());
+                senior.getGuardianPhone(),
+                healthInfo == null ? null : healthInfo.getHasSurgery(),
+                healthInfo == null ? null : healthInfo.getSurgeriesJson());
     }
 
     public record WelfareSeniorListResponse(
@@ -815,7 +824,9 @@ public class SeniorController {
             Boolean hasMedicationInfo,
             Boolean hasWelfareInfo,
             String guardianName,
-            String guardianPhone) {
+            String guardianPhone,
+            String hasSurgery,
+            String surgeriesJson) {
     }
 
     public record SeniorWelfareWorkerRequest(
@@ -1028,6 +1039,7 @@ public class SeniorController {
             String hearing,
             String recentFall,
             String hasSurgery,
+            String surgeriesJson,
             String surgeryDetail,
             String otherDisease,
             String maxHours,

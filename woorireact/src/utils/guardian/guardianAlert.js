@@ -15,52 +15,43 @@ const normalizeCaptureName = (value) => {
   return String(value).replace(/^captures[\\/]/, "");
 };
 
+const readFallDetails = (alert) => {
+  const details = alert?.fallDetails;
+
+  if (!details) return {};
+  if (typeof details === "object") return details;
+
+  try {
+    const parsed = JSON.parse(details);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export const getFallAlertImageUrl = (alert) => {
-  const directUrl = alert.imageAccessUrl || alert.fallDetails?.captureUrl || "";
+  const details = readFallDetails(alert);
+  const directUrl = alert.imageAccessUrl || details.imageAccessUrl || details.captureUrl || "";
   if (directUrl) return directUrl;
 
-  const imageUrl = alert.imageUrl || alert.captureImage || alert.capture || alert.fallDetails?.captureName || "";
+  const imageUrl = alert.imageUrl
+    || alert.captureImage
+    || alert.capture
+    || details.imageUrl
+    || details.captureName
+    || details.captureFilename
+    || details.capture_filename
+    || "";
+
   if (!imageUrl) return "";
   if (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
 
   return getFallCaptureUrl(normalizeCaptureName(imageUrl));
 };
 
-const formatLocation = (alert) =>
-  alert.address || alert.locationText || alert.fallDetails?.locationText || "위치 확인 필요";
-
-const isUnknownLocation = (value) => {
-  const text = String(value || "").trim();
-  return !text || text === "위치 확인 필요" || text === "현재 위치 확인 필요";
-};
-
-const replaceUnknownLocationInMessage = (message, locationText) => {
-  if (!message || isUnknownLocation(locationText)) return message;
-
-  return message.replace(
-    /현재 위치:\s*(?:현재 위치 확인 필요|위치 확인 필요)/g,
-    `현재 위치: ${locationText}`
-  );
-};
-
-const formatCameraScoreNote = (score) => {
-  if (score == null) return "카메라와 센서, AI 조건을 함께 확인한 알림입니다.";
-  return `카메라 보조점수: ${score}점. 센서나 AI 조건으로도 알림이 발생할 수 있습니다.`;
-};
-
-const clarifyFallScoreMessage = (message, score) => {
-  if (!message) return message;
-
-  const clarified = message
-    .replace(/\s*감지 점수\s*:?\s*[0-9.]+\s*점?\.?/g, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  if (clarified.includes("센서나 AI 조건") || clarified.includes("카메라와 센서")) {
-    return clarified;
-  }
-
-  return `${clarified} ${formatCameraScoreNote(score)}`;
+const formatLocation = (alert) => {
+  const details = readFallDetails(alert);
+  return alert.address || alert.locationText || details.locationText || "위치 확인 필요";
 };
 
 export const formatAlertMessage = (alert) => {
@@ -72,13 +63,7 @@ export const formatAlertMessage = (alert) => {
   }
 
   if (FALL_ALERT_TYPES.has(alert.type)) {
-    const score = alert.score ?? alert.fallDetails?.score;
-    if (originalMessage) {
-      const messageWithLocation = replaceUnknownLocationInMessage(originalMessage, formatLocation(alert));
-      return clarifyFallScoreMessage(messageWithLocation, score);
-    }
-
-    return `${seniorName}님 낙상이 감지되었습니다. 현재 위치: ${formatLocation(alert)}. ${formatCameraScoreNote(score)}`;
+    return `${seniorName}님 낙상이 감지되었습니다. 현재 위치: ${formatLocation(alert)}.`;
   }
 
   const isSosCancel =
@@ -169,7 +154,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
         latitude: alert.latitude,
         longitude: alert.longitude,
         address: alert.address,
-        score: alert.score ?? alert.fallDetails?.score,
+        score: alert.score ?? readFallDetails(alert).score,
         imageUrl: isFall ? getFallAlertImageUrl(alert) : alert.imageUrl || "",
         isCandidateConfirm,
         rawAlert: alert,
@@ -182,9 +167,7 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
           })
           : "",
         message: formatAlertMessage(alert),
-        detailMessage: isFall
-          ? "낙상 사진과 위치 정보가 보호자와 복지사에게 함께 공유되었습니다. 연락이 닿지 않거나 대처가 없으면 신고를 진행해주세요."
-          : "",
+        detailMessage: "",
         status: isReported
           ? "신고 완료"
           : alert.isRead

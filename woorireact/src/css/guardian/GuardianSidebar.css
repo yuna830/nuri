@@ -42,6 +42,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.profile-image-button img.loaded {
+  opacity: 1;
 }
 
 .profile-image-menu {

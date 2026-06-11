@@ -58,7 +58,7 @@ const _restNeeds = [
   _none, '30분마다 5분', '1시간마다 5분', '1시간마다 10분',
   '2시간마다 10분', '2시간마다 15분', '3시간마다 15분', '필요할 때 짧게 쉬기',
 ];
-const _avoidEnvironments = ['소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'];
+const _avoidEnvironments = ['상관없음', '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'];
 const _livingCostStatuses = [
   _none, '잘 모르겠어요', '수입이 거의 없어요', '기초연금 정도만 받아요',
   '가족에게 일부 도움을 받아요', '연금이나 월급 수입이 있어요',
@@ -81,9 +81,9 @@ const _careNeedsList = [
   '잘 모르겠어요', '특별히 없어요', '식사 준비', '청소/빨래',
   '목욕/위생', '병원 동행', '외출/장보기', '약 챙기기', '안부 확인',
 ];
-const _workTypesList = ['서류 작업', '컴퓨터 입력', '전화 상담', '청소', '정리/분류', '포장/조립', '배달', '요리/식품', '안전/경비', '돌봄/보조', '기타'];
-const _jobTypesList = ['사무/행정', '경비/안전', '청소/미화', '배달/운반', '요리/식음', '판매/서비스', '제조/생산', '농업/원예', '돌봄/복지', '기타'];
-const _jobConditionsList = ['단기/계절', '상시', '파트타임', '전일제', '재택/원격', '야외 활동', '실내 활동'];
+const _workTypesList = ['상관없음', '서류 작업', '컴퓨터 입력', '전화 상담', '청소', '정리/분류', '포장/조립', '배달', '요리/식품', '안전/경비', '돌봄/보조', '기타'];
+const _jobTypesList = ['상관없음', '사무/행정', '경비/안전', '청소/미화', '배달/운반', '요리/식음', '판매/서비스', '제조/생산', '농업/원예', '돌봄/복지', '기타'];
+const _jobConditionsList = ['상관없음', '단기/계절', '상시', '파트타임', '전일제', '재택/원격', '야외 활동', '실내 활동'];
 const _daysList = ['월', '화', '수', '목', '금', '토', '일'];
 
 // ── 헬퍼 함수 ─────────────────────────────────────────────────────────────────
@@ -173,6 +173,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   String _vision = '';
   String _hearing = '';
   String _recentFall = '';
+  String _hasSurgery = '';
+  final List<Map<String, dynamic>> _surgeries = [];
 
   // ── 5: 복지 정보 ──
   String _livingCostStatus = '';
@@ -249,12 +251,12 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
     if (_step < _steps.length - 1) {
       setState(() => _step++);
     } else {
-      // 마지막 단계(활동/일자리) 건너뛰면 기본값 설정 후 등록
+      // 마지막 단계(활동/일자리) 건너뛰기 — 없음으로 저장해야 복지사가 미입력과 구분 가능
       setState(() {
-        if (_maxHours.isEmpty) _maxHours = '상관없음';
-        if (_maxDistance.isEmpty) _maxDistance = '상관없음';
+        if (_maxHours.isEmpty) _maxHours = _none;
+        if (_maxDistance.isEmpty) _maxDistance = _none;
         if (_restNeed.isEmpty) _restNeed = _none;
-        if (_payType.isEmpty) _payType = '무관';
+        if (_payType.isEmpty) _payType = _none;
       });
       _submit();
     }
@@ -381,8 +383,10 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       'hopeJobType': _hopeJobType,
       'hopeCondition': _hopeCondition,
       'memo': _memoCtrl.text.trim(),
-      // 서버 필수 필드
-      'hasSurgery': '', 'surgeryDetail': '', 'otherDisease': '',
+      'hasSurgery': _hasSurgery,
+      'surgeries': _surgeries,
+      'surgeriesJson': jsonEncode(_surgeries),
+      'surgeryDetail': '', 'otherDisease': '',
       'bloodPressure': '', 'healthStatus': '', 'incomeLevel': '',
       'welfareDecision': '',
     };
@@ -865,15 +869,30 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       const _SuHint('어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.'),
       const SizedBox(height: 8),
-      Align(
-        alignment: Alignment.centerRight,
-        child: TextButton(
-          onPressed: () => setState(() {
-            for (final d in _chronicDiseases) { _chronic[d['key']!] = _none; }
-          }),
-          child: const Text('전체 없음', style: TextStyle(color: Color(0xFF86a788))),
-        ),
-      ),
+      Builder(builder: (context) {
+        final allNone = _chronicDiseases.every((d) => _chronic[d['key']!] == _none);
+        return Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => setState(() {
+              if (allNone) {
+                for (final d in _chronicDiseases) { _chronic[d['key']!] = ''; }
+              } else {
+                for (final d in _chronicDiseases) { _chronic[d['key']!] = _none; }
+              }
+            }),
+            style: allNone
+                ? TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF86a788),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  )
+                : null,
+            child: const Text('전체 없음'),
+          ),
+        );
+      }),
       ..._chronicDiseases.map((d) {
         final key = d['key']!;
         final label = d['label']!;
@@ -926,6 +945,42 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           value: _recentFall,
           options: const [_none, '1회', '2~3회', '4회 이상'],
           onSelect: (v) => setState(() => _recentFall = v)),
+      const SizedBox(height: 16),
+      const _SuLabel('수술 이력'),
+      _ChipSelector(
+          value: _hasSurgery,
+          options: const [_none, '있음'],
+          onSelect: (v) => setState(() {
+            _hasSurgery = v;
+            if (v == '있음' && _surgeries.isEmpty) _surgeries.add({'name': '', 'year': ''});
+          })),
+      if (_hasSurgery == '있음') ...[
+        const SizedBox(height: 12),
+        Row(children: [
+          const Expanded(child: Text('수술 이력 목록', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+          TextButton.icon(
+            onPressed: () => setState(() => _surgeries.add({'name': '', 'year': ''})),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('추가'),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
+          ),
+        ]),
+        if (_surgeries.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('추가 버튼을 눌러 수술 이력을 입력해주세요', style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
+          )
+        else
+          ...List.generate(_surgeries.length, (i) {
+            final s = _surgeries[i];
+            return _SuSurgeryCard(
+              index: i,
+              surgery: s,
+              onRemove: () => setState(() => _surgeries.removeAt(i)),
+              onChanged: () => setState(() {}),
+            );
+          }),
+      ],
     ]);
   }
 
@@ -1070,7 +1125,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       const _SuLabel('희망 급여 형태'),
       _ChipSelector(
           value: _payType,
-          options: const ['무관', '시급', '월급', '일당'],
+          options: const ['상관없음', '시급', '월급', '일당'],
           onSelect: (v) => setState(() => _payType = v)),
       const SizedBox(height: 16),
       const _SuLabel('희망 근무 요일 (복수 선택)'),
@@ -1486,5 +1541,127 @@ InputDecoration _inputDecoration({required String hint}) => InputDecoration(
     border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none));
+
+class _SuSurgeryCard extends StatefulWidget {
+  const _SuSurgeryCard({required this.index, required this.surgery, required this.onRemove, required this.onChanged});
+  final int index;
+  final Map<String, dynamic> surgery;
+  final VoidCallback onRemove;
+  final VoidCallback onChanged;
+
+  @override
+  State<_SuSurgeryCard> createState() => _SuSurgeryCardState();
+}
+
+class _SuSurgeryCardState extends State<_SuSurgeryCard> {
+  late final TextEditingController _name;
+  DateTime? _selectedDate;
+  String? _recovery;
+
+  static const _recoveryOptions = ['모름', '회복중', '회복완료', '미회복'];
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: '${widget.surgery['name'] ?? ''}');
+    final raw = widget.surgery['date']?.toString() ?? widget.surgery['year']?.toString() ?? '';
+    if (raw.length >= 10) {
+      _selectedDate = DateTime.tryParse(raw);
+    }
+    final r = widget.surgery['recovery']?.toString() ?? '';
+    _recovery = _recoveryOptions.contains(r) ? r : null;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime(2000),
+      firstDate: DateTime(1940),
+      lastDate: DateTime.now(),
+      locale: const Locale('ko'),
+    );
+    if (picked != null) {
+      final formatted = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      setState(() => _selectedDate = picked);
+      widget.surgery['date'] = formatted;
+      widget.onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText = _selectedDate != null
+        ? '${_selectedDate!.year}년 ${_selectedDate!.month}월 ${_selectedDate!.day}일'
+        : '날짜 선택';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F5E8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4E8D6)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('수술 ${widget.index + 1}',
+              style: const TextStyle(color: Color(0xFF1F2A20), fontSize: 14, fontWeight: FontWeight.w900)),
+          const Spacer(),
+          GestureDetector(
+            onTap: widget.onRemove,
+            child: const Icon(Icons.close, size: 18, color: Color(0xFFD94E4E)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        const Text('수술명', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const SizedBox(height: 4),
+        TextField(
+          controller: _name,
+          decoration: _inputDecoration(hint: '예: 무릎 인공관절 수술'),
+          onChanged: (v) { widget.surgery['name'] = v; widget.onChanged(); },
+        ),
+        const SizedBox(height: 10),
+        const Text('수술 날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: _pickDate,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFD4E8D6)),
+            ),
+            child: Row(children: [
+              Expanded(child: Text(dateText,
+                  style: TextStyle(color: _selectedDate != null ? const Color(0xFF1F2A20) : const Color(0xFF9E9E9E), fontSize: 14))),
+              const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF86A788)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text('회복 여부', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: _recovery,
+          hint: const Text('선택해주세요'),
+          items: _recoveryOptions.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          onChanged: (v) {
+            setState(() => _recovery = v);
+            widget.surgery['recovery'] = v ?? '';
+            widget.onChanged();
+          },
+          decoration: _inputDecoration(hint: '선택해주세요'),
+          isExpanded: true,
+        ),
+      ]),
+    );
+  }
+}
 
 // 전화번호 포매터는 lib/core/utils/phone_formatter.dart 의 PhoneNumberFormatter 사용

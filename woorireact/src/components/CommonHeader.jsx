@@ -55,6 +55,10 @@ function CommonHeader({
             time: notification.time || notification.createdAt || "",
             isRead: notification.isRead === true || READ_STATUSES.has(status),
             statusLabel: notification.statusLabel,
+            imageUrl: notification.imageUrl
+              || notification.raw?.imageUrl
+              || notification.raw?.imageAccessUrl
+              || "",
             danger:
               notification.danger === true ||
               notification.isSafeZone === true ||
@@ -433,10 +437,10 @@ function CommonHeader({
                       </div>
 
                       <p>{notification.message}</p>
-                      {notification.raw?.imageUrl && (
+                      {notification.imageUrl && (
                         <img
-                          className="uch-alert-thumbnail"
-                          src={notification.raw.imageUrl}
+                          className={`uch-alert-thumbnail ${notification.category === "낙상" ? "fall" : ""}`}
+                          src={notification.imageUrl}
                           alt={`${notification.title} 사진`}
                         />
                       )}
