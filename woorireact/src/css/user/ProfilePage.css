@@ -510,6 +510,11 @@
   cursor: pointer;
 }
 
+.pr-add-line-btn {
+  display: block;
+  margin-bottom: 1rem;
+}
+
 .pr-medication-head button:hover,
 .pr-add-line-btn:hover {
   background: #eef6ef;

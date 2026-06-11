@@ -61,6 +61,9 @@ public class HealthInfo {
     private String hasSurgery;
 
     @Column(columnDefinition = "TEXT")
+    private String surgeriesJson;
+
+    @Column(columnDefinition = "TEXT")
     private String surgeryDetail;
 
     @Column(columnDefinition = "TEXT")

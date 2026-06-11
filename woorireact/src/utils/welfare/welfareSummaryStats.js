@@ -11,7 +11,7 @@ export const FIELD_CATEGORY_MAP = {
   "호흡기질환": "만성질환", "간질환": "만성질환", "암": "만성질환",
   "보행 보조기": "거동/인지", "치매": "거동/인지",
   "시력": "거동/인지", "청력": "거동/인지",
-  "최근 낙상": "거동/인지", "수술 이력": "거동/인지",
+  "최근 낙상": "거동/인지", "수술 이력": "거동/인지", "수술 상세": "거동/인지",
   "생계비 현황": "복지정보", "가구 유형": "복지정보",
   "연금 현황": "복지정보", "주거 유형": "복지정보",
   "최대 근무 시간": "활동조건", "이동 가능 거리": "활동조건",
@@ -151,6 +151,16 @@ export const getMissingSeniorInfoFields = (senior) => {
     ];
     for (const { key, label } of mobilityFields) {
         if (checkField(senior[key], !senior.hasHealthInfo)) fields.push(label);
+    }
+    if (senior.hasSurgery === "있음") {
+        let hasDetails = false;
+        try {
+            const list = typeof senior.surgeriesJson === "string"
+                ? JSON.parse(senior.surgeriesJson)
+                : (Array.isArray(senior.surgeriesJson) ? senior.surgeriesJson : []);
+            hasDetails = Array.isArray(list) && list.some((s) => s.name && String(s.name).trim());
+        } catch { /* ignore */ }
+        if (!hasDetails) fields.push("수술 상세");
     }
 
     // ── 복지 정보 ────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ import {
   calculateAge,
   calcBMI,
   createMedicine,
+  createSurgery,
   defaultForm,
   normalizeForm,
   syncMedicationsWithCount,
@@ -36,6 +37,8 @@ import "../../css/common/SignUp.css";
 import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const STEPS = ["기본 정보", "건강 정보", "복약 정보", "건강 상태", "거동/인지/감각", "복지 정보", "활동/일자리"];
+const _CURRENT_YEAR = new Date().getFullYear();
+const SURGERY_YEARS = ["", ...Array.from({ length: _CURRENT_YEAR - 1940 + 1 }, (_, i) => String(_CURRENT_YEAR - i))];
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -78,6 +81,11 @@ export default function SignUp() {
   const addMedicine = () => setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] }));
   const removeMedicine = (index) =>
     setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
+
+  const addSurgery = () => setForm((prev) => ({ ...prev, surgeries: [...(prev.surgeries || []), createSurgery()] }));
+  const removeSurgery = (index) => setForm((prev) => ({ ...prev, surgeries: prev.surgeries.filter((_, i) => i !== index) }));
+  const setSurgery = (index, key, value) =>
+    setForm((prev) => ({ ...prev, surgeries: prev.surgeries.map((s, i) => i === index ? { ...s, [key]: value } : s) }));
 
   const handleMedicineCountChange = (value) => {
     setForm((prev) => ({
@@ -126,6 +134,13 @@ export default function SignUp() {
 
   const submit = async (formOverride) => {
     const f = formOverride ?? form;
+    if (f.hasSurgery === "있음") {
+      const hasName = (f.surgeries || []).some((s) => s.name && String(s.name).trim());
+      if (!hasName) {
+        setError("수술 이력이 '있음'으로 선택되어 있습니다. 수술명을 입력해주세요.");
+        return;
+      }
+    }
     try {
       setSaving(true);
       setError("");
@@ -175,10 +190,10 @@ export default function SignUp() {
   const handleSkipJobSection = () => {
     submit({
       ...form,
-      maxHours: form.maxHours || "상관없음",
-      maxDistance: form.maxDistance || "상관없음",
+      maxHours: form.maxHours || NONE,
+      maxDistance: form.maxDistance || NONE,
       restNeed: form.restNeed || NONE,
-      payType: form.payType || "무관",
+      payType: form.payType || NONE,
     });
   };
 
@@ -373,7 +388,14 @@ export default function SignUp() {
               <div className="su-section-title">건강 상태</div>
               <div className="su-hint">어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.</div>
               <div style={{ textAlign: "right", marginBottom: "0.5rem" }}>
-                <button className="su-btn-skip" type="button" onClick={() => setForm((prev) => ({ ...prev, ...Object.fromEntries(CHRONIC.map(({ key }) => [key, NONE])) }))}>전체 없음</button>
+                <button
+                  className={`su-chip ${CHRONIC.every(({ key }) => form[key] === NONE) ? "on" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    const allNone = CHRONIC.every(({ key }) => form[key] === NONE);
+                    setForm((prev) => ({ ...prev, ...Object.fromEntries(CHRONIC.map(({ key }) => [key, allNone ? "" : NONE])) }));
+                  }}
+                >전체 없음</button>
               </div>
               {CHRONIC.map(({ key, label, levels }) => (
                 <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
@@ -389,6 +411,28 @@ export default function SignUp() {
               <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} onSelect={(value) => set("vision", value)} />
               <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
               <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
+              <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} onSelect={(value) => {
+                set("hasSurgery", value);
+                if (value === "있음" && (form.surgeries || []).length === 0) addSurgery();
+              }} />
+              {form.hasSurgery === "있음" && (
+                <>
+                  <div className="su-medication-list">
+                    {(form.surgeries || []).map((surgery, index) => (
+                      <div className="su-medication-card" key={`surgery-${index}`}>
+                        <div className="su-medication-head">
+                          <strong>수술 {index + 1}</strong>
+                          <button type="button" onClick={() => removeSurgery(index)}>삭제</button>
+                        </div>
+                        <InputField label="수술명" value={surgery.name} onChange={(value) => setSurgery(index, "name", value)} />
+                        <InputField label="수술 날짜" type="date" value={surgery.date} onChange={(value) => setSurgery(index, "date", value)} />
+                        <SelectField label="회복 여부" value={surgery.recovery} options={["", "모름", "회복중", "회복완료", "미회복"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => setSurgery(index, "recovery", value)} />
+                      </div>
+                    ))}
+                  </div>
+                  <button className="su-add-line-btn" type="button" onClick={addSurgery}>+ 수술 이력 추가</button>
+                </>
+              )}
             </section>
         )}
 
@@ -435,7 +479,7 @@ export default function SignUp() {
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
             <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
-            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+            <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
             <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />

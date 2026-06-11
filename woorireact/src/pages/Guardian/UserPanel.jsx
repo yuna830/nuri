@@ -101,6 +101,7 @@ function UserPanel({
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
   });
+  const [profileImageLoaded, setProfileImageLoaded] = useState(false);
 
   useEffect(() => {
     if (!navigator.getBattery) return undefined;
@@ -235,8 +236,8 @@ function UserPanel({
     : [];
 
   useEffect(() => {
-     
     setIsProfileMenuOpen(false);
+    setProfileImageLoaded(false);
   }, [selectedElderId]);
 
   useEffect(() => {
@@ -336,7 +337,13 @@ function UserPanel({
               onClick={handleProfileClick}
             >
               {profileImage ? (
-                <img src={profileImage} alt={`${selectedElder.name} 프로필`} />
+                <img
+                  src={profileImage}
+                  alt={`${selectedElder.name} 프로필`}
+                  fetchpriority="high"
+                  className={profileImageLoaded ? "loaded" : ""}
+                  onLoad={() => setProfileImageLoaded(true)}
+                />
               ) : (
                 <span>이미지</span>
               )}
