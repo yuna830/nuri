@@ -29,6 +29,40 @@ export const getFallAlertImageUrl = (alert) => {
 const formatLocation = (alert) =>
   alert.address || alert.locationText || alert.fallDetails?.locationText || "위치 확인 필요";
 
+const isUnknownLocation = (value) => {
+  const text = String(value || "").trim();
+  return !text || text === "위치 확인 필요" || text === "현재 위치 확인 필요";
+};
+
+const replaceUnknownLocationInMessage = (message, locationText) => {
+  if (!message || isUnknownLocation(locationText)) return message;
+
+  return message.replace(
+    /현재 위치:\s*(?:현재 위치 확인 필요|위치 확인 필요)/g,
+    `현재 위치: ${locationText}`
+  );
+};
+
+const formatCameraScoreNote = (score) => {
+  if (score == null) return "카메라와 센서, AI 조건을 함께 확인한 알림입니다.";
+  return `카메라 보조점수: ${score}점. 센서나 AI 조건으로도 알림이 발생할 수 있습니다.`;
+};
+
+const clarifyFallScoreMessage = (message, score) => {
+  if (!message) return message;
+
+  const clarified = message
+    .replace(/\s*감지 점수\s*:?\s*[0-9.]+\s*점?\.?/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (clarified.includes("센서나 AI 조건") || clarified.includes("카메라와 센서")) {
+    return clarified;
+  }
+
+  return `${clarified} ${formatCameraScoreNote(score)}`;
+};
+
 export const formatAlertMessage = (alert) => {
   const originalMessage = alert.message ?? alert.title ?? "";
   const seniorName = getSeniorName(alert);
@@ -39,8 +73,12 @@ export const formatAlertMessage = (alert) => {
 
   if (FALL_ALERT_TYPES.has(alert.type)) {
     const score = alert.score ?? alert.fallDetails?.score;
-    const scoreText = score != null ? ` 감지 점수 ${score}점.` : "";
-    return `${seniorName}님 낙상이 감지되었습니다. 현재 위치: ${formatLocation(alert)}.${scoreText}`;
+    if (originalMessage) {
+      const messageWithLocation = replaceUnknownLocationInMessage(originalMessage, formatLocation(alert));
+      return clarifyFallScoreMessage(messageWithLocation, score);
+    }
+
+    return `${seniorName}님 낙상이 감지되었습니다. 현재 위치: ${formatLocation(alert)}. ${formatCameraScoreNote(score)}`;
   }
 
   const isSosCancel =

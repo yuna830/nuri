@@ -35,12 +35,16 @@ class _ReportType {
   const _ReportType(this.value, this.label, this.icon);
 }
 
-const _kReportTypes = [
+const _kReportTypesRegistered = [
   _ReportType('missing', '실종 신고', Icons.search_off),
   _ReportType('danger', '위험 상황 신고', Icons.warning_amber_rounded),
-  _ReportType('sos', 'SOS 미응답', Icons.sos),
   _ReportType('zone', '위치 이탈', Icons.location_off),
   _ReportType('fall', '낙상 의심', Icons.personal_injury),
+];
+
+const _kReportTypesOther = [
+  _ReportType('missing', '실종 신고', Icons.search_off),
+  _ReportType('danger', '위험 상황 신고', Icons.warning_amber_rounded),
 ];
 
 enum _LocationMode { lastKnown, mapPick, search }
@@ -681,6 +685,7 @@ class _ReportScreenState extends State<ReportScreen> {
               onTap: () {
                 setState(() {
                   _targetMode = _TargetMode.registeredSenior;
+                  _selectedType = null;
                   _locationMode = _LocationMode.lastKnown;
                   _locationCtrl.clear();
                   _searchCtrl.clear();
@@ -702,6 +707,7 @@ class _ReportScreenState extends State<ReportScreen> {
               onTap: () {
                 setState(() {
                   _targetMode = _TargetMode.otherPerson;
+                  _selectedType = null;
                   _locationMode = _LocationMode.search;
                   _locationCtrl.clear();
                   _searchCtrl.clear();
@@ -851,10 +857,13 @@ class _ReportScreenState extends State<ReportScreen> {
   // ── 신고 유형 드롭다운 ──────────────────────────────────────────────────────
 
   Widget _buildTypeDropdown() {
+    final types = _targetMode == _TargetMode.registeredSenior
+        ? _kReportTypesRegistered
+        : _kReportTypesOther;
     return _buildDropdown<_ReportType>(
-      value: _selectedType,
+      value: types.contains(_selectedType) ? _selectedType : null,
       hint: '신고 유형을 선택하세요',
-      items: _kReportTypes,
+      items: types,
       itemLabel: (t) => t.label,
       leading: (t) => Icon(t.icon, size: 16, color: _kTextSub),
       onChanged: (v) => setState(() => _selectedType = v),
@@ -2431,7 +2440,6 @@ class _ReportHistoryCard extends StatelessWidget {
     const map = {
       'missing': '실종 신고',
       'danger': '위험 상황 신고',
-      'sos': 'SOS 미응답',
       'zone': '위치 이탈',
       'fall': '낙상 의심',
     };

@@ -105,11 +105,55 @@ const _workTypes = [
 const _yesNo = [_none, '예', '아니오'];
 const _payTypes = [_none, '시급', '일급', '월급', '무관'];
 const _maxHoursOptions = [
-  _none, '1시간', '2시간', '3시간', '4시간', '5시간', '6시간', '8시간'
+  _none, '상관없음', '1시간', '2시간', '3시간', '4시간', '5시간', '6시간', '8시간'
 ];
 const _maxDistanceOptions = [
   _none, '도보 10분 이내', '도보 20분 이내', '버스 1정거장', '버스 3정거장 이내', '상관없음'
 ];
+
+typedef _FieldCheck = ({String label, bool Function(_ProfileForm) isEmpty});
+
+List<_FieldCheck> _sectionFieldChecks(int i) {
+  switch (i) {
+    case 0: return [
+      (label: '장애 등급', isEmpty: (f) => f.disabilityGrade == _none),
+      (label: '장애 유형', isEmpty: (f) => f.disabilityType == _none),
+    ];
+    case 1: return [
+      (label: '흡연 여부', isEmpty: (f) => f.smoking == _none),
+      (label: '음주 여부', isEmpty: (f) => f.drinking == _none),
+    ];
+    case 2: return [
+      (label: '복용 약품 수', isEmpty: (f) => f.medicineCount == _none),
+    ];
+    case 3:
+      return _chronicDiseases.map((d) {
+        final key = d['key']!;
+        return (label: d['label']!, isEmpty: (_ProfileForm f) => f.chronic[key] == _none);
+      }).toList();
+    case 4: return [
+      (label: '보행 보조기 사용', isEmpty: (f) => f.walkingAid == _none),
+      (label: '치매', isEmpty: (f) => f.dementia == _none),
+      (label: '시력', isEmpty: (f) => f.vision == _none),
+      (label: '청력', isEmpty: (f) => f.hearing == _none),
+      (label: '최근 낙상 경험', isEmpty: (f) => f.recentFall == _none),
+      (label: '수술 이력', isEmpty: (f) => f.hasSurgery == _none),
+    ];
+    case 5: return [
+      (label: '생활비 상황', isEmpty: (f) => f.livingCostStatus == _none),
+      (label: '가구 형태', isEmpty: (f) => f.householdType == _none),
+      (label: '연금 수급 상태', isEmpty: (f) => f.pensionStatus == _none),
+      (label: '주거 형태', isEmpty: (f) => f.housingType == _none),
+    ];
+    case 6: return [
+      (label: '최대 근무 시간', isEmpty: (f) => f.maxHours == _none),
+      (label: '통근 가능 거리', isEmpty: (f) => f.maxDistance == _none),
+      (label: '휴식 필요', isEmpty: (f) => f.restNeeds == _none),
+      (label: '선호 급여 형태', isEmpty: (f) => f.payType == _none),
+    ];
+    default: return [];
+  }
+}
 
 const _sections = [
   '인적사항', '신체정보', '복약정보', '만성질환', '거동/인지', '복지정보', '활동 및 일자리',
@@ -468,11 +512,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         _form = _apiToForm(cached);
         _loading = false;
       });
+      _jumpToFirstMissingSection();
       // 백그라운드에서 최신 데이터 갱신 (사용자가 이미 수정 중이면 덮어쓰지 않음)
       _api.fetchProfile(widget.seniorId).then((raw) {
         if (!mounted || _dirty) return;
         SeniorSessionStorage.saveProfile(widget.seniorId, raw);
         setState(() => _form = _apiToForm(raw));
+        _jumpToFirstMissingSection();
       }).catchError((_) {});
       return;
     }
@@ -487,6 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _form = _apiToForm(raw);
         _loading = false;
       });
+      _jumpToFirstMissingSection();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -522,6 +569,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  void _jumpToFirstMissingSection() {
+    if (widget.pendingAlertId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (int i = 0; i < _sections.length; i++) {
+        if (_sectionFieldChecks(i).any((c) => c.isEmpty(_form))) {
+          _tabController.animateTo(i);
+          break;
+        }
+      }
+    });
+  }
+
+  List<String> _missingLabels(int sectionIndex) {
+    if (widget.pendingAlertId == null) return const [];
+    return _sectionFieldChecks(sectionIndex)
+        .where((c) => c.isEmpty(_form))
+        .map((c) => c.label)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -550,7 +618,34 @@ class _ProfileScreenState extends State<ProfileScreen>
                 indicatorColor: const Color(0xFF86A788),
                 labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                 tabAlignment: TabAlignment.start,
-                tabs: _sections.map((s) => Tab(text: s)).toList(),
+                tabs: _sections.asMap().entries.map((e) {
+                  final count = widget.pendingAlertId != null
+                      ? _sectionFieldChecks(e.key).where((c) => c.isEmpty(_form)).length
+                      : 0;
+                  return Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(e.value),
+                        if (count > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD94E4E),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text('$count',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
       ),
       body: _loading
@@ -563,13 +658,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _PersonalSection(
                       form: _form,
                       onChanged: () => setState(() { _dirty = true; }),
+                      missingLabels: _missingLabels(0),
                     ),
-                    _BodySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _MedicationSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _ChronicSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _MobilitySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _WelfareSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _JobSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
+                    _BodySection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(1)),
+                    _MedicationSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(2)),
+                    _ChronicSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(3)),
+                    _MobilitySection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(4)),
+                    _WelfareSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(5)),
+                    _JobSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(6)),
                   ],
                 ),
 
@@ -599,9 +695,11 @@ class _PersonalSection extends StatefulWidget {
   const _PersonalSection({
     required this.form,
     required this.onChanged,
+    this.missingLabels = const [],
   });
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_PersonalSection> createState() => _PersonalSectionState();
@@ -675,7 +773,7 @@ class _PersonalSectionState extends State<_PersonalSection> {
       context: context,
       initialDate: initial,
       firstDate: DateTime(1900),
-      lastDate: now,
+      lastDate: DateTime(now.year - 14, now.month, now.day),
     );
     if (picked == null) return;
     final s =
@@ -709,7 +807,7 @@ class _PersonalSectionState extends State<_PersonalSection> {
             : widget.form.profileImageUrl)
         : '';
 
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1132,9 +1230,10 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
 }
 
 class _BodySection extends StatefulWidget {
-  const _BodySection({required this.form, required this.onChanged});
+  const _BodySection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_BodySection> createState() => _BodySectionState();
@@ -1178,7 +1277,7 @@ class _BodySectionState extends State<_BodySection> {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       const _FieldLabel('키 (cm)'),
       _FormField(
         controller: _height,
@@ -1243,9 +1342,10 @@ class _BodySectionState extends State<_BodySection> {
 // ─── 복약정보 ─────────────────────────────────────────────────────────────────
 
 class _MedicationSection extends StatefulWidget {
-  const _MedicationSection({required this.form, required this.onChanged});
+  const _MedicationSection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_MedicationSection> createState() => _MedicationSectionState();
@@ -1274,7 +1374,7 @@ class _MedicationSectionState extends State<_MedicationSection> {
   @override
   Widget build(BuildContext context) {
     final names = _medicineNames;
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       const _FieldLabel('복용 약품 수'),
       _Dropdown(
           value: widget.form.medicineCount,
@@ -1444,28 +1544,42 @@ class _MedicationRowState extends State<_MedicationRow> {
 // ─── 만성질환 ─────────────────────────────────────────────────────────────────
 
 class _ChronicSection extends StatelessWidget {
-  const _ChronicSection({required this.form, required this.onChanged});
+  const _ChronicSection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   Widget build(BuildContext context) {
     return _SectionScroll(
-      children: _chronicDiseases.map((d) {
-        final key = d['key']!;
-        final label = d['label']!;
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _FieldLabel(label),
-          _Dropdown(
-            value: form.chronic[key] ?? _none,
-            items: _chronicLevels,
-            onChanged: (v) {
-              form.chronic[key] = v;
+      missingLabels: missingLabels,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () {
+              for (final d in _chronicDiseases) { form.chronic[d['key']!] = _none; }
               onChanged();
             },
+            child: const Text('전체 없음', style: TextStyle(color: Color(0xFF86a788))),
           ),
-        ]);
-      }).toList(),
+        ),
+        ..._chronicDiseases.map((d) {
+          final key = d['key']!;
+          final label = d['label']!;
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _FieldLabel(label),
+            _Dropdown(
+              value: form.chronic[key] ?? _none,
+              items: _chronicLevels,
+              onChanged: (v) {
+                form.chronic[key] = v;
+                onChanged();
+              },
+            ),
+          ]);
+        }),
+      ],
     );
   }
 }
@@ -1473,9 +1587,10 @@ class _ChronicSection extends StatelessWidget {
 // ─── 거동/인지 ────────────────────────────────────────────────────────────────
 
 class _MobilitySection extends StatefulWidget {
-  const _MobilitySection({required this.form, required this.onChanged});
+  const _MobilitySection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_MobilitySection> createState() => _MobilitySectionState();
@@ -1501,7 +1616,7 @@ class _MobilitySectionState extends State<_MobilitySection> {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       const _FieldLabel('보행 보조기 사용'),
       _Dropdown(
           value: widget.form.walkingAid,
@@ -1578,9 +1693,10 @@ class _MobilitySectionState extends State<_MobilitySection> {
 // ─── 복지정보 ─────────────────────────────────────────────────────────────────
 
 class _WelfareSection extends StatefulWidget {
-  const _WelfareSection({required this.form, required this.onChanged});
+  const _WelfareSection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_WelfareSection> createState() => _WelfareSectionState();
@@ -1603,7 +1719,7 @@ class _WelfareSectionState extends State<_WelfareSection> {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       const _FieldLabel('생활비 상황'),
       _Dropdown(
           value: widget.form.livingCostStatus,
@@ -1669,9 +1785,10 @@ class _WelfareSectionState extends State<_WelfareSection> {
 // ─── 일자리 ───────────────────────────────────────────────────────────────────
 
 class _JobSection extends StatefulWidget {
-  const _JobSection({required this.form, required this.onChanged});
+  const _JobSection({required this.form, required this.onChanged, this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
+  final List<String> missingLabels;
 
   @override
   State<_JobSection> createState() => _JobSectionState();
@@ -1694,7 +1811,7 @@ class _JobSectionState extends State<_JobSection> {
 
   @override
   Widget build(BuildContext context) {
-    return _SectionScroll(children: [
+    return _SectionScroll(missingLabels: widget.missingLabels, children: [
       const _FieldLabel('최대 근무 시간'),
       _Dropdown(
           value: widget.form.maxHours,
@@ -1783,9 +1900,58 @@ class _JobSectionState extends State<_JobSection> {
 
 // ─── Shared widgets ───────────────────────────────────────────────────────────
 
+class _MissingFieldsBanner extends StatelessWidget {
+  const _MissingFieldsBanner({required this.labels});
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFDE8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDDD18A)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.edit_note_outlined, color: Color(0xFFB8860B), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '복지사가 입력을 요청한 항목이 있어요',
+                  style: TextStyle(
+                    color: Color(0xFF1F2A20),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '아직 비어 있는 항목: ${labels.join(', ')}',
+                  style: const TextStyle(
+                    color: Color(0xFF6D766A),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionScroll extends StatelessWidget {
-  const _SectionScroll({required this.children});
+  const _SectionScroll({required this.children, this.missingLabels = const []});
   final List<Widget> children;
+  final List<String> missingLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -1793,7 +1959,10 @@ class _SectionScroll extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _withSpacing(children),
+        children: _withSpacing([
+          if (missingLabels.isNotEmpty) _MissingFieldsBanner(labels: missingLabels),
+          ...children,
+        ]),
       ),
     );
   }

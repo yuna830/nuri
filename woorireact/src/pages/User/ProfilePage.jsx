@@ -246,6 +246,13 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!isLoaded) return;
+    if (form.birthDate) {
+      const age = calculateAge(form.birthDate);
+      if (!age || age < 14) {
+        alert("생년월일은 만 14세 이상이어야 해요.");
+        return;
+      }
+    }
     const alertId = searchParams.get("alertId");
     try {
       setSaving(true);
@@ -334,6 +341,7 @@ export default function ProfilePage() {
                 label="생년월일"
                 type="date"
                 value={form.birthDate}
+                max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 14); return d.toISOString().split("T")[0]; })()}
                 onChange={(value) => {
                   const age = calculateAge(value);
                   setForm((prev) => ({
@@ -444,6 +452,9 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-title">만성질환</div>
             <div className="pr-hint">의학적 등급보다 실제 생활 기준에 맞춰 선택해주세요.</div>
+            <div style={{ textAlign: "right", marginBottom: "0.5rem" }}>
+              <button className="pr-chip" type="button" onClick={() => CHRONIC.forEach(({ key }) => set(key, NONE))}>전체 없음</button>
+            </div>
             {CHRONIC.map(({ key, label, levels }) => (
               <ChipField key={key} label={label} value={form[key]} options={levels} highlight={highlightKeys.has(key)} onSelect={(value) => set(key, value)} />
             ))}
@@ -500,8 +511,8 @@ export default function ProfilePage() {
           <section className="pr-section">
             <div className="pr-section-title">활동 및 일자리 조건</div>
             <div className="pr-row">
-              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
-              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
+              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "상관없음", "2", "4", "6", "8"]} labels={{ "": "선택", "상관없음": "상관없음", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "상관없음", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택", "상관없음": "상관없음" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
             <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
@@ -574,11 +585,11 @@ export default function ProfilePage() {
   );
 }
 
-function InputField({ label, value, onChange, type = "text", placeholder = "", readOnly = false, disabled = false }) {
+function InputField({ label, value, onChange, type = "text", placeholder = "", readOnly = false, disabled = false, max, min }) {
   return (
     <div className="pr-field">
       <label className="pr-label">{label}</label>
-      <input className="pr-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} readOnly={readOnly} disabled={disabled} />
+      <input className="pr-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} readOnly={readOnly} disabled={disabled} max={max} min={min} />
     </div>
   );
 }

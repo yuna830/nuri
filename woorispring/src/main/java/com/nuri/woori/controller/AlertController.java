@@ -2,9 +2,11 @@ package com.nuri.woori.controller;
 
 import com.nuri.woori.entity.Alert;
 import com.nuri.woori.entity.GuardianSenior;
+import com.nuri.woori.entity.LocationStatus;
 import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
+import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.service.FcmPushService;
 import org.springframework.web.bind.annotation.*;
@@ -25,17 +27,20 @@ public class AlertController {
     private final GuardianSeniorRepository guardianSeniorRepository;
     private final SeniorRepository seniorRepository;
     private final FcmPushService fcmPushService;
+    private final LocationStatusRepository locationStatusRepository;
 
     public AlertController(
             AlertRepository alertRepository,
             GuardianSeniorRepository guardianSeniorRepository,
             SeniorRepository seniorRepository,
-            FcmPushService fcmPushService
+            FcmPushService fcmPushService,
+            LocationStatusRepository locationStatusRepository
     ) {
         this.alertRepository = alertRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.seniorRepository = seniorRepository;
         this.fcmPushService = fcmPushService;
+        this.locationStatusRepository = locationStatusRepository;
     }
 
     @GetMapping
@@ -103,9 +108,7 @@ public class AlertController {
 
     @PostMapping("/safe-zone")
     public List<Alert> createSafeZoneAlert(@RequestBody SosAlertRequest request) {
-        String address = request.address() == null || request.address().isBlank()
-                ? "현재 위치 확인 필요"
-                : request.address();
+        String address = resolveAddress(request.address(), request.seniorId());
         return createGuardianAlerts(
                 request,
                 "SAFE_ZONE_EXIT",
@@ -287,9 +290,7 @@ public class AlertController {
         }
 
         List<GuardianSenior> guardianSeniors = guardianSeniorRepository.findBySeniorId(request.seniorId());
-        String address = request.address() == null || request.address().isBlank()
-                ? "현재 위치 확인 필요"
-                : request.address();
+        String address = resolveAddress(request.address(), request.seniorId());
         String scoreText = request.score() == null ? "" : " 감지 점수: " + request.score();
 
         if (guardianSeniors.isEmpty()) {
@@ -720,6 +721,17 @@ public class AlertController {
             );
         }
         return savedAlert;
+    }
+
+    private String resolveAddress(String requestAddress, Long seniorId) {
+        if (requestAddress != null && !requestAddress.isBlank()) {
+            return requestAddress;
+        }
+        return locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(seniorId)
+                .map(LocationStatus::getAddress)
+                .filter(addr -> addr != null && !addr.isBlank())
+                .orElse("위치 확인 필요");
     }
 
     private Alert buildFallAlert(

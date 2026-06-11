@@ -1,45 +1,47 @@
 // ── 필드 → 카테고리 매핑 ───────────────────────────────
 export const FIELD_CATEGORY_MAP = {
-  "연락처": "인적사항", "주소": "인적사항",
-  "생년월일/나이": "인적사항", "성별": "인적사항",
-  "장애 등급": "인적사항", "장애 유형": "인적사항",
-  "흡연": "신체정보", "음주": "신체정보",
-  "복약 정보": "복약정보",
-  "당뇨": "만성질환", "고혈압": "만성질환",
-  "심장질환": "만성질환", "관절질환": "만성질환",
-  "뇌졸중": "만성질환", "신장질환": "만성질환",
-  "호흡기질환": "만성질환", "간질환": "만성질환", "암": "만성질환",
-  "보행 보조기": "거동/인지", "치매": "거동/인지",
-  "시력": "거동/인지", "청력": "거동/인지",
-  "최근 낙상": "거동/인지", "수술 이력": "거동/인지",
-  "생계비 현황": "복지정보", "가구 유형": "복지정보",
-  "연금 현황": "복지정보", "주거 유형": "복지정보",
-  "최대 근무 시간": "활동조건", "이동 가능 거리": "활동조건",
-  "휴식 필요": "활동조건", "희망 급여 유형": "일자리",
+    "연락처": "인적사항", "주소": "인적사항",
+    "생년월일/나이": "인적사항", "성별": "인적사항",
+    "장애 등급": "인적사항", "장애 유형": "인적사항",
+    "흡연": "신체정보", "음주": "신체정보",
+    "복약 정보": "복약정보",
+    "당뇨": "만성질환", "고혈압": "만성질환",
+    "심장질환": "만성질환", "관절질환": "만성질환",
+    "뇌졸중": "만성질환", "신장질환": "만성질환",
+    "호흡기질환": "만성질환", "간질환": "만성질환", "암": "만성질환",
+    "보행 보조기": "거동/인지", "치매": "거동/인지",
+    "시력": "거동/인지", "청력": "거동/인지",
+    "최근 낙상": "거동/인지", "수술 이력": "거동/인지",
+    "생계비 현황": "복지정보", "가구 유형": "복지정보",
+    "연금 현황": "복지정보", "주거 유형": "복지정보",
+    "최대 근무 시간": "활동조건", "이동 가능 거리": "활동조건",
+    "희망 급여 유형": "활동/일자리",
+    "최대 근무 시간": "활동/일자리", "이동 가능 거리": "활동/일자리",
+    "휴식 필요": "활동/일자리",
 };
 
 /** fields 배열 → { 카테고리: [필드명, ...], ... } */
 export const groupFieldsByCategory = (fields = []) => {
-  const result = {};
-  for (const field of fields) {
-    const cat = FIELD_CATEGORY_MAP[field] ?? "기타";
-    if (!result[cat]) result[cat] = [];
-    result[cat].push(field);
-  }
-  return result;
+    const result = {};
+    for (const field of fields) {
+        const cat = FIELD_CATEGORY_MAP[field] ?? "기타";
+        if (!result[cat]) result[cat] = [];
+        result[cat].push(field);
+    }
+    return result;
 };
 
 /** 알림 message 문자열 → 포함된 카테고리 배열 (중복 제거, 순서 유지) */
 export const getInfoAlertCategories = (message = "") => {
-  const seen = new Set();
-  const categories = [];
-  for (const [field, cat] of Object.entries(FIELD_CATEGORY_MAP)) {
-    if (message.includes(field) && !seen.has(cat)) {
-      seen.add(cat);
-      categories.push(cat);
+    const seen = new Set();
+    const categories = [];
+    for (const [field, cat] of Object.entries(FIELD_CATEGORY_MAP)) {
+        if (message.includes(field) && !seen.has(cat)) {
+            seen.add(cat);
+            categories.push(cat);
+        }
     }
-  }
-  return categories;
+    return categories;
 };
 
 const EMERGENCY_ALERT_STATUSES = [
@@ -126,15 +128,15 @@ export const getMissingSeniorInfoFields = (senior) => {
 
     // ── 만성질환 ─────────────────────────────────────────────────────────
     const chronicFields = [
-        { key: "diabetes",    label: "당뇨" },
-        { key: "hypertension",label: "고혈압" },
-        { key: "heart",       label: "심장질환" },
-        { key: "joint",       label: "관절질환" },
-        { key: "stroke",      label: "뇌졸중" },
-        { key: "kidney",      label: "신장질환" },
-        { key: "lung",        label: "호흡기질환" },
-        { key: "liver",       label: "간질환" },
-        { key: "cancer",      label: "암" },
+        { key: "diabetes", label: "당뇨" },
+        { key: "hypertension", label: "고혈압" },
+        { key: "heart", label: "심장질환" },
+        { key: "joint", label: "관절질환" },
+        { key: "stroke", label: "뇌졸중" },
+        { key: "kidney", label: "신장질환" },
+        { key: "lung", label: "호흡기질환" },
+        { key: "liver", label: "간질환" },
+        { key: "cancer", label: "암" },
     ];
     for (const { key, label } of chronicFields) {
         if (checkField(senior[key], !senior.hasHealthInfo)) fields.push(label);
@@ -143,9 +145,9 @@ export const getMissingSeniorInfoFields = (senior) => {
     // ── 거동/인지 ────────────────────────────────────────────────────────
     const mobilityFields = [
         { key: "walkingAid", label: "보행 보조기" },
-        { key: "dementia",   label: "치매" },
-        { key: "vision",     label: "시력" },
-        { key: "hearing",    label: "청력" },
+        { key: "dementia", label: "치매" },
+        { key: "vision", label: "시력" },
+        { key: "hearing", label: "청력" },
         { key: "recentFall", label: "최근 낙상" },
         { key: "hasSurgery", label: "수술 이력" },
     ];
@@ -156,9 +158,9 @@ export const getMissingSeniorInfoFields = (senior) => {
     // ── 복지 정보 ────────────────────────────────────────────────────────
     const welfareFields = [
         { key: "livingCostStatus", label: "생계비 현황" },
-        { key: "householdType",    label: "가구 유형" },
-        { key: "pensionStatus",    label: "연금 현황" },
-        { key: "housingType",      label: "주거 유형" },
+        { key: "householdType", label: "가구 유형" },
+        { key: "pensionStatus", label: "연금 현황" },
+        { key: "housingType", label: "주거 유형" },
     ];
     for (const { key, label } of welfareFields) {
         if (checkField(senior[key], !senior.hasWelfareInfo)) fields.push(label);

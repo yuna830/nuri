@@ -207,21 +207,41 @@ export default function LocationPage() {
     }
     setLoading(true);
     setError(null);
+
+    const onSuccess = (position) => updateLocation(
+      position.coords.latitude,
+      position.coords.longitude,
+      position.coords.accuracy
+    );
+
+    const onFinalError = (err) => {
+      if (err.code === 1) setError("위치 권한을 허용해주세요.");
+      else if (err.code === 2) setError("위치를 확인할 수 없어요. 네트워크를 확인해주세요.");
+      else setError("위치를 불러오지 못했어요. 새로고침을 눌러 다시 시도해주세요.");
+      setLoading(false);
+    };
+
+    // 고정밀 실패(타임아웃·불가) 시 저정밀로 재시도
+    const onHighAccuracyError = (err) => {
+      if (err.code === 1) { onFinalError(err); return; }
+      navigator.geolocation.getCurrentPosition(
+        onSuccess,
+        onFinalError,
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    };
+
     navigator.geolocation.getCurrentPosition(
-      (position) => updateLocation(
-        position.coords.latitude,
-        position.coords.longitude,
-        position.coords.accuracy
-      ),
-      () => { setError("위치 권한을 허용해주세요."); setLoading(false); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      onSuccess,
+      onHighAccuracyError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }, [updateLocation]);
 
   useEffect(() => { getLocation(); }, [getLocation]);
   useEffect(() => { loadLocationHistory(selectedDate); }, [loadLocationHistory, selectedDate]);
   useEffect(() => {
-    const timerId = setInterval(getLocation, 30000);
+    const timerId = setInterval(getLocation, 60000);
     return () => clearInterval(timerId);
   }, [getLocation]);
 
