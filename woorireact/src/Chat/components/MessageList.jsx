@@ -84,7 +84,7 @@ function FoodAnalysisMessage({ analysis }) {
   return (
     <div className="food-analysis-card">
       <strong className="food-analysis-title">성분표 분석 결과</strong>
-      <p className="food-analysis-product">제품명: {analysis.product || "확인 필요"}</p>
+      <p className="food-analysis-product">제품명: {analysis.product || "인식하지 못함"}</p>
 
       <table className="food-nutrient-table">
         <caption>영양성분</caption>
