@@ -249,18 +249,25 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
     if (_step < _steps.length - 1) {
       setState(() => _step++);
     } else {
-      // 마지막 단계에서 건너뛰면 바로 등록
+      // 마지막 단계(활동/일자리) 건너뛰면 기본값 설정 후 등록
+      setState(() {
+        if (_maxHours.isEmpty) _maxHours = '상관없음';
+        if (_maxDistance.isEmpty) _maxDistance = '상관없음';
+        if (_restNeed.isEmpty) _restNeed = _none;
+        if (_payType.isEmpty) _payType = '무관';
+      });
       _submit();
     }
   }
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
+    final maxDate = DateTime(now.year - 14, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime(now.year - 65),
       firstDate: DateTime(1900),
-      lastDate: now,
+      lastDate: maxDate,
     );
     if (picked == null) return;
     setState(() {
@@ -857,7 +864,16 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   Widget _buildStep3() {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       const _SuHint('어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.'),
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: () => setState(() {
+            for (final d in _chronicDiseases) { _chronic[d['key']!] = _none; }
+          }),
+          child: const Text('전체 없음', style: TextStyle(color: Color(0xFF86a788))),
+        ),
+      ),
       ..._chronicDiseases.map((d) {
         final key = d['key']!;
         final label = d['label']!;

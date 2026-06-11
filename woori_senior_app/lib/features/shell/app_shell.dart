@@ -96,13 +96,79 @@ class _AppShellState extends State<AppShell> {
     } catch (_) {}
   }
 
-  void _go(int i) => setState(() {
-        _index = i;
-        if (i == 4) _hasInfoRequest = false;
+  void _go(int i) {
+    if (i == 3) {
+      _checkJobConditionsAndGo();
+      return;
+    }
+    setState(() {
+      _index = i;
+      if (i == 4) _hasInfoRequest = false;
+      _currentAction = null;
+      _currentActionIcon = null;
+      _currentActionTooltip = null;
+    });
+  }
+
+  Future<void> _checkJobConditionsAndGo() async {
+    final profile = await SeniorSessionStorage.getProfile(widget.seniorId);
+    if (!mounted) return;
+    if (profile == null) {
+      // 프로필 미로드 시 막지 않고 그냥 이동
+      setState(() { _index = 3; _currentAction = null; _currentActionIcon = null; _currentActionTooltip = null; });
+      return;
+    }
+    final healthInfo = (profile['healthInfo'] as Map<String, dynamic>?) ?? {};
+    final maxHours = healthInfo['maxHours'] as String? ?? '';
+    final maxDistance = healthInfo['maxDistance'] as String? ?? '';
+    final noConditions = (maxHours.isEmpty || maxHours == '상관없음') &&
+        (maxDistance.isEmpty || maxDistance == '상관없음');
+    if (noConditions) {
+      _showJobConditionsModal();
+    } else {
+      setState(() {
+        _index = 3;
         _currentAction = null;
         _currentActionIcon = null;
         _currentActionTooltip = null;
       });
+    }
+  }
+
+  void _showJobConditionsModal() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('일자리 조건이 없어요',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        content: const Text(
+          '현재 등록된 일자리 조건이 없어서\n일자리 찾기를 이용하기 어려워요.\n\n내 정보 수정 → 활동 및 일자리 탭에서\n조건을 먼저 입력해주세요.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('닫기', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _index = 4;
+                _hasInfoRequest = false;
+                _currentAction = null;
+                _currentActionIcon = null;
+                _currentActionTooltip = null;
+              });
+            },
+            child: const Text('내 정보 수정',
+                style: TextStyle(
+                    color: Color(0xFF86a788), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _registerAction({
     required VoidCallback action,

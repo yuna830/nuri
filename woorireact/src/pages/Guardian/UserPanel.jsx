@@ -488,15 +488,20 @@ function UserPanel({
           <p>{activitySummary.message}</p>
 
           {activityChanges.length > 0 && (
-            <div className="guardian-activity-report-list">
-              {activityChanges.map(([key, change]) => (
-                <div key={key}>
-                  <span>{ACTIVITY_LABELS[key] || key}</span>
-                  <strong>{formatActivityScore(change.today)}</strong>
-                  <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
-                </div>
-              ))}
-            </div>
+            <>
+              <small className="guardian-activity-report-note">
+                오른쪽 숫자는 평소 평균 대비 오늘 점수 변화입니다.
+              </small>
+              <div className="guardian-activity-report-list">
+                {activityChanges.map(([key, change]) => (
+                  <div key={key}>
+                    <span>{ACTIVITY_LABELS[key] || key}</span>
+                    <strong>{formatActivityScore(change.today)}</strong>
+                    <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
 

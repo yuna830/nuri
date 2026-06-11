@@ -639,11 +639,43 @@ function GuardianPage() {
   }, [activeElderId]);
 
   const displayedAlerts = useMemo(() => {
-    const elderNameById = new Map(
-      elders.map((elder) => [String(elder.id), elder.name])
-    );
+    const elderById = new Map(elders.map((elder) => [String(elder.id), elder]));
+    const isMissingLocationText = (value) => {
+      const text = String(value || "").trim();
+      return !text || text === "위치 확인 필요" || text === "현재 위치 확인 필요";
+    };
+    const getFallbackLocation = (alert) => {
+      const elder = elderById.get(String(alert.seniorId))
+        || (activeElderId ? elderById.get(String(activeElderId)) : null);
 
-    return buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      return elder?.currentLocation?.address
+        || elder?.lastNormalLocation?.address
+        || elder?.address
+        || "";
+    };
+    const alertsWithLocation = apiAlerts.map((alert) => {
+      const fallbackLocation = getFallbackLocation(alert);
+
+      if (!fallbackLocation) return alert;
+
+      const currentLocationText = alert.address || alert.locationText || alert.fallDetails?.locationText;
+
+      if (!isMissingLocationText(currentLocationText)) return alert;
+
+      return {
+        ...alert,
+        address: isMissingLocationText(alert.address) ? fallbackLocation : alert.address,
+        locationText: isMissingLocationText(alert.locationText) ? fallbackLocation : alert.locationText,
+        fallDetails: {
+          ...(alert.fallDetails || {}),
+          locationText: isMissingLocationText(alert.fallDetails?.locationText)
+            ? fallbackLocation
+            : alert.fallDetails.locationText,
+        },
+      };
+    });
+
+    return buildDisplayedAlerts(alertsWithLocation, reportedAlertIds)
       .filter((alert) => {
         if (!activeElderId) return true;
         return String(alert.seniorId) === String(activeElderId);
@@ -652,7 +684,7 @@ function GuardianPage() {
         ...alert,
         seniorName:
           alert.seniorName ||
-          elderNameById.get(String(alert.seniorId)) ||
+          elderById.get(String(alert.seniorId))?.name ||
           selectedElder?.name ||
           "사용자",
       }));
