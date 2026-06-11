@@ -1,5 +1,8 @@
+import { AI_API_BASE } from "../../config/api.js";
+
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash-lite";
+const FOOD_API_URL = import.meta.env.VITE_CHAT_FOOD_API_URL || `${AI_API_BASE}/food`;
 
 function buildCareAssistantSystemPrompt(profileContext) {
   const name = profileContext?.name?.trim();
@@ -75,7 +78,15 @@ export async function createCareResponse({ text, schedules, history = [], profil
       return await answerGeneralFoodRecommendation(text, profileContext);
     }
 
-    const latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
+    let latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
+    if (isFoodSafetyQuestion(text) && !latestFoodAnalysisMemory) {
+      latestFoodAnalysisMemory = await getFoodMemoryFromProductQuestion(text);
+    }
+
+    if (isFoodSafetyQuestion(text) && !latestFoodAnalysisMemory) {
+      return "어떤 음식인지 알 수 없어요. 음식 사진을 보내거나 음식 이름을 함께 말씀해 주세요.";
+    }
+
     const foodSafetyAnswer = answerFoodSafetyQuestion(text, latestFoodAnalysisMemory, profileContext, history);
     if (foodSafetyAnswer) return foodSafetyAnswer;
 
@@ -132,10 +143,29 @@ function buildProfileContextPrompt(profileContext) {
 }
 
 function getLatestFoodAnalysisMemory(history) {
-  return [...history]
-    .reverse()
-    .find((message) => message.hidden && String(message.content || "").includes("[FOOD_ANALYSIS_MEMORY]"))
-    ?.content || "";
+  const memoryIndex = history.findLastIndex(
+    (message) =>
+      message.hidden &&
+      String(message.content || "").includes("[FOOD_ANALYSIS_MEMORY]")
+  );
+  if (memoryIndex < 0) return "";
+
+  const latestUserIndex = history.findLastIndex(
+    (message, index) => index < memoryIndex && message.role === "user"
+  );
+  if (latestUserIndex < 0) return "";
+
+  const sourceMessage = history[latestUserIndex];
+  const imageUrls =
+    sourceMessage.imageUrls ||
+    (sourceMessage.imageUrl ? [sourceMessage.imageUrl] : []);
+
+  const hasLaterUserMessage = history.some(
+    (message, index) => index > memoryIndex && message.role === "user"
+  );
+
+  if (!imageUrls.length || hasLaterUserMessage) return "";
+  return history[memoryIndex].content || "";
 }
 
 function buildFoodAnalysisContextPrompt(memory) {
@@ -249,8 +279,9 @@ function answerFoodSafetyQuestion(text, memory, profileContext, history = []) {
   const conflicts = extractFoodMemorySection(memory, "Personal allergy conflicts found:");
   const ocrText = extractFoodMemorySection(memory, "OCR text:");
   const hasConflicts = conflicts && conflicts !== "none";
-  const diseaseCaution = getFoodDiseaseCaution(profileContext);
+  const diseaseCaution = getFoodDiseaseCaution(profileContext, productName);
   const foodSpecificCaution = getFoodSpecificCaution(productName);
+  const nutrientCaution = getNutrientCaution(memory);
   const eatingTips = getFoodEatingTips(productName);
 
   if (hasConflicts) {
@@ -267,13 +298,14 @@ function answerFoodSafetyQuestion(text, memory, profileContext, history = []) {
     ]);
   }
 
-  if (diseaseCaution.length > 0) {
+  if (diseaseCaution.length > 0 || nutrientCaution.length > 0) {
     return compactFoodAnswer([
       intro,
       intro && "",
       "조금만 드세요.",
       "",
       "주의할 점",
+      ...nutrientCaution,
       ...foodSpecificCaution,
       ...diseaseCaution,
       "",
@@ -307,6 +339,7 @@ function answerFoodSafetyQuestion(text, memory, profileContext, history = []) {
 function getFoodNameIntro(memory, history) {
   const productName = getVisibleFoodName(memory);
   if (!productName) return "";
+  const analysisSource = extractFoodMemorySection(memory, "Analysis source:");
 
   const alreadyMentioned = [...history]
     .reverse()
@@ -317,7 +350,22 @@ function getFoodNameIntro(memory, history) {
       String(message.content || "").includes(productName)
     );
 
-  return alreadyMentioned ? "" : `${productName}로 보여요.`;
+  if (alreadyMentioned) return "";
+
+  if (analysisSource === "product_name_query") {
+    return `${productName} 제품을 식약처 DB에서 조회했어요.`;
+  }
+
+  return `${productName}${getDirectionParticle(productName)} 보여요.`;
+}
+
+function getDirectionParticle(value) {
+  const lastCharacter = String(value || "").trim().slice(-1);
+  const code = lastCharacter.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return "으로";
+
+  const finalConsonant = (code - 0xac00) % 28;
+  return finalConsonant === 0 || finalConsonant === 8 ? "로" : "으로";
 }
 
 function getVisibleFoodName(memory) {
@@ -332,8 +380,94 @@ function compactFoodAnswer(lines) {
   return lines.filter((line) => line !== false && line !== null && line !== undefined).join("\n");
 }
 
+function getNutrientCaution(memory) {
+  const matchedProduct = extractFoodMemorySection(memory, "MFDS matched product:");
+  const warningsText = extractFoodMemorySection(memory, "Warnings JSON:");
+
+  if (!matchedProduct || matchedProduct === "none" || !warningsText || warningsText === "unknown") {
+    return [];
+  }
+
+  try {
+    const warnings = JSON.parse(warningsText);
+    const reasons = warnings
+      .filter((warning) => warning?.level !== "보통" && warning?.reason)
+      .map((warning) => `- 식약처 DB 수치: ${warning.reason}`);
+
+    if (reasons.length > 0) {
+      return [
+        `- 조회 제품: ${matchedProduct}`,
+        ...reasons,
+      ];
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+async function getFoodMemoryFromProductQuestion(text) {
+  const productName = extractProductNameFromFoodQuestion(text);
+  if (!productName) return "";
+
+  try {
+    const response = await fetch(`${FOOD_API_URL}/analyze-text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: "",
+        product_name: productName,
+      }),
+    });
+
+    if (!response.ok) return "";
+
+    const result = await response.json();
+    const matchedProduct = result?.mfds?.matched_item?.DESC_KOR;
+    if (!matchedProduct) return "";
+
+    return [
+      "[FOOD_ANALYSIS_MEMORY]",
+      "The user asked about a product by name. Nutrition data was retrieved from the Korean public food nutrient database.",
+      "Analysis source: product_name_query",
+      `Product name: ${productName}`,
+      "User registered allergies: none",
+      "Personal allergy conflicts found: none",
+      `Nutrients JSON: ${JSON.stringify(result?.nutrients || {})}`,
+      `Nutrient sources JSON: ${JSON.stringify(result?.nutrient_sources || {})}`,
+      `MFDS matched product: ${matchedProduct}`,
+      `Detected allergens JSON: ${JSON.stringify(result?.allergens || [])}`,
+      `Warnings JSON: ${JSON.stringify(result?.warnings || [])}`,
+      "OCR text: product-name API lookup",
+      "[/FOOD_ANALYSIS_MEMORY]",
+    ].join("\n");
+  } catch (error) {
+    console.error("식품 영양정보 조회 오류:", error);
+    return "";
+  }
+}
+
+function extractProductNameFromFoodQuestion(text) {
+  const name = String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/(먹어도|먹어봐도|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
+    .replace(/[?!.~'"]/g, "")
+    .trim()
+    .replace(/(?:은|는|이|가|을|를)$/u, "")
+    .trim();
+
+  return name.length >= 2 ? name : "";
+}
+
 function getFoodSpecificCaution(productName) {
   const name = normalizeFoodName(productName);
+
+  if (/찌개|탕|국/.test(name)) {
+    return [
+      "- 국물 음식: 나트륨이 많을 수 있어 국물은 적게 드세요.",
+    ];
+  }
 
   if (/치킨|닭튀김|후라이드|프라이드|양념치킨/.test(name)) {
     return [
@@ -363,11 +497,25 @@ function getFoodSpecificCaution(productName) {
     ];
   }
 
+  if (/김밥|만두/.test(name)) {
+    return [
+      "- 밥이나 만두피 때문에 탄수화물이 많을 수 있어요.",
+      "- 속재료와 양념에 따라 나트륨이 많을 수 있어요.",
+    ];
+  }
+
   return [];
 }
 
 function getFoodEatingTips(productName) {
   const name = normalizeFoodName(productName);
+
+  if (/찌개|탕|국/.test(name)) {
+    return [
+      "- 건더기 위주로 드시고 국물은 적게 드세요.",
+      "- 밥은 평소보다 조금만 곁들이세요.",
+    ];
+  }
 
   if (/치킨|닭튀김|후라이드|프라이드|양념치킨/.test(name)) {
     return [
@@ -385,9 +533,30 @@ function getFoodEatingTips(productName) {
     ];
   }
 
+  if (/짜장면|라면|국수|우동|칼국수/.test(name)) {
+    return [
+      "- 면은 한 번에 다 드시기보다 양을 덜어 드세요.",
+      "- 소스나 국물은 남기는 편이 좋아요.",
+    ];
+  }
+
+  if (/피자|햄버거|버거/.test(name)) {
+    return [
+      "- 한두 조각처럼 먹을 양을 먼저 정해 두세요.",
+      "- 짠 소스나 추가 토핑은 줄이세요.",
+    ];
+  }
+
+  if (/김밥|만두/.test(name)) {
+    return [
+      "- 처음부터 먹을 양을 조금만 덜어 드세요.",
+      "- 간장이나 추가 양념은 적게 드세요.",
+    ];
+  }
+
   return [
     "- 작은 양만 덜어 드세요.",
-    "- 자극적인 양념은 적게 드세요.",
+    "- 천천히 드시고 몸 상태를 살펴보세요.",
   ];
 }
 
@@ -416,12 +585,22 @@ function isGeneralFoodRecommendationQuestion(text) {
   );
 }
 
-function getFoodDiseaseCaution(profileContext) {
+function getFoodDiseaseCaution(profileContext, productName) {
   const diseases = profileContext?.diseases || {};
   const cautions = [];
+  const name = normalizeFoodName(productName);
+  const isSoup = /찌개|탕|국/.test(name);
+  const isFried = /치킨|닭튀김|후라이드|프라이드|튀김/.test(name);
+  const isCarbHeavy = /김밥|만두|떡볶이|짜장면|라면|국수|우동|칼국수|피자/.test(name);
 
   if (hasHealthCondition(diseases.diabetes)) {
-    cautions.push("- 당뇨: 단 음식과 탄수화물은 적게 드세요.");
+    cautions.push(
+      isSoup
+        ? "- 당뇨: 찌개와 함께 먹는 밥의 양을 줄이세요."
+        : isCarbHeavy
+          ? "- 당뇨: 탄수화물이 많은 음식이라 양을 적게 드세요."
+          : "- 당뇨: 한 번에 많이 드시지 마세요."
+    );
   }
 
   const saltSensitiveConditions = [
@@ -433,10 +612,20 @@ function getFoodDiseaseCaution(profileContext) {
     .map(([, label]) => label);
 
   if (saltSensitiveConditions.length > 0) {
-    cautions.push(`- ${saltSensitiveConditions.join("·")}: 짠 음식과 국물은 적게 드세요.`);
+    cautions.push(
+      isSoup
+        ? `- ${saltSensitiveConditions.join("·")}: 국물은 적게 드시고 건더기 위주로 드세요.`
+        : `- ${saltSensitiveConditions.join("·")}: 소스와 양념을 줄이고 짜지 않게 드세요.`
+    );
   }
   if (hasHealthCondition(diseases.liverDisease)) {
-    cautions.push("- 간질환: 자극적이거나 기름진 음식은 적게 드세요.");
+    cautions.push(
+      isFried
+        ? "- 간질환: 튀김옷과 기름진 부분은 줄이세요."
+        : isSoup
+          ? "- 간질환: 국물은 적게 드시고 한 번에 많이 드시지 마세요."
+          : "- 간질환: 양념을 줄이고 한 번에 많이 드시지 마세요."
+    );
   }
 
   return cautions;
@@ -459,7 +648,7 @@ function extractFoodMemorySection(memory, label) {
 
   const start = startIndex + label.length;
   const rest = memory.slice(start);
-  const nextLabel = rest.search(/\n(?:Product name|User registered allergies|Personal allergy conflicts found|Image classification accepted|Image classification confidence|Nutrients JSON|Detected allergens JSON|Warnings JSON|Assistant visible summary|OCR text|\[\/FOOD_ANALYSIS_MEMORY\])/);
+  const nextLabel = rest.search(/\n(?:Analysis source|Product name|User registered allergies|Personal allergy conflicts found|Image classification accepted|Image classification confidence|Nutrients JSON|Nutrient sources JSON|MFDS matched product|Detected allergens JSON|Warnings JSON|Assistant visible summary|OCR text|\[\/FOOD_ANALYSIS_MEMORY\])/);
   return (nextLabel >= 0 ? rest.slice(0, nextLabel) : rest).trim();
 }
 

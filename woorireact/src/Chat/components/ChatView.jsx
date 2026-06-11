@@ -352,6 +352,7 @@ export default function ChatView({
     return [
       "[FOOD_ANALYSIS_MEMORY]",
       "The user uploaded a food label image. Use this as recent conversation context for follow-up questions such as whether the user can eat it, what is high, or what the ingredients mean.",
+      "Analysis source: image_ocr",
       `Product name: ${result?.product_name || "unknown"}`,
       `User registered allergies: ${userAllergies.length ? userAllergies.join(", ") : "none"}`,
       `Personal allergy conflicts found: ${
@@ -360,6 +361,8 @@ export default function ChatView({
           : "none"
       }`,
       `Nutrients JSON: ${JSON.stringify(nutrients)}`,
+      `Nutrient sources JSON: ${JSON.stringify(result?.nutrient_sources || {})}`,
+      `MFDS matched product: ${result?.mfds?.matched_item?.DESC_KOR || "none"}`,
       `Detected allergens JSON: ${JSON.stringify(result?.allergens || [])}`,
       `Warnings JSON: ${JSON.stringify(result?.warnings || [])}`,
       `Assistant visible summary:\n${answer}`,
@@ -371,6 +374,7 @@ export default function ChatView({
   const buildFoodClassificationMemory = (result) => [
     "[FOOD_ANALYSIS_MEMORY]",
     "The user uploaded a general food photo. Use the image classification as recent conversation context.",
+    "Analysis source: image_classification",
     "Answer the user's message naturally. Do not reply with only the classified food name unless the user asks what food it is.",
     "Exact nutrients are unknown. Do not invent calories or nutrient amounts. Give only cautious general guidance when relevant.",
     `Product name: ${result?.category || "unknown"}`,
@@ -388,6 +392,11 @@ export default function ChatView({
     schedules: [],
     history: [
       ...messages,
+      {
+        role: "user",
+        content: prompt || "음식 사진",
+        imageUrls: ["current-upload"],
+      },
       { role: "assistant", content: memory, hidden: true },
     ],
     profileContext: getCurrentUserHealthContext(),
