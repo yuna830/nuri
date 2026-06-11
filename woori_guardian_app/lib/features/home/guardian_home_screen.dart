@@ -17,6 +17,7 @@ import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/storage/location_freshness_storage.dart';
 import '../../core/widgets/app_header.dart';
 import '../../core/push/fcm_service.dart';
 import '../chat/guardian_chat_screen.dart';
@@ -305,6 +306,7 @@ class _HomeTabState extends State<_HomeTab> {
   bool _isLoading = true;
   String? _errorMessage;
   List<Senior> _seniors = [];
+  int _staleHours = LocationFreshnessStorage.defaultStaleHours;
 
   @override
   void initState() {
@@ -323,10 +325,12 @@ class _HomeTabState extends State<_HomeTab> {
       if (idStr == null || idStr.isEmpty) {
         throw Exception('보호자 세션 정보가 없습니다. 다시 로그인해주세요.');
       }
+      final staleHours = await LocationFreshnessStorage().getStaleHours();
       final seniors = await _api.fetchGuardianSeniors(int.parse(idStr));
       if (mounted)
         setState(() {
           _seniors = seniors;
+          _staleHours = staleHours;
           _isLoading = false;
         });
     } catch (e) {
@@ -407,6 +411,7 @@ class _HomeTabState extends State<_HomeTab> {
           for (var i = 0; i < _seniors.length; i++) ...[
             _SeniorCard(
               senior: _seniors[i],
+              staleHours: _staleHours,
               onViewLocation: widget.onViewLocation,
               onReport: widget.onReport,
               onOpenDetail: () {
@@ -501,12 +506,14 @@ class _FaceCheckCard extends StatelessWidget {
 
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
+  final int staleHours;
   final void Function(int seniorId) onViewLocation;
   final VoidCallback onReport;
   final VoidCallback onOpenDetail;
 
   const _SeniorCard({
     required this.senior,
+    required this.staleHours,
     required this.onViewLocation,
     required this.onReport,
     required this.onOpenDetail,
@@ -584,7 +591,13 @@ class _SeniorCard extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
-                    _StatusBadge(status: senior.status),
+                    _StatusBadge(
+                      status:
+                          senior.status == '안전' &&
+                              senior.isLocationStale(staleHours)
+                          ? '확인 필요'
+                          : senior.status,
+                    ),
                   ],
                 ),
 
@@ -596,7 +609,12 @@ class _SeniorCard extends StatelessWidget {
                 _InfoRow(
                   icon: Icons.location_on_outlined,
                   label: senior.lastLocationAddress,
-                  sub: '마지막 확인 ${senior.lastLocationTime}',
+                  sub: senior.lastLocationAt == null
+                      ? '마지막 확인 기록 없음'
+                      : '마지막 확인 ${senior.lastLocationAgoText} · ${senior.lastLocationTime}',
+                  subColor: senior.isLocationStale(staleHours)
+                      ? _C.warn
+                      : null,
                 ),
 
                 if (senior.keyDiseases.isNotEmpty) ...[
@@ -786,8 +804,14 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? sub;
+  final Color? subColor;
 
-  const _InfoRow({required this.icon, required this.label, this.sub});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    this.sub,
+    this.subColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -815,9 +839,10 @@ class _InfoRow extends StatelessWidget {
               if (sub != null)
                 Text(
                   sub!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: _C.textHint,
+                    color: subColor ?? _C.textHint,
+                    fontWeight: subColor != null ? FontWeight.w600 : null,
                     height: 1.4,
                   ),
                 ),
