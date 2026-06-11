@@ -124,9 +124,8 @@ export const SECTIONS = [
   { id: "medication", label: "복약정보" },
   { id: "chronic", label: "만성질환" },
   { id: "mobility", label: "거동/인지" },
-  { id: "activity", label: "활동조건" },
   { id: "welfare", label: "복지정보" },
-  { id: "job", label: "일자리" },
+  { id: "job", label: "활동 및 일자리" },
 ];
 
 const INFO_REQUEST_SECTION_RULES = [
@@ -155,12 +154,8 @@ const INFO_REQUEST_SECTION_RULES = [
     pattern: /복지정보|복지|소득|가구|혜택|참고사항|welfare/i,
   },
   {
-    section: "activity",
-    pattern: /활동 조건|활동|이동 가능 거리|이동|쉬는 시간|쉬는|하기 어려운 작업|작업|환경|activity/i,
-  },
-  {
     section: "job",
-    pattern: /일자리 희망조건|일자리|희망 급여|희망 요일|희망 직종|희망 근무|근무 형태|급여|직종|job/i,
+    pattern: /활동 및 일자리|활동 조건|이동 가능 거리|이동|쉬는 시간|하기 어려운 작업|환경|일자리 희망조건|일자리|희망 급여|희망 요일|희망 직종|희망 근무|근무 형태|급여|직종|job|activity/i,
   },
 ];
 

@@ -112,7 +112,7 @@ const _maxDistanceOptions = [
 ];
 
 const _sections = [
-  '인적사항', '신체정보', '복약정보', '만성질환', '거동/인지', '활동조건', '복지정보', '일자리',
+  '인적사항', '신체정보', '복약정보', '만성질환', '거동/인지', '복지정보', '활동 및 일자리',
 ];
 
 // ─── Form data model ─────────────────────────────────────────────────────────
@@ -568,7 +568,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _MedicationSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                     _ChronicSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                     _MobilitySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
-                    _ActivitySection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                     _WelfareSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                     _JobSection(form: _form, onChanged: () => setState(() { _dirty = true; })),
                   ],
@@ -1576,60 +1575,6 @@ class _MobilitySectionState extends State<_MobilitySection> {
   }
 }
 
-// ─── 활동조건 ─────────────────────────────────────────────────────────────────
-
-class _ActivitySection extends StatelessWidget {
-  const _ActivitySection({required this.form, required this.onChanged});
-  final _ProfileForm form;
-  final VoidCallback onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionScroll(children: [
-      const _FieldLabel('최대 근무 시간'),
-      _Dropdown(
-          value: form.maxHours,
-          items: _maxHoursOptions,
-          onChanged: (v) {
-            form.maxHours = v;
-            onChanged();
-          }),
-      const _FieldLabel('통근 가능 거리'),
-      _Dropdown(
-          value: form.maxDistance,
-          items: _maxDistanceOptions,
-          onChanged: (v) {
-            form.maxDistance = v;
-            onChanged();
-          }),
-      const _FieldLabel('힘든 업무 (중복 선택)'),
-      _ChipGroup(
-          items: _workTypes,
-          selected: form.disabledWork,
-          onChanged: (v) {
-            form.disabledWork = v;
-            onChanged();
-          }),
-      const _FieldLabel('휴식 필요'),
-      _Dropdown(
-          value: form.restNeeds,
-          items: _restNeeds,
-          onChanged: (v) {
-            form.restNeeds = v;
-            onChanged();
-          }),
-      const _FieldLabel('피해야 할 환경 (중복 선택)'),
-      _ChipGroup(
-          items: _avoidEnvironments,
-          selected: form.avoidEnvironments,
-          onChanged: (v) {
-            form.avoidEnvironments = v;
-            onChanged();
-          }),
-    ]);
-  }
-}
-
 // ─── 복지정보 ─────────────────────────────────────────────────────────────────
 
 class _WelfareSection extends StatefulWidget {
@@ -1750,6 +1695,46 @@ class _JobSectionState extends State<_JobSection> {
   @override
   Widget build(BuildContext context) {
     return _SectionScroll(children: [
+      const _FieldLabel('최대 근무 시간'),
+      _Dropdown(
+          value: widget.form.maxHours,
+          items: _maxHoursOptions,
+          onChanged: (v) {
+            widget.form.maxHours = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('통근 가능 거리'),
+      _Dropdown(
+          value: widget.form.maxDistance,
+          items: _maxDistanceOptions,
+          onChanged: (v) {
+            widget.form.maxDistance = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('힘든 업무 (중복 선택)'),
+      _ChipGroup(
+          items: _workTypes,
+          selected: widget.form.disabledWork,
+          onChanged: (v) {
+            widget.form.disabledWork = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('휴식 필요'),
+      _Dropdown(
+          value: widget.form.restNeeds,
+          items: _restNeeds,
+          onChanged: (v) {
+            widget.form.restNeeds = v;
+            widget.onChanged();
+          }),
+      const _FieldLabel('피해야 할 환경 (중복 선택)'),
+      _ChipGroup(
+          items: _avoidEnvironments,
+          selected: widget.form.avoidEnvironments,
+          onChanged: (v) {
+            widget.form.avoidEnvironments = v;
+            widget.onChanged();
+          }),
       const _FieldLabel('선호 급여 형태'),
       _Dropdown(
           value: widget.form.payType,

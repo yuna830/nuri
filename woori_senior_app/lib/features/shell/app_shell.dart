@@ -48,6 +48,7 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
   int _unreadCount = 0;
   int _unreadChatCount = 0;
+  bool _hasInfoRequest = false;
   Timer? _notiTimer;
   final _api = const SeniorApi();
 
@@ -72,7 +73,16 @@ class _AppShellState extends State<AppShell> {
     try {
       final alerts = await _api.fetchAlerts(widget.seniorId);
       final count = alerts.where((a) => a is Map && a['isRead'] != true).length;
-      if (mounted && count != _unreadCount) setState(() => _unreadCount = count);
+      final hasInfo = alerts.any((a) =>
+          a is Map && a['isRead'] != true && a['type'] == 'INFO_UPDATE_REQUEST');
+      if (mounted) {
+        if (count != _unreadCount || hasInfo != _hasInfoRequest) {
+          setState(() {
+            _unreadCount = count;
+            _hasInfoRequest = hasInfo;
+          });
+        }
+      }
     } catch (_) {}
     try {
       final res = await http.get(Uri.parse(
@@ -88,6 +98,7 @@ class _AppShellState extends State<AppShell> {
 
   void _go(int i) => setState(() {
         _index = i;
+        if (i == 4) _hasInfoRequest = false;
         _currentAction = null;
         _currentActionIcon = null;
         _currentActionTooltip = null;
@@ -303,10 +314,18 @@ class _AppShellState extends State<AppShell> {
         indicatorColor: const Color(0xFF86A788).withValues(alpha: 0.18),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: List.generate(_tabTitles.length, (i) {
+          final showDot = i == 4 && _hasInfoRequest;
           return NavigationDestination(
-            icon: Icon(_tabIcons[i]),
-            selectedIcon:
-                Icon(_tabSelectedIcons[i], color: const Color(0xFF86A788)),
+            icon: Badge(
+              isLabelVisible: showDot,
+              backgroundColor: const Color(0xFFD94E4E),
+              child: Icon(_tabIcons[i]),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: showDot,
+              backgroundColor: const Color(0xFFD94E4E),
+              child: Icon(_tabSelectedIcons[i], color: const Color(0xFF86A788)),
+            ),
             label: _tabTitles[i],
           );
         }),

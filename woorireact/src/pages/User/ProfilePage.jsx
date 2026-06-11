@@ -46,8 +46,7 @@ const SECTION_FIELD_KEYS = {
   chronic:   CHRONIC.map(({ key }) => key),
   mobility:  ["walkingAid", "dementia", "vision", "hearing", "recentFall", "hasSurgery"],
   welfare:   ["livingCostStatus", "householdType", "pensionStatus", "housingType"],
-  activity:  ["maxHours", "maxDistance", "restNeed"],
-  job:       ["payType"],
+  job:       ["maxHours", "maxDistance", "restNeed", "payType"],
 };
 
 export default function ProfilePage() {
@@ -466,20 +465,6 @@ export default function ProfilePage() {
           </section>
         );
 
-      case "activity":
-        return (
-          <section className="pr-section">
-            <div className="pr-section-title">활동 조건</div>
-            <div className="pr-row">
-              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
-              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
-            </div>
-            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
-            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
-            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
-          </section>
-        );
-
       case "welfare": {
         const needsCheck = [
           form.livingCostStatus,
@@ -513,7 +498,14 @@ export default function ProfilePage() {
       case "job":
         return (
           <section className="pr-section">
-            <div className="pr-section-title">일자리 희망 조건</div>
+            <div className="pr-section-title">활동 및 일자리 조건</div>
+            <div className="pr-row">
+              <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} labels={{ "": "선택", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
+            </div>
+            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
+            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
             <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} highlight={highlightKeys.has("payType")} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
