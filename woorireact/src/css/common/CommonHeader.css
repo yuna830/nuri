@@ -589,3 +589,8 @@
   color: #c74747 !important;
 } */
 
+.common-app-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

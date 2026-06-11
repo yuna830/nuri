@@ -255,7 +255,7 @@ export default function ProfilePage() {
         const seniorId = updatedProfile?.senior?.id;
         await readAlert(alertId).catch(() => {});
         if (seniorId) {
-          await notifyProfileUpdateComplete({ seniorId, alertId }).catch(() => {});
+          await notifyProfileUpdateComplete({ seniorId, alertId, filledBy: "SENIOR" }).catch(() => {});
         }
       }
       setSaveToast("saved");

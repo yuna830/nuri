@@ -41,6 +41,15 @@ async function requestArray(baseUrl, path, options = {}) {
   }
 }
 
+// 프로필 수정 
+export function updateGuardianProfile(guardianId, { name, phone, address }) {
+  return request(API_BASE_URL, `/api/guardians/${guardianId}/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, phone, address }),
+  });
+}
+
 export function getGuardianAlerts(guardianId) {
   return requestArray(API_BASE_URL, `/api/alerts/guardian/${guardianId}`);
 }

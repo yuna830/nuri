@@ -630,7 +630,7 @@
   font-weight: 700;
 }
 
-.medicine-alert-field + .medicine-alert-field {
+.medicine-alert-field+.medicine-alert-field {
   margin-top: 1rem;
 }
 
@@ -703,7 +703,7 @@
   background: #86a788;
 }
 
-.guardian-toast > div {
+.guardian-toast>div {
   flex: 1;
   min-width: 0;
 }
@@ -848,6 +848,194 @@
   color: #ffffff;
   font-size: 15px;
   font-weight: 900;
+}
+
+/* 헤더 프로필 트리거 버튼 */
+.guardian-profile-trigger {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #4F6F52;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.guardian-profile-trigger:hover {
+  background: #eef6ef;
+}
+
+/* 프로필 모달 */
+.guardian-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guardian-profile-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  width: 380px;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guardian-profile-modal h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.guardian-profile-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.guardian-profile-modal input {
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.guardian-profile-modal input:focus {
+  border-color: #86A788;
+}
+
+.guardian-profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.guardian-profile-save {
+  background: #4F6F52;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guardian-profile-save:hover {
+  background: #3d5940;
+}
+
+.guardian-profile-logout {
+  background: var(--danger-color);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guardian-profile-logout:hover {
+  background: var(--danger-hover);
+}
+
+/* 주소 검색 */
+.guardian-profile-addr-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.guardian-profile-addr-row input {
+  flex: 1;
+}
+
+.guardian-profile-addr-search {
+  background: #4F6F52;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.guardian-profile-addr-search:hover {
+  background: #3d5940;
+}
+
+.guardian-profile-addr-search:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guardian-profile-addr-results {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.guardian-profile-addr-results li {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guardian-profile-addr-results li:last-child {
+  border-bottom: none;
+}
+
+.guardian-profile-addr-results li:hover {
+  background: #eef6ef;
+}
+
+.guardian-profile-addr-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.guardian-profile-addr-detail {
+  font-size: 0.76rem;
+  color: #777;
+}
+
+.guardian-profile-addr-selected {
+  font-size: 0.8rem;
+  color: #4F6F52;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.guardian-profile-note {
+  font-size: 0.75rem;
+  color: #999;
+  font-weight: 400;
+  margin-top: 2px;
 }
 
 @media (max-width: 1180px) {

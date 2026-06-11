@@ -508,7 +508,8 @@ export default function UserPage() {
     (() => {
       try {
         const stored = localStorage.getItem("woori_dismissed_info_alerts");
-        return new Set(stored ? JSON.parse(stored) : []);
+        const parsed = stored ? JSON.parse(stored) : [];
+        return new Set(Array.isArray(parsed) ? parsed : []);
       } catch {
         return new Set();
       }
@@ -1531,7 +1532,6 @@ export default function UserPage() {
               <div className="up-profile-avatar">
                 {profileImageUrl ? (
                   <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
-
                 ) : (
                   "🙂"
                 )}
@@ -1541,8 +1541,8 @@ export default function UserPage() {
               {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
               <div className="up-dot-wrap">
                 <div className={`up-dot ${sensorConnected === null ? "pending"
-                    : sensorConnected ? ""
-                      : "danger"
+                  : sensorConnected ? ""
+                    : "danger"
                   }`} />
                 {sensorConnected === null
                   ? "센서 확인 중"
@@ -2019,21 +2019,11 @@ export default function UserPage() {
               {(() => {
                 const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "");
                 return cats.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
+                  <div className="up-info-request-category-grid">
                     {cats.map((cat) => (
-                      <span
-                        key={cat}
-                        style={{
-                          background: "#f0f4ee",
-                          color: "#4a7c5e",
-                          padding: "4px 12px",
-                          borderRadius: "12px",
-                          fontSize: "0.82rem",
-                          fontWeight: 600,
-                        }}
-                      >
+                      <div key={cat} className="up-info-request-category-card">
                         {cat}
-                      </span>
+                      </div>
                     ))}
                   </div>
                 ) : null;
@@ -2045,11 +2035,13 @@ export default function UserPage() {
                 className="up-modal-cancel"
                 type="button"
                 onClick={() => {
-                  // 현재 알림 + 쌓인 모든 INFO_UPDATE_REQUEST를 영구 무시 (localStorage 저장)
-                  const ids = userAlerts
+                  // 현재 화면에 떠 있는 alert ID를 직접 사용 (userAlerts 필터링 방식은 빈 배열이 될 수 있음)
+                  const currentId = infoUpdateRequestAlert?.id;
+                  const extraIds = userAlerts
                     .filter((a) => a.type === "INFO_UPDATE_REQUEST" && !a.isRead)
                     .map((a) => String(a.id));
-                  dismissInfoAlert(ids);
+                  const allIds = [...new Set([...(currentId ? [String(currentId)] : []), ...extraIds])];
+                  dismissInfoAlert(allIds);
                   setInfoUpdateRequestAlert(null);
                 }}
               >
