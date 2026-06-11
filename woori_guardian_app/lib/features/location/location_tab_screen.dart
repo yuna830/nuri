@@ -14,6 +14,7 @@ const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
 // ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
+const _kRed = Color(0xFFB85252);
 const _kSafe = Color(0xFF4A7A4C);
 const _kSafeBg = Color(0xFFEEF5EE);
 const _kWarn = Color(0xFFFF9500);
@@ -619,52 +620,66 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   Future<void> _onDeleteZone(SafeZone zone) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        title: const Text(
-          '구역 삭제',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: _kTextMain,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '구역 삭제',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '"${zone.name}" 구역을 삭제할까요?',
+                style: const TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6F5F3),
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kRed,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('삭제', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        content: Text(
-          '"${zone.name}" 구역을 삭제할까요?',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14, color: _kTextSub),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              '취소',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: _kSafe,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              '삭제',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFB85252),
-              ),
-            ),
-          ),
-        ],
       ),
     );
 

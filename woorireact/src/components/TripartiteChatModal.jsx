@@ -23,6 +23,15 @@ const formatChatTime = (value) => {
   });
 };
 
+const formatDateSeparator = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric", month: "long", day: "numeric", weekday: "short",
+  });
+};
+
 export default function TripartiteChatModal({
   isOpen,
   seniorId,
@@ -136,7 +145,7 @@ export default function TripartiteChatModal({
       cancelled = true;
       window.clearInterval(timerId);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, senderRole, chatRoomKeysStr]);
 
   const noTabSelected = senderRole === "WELFARE" && roomGroup === "ALL";
@@ -156,7 +165,7 @@ export default function TripartiteChatModal({
     const preferredRoom = initialRoomType
       ? visibleRooms.find((room) => room.roomType === initialRoomType)
       : null;
-     
+
     setActiveRoomKey((previousKey) => {
       if (preferredRoom?.key) return preferredRoom.key;
       return visibleRooms.some((room) => room.key === previousKey)
@@ -182,8 +191,8 @@ export default function TripartiteChatModal({
       // 복지사 채팅방은 본인 + 대상자/보호자 메시지만 표시 (다른 복지사 메시지 제외)
       const filtered = (senderRole === "WELFARE" && senderId)
         ? nextMessages.filter((msg) =>
-            msg.senderRole !== "WELFARE" || String(msg.senderId) === String(senderId)
-          )
+          msg.senderRole !== "WELFARE" || String(msg.senderId) === String(senderId)
+        )
         : nextMessages;
 
       setMessages((prev) => (appendOlder ? [...filtered, ...prev] : filtered));
@@ -209,7 +218,7 @@ export default function TripartiteChatModal({
   useEffect(() => {
     if (!isOpen || !(activeRoom?.seniorId || seniorId)) return undefined;
 
-     
+
     loadMessages();
     const timerId = window.setInterval(() => {
       if (historyPage === 0) {
@@ -388,33 +397,85 @@ export default function TripartiteChatModal({
                 ) : messages.length === 0 ? (
                   <div className="tcm-empty">아직 주고받은 메시지가 없습니다.</div>
                 ) : (
-                  messages.map((message) => {
+                  // messages.map((message) => {
+                  //   const isMine = String(message.senderRole) === String(senderRole)
+                  //     && String(message.senderId) === String(senderId);
+
+                  //   return (
+                  //     <article
+                  //       key={message.id}
+                  //       className={`tcm-message ${isMine ? "mine" : ""}`}
+                  //     >
+                  //       <div className="tcm-message-meta">
+                  //         <strong>{message.senderName || ROLE_LABELS[message.senderRole] || "참여자"}</strong>
+                  //         <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
+                  //         <time>{formatChatTime(message.createdAt)}</time>
+                  //       </div>
+                  //       {message.message && <p>{message.message}</p>}
+                  //       {/* {message.attachmentUrl && (
+                  //         message.attachmentType?.startsWith("image/") ? (
+                  //           <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
+                  //         ) : (
+                  //           <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
+                  //             {message.attachmentName || "첨부 파일 열기"}
+                  //           </a>
+                  //         )
+                  //       )} */}
+                  //       {message.attachmentUrl && (() => {
+                  //         const isImage =
+                  //           message.attachmentType?.startsWith("image/") ||
+                  //           message.attachmentType === "image" ||
+                  //           /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(message.attachmentUrl);
+                  //         return isImage ? (
+                  //           <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
+                  //         ) : (
+                  //           <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
+                  //             {message.attachmentName || "첨부 파일 열기"}
+                  //           </a>
+                  //         );
+                  //       })()}
+                  //     </article>
+                  //   );
+                  // })
+                  messages.reduce((acc, message, index) => {
                     const isMine = String(message.senderRole) === String(senderRole)
                       && String(message.senderId) === String(senderId);
+                    const currDate = formatDateSeparator(message.createdAt);
+                    const prevDate = index > 0 ? formatDateSeparator(messages[index - 1].createdAt) : "";
 
-                    return (
-                      <article
-                        key={message.id}
-                        className={`tcm-message ${isMine ? "mine" : ""}`}
-                      >
+                    if (currDate && currDate !== prevDate) {
+                      acc.push(
+                        <div key={`date-${message.id}`} className="tcm-date-separator">
+                          <span>{currDate}</span>
+                        </div>
+                      );
+                    }
+
+                    acc.push(
+                      <article key={message.id} className={`tcm-message ${isMine ? "mine" : ""}`}>
                         <div className="tcm-message-meta">
                           <strong>{message.senderName || ROLE_LABELS[message.senderRole] || "참여자"}</strong>
                           <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
                           <time>{formatChatTime(message.createdAt)}</time>
                         </div>
                         {message.message && <p>{message.message}</p>}
-                        {message.attachmentUrl && (
-                          message.attachmentType?.startsWith("image/") ? (
+                        {message.attachmentUrl && (() => {
+                          const isImage =
+                            message.attachmentType?.startsWith("image/") ||
+                            message.attachmentType === "image" ||
+                            /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(message.attachmentUrl);
+                          return isImage ? (
                             <img className="tcm-attachment-image" src={message.attachmentUrl} alt="첨부 이미지" />
                           ) : (
                             <a className="tcm-attachment-link" href={message.attachmentUrl} target="_blank" rel="noreferrer">
                               {message.attachmentName || "첨부 파일 열기"}
                             </a>
-                          )
-                        )}
+                          );
+                        })()}
                       </article>
                     );
-                  })
+                    return acc;
+                  }, [])
                 )}
               </div>
             </>

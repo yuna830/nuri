@@ -4,6 +4,7 @@ import 'package:kpostal/kpostal.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/storage/location_freshness_storage.dart';
 import '../auth/guardian_login_screen.dart';
 import '../notification/notification_settings_screen.dart';
 import 'senior_consent_screen.dart';
@@ -30,6 +31,7 @@ class MypageScreen extends StatefulWidget {
 class _MypageScreenState extends State<MypageScreen> {
   final _session = GuardianSessionStorage();
   final _consent = ConsentStorage();
+  final _freshness = LocationFreshnessStorage();
 
   String _guardianId = '';
   String _name = '';
@@ -38,6 +40,7 @@ class _MypageScreenState extends State<MypageScreen> {
   String _address = '';
 
   Map<String, bool> _consents = {};
+  int _staleHours = LocationFreshnessStorage.defaultStaleHours;
 
   @override
   void initState() {
@@ -48,6 +51,7 @@ class _MypageScreenState extends State<MypageScreen> {
   Future<void> _load() async {
     final info = await _session.getGuardianInfo();
     final consents = await _consent.load();
+    final staleHours = await _freshness.getStaleHours();
     if (mounted) {
       setState(() {
         _guardianId = info['guardianId'] ?? '';
@@ -56,6 +60,7 @@ class _MypageScreenState extends State<MypageScreen> {
         _phone = info['phone'] ?? '';
         _address = info['address'] ?? '';
         _consents = consents;
+        _staleHours = staleHours;
       });
     }
   }
@@ -319,50 +324,66 @@ class _MypageScreenState extends State<MypageScreen> {
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        content: const Padding(
-          padding: EdgeInsets.only(top: 12),
-          child: Text(
-            '로그아웃 하시겠습니까?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: _kTextSub),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '로그아웃',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '로그아웃 하시겠습니까?',
+                style: TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6F5F3),
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kRed,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('로그아웃', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: _kTextSub,
-                    textStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('취소'),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: _kRed,
-                    textStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('로그아웃'),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
     if (ok == true && mounted) {
@@ -427,6 +448,13 @@ class _MypageScreenState extends State<MypageScreen> {
         ),
         _divider(),
         _navItem(
+          icon: Icons.location_history_outlined,
+          label: '위치 확인 필요 기준 시간',
+          badge: '$_staleHours시간',
+          onTap: _showStaleHoursModal,
+        ),
+        _divider(),
+        _navItem(
           icon: Icons.privacy_tip_outlined,
           label: '개인정보 처리 안내',
           onTap: () => _go(const PrivacyScreen()),
@@ -446,6 +474,124 @@ class _MypageScreenState extends State<MypageScreen> {
         const SizedBox(height: 16),
       ],
     );
+  }
+
+  // ── 위치 확인 필요 기준 시간 변경 모달 ─────────────────────────────────────
+  Future<void> _showStaleHoursModal() async {
+    final controller = TextEditingController(text: '$_staleHours');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '위치 확인 필요 기준 시간',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '마지막 위치 확인 후 이 시간이 지나면\n홈 화면 상태가 \'확인 필요\'로 표시됩니다.',
+                style: TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 15, color: _kTextMain),
+                decoration: InputDecoration(
+                  suffixText: '시간',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kDivider),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kDivider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kGreen),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6F5F3),
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('닫기', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kGreen,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('저장', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+
+    final hours = int.tryParse(controller.text.trim());
+    if (hours == null || hours < 1) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('1시간 이상의 숫자를 입력해주세요.')));
+      }
+      return;
+    }
+
+    await _freshness.setStaleHours(hours);
+    if (mounted) {
+      setState(() => _staleHours = hours);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('위치 확인 필요 기준이 $hours시간으로 변경되었습니다.')),
+      );
+    }
   }
 
   // ── 프로필 헤더 ─────────────────────────────────────────────────────────────

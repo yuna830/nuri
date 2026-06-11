@@ -8,6 +8,16 @@ import '../../core/storage/guardian_session_storage.dart';
 
 const _kGreen = Color(0xFF86A788);
 const _kRed = Color(0xFFB85252);
+const _kSafe = Color(0xFF4A7A4C);
+const _kSafeBg = Color(0xFFEEF5EE);
+const _kWarn = Color(0xFFFF9500);
+const _kWarnBg = Color(0xFFFFF4E5);
+const _kNeutral = Color(0xFF6C6C70);
+const _kNeutralBg = Color(0xFFF2F2F7);
+const _kTextMain = Color(0xFF1C1C1E);
+const _kTextSub = Color(0xFF6C6C70);
+const _kTextHint = Color(0xFFAEAEB2);
+const _kDivider = Color(0xFFE5E5EA);
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -397,19 +407,69 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                style: const TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6F5F3),
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('취소', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kRed,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text(
+                        '삭제',
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('삭제', style: TextStyle(color: _kRed)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1005,6 +1065,7 @@ class _AlertTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
     );
     final outlinedStyle = OutlinedButton.styleFrom(
+      backgroundColor: Colors.white,
       foregroundColor: action.color,
       side: BorderSide(color: action.color.withValues(alpha: 0.5)),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

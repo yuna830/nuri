@@ -30,7 +30,10 @@ import {
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
-import { getProfileSectionFromInfoRequest } from "../../utils/user/profileForm.js";
+import {
+  getProfileSectionFromInfoRequest,
+  inferGuardianRelationToSeniorLabel,
+} from "../../utils/user/profileForm.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
@@ -479,7 +482,7 @@ export default function UserPage() {
   const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
-    guardianRelation: initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
+    guardianRelation: initialProfile?.guardianRelationToSenior || initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
     guardianPhone: initialProfile?.guardian?.phone || initialSenior?.guardianPhone || initialLocalCareTeam?.guardianPhone || "",
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
@@ -934,7 +937,7 @@ export default function UserPage() {
 
       setChanged(setCareTeam, {
         guardianName: guardian?.name || profile?.guardianName || senior.guardianName || localCareTeam?.guardianName || "",
-        guardianRelation: profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
+        guardianRelation: profile?.guardianRelationToSenior || guardian?.guardianRelationToSenior || profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
         guardianPhone: guardian?.phone || profile?.guardianPhone || senior.guardianPhone || localCareTeam?.guardianPhone || "",
         socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
         socialWorkerPhone: socialWorker?.phone || profile?.socialWorkerPhone || senior.socialWorkerPhone || localCareTeam?.socialWorkerPhone || "",
@@ -1419,10 +1422,20 @@ export default function UserPage() {
       const seniorId = profile?.senior?.id;
       if (!seniorId || !foundGuardian?.id) return;
 
+      const seniorRelationToGuardian = guardianRelation.trim();
+      const guardianRelationToSenior = inferGuardianRelationToSeniorLabel(
+        seniorRelationToGuardian,
+        foundGuardian.gender
+      );
+
       const res = await fetch(`/api/guardians/${foundGuardian.id}/seniors`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seniorId, relation: guardianRelation.trim() }),
+        body: JSON.stringify({
+          seniorId,
+          relation: seniorRelationToGuardian,
+          guardianRelationToSenior,
+        }),
       });
       if (!res.ok) throw new Error("connect_failed");
 
@@ -1436,7 +1449,7 @@ export default function UserPage() {
       setCareTeam((prev) => ({
         ...prev,
         guardianName: foundGuardian.name || "",
-        guardianRelation: guardianRelation.trim(),
+        guardianRelation: guardianRelationToSenior || seniorRelationToGuardian,
         guardianPhone: foundGuardian.phone || "",
       }));
       setGuardianEditOpen(false);

@@ -48,6 +48,7 @@ public class GuardianController {
         guardian.setPhone(request.phone());
         guardian.setEmail(request.email());
         guardian.setPassword(hashPassword(request.password()));
+        guardian.setGender(request.gender());
         guardian.setActive(true);
 
         Guardian savedGuardian = guardianRepository.save(guardian);
@@ -58,6 +59,7 @@ public class GuardianController {
         guardianSenior.setGuardianId(savedGuardian.getId());
         guardianSenior.setSeniorId(senior.getId());
         guardianSenior.setRelation(request.seniorRelation());
+        guardianSenior.setGuardianRelationToSenior(request.guardianRelationToSenior());
         guardianSeniorRepository.save(guardianSenior);
 
         return toResponse(savedGuardian);
@@ -142,6 +144,7 @@ public class GuardianController {
                     if (request.phone() != null) guardian.setPhone(request.phone());
                     if (request.email() != null) guardian.setEmail(request.email());
                     if (request.address() != null) guardian.setAddress(request.address());
+                    if (request.gender() != null) guardian.setGender(request.gender());
                     Guardian saved = guardianRepository.save(guardian);
                     return ResponseEntity.ok(toResponse(saved));
                 })
@@ -172,6 +175,9 @@ public class GuardianController {
         guardianSenior.setGuardianId(guardianId);
         guardianSenior.setSeniorId(request.seniorId());
         guardianSenior.setRelation(request.relation());
+        if (request.guardianRelationToSenior() != null) {
+            guardianSenior.setGuardianRelationToSenior(request.guardianRelationToSenior());
+        }
 
         return guardianSeniorRepository.save(guardianSenior);
     }
@@ -193,6 +199,9 @@ public class GuardianController {
         guardianSenior.setGuardianId(guardianId);
         guardianSenior.setSeniorId(savedSenior.getId());
         guardianSenior.setRelation(request.relation());
+        if (request.guardianRelationToSenior() != null) {
+            guardianSenior.setGuardianRelationToSenior(request.guardianRelationToSenior());
+        }
 
         return guardianSeniorRepository.save(guardianSenior);
     }
@@ -214,23 +223,26 @@ public class GuardianController {
                 .orElseThrow(() -> new RuntimeException("Connected senior not found"));
 
         guardianSenior.setRelation(request.relation());
+        if (request.guardianRelationToSenior() != null) {
+            guardianSenior.setGuardianRelationToSenior(request.guardianRelationToSenior());
+        }
         return ResponseEntity.ok(guardianSeniorRepository.save(guardianSenior));
     }
 
     private GuardianResponse toResponse(Guardian guardian) {
-        return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), !Boolean.FALSE.equals(guardian.getActive()));
+        return new GuardianResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), guardian.getGender(), !Boolean.FALSE.equals(guardian.getActive()));
     }
 
     private GuardianListResponse toListResponse(Guardian guardian) {
         List<GuardianSeniorSummaryResponse> seniors = guardianSeniorRepository.findByGuardianId(guardian.getId())
                 .stream()
                 .map(link -> seniorRepository.findById(link.getSeniorId())
-                        .map(senior -> new GuardianSeniorSummaryResponse(senior.getId(), senior.getName(), senior.getPhone(), link.getRelation())))
+                        .map(senior -> new GuardianSeniorSummaryResponse(senior.getId(), senior.getName(), senior.getPhone(), link.getRelation(), link.getGuardianRelationToSenior())))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
                 .toList();
 
-        return new GuardianListResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), !Boolean.FALSE.equals(guardian.getActive()), seniors);
+        return new GuardianListResponse(guardian.getId(), guardian.getName(), guardian.getPhone(), guardian.getEmail(), guardian.getAddress(), guardian.getGender(), !Boolean.FALSE.equals(guardian.getActive()), seniors);
     }
 
     private String normalizePhone(String phone) {
@@ -260,14 +272,14 @@ public class GuardianController {
     public record FindEmailRequest(String name, String phone) {}
     public record FindEmailResponse(String email) {}
     public record ResetPasswordRequest(String email, String phone, String newPassword) {}
-    public record GuardianSeniorConnectRequest(Long seniorId, String relation) {}
-    public record GuardianSeniorCreateRequest(String name, String phone, String region, String relation) {}
-    public record GuardianSeniorRelationRequest(String relation) {}
-    public record GuardianSignupRequest(String name, String phone, String email, String password, Long seniorId, String seniorRelation) {}
+    public record GuardianSeniorConnectRequest(Long seniorId, String relation, String guardianRelationToSenior) {}
+    public record GuardianSeniorCreateRequest(String name, String phone, String region, String relation, String guardianRelationToSenior) {}
+    public record GuardianSeniorRelationRequest(String relation, String guardianRelationToSenior) {}
+    public record GuardianSignupRequest(String name, String phone, String email, String password, String gender, Long seniorId, String seniorRelation, String guardianRelationToSenior) {}
     public record GuardianLoginRequest(String email, String password) {}
     public record ActiveRequest(Boolean active) {}
-    public record UpdateProfileRequest(String name, String phone, String email, String address) {}
-    public record GuardianResponse(Long id, String name, String phone, String email, String address, Boolean active) {}
-    public record GuardianListResponse(Long id, String name, String phone, String email, String address, Boolean active, List<GuardianSeniorSummaryResponse> seniors) {}
-    public record GuardianSeniorSummaryResponse(Long id, String name, String phone, String relation) {}
+    public record UpdateProfileRequest(String name, String phone, String email, String address, String gender) {}
+    public record GuardianResponse(Long id, String name, String phone, String email, String address, String gender, Boolean active) {}
+    public record GuardianListResponse(Long id, String name, String phone, String email, String address, String gender, Boolean active, List<GuardianSeniorSummaryResponse> seniors) {}
+    public record GuardianSeniorSummaryResponse(Long id, String name, String phone, String relation, String guardianRelationToSenior) {}
 }

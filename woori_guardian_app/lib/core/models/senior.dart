@@ -10,6 +10,9 @@ class Senior {
   final String lastLocationAddress;
   final String lastLocationTime;
 
+  // 마지막 GPS 수신 시각 원본 — 위치 신선도(미접속) 판단에 사용합니다.
+  final DateTime? lastLocationAt;
+
   // 프로필/담당자 정보: 상세 화면 상단과 기본 정보 영역에 표시합니다.
   final String profileImageUrl;
   final String socialWorkerName;
@@ -49,6 +52,7 @@ class Senior {
     required this.status,
     required this.lastLocationAddress,
     required this.lastLocationTime,
+    this.lastLocationAt,
     this.profileImageUrl = '',
     this.socialWorkerName = '-',
     this.socialWorkerPhone = '-',
@@ -86,6 +90,7 @@ class Senior {
     // 위치 정보: 마지막 GPS가 없을 때도 화면이 깨지지 않도록 기본 문구를 둡니다.
     var lastAddress = '위치 정보 없음';
     var lastTime = '-';
+    DateTime? lastAt;
 
     if (lastGpsObj.isNotEmpty) {
       lastAddress = _readString(lastGpsObj, [
@@ -97,6 +102,7 @@ class Senior {
       if (receivedAt != null) {
         lastTime = receivedAt.toString().replaceAll('T', ' ');
         if (lastTime.length > 16) lastTime = lastTime.substring(0, 16);
+        lastAt = DateTime.tryParse(receivedAt.toString());
       }
     }
 
@@ -125,6 +131,7 @@ class Senior {
       status: status,
       lastLocationAddress: lastAddress,
       lastLocationTime: lastTime,
+      lastLocationAt: lastAt,
       profileImageUrl: _readString(
         seniorObj,
         [
@@ -216,6 +223,23 @@ class Senior {
       cautionItems: _buildCautionItems(healthObj),
       activityCondition: _buildActivityCondition(healthObj),
     );
+  }
+
+  /// 마지막 GPS가 기준 시간보다 오래됐거나 아예 없으면 '미접속'으로 본다.
+  bool isLocationStale(int staleHours) {
+    if (lastLocationAt == null) return true;
+    return DateTime.now().difference(lastLocationAt!) >=
+        Duration(hours: staleHours);
+  }
+
+  /// "3시간 전" 같은 상대 시간 문구. GPS 기록이 없으면 '기록 없음'.
+  String get lastLocationAgoText {
+    if (lastLocationAt == null) return '기록 없음';
+    final diff = DateTime.now().difference(lastLocationAt!);
+    if (diff.inMinutes < 1) return '방금 전';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
+    if (diff.inHours < 24) return '${diff.inHours}시간 전';
+    return '${diff.inDays}일 전';
   }
 
   static Map<String, dynamic> _asMap(dynamic value) {
