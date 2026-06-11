@@ -26,6 +26,8 @@ const formatPoliceOccurredDate = (value) => {
 };
 
 const normalizeText = (value) => String(value || "").trim();
+const shortenAddress = (addr) =>
+  String(addr || "").replace(/([가-힣]+)(?:특별시|광역시|특별자치시)/g, "$1시");
 
 const getAgeGroup = (age) => {
   const number = Number(String(age || "").replace(/\D/g, ""));
@@ -251,32 +253,13 @@ function EmergencyPanel({
   };
 
   const handleSelectSafeZone = (place) => {
-    const address =
-      place.road_address_name ||
-      place.address_name ||
-      place.display_name ||
-      "";
+    const placeName = place.place_name || "";
+    const addr = place.road_address_name || place.address_name || place.display_name || "";
+    const address = placeName && addr ? `${placeName}, ${shortenAddress(addr)}` : shortenAddress(placeName || addr);
 
-    onSafeZoneChange({
-      target: {
-        name: "address",
-        value: address,
-      },
-    });
-
-    onSafeZoneChange({
-      target: {
-        name: "centerLatitude",
-        value: place.y || place.lat,
-      },
-    });
-
-    onSafeZoneChange({
-      target: {
-        name: "centerLongitude",
-        value: place.x || place.lon,
-      },
-    });
+    onSafeZoneChange({ target: { name: "address", value: address } });
+    onSafeZoneChange({ target: { name: "centerLatitude", value: place.y || place.lat } });
+    onSafeZoneChange({ target: { name: "centerLongitude", value: place.x || place.lon } });
 
     setSafeZoneKeyword(address);
     setSafeZoneResults([]);
@@ -483,7 +466,7 @@ function EmergencyPanel({
                               .replace(/\s?\d+시/, "")}
                           </span>
 
-                          <strong className="route-address">{point.address}</strong>
+                          <strong className="route-address">{shortenAddress(point.address)}</strong>
 
                           <span>
                             {new Date(point.receivedAt)
@@ -508,9 +491,7 @@ function EmergencyPanel({
                 <div>
                   <span>마지막 정상 위치</span>
                   <strong>
-                    {selectedElder.lastNormalLocation
-                      ? lastNormalLocation.address
-                      : "기록 없음"}
+                    {selectedElder.lastNormalLocation ? shortenAddress(lastNormalLocation.address) : "기록 없음"}
                   </strong>
                 </div>
 
@@ -545,7 +526,7 @@ function EmergencyPanel({
                   </div>
 
                   <small className="guardian-safe-zone-address-text">
-                    {safeZoneForm?.address || "주소 정보 없음"}
+                    {shortenAddress(safeZoneForm?.address) || "주소 정보 없음"}
                   </small>
 
                   {isSafeZoneEditorOpen && (
@@ -582,18 +563,20 @@ function EmergencyPanel({
 
                       {safeZoneResults.length > 0 && (
                         <div className="guardian-safe-zone-results">
-                          {safeZoneResults.map((place, index) => (
-                            <button
-                              key={`${place.place_id || place.id || index}-${place.x || place.lon}`}
-                              type="button"
-                              onClick={() => handleSelectSafeZone(place)}
-                            >
-                              {place.place_name ||
-                                place.road_address_name ||
-                                place.address_name ||
-                                place.display_name}
-                            </button>
-                          ))}
+                          {safeZoneResults.map((place, index) => {
+                            const placeName = place.place_name || "";
+                            const addr = shortenAddress(place.road_address_name || place.address_name || place.display_name || "");
+                            const label = placeName && addr ? `${placeName}, ${addr}` : placeName || addr;
+                            return (
+                              <button
+                                key={`${place.place_id || place.id || index}-${place.x || place.lon}`}
+                                type="button"
+                                onClick={() => handleSelectSafeZone(place)}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
 

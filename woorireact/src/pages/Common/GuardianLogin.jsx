@@ -48,6 +48,11 @@ export default function GuardianLogin() {
       return;
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      alert("이메일 형식이 올바르지 않습니다.");
+      return;
+    }
+
     if (!form.password.trim()) {
       alert("비밀번호를 입력해주세요.");
       return;

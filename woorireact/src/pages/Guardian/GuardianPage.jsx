@@ -2143,19 +2143,6 @@ function GuardianPage() {
               )}
             </label>
 
-            <label>
-              관계
-              <input
-                type="text"
-                placeholder="예: 딸, 아들, 배우자"
-                value={profileForm.relation}
-                onChange={(e) => setProfileForm((prev) => ({ ...prev, relation: e.target.value }))}
-              />
-              {!activeElderId && (
-                <span className="guardian-profile-note">담당 어르신을 선택해야 관계가 저장됩니다.</span>
-              )}
-            </label>
-
             <div className="guardian-profile-actions">
               <button
                 type="button"

@@ -10,6 +10,7 @@ import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/utils/phone_number_input_formatter.dart';
 
 // ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF86A788);
@@ -40,7 +41,6 @@ const _kReportTypes = [
   _ReportType('sos', 'SOS 미응답', Icons.sos),
   _ReportType('zone', '위치 이탈', Icons.location_off),
   _ReportType('fall', '낙상 의심', Icons.personal_injury),
-  _ReportType('other', '기타', Icons.more_horiz),
 ];
 
 enum _LocationMode { lastKnown, mapPick, search }
@@ -786,6 +786,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 child: TextField(
                   controller: _otherPhoneCtrl,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [PhoneNumberInputFormatter()],
                   style: const TextStyle(fontSize: 14, color: _kTextMain),
                   decoration: _inputDeco('연락처 *'),
                   onChanged: (_) => setState(() {}),
@@ -1113,15 +1114,32 @@ class _ReportScreenState extends State<ReportScreen> {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                _searchResults[i].displayName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _kTextMain,
-                                  height: 1.4,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_searchResults[i].name.isNotEmpty)
+                                    Text(
+                                      _searchResults[i].name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: _kTextMain,
+                                      ),
+                                    ),
+                                  if (_searchResults[i].address.isNotEmpty)
+                                    Text(
+                                      _searchResults[i].address,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: _kTextSub,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
@@ -1878,15 +1896,21 @@ String _formatDateTime(DateTime dt) {
 
 // ── 카카오맵 장소 검색 및 역지오코딩 ─────────────────────────────────────────
 class _KakaoPlaceResult {
-  final String displayName;
+  final String name;
+  final String address;
   final double lat;
   final double lng;
 
   const _KakaoPlaceResult({
-    required this.displayName,
+    required this.name,
+    required this.address,
     required this.lat,
     required this.lng,
   });
+
+  String get displayName => name.isNotEmpty
+      ? (address.isNotEmpty ? '$name, $address' : name)
+      : address;
 }
 
 Future<List<_KakaoPlaceResult>> _searchKakaoPlaces(String query) async {
@@ -1927,14 +1951,15 @@ Future<List<_KakaoPlaceResult>> _searchKakaoPlaces(String query) async {
               item['road_address_name']?.toString().trim() ?? '';
           final address = item['address_name']?.toString().trim() ?? '';
 
-          final displayName = [
-            if (placeName.isNotEmpty) placeName,
-            if (roadAddress.isNotEmpty) roadAddress else address,
-          ].where((v) => v.isNotEmpty).join(' · ');
+          if (placeName.isEmpty && roadAddress.isEmpty && address.isEmpty)
+            return null;
 
-          if (displayName.isEmpty) return null;
-
-          return _KakaoPlaceResult(displayName: displayName, lat: y, lng: x);
+          return _KakaoPlaceResult(
+            name: placeName,
+            address: roadAddress.isNotEmpty ? roadAddress : address,
+            lat: y,
+            lng: x,
+          );
         })
         .whereType<_KakaoPlaceResult>()
         .toList();
@@ -2409,7 +2434,6 @@ class _ReportHistoryCard extends StatelessWidget {
       'sos': 'SOS 미응답',
       'zone': '위치 이탈',
       'fall': '낙상 의심',
-      'other': '기타',
     };
     return map[type] ?? (type.isNotEmpty ? type : '신고');
   }

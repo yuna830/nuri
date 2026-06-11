@@ -766,25 +766,22 @@ public class SeniorController {
                 latestLocation == null ? null : latestLocation.getLongitude(),
                 latestLocation == null ? null : latestLocation.getReceivedAt(),
                 hasGuardian,
-                isFilled(senior.getDisabilityGrade()) && isFilled(senior.getDisabilityType()),
+                senior.getDisabilityGrade() != null || senior.getDisabilityType() != null,
                 healthInfo != null
-                        && healthInfo.getHeight() != null
-                        && healthInfo.getWeight() != null
-                        && isFilled(healthInfo.getSmoking())
-                        && isFilled(healthInfo.getDrinking()),
+                        && (healthInfo.getSmoking() != null || healthInfo.getDrinking() != null),
                 healthInfo != null
-                        && isFilled(healthInfo.getDiabetes()) && isFilled(healthInfo.getHypertension())
-                        && isFilled(healthInfo.getHeartDisease()) && isFilled(healthInfo.getJointDisease())
-                        && isFilled(healthInfo.getStroke()) && isFilled(healthInfo.getKidneyDisease())
-                        && isFilled(healthInfo.getLungDisease()) && isFilled(healthInfo.getLiverDisease())
-                        && isFilled(healthInfo.getCancer()) && isFilled(healthInfo.getWalkingAid())
-                        && isFilled(healthInfo.getDementia()) && isFilled(healthInfo.getVision())
-                        && isFilled(healthInfo.getHearing())
-                        && isFilled(healthInfo.getRecentFall()) && isFilled(healthInfo.getHasSurgery()),
-                healthInfo != null && isFilled(healthInfo.getMedicineCount()),
+                        && (healthInfo.getDiabetes() != null || healthInfo.getHypertension() != null
+                        || healthInfo.getHeartDisease() != null || healthInfo.getJointDisease() != null
+                        || healthInfo.getStroke() != null || healthInfo.getKidneyDisease() != null
+                        || healthInfo.getLungDisease() != null || healthInfo.getLiverDisease() != null
+                        || healthInfo.getCancer() != null || healthInfo.getWalkingAid() != null
+                        || healthInfo.getDementia() != null || healthInfo.getVision() != null
+                        || healthInfo.getHearing() != null
+                        || healthInfo.getRecentFall() != null || healthInfo.getHasSurgery() != null),
+                healthInfo != null && healthInfo.getMedicineCount() != null,
                 healthInfo != null
-                        && isFilled(healthInfo.getLivingCostStatus()) && isFilled(healthInfo.getHouseholdType())
-                        && isFilled(healthInfo.getPensionStatus()) && isFilled(healthInfo.getHousingType()),
+                        && (healthInfo.getLivingCostStatus() != null || healthInfo.getHouseholdType() != null
+                        || healthInfo.getPensionStatus() != null || healthInfo.getHousingType() != null),
                 senior.getGuardianName(),
                 senior.getGuardianPhone());
     }
