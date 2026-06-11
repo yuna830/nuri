@@ -18,7 +18,6 @@ const PAGE_SIZE = 20;
 const RECOMMEND_SIZE = 5;
 const CATEGORY_TARGET_SIZE = PAGE_SIZE + RECOMMEND_SIZE;
 const API_PAGE_SIZE = 200;
-const ML_CANDIDATE_LIMIT = 10;
 
 const textOf = (...values) => values.filter(Boolean).join(" ");
 const toNumber = (value) => {
@@ -65,122 +64,6 @@ const getStoredSeniorIds = () => {
 
 const getCurrentSeniorId = () => getStoredSeniorIds()[0] || null;
 
-const fetchAvailableSeniorIds = async (existingIds = []) => {
-  try {
-    const response = await fetch("/api/seniors");
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    if (!Array.isArray(data)) return [];
-
-    const seen = new Set(existingIds.map(String));
-    return data
-      .map((item) => item?.senior?.id ?? item?.id ?? item?.seniorId)
-      .filter((id) => id !== undefined && id !== null && id !== "")
-      .map(String)
-      .filter((id) => {
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
-  } catch {
-    return [];
-  }
-};
-
-const inferWorkEnvironment = (job) => {
-  const text = textOf(job.recrtTitle, job.jobclsNm, job.workPlcNm, job.detCnts, job.workTime);
-  const indoor = /실내|내부|사무|행정|상담|자료|문서|요양|돌봄|급식|주방|조리/.test(text);
-  const outdoor = /야외|실외|외부|공원|환경|미화|청소|경비|순찰|배달|운전/.test(text);
-
-  if (indoor && outdoor) return "혼합";
-  if (indoor) return "실내";
-  if (outdoor) return "야외";
-  return "혼합";
-};
-
-const inferPhysicalIntensity = (job) => {
-  const text = textOf(job.recrtTitle, job.jobclsNm, job.workPlcNm, job.detCnts, job.workTime);
-  if (/무거운|중량|상하차|운반|배송|배달|계단|장시간|경비|순찰|현장|청소|미화/.test(text)) {
-    return "높음";
-  }
-  if (/사무|행정|안내|상담|자료|문서|접수|보조/.test(text)) {
-    return "낮음";
-  }
-  return "중간";
-};
-
-const inferDailyHours = (job) => {
-  const weekHours = toNumber(job.weekHours);
-  if (weekHours) return String(Math.max(1, Math.round(weekHours / 5)));
-
-  const text = textOf(job.workTime, job.detCnts);
-  const hourText = text.match(/(\d+)\s*시간/);
-  if (hourText) return hourText[1];
-
-  const rangeText = text.match(/(\d{1,2})\s*(?:시|:00)?\s*(?:~|-)\s*(\d{1,2})\s*(?:시|:00)?/);
-  if (rangeText) {
-    const start = Number(rangeText[1]);
-    const end = Number(rangeText[2]);
-    if (end > start) return String(end - start);
-  }
-
-  return "";
-};
-
-const inferTaskTags = (job) => {
-  const text = textOf(job.recrtTitle, job.jobclsNm, job.workPlcNm, job.detCnts, job.workTime);
-  const tags = [];
-
-  if (/장시간|서있|서서|경비|순찰/.test(text)) tags.push("장시간 서있기");
-  if (/무거운|중량|운반|상하차|배송|배달/.test(text)) tags.push("무거운 물건 운반");
-  if (/계단|오르내림|이동 많/.test(text)) tags.push("계단 이동");
-  if (/상담|안내|고객|민원|응대/.test(text)) tags.push("고객 응대");
-  if (/반복|조립|정리|분류|포장/.test(text)) tags.push("반복 작업");
-  if (/야외|실외|외부|공원|환경|미화|청소/.test(text)) tags.push("야외 작업");
-  if (/실내|내부|사무|행정|요양|돌봄|주방|급식/.test(text)) tags.push("실내 근무");
-
-  return tags;
-};
-
-const toMlJobCandidate = (job, profile = {}, closed = false) => ({
-  jobId: getJobKey(job),
-  title: job.recrtTitle || "",
-  organization: job.oranNm || "",
-  jobType: categorizeJob(job) || job.jobclsNm || "",
-  workEnvironment: inferWorkEnvironment(job),
-  physicalIntensity: inferPhysicalIntensity(job),
-  dailyHours: inferDailyHours(job),
-  commuteLevel: profile?.maxDistance || "",
-  taskTags: inferTaskTags(job),
-  closed,
-  workDays: Array.isArray(profile?.hopeDays) ? profile.hopeDays : [],
-  workCondition: textOf(job.workTime, job.emplymShpNm, job.detCnts),
-});
-
-const formatProbabilityPercent = (value) => {
-  if (value === undefined || value === null || Number.isNaN(Number(value))) return "";
-  return `${Math.round(Number(value) * 100)}%`;
-};
-
-const buildMlMatch = (recommendation, fallbackMatch) => {
-  const fitProbability = recommendation.probabilities?.["적합"];
-  const reasons = [
-    recommendation.prediction ? `ML 판정 ${recommendation.prediction}` : "",
-    fitProbability !== undefined ? `적합 확률 ${formatProbabilityPercent(fitProbability)}` : "",
-    ...(fallbackMatch?.reasons || []),
-  ].filter(Boolean);
-
-  return {
-    ...fallbackMatch,
-    score: recommendation.score ?? fallbackMatch?.score ?? 0,
-    reasons: Array.from(new Set(reasons)).slice(0, 4),
-    source: "ML",
-    prediction: recommendation.prediction,
-    probabilities: recommendation.probabilities || {},
-  };
-};
-
 export default function JobPage() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -198,8 +81,6 @@ export default function JobPage() {
   const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
   const [selectedRecommendedApplication, setSelectedRecommendedApplication] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
-  const [mlRecommendations, setMlRecommendations] = useState([]);
-  const [mlRecommendationStatus, setMlRecommendationStatus] = useState("idle");
   const deferredSearch = useDeferredValue(search);
   const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
 
@@ -252,110 +133,33 @@ export default function JobPage() {
 
   const filteredJobs = useMemo(() => filterJobs(jobs), [filterJobs, jobs]);
 
-  const ruleScoredJobs = useMemo(() => {
-    return filteredJobs
-      .map((job) => ({
-        ...job,
-        match: scoreJobMatch(job, profile || {}, category),
-      }))
+  const scoredJobs = useMemo(() => {
+    const scored = filteredJobs
+      .map((job) => ({ ...job, match: scoreJobMatch(job, profile || {}, category) }))
       .sort((a, b) => b.match.score - a.match.score);
+
+    // 소스별로 그룹화 후 라운드로빈 인터리빙 (노인일자리·서울일자리 균형 배분)
+    const groups = new Map();
+    scored.forEach((job) => {
+      const src = job.source || "";
+      if (!groups.has(src)) groups.set(src, []);
+      groups.get(src).push(job);
+    });
+    if (groups.size <= 1) return scored;
+
+    const queues = Array.from(groups.values());
+    const mixed = [];
+    let i = 0;
+    while (mixed.length < scored.length) {
+      const q = queues[i % queues.length];
+      if (q.length > 0) mixed.push(q.shift());
+      i++;
+      if (queues.every((queue) => queue.length === 0)) break;
+    }
+    return mixed;
   }, [category, filteredJobs, profile]);
 
-  useEffect(() => {
-    let isActive = true;
-    const seniorIds = getStoredSeniorIds();
-    const openJobs = filteredJobs.filter((job) => !isExpired(job)).slice(0, ML_CANDIDATE_LIMIT);
-
-    if (openJobs.length === 0) {
-      setMlRecommendations([]);
-      setMlRecommendationStatus("idle");
-      return () => {
-        isActive = false;
-      };
-    }
-
-    const jobsByKey = new Map(openJobs.map((job) => [getJobKey(job), job]));
-
-    const loadMlRecommendations = async () => {
-      setMlRecommendationStatus("loading");
-      setMlRecommendations([]);
-
-      const requestRecommendations = async (candidateSeniorIds) => {
-        for (const seniorId of candidateSeniorIds) {
-          const response = await fetch(`/api/job-matching/seniors/${seniorId}/ml-recommendations`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              limit: RECOMMEND_SIZE,
-              jobs: openJobs.map((job) => toMlJobCandidate(job, profile || {}, isExpired(job))),
-            }),
-          });
-
-          if (!response.ok) continue;
-
-          const data = await response.json();
-          const recommendations = Array.isArray(data?.recommendations) ? data.recommendations : [];
-          const hydrated = recommendations
-            .map((recommendation) => {
-              const sourceJob = jobsByKey.get(String(recommendation.jobId));
-              if (!sourceJob) return null;
-              const fallbackMatch = sourceJob.match || scoreJobMatch(sourceJob, profile || {}, category);
-
-              return {
-                ...sourceJob,
-                match: buildMlMatch(recommendation, fallbackMatch),
-              };
-            })
-            .filter(Boolean);
-
-          if (!isActive) return;
-          if (hydrated.length > 0) {
-            setMlRecommendations(hydrated);
-            setMlRecommendationStatus("ready");
-            return true;
-          }
-        }
-
-        return false;
-      };
-
-      try {
-        if (await requestRecommendations(seniorIds)) return;
-
-        const fallbackSeniorIds = await fetchAvailableSeniorIds(seniorIds);
-        if (await requestRecommendations(fallbackSeniorIds)) return;
-
-        if (!isActive) return;
-        setMlRecommendations([]);
-        setMlRecommendationStatus("fallback");
-      } catch {
-        if (!isActive) return;
-        setMlRecommendations([]);
-        setMlRecommendationStatus("fallback");
-      }
-    };
-
-    loadMlRecommendations();
-
-    return () => {
-      isActive = false;
-    };
-  }, [category, filteredJobs, isExpired, profile]);
-
-  const hasMlRecommendations = mlRecommendations.length > 0;
-  const scoredJobs = useMemo(() => {
-    if (!hasMlRecommendations) return ruleScoredJobs;
-
-    const mlIds = new Set(mlRecommendations.map(getJobKey));
-    return [
-      ...mlRecommendations,
-      ...ruleScoredJobs.filter((job) => !mlIds.has(getJobKey(job))),
-    ];
-  }, [hasMlRecommendations, mlRecommendations, ruleScoredJobs]);
-
-  const recommendedJobs = hasMlRecommendations
-    ? mlRecommendations.slice(0, RECOMMEND_SIZE)
-    : ruleScoredJobs.slice(0, RECOMMEND_SIZE);
+  const recommendedJobs = scoredJobs.slice(0, RECOMMEND_SIZE);
   const welfareRecommendedApplications = useMemo(
     () => jobApplications.filter((application) =>
       application.applicationType === "RECOMMEND"
@@ -663,7 +467,6 @@ export default function JobPage() {
     const expired = isExpired(job);
     const key = getJobKey(job);
     const recommended = compact || recommendedIds.has(key);
-    const mlPrediction = job.match?.source === "ML" ? job.match.prediction : "";
 
     return (
       <article
@@ -681,8 +484,7 @@ export default function JobPage() {
               <div className="jp-card-company">{job.oranNm || "기업명 미공개"}</div>
             </div>
             <div className="jp-card-badges">
-              {recommended && <div className="jp-match-badge">{job.match?.source === "ML" ? "ML 추천" : "추천"} {job.match.score}점</div>}
-              {mlPrediction && <div className="jp-card-badge jp-ml-prediction-badge">ML {mlPrediction}</div>}
+              {recommended && <div className="jp-match-badge">추천 {job.match.score}점</div>}
               {expired && <div className="jp-card-badge jp-expired-badge">마감</div>}
               <div className="jp-card-badge jp-source-badge">{job.source}</div>
               <div className="jp-card-badge" style={{ background: "#eef6ef", color: "#5f7d61", border: "1px solid #b8d4ba" }}>
@@ -722,9 +524,15 @@ export default function JobPage() {
       <div className="jp-layout">
         {!isJobAllowed ? (
           <main className="jp-main jp-age-block">
-            <div className="jp-empty">
-              <div className="jp-empty-icon">💼</div>
-              <div className="jp-empty-text">일자리 정보는 만 20세 이상부터 볼 수 있어요.</div>
+            <div className="jp-age-gate-card">
+              <div className="jp-age-gate-icon">🔒</div>
+              <div className="jp-age-gate-title">이용 연령 제한</div>
+              <div className="jp-age-gate-desc">
+                일자리 정보는 <strong>만 20세 이상</strong>부터<br />이용할 수 있어요.
+              </div>
+              {profile?.age && (
+                <div className="jp-age-gate-badge">현재 만 {profile.age}세</div>
+              )}
             </div>
           </main>
         ) : (
@@ -821,25 +629,6 @@ export default function JobPage() {
                 </div>
               </div>
 
-              <div className="jp-main-actions">
-                <button
-                  className="jp-application-toggle"
-                  type="button"
-                  onClick={() => setIsInterestModalOpen(true)}
-                >
-                  관심 공고 모아 보기
-                </button>
-                {appliedApplications.length > 0 && (
-                  <button
-                    className="jp-application-toggle"
-                    type="button"
-                    onClick={() => setIsApplicationModalOpen(true)}
-                  >
-                    내가 신청한 공고 결과 보기
-                  </button>
-                )}
-              </div>
-
               {welfareRecommendedApplications.length > 0 && (
                 <section className="jp-welfare-recommend-section">
                   <div className="jp-welfare-recommend-head">
@@ -874,14 +663,24 @@ export default function JobPage() {
                   <div className="jp-recommend-head">
                     <div>
                       <strong>맞춤 추천 TOP 5</strong>
-                      <p>
-                        {hasMlRecommendations
-                          ? "ML 모델이 건강 정보와 공고 조건을 비교해 계산한 추천 결과예요."
-                          : "내 조건과 공고 정보를 기준으로 계산한 참고 점수예요."}
-                      </p>
+                      <p>내 조건과 공고 정보를 기준으로 계산한 참고 점수예요.</p>
                     </div>
-                    {mlRecommendationStatus === "loading" && <span>ML 계산 중</span>}
-                    {mlRecommendationStatus === "fallback" && <span>규칙 점수</span>}
+                    <div className="jp-recommend-head-actions">
+                      <button
+                        className="jp-application-toggle"
+                        type="button"
+                        onClick={() => setIsInterestModalOpen(true)}
+                      >
+                        관심 공고 모아보기
+                      </button>
+                      <button
+                        className="jp-application-toggle"
+                        type="button"
+                        onClick={() => setIsApplicationModalOpen(true)}
+                      >
+                        내가 신청한 공고 결과 보기
+                      </button>
+                    </div>
                   </div>
                   <div className="jp-recommend-grid">
               {recommendedJobs.slice(0, RECOMMEND_SIZE).map((job, idx) => renderJobCard(job, idx, true))}
@@ -929,9 +728,6 @@ export default function JobPage() {
               {[
                 { key: "출처", val: selected.source },
                 { key: "추천점수", val: `${selected.match?.score ?? scoreJobMatch(selected, profile || {}, category).score}점` },
-                { key: "추천방식", val: selected.match?.source === "ML" ? "ML 모델" : "규칙 기반 점수" },
-                { key: "ML 판정", val: selected.match?.prediction },
-                { key: "적합 확률", val: formatProbabilityPercent(selected.match?.probabilities?.["적합"]) },
                 { key: "고용형태", val: EMPL_MAP[selected.emplymShp] || selected.emplymShpNm || "기타" },
                 { key: "근무지", val: selected.workPlcNm },
                 { key: "상세주소", val: selected.plDetAddr },

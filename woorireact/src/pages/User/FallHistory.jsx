@@ -111,7 +111,7 @@ const toFallEventLog = (event, index = 0) => {
     confirmed: Boolean(event.confirmed),
     imageUrl: captureName ? getFallCaptureUrl(captureName) : "",
     capture: event,
-    detail: `감지 점수 ${event.score ?? 0}점 · 자세 ${event.posture || "확인 중"} · 모드 ${event.ensemble_mode || "-"}`,
+    detail: `카메라 보조점수 ${event.score ?? 0}점 · 자세 ${event.posture || "확인 중"} · 모드 ${event.ensemble_mode || "-"}`,
   };
 };
 
@@ -315,7 +315,7 @@ export default function FallHistory() {
           </div>
 
           <div className="fh-live-foot">
-            <div>감지 점수 <strong>{detector.score ?? 0}점</strong></div>
+            <div>카메라 보조점수 <strong>{detector.score ?? 0}점</strong></div>
             <div>{activeFallAlert ? "보호자 확인을 기다리는 중" : "감지 대기 중"}</div>
           </div>
         </div>

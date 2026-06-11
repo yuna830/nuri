@@ -495,6 +495,7 @@ export default function UserPage() {
   const [allSchedules, setAllSchedules] = useState([]);
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
+  const [showJobModal, setShowJobModal] = useState(false);
   const [incomingCallAlert, setIncomingCallAlert] = useState(null);
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
@@ -1602,6 +1603,15 @@ export default function UserPage() {
                       const latestJobId = localStorage.getItem("jobs_latest_job_id");
                       if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
                       setJobHasNew(false);
+                      try {
+                        const saved = sessionStorage.getItem("currentSenior");
+                        if (saved) {
+                          const hi = JSON.parse(saved)?.healthInfo ?? {};
+                          const noHours = !hi.maxHours || hi.maxHours === "상관없음";
+                          const noDistance = !hi.maxDistance || hi.maxDistance === "상관없음";
+                          if (noHours && noDistance) { setShowJobModal(true); return; }
+                        }
+                      } catch { /* 로드 실패 시 그냥 진행 */ }
                     }
                     navigate(menu.route);
                   }}
@@ -1958,6 +1968,25 @@ export default function UserPage() {
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {showJobModal && (
+        <div className="up-overlay" onClick={() => setShowJobModal(false)}>
+          <div className="up-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="up-modal-ico">💼</div>
+            <div className="up-modal-title">일자리 조건이 없어요</div>
+            <div className="up-modal-desc">
+              현재 등록된 일자리 조건이 없어서<br />
+              일자리 찾기를 이용하기 어려워요.<br /><br />
+              <strong>내 정보 수정 → 활동 및 일자리</strong> 탭에서<br />
+              조건을 입력해주세요.
+            </div>
+            <div className="up-modal-row">
+              <button className="up-modal-cancel" type="button" onClick={() => setShowJobModal(false)}>닫기</button>
+              <button className="up-modal-ok" type="button" onClick={() => { setShowJobModal(false); navigate("/profile?section=job"); }}>내 정보 수정</button>
+            </div>
           </div>
         </div>
       )}
