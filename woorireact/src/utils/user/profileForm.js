@@ -399,7 +399,7 @@ export const profileToForm = (profile = {}) => {
     profileImageUrl: senior.profileImageUrl ?? "",
     lastLoginAt: senior.lastLoginAt ?? profile.lastLoginAt ?? "",
     guardianName: senior.guardianName ?? profile.guardianName ?? "",
-    guardianRelation: senior.guardianRelation ?? profile.relation ?? "",
+    guardianRelation: profile.guardianRelationToSenior ?? senior.guardianRelation ?? profile.relation ?? "",
     seniorRelationToGuardian: senior.seniorRelationToGuardian ?? "",
     socialWorkerName: senior.socialWorkerName ?? profile.socialWorkerName ?? "",
     socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
