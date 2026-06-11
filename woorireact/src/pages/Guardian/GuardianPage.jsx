@@ -17,6 +17,7 @@ import {
   sendMedicineAlert,
   updateSeniorRequestedInfo,
   sendCheckInReply,
+  updateGuardianProfile
 } from "../../api/guardianApi";
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
@@ -59,6 +60,8 @@ import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
 import "../../css/guardian/GuardianModal.css";
 import "../../css/user/UserCommonHeader.css";
+
+import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 const saveLocalCareTeamMap = (profiles, guardian) => {
   if (!guardian || !Array.isArray(profiles)) return;
@@ -275,28 +278,28 @@ const INFO_REQUEST_FIELDS = [
     label: "생계비 현황",
     aliases: ["복지 정보", "복지정보", "생계비"],
     type: "select",
-    options: ["", ...LIVING_COST_STATUSES],
+    options: [...LIVING_COST_STATUSES],
   },
   {
     key: "householdType",
     label: "가구 유형",
     aliases: ["복지 정보", "복지정보", "가구"],
     type: "select",
-    options: ["", ...HOUSEHOLD_TYPES],
+    options: [...HOUSEHOLD_TYPES],
   },
   {
     key: "pensionStatus",
     label: "연금 현황",
     aliases: ["복지 정보", "복지정보", "연금"],
     type: "select",
-    options: ["", ...PENSION_STATUSES],
+    options: [...PENSION_STATUSES],
   },
   {
     key: "housingType",
     label: "주거 유형",
     aliases: ["복지 정보", "복지정보", "주거"],
     type: "select",
-    options: ["", ...HOUSING_TYPES],
+    options: [...HOUSING_TYPES],
   },
 ];
 
@@ -325,6 +328,8 @@ const MESSAGE_LABEL_TO_KEY = {
   "청력": "hearing",
   "최근 낙상": "recentFall",
   "수술 이력": "hasSurgery",
+  "수술 상세": "hasSurgery",
+  "수술 상세 미입력": "hasSurgery",
   "생계비 현황": "livingCostStatus",
   "가구 유형": "householdType",
   "연금 현황": "pensionStatus",
@@ -345,9 +350,26 @@ const HEALTH_INFO_KEYS = [
   "livingCostStatus", "householdType", "pensionStatus", "housingType",
 ];
 
+const isSurgeryDetailEmpty = (elder) => {
+  const raw = elder?.healthInfo?.surgeriesJson;
+  try {
+    const list = typeof raw === "string"
+      ? JSON.parse(raw)
+      : Array.isArray(raw) ? raw : [];
+    return !Array.isArray(list) || !list.some((s) => s.name && String(s.name).trim());
+  } catch { return true; }
+};
+
 const isFieldEmpty = (field, elder) => {
   if (field.key === "region") return isEmptyInfoValue(elder?.address);
   if (field.key === "birthDate") return isEmptyInfoValue(elder?.birthDate) && isEmptyInfoValue(elder?.age);
+  if (field.key === "hasSurgery") {
+    const val = elder?.healthInfo?.hasSurgery;
+    if (isEmptyInfoValue(val)) return true;
+    // "있음"이지만 수술 상세(이름)가 없으면 여전히 미입력으로 처리
+    if (val === "있음") return isSurgeryDetailEmpty(elder);
+    return false;
+  }
   if (HEALTH_INFO_KEYS.includes(field.key)) return isEmptyInfoValue(elder?.healthInfo?.[field.key]);
   return isEmptyInfoValue(elder?.[field.key]);
 };
@@ -439,6 +461,12 @@ function GuardianPage() {
   const [isAddElderOpen, setIsAddElderOpen] = useState(false);
   const [deleteModeElderId, setDeleteModeElderId] = useState(null);
 
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: "", phone: "", address: "", relation: "" });
+  const [profileAddrQuery, setProfileAddrQuery] = useState("");
+  const [profileAddrResults, setProfileAddrResults] = useState([]);
+  const [isSearchingProfileAddr, setIsSearchingProfileAddr] = useState(false);
+
   const [seniorSearch, setSeniorSearch] = useState({ name: "", phone: "" });
   const [seniorSearchResults, setSeniorSearchResults] = useState([]);
   const [isSearchingSenior, setIsSearchingSenior] = useState(false);
@@ -500,10 +528,19 @@ function GuardianPage() {
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [isElderEditOpen, setIsElderEditOpen] = useState(false);
   const [editingElder, setEditingElder] = useState(null);
-  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
+  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem("woori_guardian_dismissed_info_alerts");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [infoRequestFormAlert, setInfoRequestFormAlert] = useState(null);
   const [infoRequestFieldKeys, setInfoRequestFieldKeys] = useState([]);
+  const [infoRequestSurgeries, setInfoRequestSurgeries] = useState([]);
   const [infoRequestForm, setInfoRequestForm] = useState({
     gender: "",
     phone: "",
@@ -622,11 +659,47 @@ function GuardianPage() {
   }, [activeElderId]);
 
   const displayedAlerts = useMemo(() => {
-    const elderNameById = new Map(
-      elders.map((elder) => [String(elder.id), elder.name])
-    );
+    const elderById = new Map(elders.map((elder) => [String(elder.id), elder]));
+    const isMissingLocationText = (value) => {
+      const text = String(value || "").trim();
+      return !text || text === "위치 확인 필요" || text === "현재 위치 확인 필요";
+    };
+    const getFallbackLocation = (alert) => {
+      const elder = elderById.get(String(alert.seniorId))
+        || (activeElderId ? elderById.get(String(activeElderId)) : null);
 
-    return buildDisplayedAlerts(apiAlerts, reportedAlertIds)
+      return elder?.currentLocation?.address
+        || elder?.lastNormalLocation?.address
+        || elder?.address
+        || "";
+    };
+    const getFallDetailsObject = (alert) => (
+      alert.fallDetails && typeof alert.fallDetails === "object" ? alert.fallDetails : {}
+    );
+    const alertsWithLocation = apiAlerts.map((alert) => {
+      const fallbackLocation = getFallbackLocation(alert);
+
+      if (!fallbackLocation) return alert;
+
+      const fallDetails = getFallDetailsObject(alert);
+      const currentLocationText = alert.address || alert.locationText || fallDetails.locationText;
+
+      if (!isMissingLocationText(currentLocationText)) return alert;
+
+      return {
+        ...alert,
+        address: isMissingLocationText(alert.address) ? fallbackLocation : alert.address,
+        locationText: isMissingLocationText(alert.locationText) ? fallbackLocation : alert.locationText,
+        fallDetails: {
+          ...fallDetails,
+          locationText: isMissingLocationText(fallDetails.locationText)
+            ? fallbackLocation
+            : fallDetails.locationText,
+        },
+      };
+    });
+
+    return buildDisplayedAlerts(alertsWithLocation, reportedAlertIds)
       .filter((alert) => {
         if (!activeElderId) return true;
         return String(alert.seniorId) === String(activeElderId);
@@ -635,7 +708,7 @@ function GuardianPage() {
         ...alert,
         seniorName:
           alert.seniorName ||
-          elderNameById.get(String(alert.seniorId)) ||
+          elderById.get(String(alert.seniorId))?.name ||
           selectedElder?.name ||
           "사용자",
       }));
@@ -1031,6 +1104,54 @@ function GuardianPage() {
     }
   };
 
+  const handleOpenProfile = () => {
+    setProfileForm({
+      name: guardian?.name || "",
+      phone: guardian?.phone || "",
+      address: guardian?.address || "",
+      relation: selectedElder?.relation || "",
+    });
+    setProfileAddrQuery(guardian?.address || "");
+    setProfileAddrResults([]);
+    setIsProfileOpen(true);
+  };
+
+  const handleSearchProfileAddr = async () => {
+    const keyword = profileAddrQuery.trim();
+    if (!keyword) {
+      gToast.warn("검색할 주소를 입력해주세요.");
+      return;
+    }
+    setIsSearchingProfileAddr(true);
+    try {
+      const results = await searchPlacesByKakao(keyword, { size: 5 });
+      setProfileAddrResults(results);
+    } catch {
+      gToast.error("주소 검색에 실패했습니다.");
+      setProfileAddrResults([]);
+    } finally {
+      setIsSearchingProfileAddr(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    const guardianId = getCurrentGuardianId();
+    if (!guardianId) return;
+    try {
+      const updated = await updateGuardianProfile(guardianId, profileForm);
+      const next = { ...getCurrentGuardian(), ...updated };
+      sessionStorage.setItem("currentGuardian", JSON.stringify(next));
+      setGuardian(next);
+      if (profileForm.relation.trim() && activeElderId) {
+        await updateGuardianSeniorRelation(guardianId, activeElderId, profileForm.relation.trim()).catch(() => { });
+      }
+      setIsProfileOpen(false);
+      gToast.success("프로필이 저장됐습니다.");
+    } catch {
+      gToast.error("저장에 실패했습니다.");
+    }
+  };
+
   const handleSafeZoneChange = (event) => {
     const { name, value } = event.target;
 
@@ -1405,6 +1526,27 @@ function GuardianPage() {
       ...prev,
       ...buildInfoRequestForm(targetElder),
     }));
+    try {
+      const raw = targetElder.healthInfo?.surgeriesJson;
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      const mapped = Array.isArray(parsed) && parsed.length > 0
+        ? parsed.map((s) => ({ name: s.name || "", date: s.date || s.year || "", recovery: s.recovery || "" }))
+        : [];
+      // hasSurgery가 "있음"인데 수술 상세가 없으면 빈 카드 1개 자동 추가
+      setInfoRequestSurgeries(
+        mapped.length > 0
+          ? mapped
+          : targetElder.healthInfo?.hasSurgery === "있음"
+            ? [{ name: "", date: "", recovery: "" }]
+            : []
+      );
+    } catch {
+      setInfoRequestSurgeries(
+        targetElder.healthInfo?.hasSurgery === "있음"
+          ? [{ name: "", date: "", recovery: "" }]
+          : []
+      );
+    }
     setIsElderEditOpen(true);
     setInfoRequestAlert(null);
   };
@@ -1414,7 +1556,23 @@ function GuardianPage() {
       ...prev,
       [key]: value,
     }));
+    if (key === "hasSurgery" && value === "있음") {
+      setInfoRequestSurgeries((prev) =>
+        prev.length === 0 ? [{ name: "", date: "", recovery: "" }] : prev
+      );
+    }
   };
+
+  const addInfoRequestSurgery = () =>
+    setInfoRequestSurgeries((prev) => [...prev, { name: "", date: "", recovery: "" }]);
+
+  const removeInfoRequestSurgery = (idx) =>
+    setInfoRequestSurgeries((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateInfoRequestSurgery = (idx, field, value) =>
+    setInfoRequestSurgeries((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
+    );
 
   const handleSubmitInfoRequestForm = async () => {
     if (!editingElder?.id) return;
@@ -1429,6 +1587,10 @@ function GuardianPage() {
       return nextPayload;
     }, {});
 
+    if (infoRequestForm.hasSurgery === "있음" && infoRequestSurgeries.length > 0) {
+      payload.surgeriesJson = JSON.stringify(infoRequestSurgeries);
+    }
+
     if (Object.keys(payload).length === 0) {
       gToast.warn("입력할 정보를 작성해주세요.");
       return;
@@ -1442,6 +1604,7 @@ function GuardianPage() {
       await notifyProfileUpdateComplete({
         seniorId: editingElder.id,
         alertId: infoRequestFormAlert?.id ?? null,
+        filledBy: "GUARDIAN",
       }).catch(() => { });
 
       if (infoRequestFormAlert?.id) {
@@ -1457,6 +1620,7 @@ function GuardianPage() {
       setEditingElder(null);
       setInfoRequestFormAlert(null);
       setInfoRequestFieldKeys([]);
+      setInfoRequestSurgeries([]);
       gToast.success("보호 대상자 정보가 저장되었습니다.");
     } catch (error) {
       console.error("정보 입력 저장 실패:", error);
@@ -1749,6 +1913,21 @@ function GuardianPage() {
         onCallAlert={handleCallAlert}
         onOpenEmergencyReport={handleOpenEmergencyReport}
         onCheckInOk={handleCheckInOk}
+        // 정보 입력 모달 다시 띄우기
+        onOpenInfoRequest={(alert) => {
+          const rawAlert = alert?.raw?.rawAlert ?? alert?.raw ?? alert;
+          // dismissed에서 제거 (나중에로 닫았던 경우 재오픈 허용)
+          if (rawAlert?.id) {
+            setDismissedInfoRequestIds((prev) => {
+              const next = prev.filter((id) => id !== String(rawAlert.id));
+              try {
+                localStorage.setItem("woori_guardian_dismissed_info_alerts", JSON.stringify(next));
+              } catch { /* ignore */ }
+              return next;
+            });
+          }
+          setInfoRequestAlert(rawAlert);
+        }}
         onOpenConsultationModal={(alert) => {
           if (alert?.seniorId) {
             setSelectedElderId(alert.seniorId);
@@ -1772,6 +1951,15 @@ function GuardianPage() {
           setIsChatOpen(true);
         }}
         unreadChatCount={unreadChatCount}
+        afterLogo={
+          <button
+            className="guardian-profile-trigger"
+            type="button"
+            onClick={handleOpenProfile}
+          >
+            {guardian?.name || "보호자"} ▾
+          </button>
+        }
       />
 
       <TripartiteChatModal
@@ -1985,6 +2173,98 @@ function GuardianPage() {
         />
       </section>
 
+      {isProfileOpen && (
+        <div className="guardian-profile-overlay" onClick={() => setIsProfileOpen(false)}>
+          <div className="guardian-profile-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>내 프로필</h3>
+
+            <label>
+              이름
+              <input
+                type="text"
+                value={profileForm.name}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              연락처
+              <input
+                type="tel"
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              주소
+              <div className="guardian-profile-addr-row">
+                <input
+                  type="text"
+                  placeholder="주소 검색"
+                  value={profileAddrQuery}
+                  onChange={(e) => {
+                    setProfileAddrQuery(e.target.value);
+                    setProfileAddrResults([]);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchProfileAddr()}
+                />
+                <button
+                  type="button"
+                  className="guardian-profile-addr-search"
+                  onClick={handleSearchProfileAddr}
+                  disabled={isSearchingProfileAddr}
+                >
+                  {isSearchingProfileAddr ? "…" : "검색"}
+                </button>
+              </div>
+              {profileAddrResults.length > 0 && (
+                <ul className="guardian-profile-addr-results">
+                  {profileAddrResults.map((place) => (
+                    <li
+                      key={place.place_id}
+                      onClick={() => {
+                        const addr = place.display_name || place.road_address_name || place.address_name || "";
+                        setProfileForm((prev) => ({ ...prev, address: addr }));
+                        setProfileAddrQuery(addr);
+                        setProfileAddrResults([]);
+                      }}
+                    >
+                      <span className="guardian-profile-addr-name">{place.name}</span>
+                      <span className="guardian-profile-addr-detail">{place.display_name}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {profileForm.address && profileAddrResults.length === 0 && (
+                <span className="guardian-profile-addr-selected">📍 {profileForm.address}</span>
+              )}
+            </label>
+
+            <div className="guardian-profile-actions">
+              <button
+                type="button"
+                className="guardian-profile-save"
+                onClick={handleSaveProfile}
+              >
+                저장하기
+              </button>
+              <button
+                type="button"
+                className="guardian-profile-logout"
+                onClick={() => {
+                  sessionStorage.removeItem("currentGuardian");
+                  localStorage.removeItem("woori_guardian_dismissed_info_alerts");
+                  navigate("/glogin", { replace: true });
+                }}
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMedicineAlertOpen && (
         <div className="medicine-alert-backdrop" onClick={() => setIsMedicineAlertOpen(false)}>
           <section className="medicine-alert-modal" onClick={(event) => event.stopPropagation()}>
@@ -2091,13 +2371,21 @@ function GuardianPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // 쌓인 모든 INFO_UPDATE_REQUEST를 한 번에 dismissed 처리
+                  const currentId = infoRequestAlert?.id;
                   const allInfoRequestIds = apiAlerts
                     .filter((a) => a.type === "INFO_UPDATE_REQUEST" && a.isRead !== true)
                     .map((a) => String(a.id));
-                  setDismissedInfoRequestIds((prev) => [
-                    ...new Set([...prev, ...allInfoRequestIds]),
-                  ]);
+                  const merged = [...new Set([
+                    ...(currentId ? [String(currentId)] : []),
+                    ...allInfoRequestIds,
+                  ])];
+                  setDismissedInfoRequestIds((prev) => {
+                    const next = [...new Set([...prev, ...merged])];
+                    try {
+                      localStorage.setItem("woori_guardian_dismissed_info_alerts", JSON.stringify(next));
+                    } catch { /* ignore */ }
+                    return next;
+                  });
                   setInfoRequestAlert(null);
                 }}
               >
@@ -2131,6 +2419,7 @@ function GuardianPage() {
                   setEditingElder(null);
                   setInfoRequestFormAlert(null);
                   setInfoRequestFieldKeys([]);
+                  setInfoRequestSurgeries([]);
                 }}
               >
                 닫기
@@ -2140,36 +2429,98 @@ function GuardianPage() {
             <div className="guardian-info-form-fields">
               {INFO_REQUEST_FIELDS
                 .filter((field) => infoRequestFieldKeys.includes(field.key))
-                .map((field) => (
-                  <label key={field.key} className="guardian-info-form-field">
-                    <span>{field.label}</span>
+                .flatMap((field) => {
+                  const fieldEl = (
+                    <label key={field.key} className="guardian-info-form-field">
+                      <span>{field.label}</span>
 
-                    {field.type === "select" ? (
-                      <select
-                        value={infoRequestForm[field.key] || ""}
-                        onChange={(event) =>
-                          handleInfoRequestFormChange(field.key, event.target.value)
-                        }
-                      >
-                        <option value="">선택해주세요</option>
-                        {field.options.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                      {field.type === "select" ? (
+                        <select
+                          value={infoRequestForm[field.key] || ""}
+                          onChange={(event) =>
+                            handleInfoRequestFormChange(field.key, event.target.value)
+                          }
+                        >
+                          <option value="">선택해주세요</option>
+                          {field.options.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type}
+                          value={infoRequestForm[field.key] || ""}
+                          placeholder={field.placeholder || ""}
+                          onChange={(event) =>
+                            handleInfoRequestFormChange(field.key, event.target.value)
+                          }
+                        />
+                      )}
+                    </label>
+                  );
+
+                  if (field.key === "hasSurgery" && infoRequestForm.hasSurgery === "있음") {
+                    return [
+                      fieldEl,
+                      <div key="surgery-cards" className="guardian-surgery-cards">
+                        {infoRequestSurgeries.map((surgery, idx) => (
+                          <div key={idx} className="guardian-surgery-card">
+                            <div className="guardian-surgery-card-header">
+                              <span>수술 {idx + 1}</span>
+                              <button
+                                type="button"
+                                className="guardian-surgery-card-remove"
+                                onClick={() => removeInfoRequestSurgery(idx)}
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <label className="guardian-info-form-field">
+                              <span>수술명</span>
+                              <input
+                                type="text"
+                                value={surgery.name}
+                                placeholder="수술명을 입력해주세요"
+                                onChange={(e) => updateInfoRequestSurgery(idx, "name", e.target.value)}
+                              />
+                            </label>
+                            <label className="guardian-info-form-field">
+                              <span>수술 날짜</span>
+                              <input
+                                type="date"
+                                value={surgery.date}
+                                onChange={(e) => updateInfoRequestSurgery(idx, "date", e.target.value)}
+                              />
+                            </label>
+                            <label className="guardian-info-form-field">
+                              <span>회복 여부</span>
+                              <select
+                                value={surgery.recovery}
+                                onChange={(e) => updateInfoRequestSurgery(idx, "recovery", e.target.value)}
+                              >
+                                <option value="">선택해주세요</option>
+                                {["모름", "회복중", "회복완료", "미회복"].map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                         ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={field.type}
-                        value={infoRequestForm[field.key] || ""}
-                        placeholder={field.placeholder || ""}
-                        onChange={(event) =>
-                          handleInfoRequestFormChange(field.key, event.target.value)
-                        }
-                      />
-                    )}
-                  </label>
-                ))}
+                        <button
+                          type="button"
+                          className="guardian-surgery-add-btn"
+                          onClick={addInfoRequestSurgery}
+                        >
+                          + 수술 이력 추가
+                        </button>
+                      </div>,
+                    ];
+                  }
+
+                  return [fieldEl];
+                })}
             </div>
 
             <div className="guardian-info-form-actions">
@@ -2181,6 +2532,7 @@ function GuardianPage() {
                   setEditingElder(null);
                   setInfoRequestFormAlert(null);
                   setInfoRequestFieldKeys([]);
+                  setInfoRequestSurgeries([]);
                 }}
               >
                 취소
@@ -2210,6 +2562,8 @@ function GuardianHeader({
   onOpenWelfareChat,
   onCheckInOk,
   onOpenConsultationModal,
+  onOpenInfoRequest,
+  afterLogo,
   unreadChatCount = 0,
 }) {
   const isCheckInRequestAlert = (alert) => {
@@ -2279,20 +2633,27 @@ function GuardianHeader({
       const isCheckInRequest = isCheckInRequestAlert(alert);
       const seniorDisplayName = formatSeniorDisplayName(alert.seniorName || alert.name);
 
+      const isInfoUpdateRequest = (alert.type || alert.rawAlert?.type) === "INFO_UPDATE_REQUEST";
+
       return {
         id: alert.id,
         title: isCheckInRequest
           ? `${seniorDisplayName} 안부 확인 요청`
           : alert.isFall
             ? "낙상 감지 알림"
-            : alert.message || `${seniorDisplayName} 알림`,
+            : isInfoUpdateRequest
+              ? "정보 입력 요청"
+              : alert.message || `${seniorDisplayName} 알림`,
         message: isCheckInRequest
           ? `${seniorDisplayName}께서 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
           : alert.isFall
-            ? [alert.message, alert.detailMessage].filter(Boolean).join(" ")
-            : alert.detailMessage || "",
+            ? alert.message
+            : isInfoUpdateRequest
+              ? `복지사가 ${seniorDisplayName}의 정보 입력을 요청했습니다.`
+              : alert.detailMessage || "",
         category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
         time: alert.time,
+        imageUrl: alert.imageUrl || alert.rawAlert?.imageUrl || alert.rawAlert?.imageAccessUrl || "",
         isRead: alert.status !== "미확인",
         danger: alert.isSos || alert.isSafeZone || alert.isFall,
         raw: alert,
@@ -2384,6 +2745,27 @@ function GuardianHeader({
       );
     }
 
+    const isInfoRequest = ["INFO_UPDATE_REQUEST"].includes(
+      alert.type || alert.raw?.type || alert.raw?.rawAlert?.type || ""
+    );
+    if (isInfoRequest) {
+      return (
+        <div className="guardian-alert-actions-below">
+          <button
+            type="button"
+            className="guardian-alert-primary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenInfoRequest?.(alert);
+              closeNotificationPanel?.();
+            }}
+          >
+            정보 입력
+          </button>
+        </div>
+      );
+    }
+
     if (!alert?.isFall && !alert?.isSos && !alert?.isSafeZone) {
       return defaultAction;
     }
@@ -2409,6 +2791,7 @@ function GuardianHeader({
   return (
     <CommonHeader
       homePath="/guardian"
+      afterLogo={afterLogo}
       showNotificationButton
       notifications={guardianNotifications}
       notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}

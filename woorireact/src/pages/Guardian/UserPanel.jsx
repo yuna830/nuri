@@ -101,6 +101,7 @@ function UserPanel({
     const savedImages = localStorage.getItem("guardianProfileImages");
     return savedImages ? JSON.parse(savedImages) : {};
   });
+  const [profileImageLoaded, setProfileImageLoaded] = useState(false);
 
   useEffect(() => {
     if (!navigator.getBattery) return undefined;
@@ -235,8 +236,8 @@ function UserPanel({
     : [];
 
   useEffect(() => {
-     
     setIsProfileMenuOpen(false);
+    setProfileImageLoaded(false);
   }, [selectedElderId]);
 
   useEffect(() => {
@@ -336,7 +337,13 @@ function UserPanel({
               onClick={handleProfileClick}
             >
               {profileImage ? (
-                <img src={profileImage} alt={`${selectedElder.name} 프로필`} />
+                <img
+                  src={profileImage}
+                  alt={`${selectedElder.name} 프로필`}
+                  fetchpriority="high"
+                  className={profileImageLoaded ? "loaded" : ""}
+                  onLoad={() => setProfileImageLoaded(true)}
+                />
               ) : (
                 <span>이미지</span>
               )}
@@ -488,15 +495,20 @@ function UserPanel({
           <p>{activitySummary.message}</p>
 
           {activityChanges.length > 0 && (
-            <div className="guardian-activity-report-list">
-              {activityChanges.map(([key, change]) => (
-                <div key={key}>
-                  <span>{ACTIVITY_LABELS[key] || key}</span>
-                  <strong>{formatActivityScore(change.today)}</strong>
-                  <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
-                </div>
-              ))}
-            </div>
+            <>
+              <small className="guardian-activity-report-note">
+                오른쪽 숫자는 평소 평균 대비 오늘 점수 변화입니다.
+              </small>
+              <div className="guardian-activity-report-list">
+                {activityChanges.map(([key, change]) => (
+                  <div key={key}>
+                    <span>{ACTIVITY_LABELS[key] || key}</span>
+                    <strong>{formatActivityScore(change.today)}</strong>
+                    <em>{change.diff > 0 ? "+" : ""}{formatActivityScore(change.diff)}</em>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
 

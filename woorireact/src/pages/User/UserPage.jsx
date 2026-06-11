@@ -18,6 +18,7 @@ import {
   fetchFallPattern,
   fetchFallDetectionStatus,
   fetchSeniorAlerts,
+  fetchStoredFallEvents,
   fetchTodayClimateAlerts,
   fetchTodayForecast,
   getCurrentSeniorId as getSavedSeniorId,
@@ -469,7 +470,12 @@ export default function UserPage() {
   const [dateStr, setDateStr] = useState("");
   const [userName, setUserName] = useState(initialSenior?.name || "사용자");
   const [userRegion, setUserRegion] = useState(initialSenior?.region || initialSenior?.address || "");
-  const [profileImageUrl, setProfileImageUrl] = useState(initialSenior?.profileImageUrl || "");
+  const [profileImageUrl, setProfileImageUrl] = useState(
+    initialSenior?.profileImageUrl ||
+    localStorage.getItem(`up_profile_img_${initialSenior?.id || ""}`) ||
+    ""
+  );
+  const [profileImageLoaded, setProfileImageLoaded] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
@@ -495,6 +501,7 @@ export default function UserPage() {
   const [allSchedules, setAllSchedules] = useState([]);
   const [isLoadingAllSchedules, setIsLoadingAllSchedules] = useState(false);
   const [jobHasNew, setJobHasNew] = useState(false);
+  const [showJobModal, setShowJobModal] = useState(false);
   const [incomingCallAlert, setIncomingCallAlert] = useState(null);
   const [userAlerts, setUserAlerts] = useState([]);
   const [safeZoneExitAlert, setSafeZoneExitAlert] = useState(null);
@@ -508,7 +515,8 @@ export default function UserPage() {
     (() => {
       try {
         const stored = localStorage.getItem("woori_dismissed_info_alerts");
-        return new Set(stored ? JSON.parse(stored) : []);
+        const parsed = stored ? JSON.parse(stored) : [];
+        return new Set(Array.isArray(parsed) ? parsed : []);
       } catch {
         return new Set();
       }
@@ -1024,6 +1032,13 @@ export default function UserPage() {
 
   useEffect(() => {
     const seniorId = getCurrentSeniorId(initialSenior);
+    if (profileImageUrl && seniorId) {
+      localStorage.setItem(`up_profile_img_${seniorId}`, profileImageUrl);
+    }
+  }, [profileImageUrl]);
+
+  useEffect(() => {
+    const seniorId = getCurrentSeniorId(initialSenior);
     if (!seniorId) return;
     const loadSelectedDateSchedules = () => fetch(`/api/schedules/senior/${seniorId}/date/${selectedScheduleDate}`)
       .then(r => r.ok ? r.json() : [])
@@ -1138,12 +1153,20 @@ export default function UserPage() {
 
       // fetchFallEvents는 최대 60초에 1번만 호출 (1초 폴링에서 제외)
       const now = Date.now();
-      if (now - lastFallCheck >= 60000 && !isFallApiDown()) {
+      if (now - lastFallCheck >= 60000) {
         lastFallCheck = now;
-        const fallEvents = await fetchFallEvents(1).catch(() => []);
+        const [fallEvents, storedFallEvents] = await Promise.all([
+          isFallApiDown() ? Promise.resolve([]) : fetchFallEvents(1).catch(() => []),
+          fetchStoredFallEvents({ size: 100 }).catch(() => []),
+        ]);
         if (!cancelled) {
           const modelFallCount = fallEvents.filter((event) => isTodayDateTime(event.timestamp)).length;
-          setTodayFallCount(Math.max(alertFallCount, modelFallCount));
+          const storedFallCount = storedFallEvents.filter((event) => (
+            String(event.seniorId) === String(seniorId)
+            && isTodayDateTime(event.timestamp || event.createdAt)
+          )).length;
+
+          setTodayFallCount(Math.max(alertFallCount, modelFallCount, storedFallCount));
         }
       } else {
         setTodayFallCount((prev) => Math.max(alertFallCount, prev));
@@ -1530,8 +1553,13 @@ export default function UserPage() {
             <div className="up-profile-card">
               <div className="up-profile-avatar">
                 {profileImageUrl ? (
-                  <img src={resolveUploadUrl(profileImageUrl)} alt="프로필 사진" />
-
+                  <img
+                    src={resolveUploadUrl(profileImageUrl)}
+                    alt="프로필 사진"
+                    fetchpriority="high"
+                    className={profileImageLoaded ? "loaded" : ""}
+                    onLoad={() => setProfileImageLoaded(true)}
+                  />
                 ) : (
                   "🙂"
                 )}
@@ -1541,8 +1569,8 @@ export default function UserPage() {
               {userRegion && <div className="up-profile-region">📍 {formatDongAddress(userRegion)}</div>}
               <div className="up-dot-wrap">
                 <div className={`up-dot ${sensorConnected === null ? "pending"
-                    : sensorConnected ? ""
-                      : "danger"
+                  : sensorConnected ? ""
+                    : "danger"
                   }`} />
                 {sensorConnected === null
                   ? "센서 확인 중"
@@ -1602,6 +1630,15 @@ export default function UserPage() {
                       const latestJobId = localStorage.getItem("jobs_latest_job_id");
                       if (latestJobId) localStorage.setItem("jobs_last_seen_job_id", latestJobId);
                       setJobHasNew(false);
+                      try {
+                        const saved = sessionStorage.getItem("currentSenior");
+                        if (saved) {
+                          const hi = JSON.parse(saved)?.healthInfo ?? {};
+                          const noHours = !hi.maxHours || hi.maxHours === "상관없음";
+                          const noDistance = !hi.maxDistance || hi.maxDistance === "상관없음";
+                          if (noHours && noDistance) { setShowJobModal(true); return; }
+                        }
+                      } catch { /* 로드 실패 시 그냥 진행 */ }
                     }
                     navigate(menu.route);
                   }}
@@ -1962,6 +1999,25 @@ export default function UserPage() {
         </div>
       )}
 
+      {showJobModal && (
+        <div className="up-overlay" onClick={() => setShowJobModal(false)}>
+          <div className="up-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="up-modal-ico">💼</div>
+            <div className="up-modal-title">일자리 조건이 없어요</div>
+            <div className="up-modal-desc">
+              현재 등록된 일자리 조건이 없어서<br />
+              일자리 찾기를 이용하기 어려워요.<br /><br />
+              <strong>내 정보 수정 → 활동 및 일자리</strong> 탭에서<br />
+              조건을 입력해주세요.
+            </div>
+            <div className="up-modal-row">
+              <button className="up-modal-cancel" type="button" onClick={() => setShowJobModal(false)}>닫기</button>
+              <button className="up-modal-ok" type="button" onClick={() => { setShowJobModal(false); navigate("/profile?section=job"); }}>내 정보 수정</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {incomingCallAlert && (
         <div className="up-overlay" onClick={handleDismissCallRequest}>
           <div className="up-modal" onClick={(event) => event.stopPropagation()}>
@@ -2019,21 +2075,11 @@ export default function UserPage() {
               {(() => {
                 const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "");
                 return cats.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
+                  <div className="up-info-request-category-grid">
                     {cats.map((cat) => (
-                      <span
-                        key={cat}
-                        style={{
-                          background: "#f0f4ee",
-                          color: "#4a7c5e",
-                          padding: "4px 12px",
-                          borderRadius: "12px",
-                          fontSize: "0.82rem",
-                          fontWeight: 600,
-                        }}
-                      >
+                      <div key={cat} className="up-info-request-category-card">
                         {cat}
-                      </span>
+                      </div>
                     ))}
                   </div>
                 ) : null;
@@ -2045,11 +2091,13 @@ export default function UserPage() {
                 className="up-modal-cancel"
                 type="button"
                 onClick={() => {
-                  // 현재 알림 + 쌓인 모든 INFO_UPDATE_REQUEST를 영구 무시 (localStorage 저장)
-                  const ids = userAlerts
+                  // 현재 화면에 떠 있는 alert ID를 직접 사용 (userAlerts 필터링 방식은 빈 배열이 될 수 있음)
+                  const currentId = infoUpdateRequestAlert?.id;
+                  const extraIds = userAlerts
                     .filter((a) => a.type === "INFO_UPDATE_REQUEST" && !a.isRead)
                     .map((a) => String(a.id));
-                  dismissInfoAlert(ids);
+                  const allIds = [...new Set([...(currentId ? [String(currentId)] : []), ...extraIds])];
+                  dismissInfoAlert(allIds);
                   setInfoUpdateRequestAlert(null);
                 }}
               >

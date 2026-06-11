@@ -231,6 +231,11 @@
   background: #f6f8f4;
 }
 
+.uch-alert-thumbnail.fall {
+  width: 100%;
+  max-height: 220px;
+}
+
 /* .guardian-alert-actions {
   display: flex;
   flex-direction: column;
@@ -589,3 +594,8 @@
   color: #c74747 !important;
 } */
 
+.common-app-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

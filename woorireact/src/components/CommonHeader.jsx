@@ -10,6 +10,7 @@ const READ_STATUSES = new Set(["확인됨", "읽음", "확인함", "조치완료
 function CommonHeader({
   logoText = "우리 woori",
   homePath = "/",
+  afterLogo,
   rightText,
   actions,
   afterActions,
@@ -54,6 +55,10 @@ function CommonHeader({
             time: notification.time || notification.createdAt || "",
             isRead: notification.isRead === true || READ_STATUSES.has(status),
             statusLabel: notification.statusLabel,
+            imageUrl: notification.imageUrl
+              || notification.raw?.imageUrl
+              || notification.raw?.imageAccessUrl
+              || "",
             danger:
               notification.danger === true ||
               notification.isSafeZone === true ||
@@ -273,13 +278,17 @@ function CommonHeader({
     <>
       <header className={headerClassName}>
         <div className="common-app-header-inner">
-          <button
-            className="common-app-logo"
-            type="button"
-            onClick={() => navigate(homePath)}
-          >
-            {logoText}
-          </button>
+          <div className="common-app-logo-group">
+            <button
+              className="common-app-logo"
+              type="button"
+              onClick={() => navigate(homePath)}
+            >
+              {logoText}
+            </button>
+
+            {afterLogo}
+          </div>
 
           <div className="common-app-actions">
             {rightText && <span className="common-app-header-text">{rightText}</span>}
@@ -428,10 +437,10 @@ function CommonHeader({
                       </div>
 
                       <p>{notification.message}</p>
-                      {notification.raw?.imageUrl && (
+                      {notification.imageUrl && (
                         <img
-                          className="uch-alert-thumbnail"
-                          src={notification.raw.imageUrl}
+                          className={`uch-alert-thumbnail ${notification.category === "낙상" ? "fall" : ""}`}
+                          src={notification.imageUrl}
                           alt={`${notification.title} 사진`}
                         />
                       )}

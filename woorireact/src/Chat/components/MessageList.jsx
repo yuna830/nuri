@@ -1,7 +1,6 @@
 import { forwardRef, Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
-const FALLBACK_MESSAGE_TIME = Date.now();
 
 function ChatAttachmentImage({ imageUrl, imageIndex }) {
   const [loadFailed, setLoadFailed] = useState(false);
@@ -84,7 +83,7 @@ function FoodAnalysisMessage({ analysis }) {
   return (
     <div className="food-analysis-card">
       <strong className="food-analysis-title">성분표 분석 결과</strong>
-      <p className="food-analysis-product">제품명: {analysis.product || "확인 필요"}</p>
+      <p className="food-analysis-product">제품명: {analysis.product || "인식하지 못함"}</p>
 
       <table className="food-nutrient-table">
         <caption>영양성분</caption>
@@ -205,7 +204,7 @@ const MessageList = forwardRef(function MessageList(
     <div className="chatbot-messages" aria-live="polite">
       {messages.filter((message) => !message.hidden).map((message, index) => {
         const messageKey = `${message.role}-${index}`;
-        const formattedTime = formatMessageTime(message.createdAt || FALLBACK_MESSAGE_TIME);
+        const formattedTime = message.createdAt ? formatMessageTime(message.createdAt) : "";
         const hasVisibleContent = message.content && message.content !== "사진을 보냈어요.";
         const imageUrls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
         const foodAnalysis = parseFoodAnalysis(message.content);
@@ -230,7 +229,7 @@ const MessageList = forwardRef(function MessageList(
                     />
                   ))}
                 </div>
-                {!hasVisibleContent && <time className="chat-message-time">{formattedTime}</time>}
+                {!hasVisibleContent && formattedTime && <time className="chat-message-time">{formattedTime}</time>}
               </div>
             )}
             {hasVisibleContent && (
@@ -246,7 +245,7 @@ const MessageList = forwardRef(function MessageList(
                     message.content
                   )}
                 </div>
-                <time className="chat-message-time">{formattedTime}</time>
+                {formattedTime && <time className="chat-message-time">{formattedTime}</time>}
               </div>
             )}
           </Fragment>

@@ -2,9 +2,11 @@ package com.nuri.woori.controller;
 
 import com.nuri.woori.entity.Alert;
 import com.nuri.woori.entity.GuardianSenior;
+import com.nuri.woori.entity.LocationStatus;
 import com.nuri.woori.entity.Senior;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.GuardianSeniorRepository;
+import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.SeniorRepository;
 import com.nuri.woori.service.FcmPushService;
 import org.springframework.web.bind.annotation.*;
@@ -25,17 +27,20 @@ public class AlertController {
     private final GuardianSeniorRepository guardianSeniorRepository;
     private final SeniorRepository seniorRepository;
     private final FcmPushService fcmPushService;
+    private final LocationStatusRepository locationStatusRepository;
 
     public AlertController(
             AlertRepository alertRepository,
             GuardianSeniorRepository guardianSeniorRepository,
             SeniorRepository seniorRepository,
-            FcmPushService fcmPushService
+            FcmPushService fcmPushService,
+            LocationStatusRepository locationStatusRepository
     ) {
         this.alertRepository = alertRepository;
         this.guardianSeniorRepository = guardianSeniorRepository;
         this.seniorRepository = seniorRepository;
         this.fcmPushService = fcmPushService;
+        this.locationStatusRepository = locationStatusRepository;
     }
 
     @GetMapping
@@ -103,9 +108,7 @@ public class AlertController {
 
     @PostMapping("/safe-zone")
     public List<Alert> createSafeZoneAlert(@RequestBody SosAlertRequest request) {
-        String address = request.address() == null || request.address().isBlank()
-                ? "현재 위치 확인 필요"
-                : request.address();
+        String address = resolveAddress(request.address(), request.seniorId());
         return createGuardianAlerts(
                 request,
                 "SAFE_ZONE_EXIT",
@@ -166,7 +169,6 @@ public class AlertController {
         Senior senior = findSenior(request.seniorId());
 
         // 해당 대상자의 모든 미읽음 INFO_UPDATE_REQUEST 알림 읽음 처리
-        // (사용자·보호자 중 누가 입력했든 나머지 쪽 알림도 함께 닫힘)
         List<Alert> pendingRequests = alertRepository
                 .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(request.seniorId(), "INFO_UPDATE_REQUEST");
         for (Alert orig : pendingRequests) {
@@ -174,18 +176,37 @@ public class AlertController {
             alertRepository.save(orig);
         }
 
-        // 복지사에게 완료 알림 생성
+        boolean filledBySenior = "SENIOR".equalsIgnoreCase(request.filledBy());
+
+        // guardianId 조회
+        Long guardianId = guardianSeniorRepository.findBySeniorId(request.seniorId())
+                .stream()
+                .findFirst()
+                .map(GuardianSenior::getGuardianId)
+                .orElse(null);
+
         Alert alert = new Alert();
         alert.setSeniorId(request.seniorId());
-        alert.setGuardianId(null);
         alert.setType("PROFILE_UPDATE");
         alert.setTitle("정보 수정 완료");
-        alert.setMessage(senior.getName() + "님이 요청하신 정보 수정을 완료했습니다.");
         alert.setIsRead(false);
 
-        Alert saved = alertRepository.save(alert);
+        if (filledBySenior) {
+            // 사용자가 입력 → guardianId 설정 → 보호자 알림에 노출, 사용자 알림에서 제외
+            alert.setGuardianId(guardianId);
+            alert.setMessage(senior.getName() + "님이 직접 정보를 입력했습니다.");
+        } else {
+            // 보호자가 입력 → guardianId=null → 사용자 알림에 노출, 보호자 알림에서 제외
+            alert.setGuardianId(null);
+            alert.setMessage("보호자가 " + senior.getName() + "님의 정보를 입력했습니다.");
+        }
 
-        // 복지사 FCM 푸시 (모바일 앱이 있는 경우)
+        // 저장 + 상대방(보호자 또는 사용자) FCM 푸시
+        Alert saved = filledBySenior
+                ? saveAndPushToGuardian(alert)
+                : saveAndPushToSenior(alert);
+
+        // 복지사 FCM 푸시 (복지사 대시보드는 seniorId로 조회하므로 DB 저장 없이 FCM만)
         if (senior.getWelfareWorkerId() != null) {
             fcmPushService.sendToUser(
                     "WELFARE_WORKER",
@@ -269,9 +290,7 @@ public class AlertController {
         }
 
         List<GuardianSenior> guardianSeniors = guardianSeniorRepository.findBySeniorId(request.seniorId());
-        String address = request.address() == null || request.address().isBlank()
-                ? "현재 위치 확인 필요"
-                : request.address();
+        String address = resolveAddress(request.address(), request.seniorId());
         String scoreText = request.score() == null ? "" : " 감지 점수: " + request.score();
 
         if (guardianSeniors.isEmpty()) {
@@ -501,45 +520,43 @@ public class AlertController {
     ) {
         PageRequest recentPage = PageRequest.of(0, 30);
 
-        List<WelfareAlertResponse> fallAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED", recentPage)
+        // 담당 시니어 목록을 먼저 조회해서 모든 알림 필터링에 공통 사용
+        List<Senior> managedSeniors = welfareWorkerId == null
+                ? seniorRepository.findAll()
+                : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
+        List<Long> managedSeniorIds = managedSeniors.stream()
+                .map(Senior::getId)
+                .toList();
+
+        List<WelfareAlertResponse> fallAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndIsReadFalseOrderByCreatedAtDesc("FALL_DETECTED", recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndIsReadFalseOrderByCreatedAtDesc(managedSeniorIds, "FALL_DETECTED", recentPage))
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "fall-", "낙상 감지 알림", "FALL_DETECTED"))
                 .toList();
 
-//        List<WelfareAlertResponse> sosAlerts = alertRepository
-//                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS")
-//                .stream()
-//                .map(alert -> toWelfareResponse(alert, "sos-", "SOS 요청 미응답", "SOS"))
-//                .toList();
         // 보호자에게 직접 전달되는 SOS 요청은 복지사 알림함에 바로 노출하지 않습니다.
         // 복지사에게는 보호자가 아직 확인하지 않은 경우의 "미응답 SOS" 상태 알림만 보여줍니다.
-
-        List<WelfareAlertResponse> sosAlerts = alertRepository
-                .findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
+        List<WelfareAlertResponse> sosAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndIsReadFalseOrderByCreatedAtDesc("SOS", recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndIsReadFalseOrderByCreatedAtDesc(managedSeniorIds, "SOS", recentPage))
                 .stream()
-                .map(alert -> toWelfareResponse(
-                        alert,
-                        "sos-",
-                        "미응답 SOS",
-                        "UNANSWERED_SOS"
-                ))
+                .map(alert -> toWelfareResponse(alert, "sos-", "미응답 SOS", "UNANSWERED_SOS"))
                 .toList();
 
-
         LocalDateTime checkInOkCutoff = LocalDateTime.now().minusDays(7);
-        List<WelfareAlertResponse> checkInOkAlerts = alertRepository
-                .findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff, recentPage)
+        List<WelfareAlertResponse> checkInOkAlerts = (welfareWorkerId == null
+                ? alertRepository.findByTypeAndCreatedAtAfterOrderByCreatedAtDesc("CHECK_IN_OK", checkInOkCutoff, recentPage)
+                : managedSeniorIds.isEmpty() ? List.<Alert>of()
+                : alertRepository.findBySeniorIdInAndTypeAndCreatedAtAfterOrderByCreatedAtDesc(managedSeniorIds, "CHECK_IN_OK", checkInOkCutoff))
                 .stream()
                 .map(alert -> toWelfareResponse(alert, "check-in-ok-", "안부 확인 완료", "CHECK_IN_OK"))
                 .toList();
 
         LocalDateTime threshold = LocalDateTime.now().minusHours(4);
-        List<Senior> inactiveAlertTargets = welfareWorkerId == null
-                ? seniorRepository.findAll()
-                : seniorRepository.findByWelfareWorkerIdOrderByIdAsc(welfareWorkerId);
-
-        List<WelfareAlertResponse> inactiveAlerts = inactiveAlertTargets
+        List<WelfareAlertResponse> inactiveAlerts = managedSeniors
                 .stream()
                 .filter(senior -> senior.getLastLoginAt() != null)
                 .filter(senior -> senior.getLastLoginAt().isBefore(threshold))
@@ -555,11 +572,6 @@ public class AlertController {
                         null,
                         false
                 ))
-                .toList();
-
-        // 정보 수정 완료 알림 (복지사가 담당하는 시니어만)
-        List<Long> managedSeniorIds = inactiveAlertTargets.stream()
-                .map(Senior::getId)
                 .toList();
 
         LocalDateTime profileUpdateCutoff = LocalDateTime.now().minusDays(30);
@@ -704,6 +716,17 @@ public class AlertController {
         return savedAlert;
     }
 
+    private String resolveAddress(String requestAddress, Long seniorId) {
+        if (requestAddress != null && !requestAddress.isBlank()) {
+            return requestAddress;
+        }
+        return locationStatusRepository
+                .findTopBySeniorIdOrderByReceivedAtDesc(seniorId)
+                .map(LocationStatus::getAddress)
+                .filter(addr -> addr != null && !addr.isBlank())
+                .orElse("위치 확인 필요");
+    }
+
     private Alert buildFallAlert(
             FallAlertRequest request,
             Senior senior,
@@ -804,9 +827,9 @@ public class AlertController {
 
     public record ProfileUpdateCompleteRequest(
             Long seniorId,
-            Long alertId
-    ) {
-    }
+            Long alertId,
+            String filledBy   // "SENIOR" or "GUARDIAN"
+    ) {}
 
     public record ConsentRequest(
             Long guardianId,

@@ -223,6 +223,8 @@
 
 .fh-stat-unit {
   font-size: 0.82rem;
+  margin-left: 0.1rem;
+  vertical-align: baseline;
 }
 
 .fh-stat-sub {

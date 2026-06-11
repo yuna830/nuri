@@ -28,6 +28,7 @@ import {
   calculateAge,
   calcBMI,
   createMedicine,
+  createSurgery,
   defaultForm,
   normalizeForm,
   syncMedicationsWithCount,
@@ -36,6 +37,8 @@ import "../../css/common/SignUp.css";
 import { saveCurrentSenior } from "../../utils/common/session.js";
 
 const STEPS = ["기본 정보", "건강 정보", "복약 정보", "건강 상태", "거동/인지/감각", "복지 정보", "활동/일자리"];
+const _CURRENT_YEAR = new Date().getFullYear();
+const SURGERY_YEARS = ["", ...Array.from({ length: _CURRENT_YEAR - 1940 + 1 }, (_, i) => String(_CURRENT_YEAR - i))];
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -78,6 +81,11 @@ export default function SignUp() {
   const addMedicine = () => setForm((prev) => ({ ...prev, medications: [...prev.medications, createMedicine()] }));
   const removeMedicine = (index) =>
     setForm((prev) => ({ ...prev, medications: prev.medications.filter((_, currentIndex) => currentIndex !== index) }));
+
+  const addSurgery = () => setForm((prev) => ({ ...prev, surgeries: [...(prev.surgeries || []), createSurgery()] }));
+  const removeSurgery = (index) => setForm((prev) => ({ ...prev, surgeries: prev.surgeries.filter((_, i) => i !== index) }));
+  const setSurgery = (index, key, value) =>
+    setForm((prev) => ({ ...prev, surgeries: prev.surgeries.map((s, i) => i === index ? { ...s, [key]: value } : s) }));
 
   const handleMedicineCountChange = (value) => {
     setForm((prev) => ({
@@ -124,21 +132,29 @@ export default function SignUp() {
     return "";
   };
 
-  const submit = async () => {
+  const submit = async (formOverride) => {
+    const f = formOverride ?? form;
+    if (f.hasSurgery === "있음") {
+      const hasName = (f.surgeries || []).some((s) => s.name && String(s.name).trim());
+      if (!hasName) {
+        setError("수술 이력이 '있음'으로 선택되어 있습니다. 수술명을 입력해주세요.");
+        return;
+      }
+    }
     try {
       setSaving(true);
       setError("");
       const payload = {
-        ...normalizeForm(form),
-        profileImageUrl: resolveUploadUrl(form.profileImageUrl),
+        ...normalizeForm(f),
+        profileImageUrl: resolveUploadUrl(f.profileImageUrl),
         // 백엔드 SeniorCreateRequest는 List<String>을 기대 — CSV 문자열 덮어쓰기
-        currentBenefits: form.currentBenefits || [],
-        careNeeds: form.careNeeds || [],
-        disabledWork: form.disabledWork || [],
-        avoidEnvironment: form.avoidEnvironment || [],
-        hopeDays: form.hopeDays || [],
-        hopeJobType: form.hopeJobType || [],
-        hopeCondition: form.hopeCondition || [],
+        currentBenefits: f.currentBenefits || [],
+        careNeeds: f.careNeeds || [],
+        disabledWork: f.disabledWork || [],
+        avoidEnvironment: f.avoidEnvironment || [],
+        hopeDays: f.hopeDays || [],
+        hopeJobType: f.hopeJobType || [],
+        hopeCondition: f.hopeCondition || [],
       };
       const response = await fetch(`${SPRING_API_BASE}/api/seniors`, {
         method: "POST",
@@ -169,6 +185,16 @@ export default function SignUp() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSkipJobSection = () => {
+    submit({
+      ...form,
+      maxHours: form.maxHours || NONE,
+      maxDistance: form.maxDistance || NONE,
+      restNeed: form.restNeed || NONE,
+      payType: form.payType || NONE,
+    });
   };
 
   const handleNext = async () => {
@@ -227,7 +253,7 @@ export default function SignUp() {
                   className="su-input"
                   type="date"
                   value={form.birthDate}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 14); return d.toISOString().split("T")[0]; })()}
                   onChange={(event) => {
                     const birthDate = event.target.value;
                     const age = calculateAge(birthDate);
@@ -361,6 +387,16 @@ export default function SignUp() {
             <section className="su-section">
               <div className="su-section-title">건강 상태</div>
               <div className="su-hint">어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.</div>
+              <div style={{ textAlign: "right", marginBottom: "0.5rem" }}>
+                <button
+                  className={`su-chip ${CHRONIC.every(({ key }) => form[key] === NONE) ? "on" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    const allNone = CHRONIC.every(({ key }) => form[key] === NONE);
+                    setForm((prev) => ({ ...prev, ...Object.fromEntries(CHRONIC.map(({ key }) => [key, allNone ? "" : NONE])) }));
+                  }}
+                >전체 없음</button>
+              </div>
               {CHRONIC.map(({ key, label, levels }) => (
                 <ChipField key={key} label={label} value={form[key]} options={levels} onSelect={(value) => set(key, value)} />
               ))}
@@ -375,6 +411,28 @@ export default function SignUp() {
               <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} onSelect={(value) => set("vision", value)} />
               <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} onSelect={(value) => set("hearing", value)} />
               <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} onSelect={(value) => set("recentFall", value)} />
+              <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} onSelect={(value) => {
+                set("hasSurgery", value);
+                if (value === "있음" && (form.surgeries || []).length === 0) addSurgery();
+              }} />
+              {form.hasSurgery === "있음" && (
+                <>
+                  <div className="su-medication-list">
+                    {(form.surgeries || []).map((surgery, index) => (
+                      <div className="su-medication-card" key={`surgery-${index}`}>
+                        <div className="su-medication-head">
+                          <strong>수술 {index + 1}</strong>
+                          <button type="button" onClick={() => removeSurgery(index)}>삭제</button>
+                        </div>
+                        <InputField label="수술명" value={surgery.name} onChange={(value) => setSurgery(index, "name", value)} />
+                        <InputField label="수술 날짜" type="date" value={surgery.date} onChange={(value) => setSurgery(index, "date", value)} />
+                        <SelectField label="회복 여부" value={surgery.recovery} options={["", "모름", "회복중", "회복완료", "미회복"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => setSurgery(index, "recovery", value)} />
+                      </div>
+                    ))}
+                  </div>
+                  <button className="su-add-line-btn" type="button" onClick={addSurgery}>+ 수술 이력 추가</button>
+                </>
+              )}
             </section>
         )}
 
@@ -413,15 +471,15 @@ export default function SignUp() {
 
         {step === 6 && (
           <section className="su-section">
-            <SectionTitle step={step} onSkip={submit} skipDisabled={saving || uploadingPhoto}>활동 및 일자리 조건</SectionTitle>
+            <SectionTitle step={step} onSkip={handleSkipJobSection} skipDisabled={saving || uploadingPhoto}>활동 및 일자리 조건</SectionTitle>
             <div className="su-row">
-              <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
-              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요" }} onChange={(value) => set("maxDistance", value)} required />
+              <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "상관없음", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
+              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "상관없음", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음" }} onChange={(value) => set("maxDistance", value)} required />
             </div>
             <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
             <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
             <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
-            <ChipField label="희망 급여 형태" value={form.payType} options={["무관", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+            <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
             <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />

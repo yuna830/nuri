@@ -419,10 +419,12 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 1.6rem;
   padding-bottom: 2rem;
-  margin-right: -1.6rem;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.jp-cards-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .jp-main-head {
@@ -726,6 +728,52 @@
   font-size: 1rem;
 }
 
+/* 나이 제한 카드 */
+.jp-age-block {
+  align-items: center;
+  justify-content: center;
+}
+
+.jp-age-gate-card {
+  background: #fff;
+  border: 1.5px solid #d4e8d6;
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(134, 167, 136, 0.12);
+}
+
+.jp-age-gate-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.jp-age-gate-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #1e2a1f;
+  margin-bottom: 0.75rem;
+}
+
+.jp-age-gate-desc {
+  font-size: 0.95rem;
+  color: #7a9a7c;
+  line-height: 1.75;
+  margin-bottom: 1.2rem;
+}
+
+.jp-age-gate-badge {
+  display: inline-block;
+  background: #eef6ef;
+  color: #5f7d61;
+  border-radius: 99px;
+  padding: 0.4rem 1.2rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 /* 반응형 */
 @media (max-width: 900px) {
   .jp-nav {
@@ -792,15 +840,12 @@
   color: #7a9a7c;
 }
 
-.jp-recommend-head span {
-  background: #fff7df;
-  border: 1px solid #efcf86;
-  border-radius: 999px;
-  color: #9a6a00;
-  font-size: 0.78rem;
-  font-weight: 800;
-  padding: 0.35rem 0.75rem;
-  white-space: nowrap;
+.jp-recommend-head-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .jp-recommend-actions {
