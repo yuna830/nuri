@@ -775,18 +775,30 @@ function WelfareDashboard() {
     };
 
     const handleCallRequestConfirm = async () => {
-        const { notification, senior } = callRequestModal;
+        const { notification, senior, isSos } = callRequestModal;
         const phone = senior?.phone;
 
-        const serverAlertId = getServerAlertId(notification.id);
-        if (serverAlertId) {
+        if (isSos) {
             try {
-                await readWelfareAlert(serverAlertId);
+                await readSeniorSosAlerts(notification.seniorId ?? notification.raw?.seniorId);
                 setDbWelfareAlerts((prev) =>
-                    prev.map((a) => `db-${a.id}` === notification.id ? { ...a, isRead: true } : a)
+                    prev.map((a) =>
+                        String(a.seniorId) === String(notification.seniorId) &&
+                            (a.type === "SOS" || a.type === "UNANSWERED_SOS")
+                            ? { ...a, isRead: true }
+                            : a
+                    )
                 );
-            } catch {
-                // 읽음 실패해도 계속 진행
+            } catch { /* ignore */ }
+        } else {
+            const serverAlertId = getServerAlertId(notification.id);
+            if (serverAlertId) {
+                try {
+                    await readWelfareAlert(serverAlertId);
+                    setDbWelfareAlerts((prev) =>
+                        prev.map((a) => `db-${a.id}` === notification.id ? { ...a, isRead: true } : a)
+                    );
+                } catch { /* ignore */ }
             }
         }
 
@@ -797,32 +809,13 @@ function WelfareDashboard() {
         }
     };
 
-    const handleConfirmUnansweredSosAlert = async (notification, closeNotificationPanel) => {
-        if (!notification?.seniorId) return;
-
-        try {
-            await readSeniorSosAlerts(notification.seniorId);
-
-            setDbWelfareAlerts((previousAlerts) =>
-                previousAlerts.map((alert) =>
-                    alert.seniorId === notification.seniorId && alert.type === "UNANSWERED_SOS"
-                        ? { ...alert, isRead: true }
-                        : alert
-                )
-            );
-
-            navigate(`/welfare/seniors/${notification.seniorId}`, {
-                state: {
-                    category: "기관 연계",
-                    agencyLinkNeeded: true,
-                },
-            });
-
-            closeNotificationPanel?.();
-        } catch (error) {
-            console.error("미응답 SOS 읽음 처리 실패:", error);
-            window.alert("SOS 알림 확인 처리에 실패했습니다.");
-        }
+    const handleSosAlert = (notification, closeNotificationPanel) => {
+        const seniorId = notification.seniorId ?? notification.raw?.seniorId;
+        const senior =
+            seniors.find((s) => String(s.id) === String(seniorId)) ||
+            notificationSeniors.find((s) => String(s.id) === String(seniorId));
+        setCallRequestModal({ notification, senior, isSos: true });
+        closeNotificationPanel?.();
     };
 
     const renderWelfareNotificationActions = (
@@ -857,7 +850,7 @@ function WelfareDashboard() {
                         className="welfare-alert-danger-action"
                         onClick={(event) => {
                             event.stopPropagation();
-                            handleConfirmUnansweredSosAlert(notification, closeNotificationPanel);
+                            handleSosAlert(notification, closeNotificationPanel);
                         }}
                     >
                         긴급 확인
@@ -875,7 +868,7 @@ function WelfareDashboard() {
                         className="welfare-alert-danger-action"
                         onClick={(event) => {
                             event.stopPropagation();
-                            handleConfirmUnansweredSosAlert(notification, closeNotificationPanel);
+                            handleSosAlert(notification, closeNotificationPanel);
                         }}
                     >
                         긴급 확인
@@ -1613,7 +1606,10 @@ function WelfareDashboard() {
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="call-result-header">
-                            <h2>{callRequestModal.notification?.seniorName ?? "대상자"}님의 전화 요청</h2>
+                            <h2>
+                                {callRequestModal.notification?.seniorName ?? "대상자"}님의{" "}
+                                {callRequestModal.isSos ? "SOS 긴급 요청" : "전화 요청"}
+                            </h2>
                             <button type="button" onClick={() => setCallRequestModal(null)}>
                                 닫기
                             </button>
@@ -1639,8 +1635,21 @@ function WelfareDashboard() {
                             <button
                                 className="call-report-button"
                                 type="button"
-                                onClick={() => {
-                                    const { notification } = callRequestModal;
+                                onClick={async () => {
+                                    const { notification, isSos } = callRequestModal;
+                                    if (isSos) {
+                                        try {
+                                            await readSeniorSosAlerts(notification.seniorId ?? notification.raw?.seniorId);
+                                            setDbWelfareAlerts((prev) =>
+                                                prev.map((a) =>
+                                                    String(a.seniorId) === String(notification.seniorId) &&
+                                                        (a.type === "SOS" || a.type === "UNANSWERED_SOS")
+                                                        ? { ...a, isRead: true }
+                                                        : a
+                                                )
+                                            );
+                                        } catch { /* ignore */ }
+                                    }
                                     setCallRequestModal(null);
                                     navigate(`/welfare/seniors/${notification.seniorId ?? notification.raw?.seniorId}`, {
                                         state: { category: "기관 연계", agencyLinkNeeded: true },

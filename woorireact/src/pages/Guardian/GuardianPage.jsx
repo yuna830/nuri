@@ -17,6 +17,7 @@ import {
   sendMedicineAlert,
   updateSeniorRequestedInfo,
   sendCheckInReply,
+  updateGuardianProfile
 } from "../../api/guardianApi";
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
@@ -59,6 +60,8 @@ import "../../css/guardian/GuardianMap.css";
 import "../../css/guardian/GuardianSidebar.css";
 import "../../css/guardian/GuardianModal.css";
 import "../../css/user/UserCommonHeader.css";
+
+import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 const saveLocalCareTeamMap = (profiles, guardian) => {
   if (!guardian || !Array.isArray(profiles)) return;
@@ -275,28 +278,28 @@ const INFO_REQUEST_FIELDS = [
     label: "생계비 현황",
     aliases: ["복지 정보", "복지정보", "생계비"],
     type: "select",
-    options: ["", ...LIVING_COST_STATUSES],
+    options: [...LIVING_COST_STATUSES],
   },
   {
     key: "householdType",
     label: "가구 유형",
     aliases: ["복지 정보", "복지정보", "가구"],
     type: "select",
-    options: ["", ...HOUSEHOLD_TYPES],
+    options: [...HOUSEHOLD_TYPES],
   },
   {
     key: "pensionStatus",
     label: "연금 현황",
     aliases: ["복지 정보", "복지정보", "연금"],
     type: "select",
-    options: ["", ...PENSION_STATUSES],
+    options: [...PENSION_STATUSES],
   },
   {
     key: "housingType",
     label: "주거 유형",
     aliases: ["복지 정보", "복지정보", "주거"],
     type: "select",
-    options: ["", ...HOUSING_TYPES],
+    options: [...HOUSING_TYPES],
   },
 ];
 
@@ -439,6 +442,12 @@ function GuardianPage() {
   const [isAddElderOpen, setIsAddElderOpen] = useState(false);
   const [deleteModeElderId, setDeleteModeElderId] = useState(null);
 
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: "", phone: "", address: "", relation: "" });
+  const [profileAddrQuery, setProfileAddrQuery] = useState("");
+  const [profileAddrResults, setProfileAddrResults] = useState([]);
+  const [isSearchingProfileAddr, setIsSearchingProfileAddr] = useState(false);
+
   const [seniorSearch, setSeniorSearch] = useState({ name: "", phone: "" });
   const [seniorSearchResults, setSeniorSearchResults] = useState([]);
   const [isSearchingSenior, setIsSearchingSenior] = useState(false);
@@ -500,7 +509,15 @@ function GuardianPage() {
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
   const [isElderEditOpen, setIsElderEditOpen] = useState(false);
   const [editingElder, setEditingElder] = useState(null);
-  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState([]);
+  const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem("woori_guardian_dismissed_info_alerts");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [infoRequestFormAlert, setInfoRequestFormAlert] = useState(null);
   const [infoRequestFieldKeys, setInfoRequestFieldKeys] = useState([]);
@@ -1031,6 +1048,54 @@ function GuardianPage() {
     }
   };
 
+  const handleOpenProfile = () => {
+    setProfileForm({
+      name: guardian?.name || "",
+      phone: guardian?.phone || "",
+      address: guardian?.address || "",
+      relation: selectedElder?.relation || "",
+    });
+    setProfileAddrQuery(guardian?.address || "");
+    setProfileAddrResults([]);
+    setIsProfileOpen(true);
+  };
+
+  const handleSearchProfileAddr = async () => {
+    const keyword = profileAddrQuery.trim();
+    if (!keyword) {
+      gToast.warn("검색할 주소를 입력해주세요.");
+      return;
+    }
+    setIsSearchingProfileAddr(true);
+    try {
+      const results = await searchPlacesByKakao(keyword, { size: 5 });
+      setProfileAddrResults(results);
+    } catch {
+      gToast.error("주소 검색에 실패했습니다.");
+      setProfileAddrResults([]);
+    } finally {
+      setIsSearchingProfileAddr(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    const guardianId = getCurrentGuardianId();
+    if (!guardianId) return;
+    try {
+      const updated = await updateGuardianProfile(guardianId, profileForm);
+      const next = { ...getCurrentGuardian(), ...updated };
+      sessionStorage.setItem("currentGuardian", JSON.stringify(next));
+      setGuardian(next);
+      if (profileForm.relation.trim() && activeElderId) {
+        await updateGuardianSeniorRelation(guardianId, activeElderId, profileForm.relation.trim()).catch(() => { });
+      }
+      setIsProfileOpen(false);
+      gToast.success("프로필이 저장됐습니다.");
+    } catch {
+      gToast.error("저장에 실패했습니다.");
+    }
+  };
+
   const handleSafeZoneChange = (event) => {
     const { name, value } = event.target;
 
@@ -1442,6 +1507,7 @@ function GuardianPage() {
       await notifyProfileUpdateComplete({
         seniorId: editingElder.id,
         alertId: infoRequestFormAlert?.id ?? null,
+        filledBy: "GUARDIAN",
       }).catch(() => { });
 
       if (infoRequestFormAlert?.id) {
@@ -1749,6 +1815,21 @@ function GuardianPage() {
         onCallAlert={handleCallAlert}
         onOpenEmergencyReport={handleOpenEmergencyReport}
         onCheckInOk={handleCheckInOk}
+        // 정보 입력 모달 다시 띄우기
+        onOpenInfoRequest={(alert) => {
+          const rawAlert = alert?.raw?.rawAlert ?? alert?.raw ?? alert;
+          // dismissed에서 제거 (나중에로 닫았던 경우 재오픈 허용)
+          if (rawAlert?.id) {
+            setDismissedInfoRequestIds((prev) => {
+              const next = prev.filter((id) => id !== String(rawAlert.id));
+              try {
+                localStorage.setItem("woori_guardian_dismissed_info_alerts", JSON.stringify(next));
+              } catch { /* ignore */ }
+              return next;
+            });
+          }
+          setInfoRequestAlert(rawAlert);
+        }}
         onOpenConsultationModal={(alert) => {
           if (alert?.seniorId) {
             setSelectedElderId(alert.seniorId);
@@ -1772,6 +1853,15 @@ function GuardianPage() {
           setIsChatOpen(true);
         }}
         unreadChatCount={unreadChatCount}
+        afterLogo={
+          <button
+            className="guardian-profile-trigger"
+            type="button"
+            onClick={handleOpenProfile}
+          >
+            {guardian?.name || "보호자"} ▾
+          </button>
+        }
       />
 
       <TripartiteChatModal
@@ -1985,6 +2075,111 @@ function GuardianPage() {
         />
       </section>
 
+      {isProfileOpen && (
+        <div className="guardian-profile-overlay" onClick={() => setIsProfileOpen(false)}>
+          <div className="guardian-profile-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>내 프로필</h3>
+
+            <label>
+              이름
+              <input
+                type="text"
+                value={profileForm.name}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              연락처
+              <input
+                type="tel"
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              주소
+              <div className="guardian-profile-addr-row">
+                <input
+                  type="text"
+                  placeholder="주소 검색"
+                  value={profileAddrQuery}
+                  onChange={(e) => {
+                    setProfileAddrQuery(e.target.value);
+                    setProfileAddrResults([]);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchProfileAddr()}
+                />
+                <button
+                  type="button"
+                  className="guardian-profile-addr-search"
+                  onClick={handleSearchProfileAddr}
+                  disabled={isSearchingProfileAddr}
+                >
+                  {isSearchingProfileAddr ? "…" : "검색"}
+                </button>
+              </div>
+              {profileAddrResults.length > 0 && (
+                <ul className="guardian-profile-addr-results">
+                  {profileAddrResults.map((place) => (
+                    <li
+                      key={place.place_id}
+                      onClick={() => {
+                        const addr = place.display_name || place.road_address_name || place.address_name || "";
+                        setProfileForm((prev) => ({ ...prev, address: addr }));
+                        setProfileAddrQuery(addr);
+                        setProfileAddrResults([]);
+                      }}
+                    >
+                      <span className="guardian-profile-addr-name">{place.name}</span>
+                      <span className="guardian-profile-addr-detail">{place.display_name}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {profileForm.address && profileAddrResults.length === 0 && (
+                <span className="guardian-profile-addr-selected">📍 {profileForm.address}</span>
+              )}
+            </label>
+
+            <label>
+              관계
+              <input
+                type="text"
+                placeholder="예: 딸, 아들, 배우자"
+                value={profileForm.relation}
+                onChange={(e) => setProfileForm((prev) => ({ ...prev, relation: e.target.value }))}
+              />
+              {!activeElderId && (
+                <span className="guardian-profile-note">담당 어르신을 선택해야 관계가 저장됩니다.</span>
+              )}
+            </label>
+
+            <div className="guardian-profile-actions">
+              <button
+                type="button"
+                className="guardian-profile-save"
+                onClick={handleSaveProfile}
+              >
+                저장하기
+              </button>
+              <button
+                type="button"
+                className="guardian-profile-logout"
+                onClick={() => {
+                  sessionStorage.removeItem("currentGuardian");
+                  localStorage.removeItem("woori_guardian_dismissed_info_alerts");
+                  navigate("/glogin", { replace: true });
+                }}
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMedicineAlertOpen && (
         <div className="medicine-alert-backdrop" onClick={() => setIsMedicineAlertOpen(false)}>
           <section className="medicine-alert-modal" onClick={(event) => event.stopPropagation()}>
@@ -2091,13 +2286,21 @@ function GuardianPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // 쌓인 모든 INFO_UPDATE_REQUEST를 한 번에 dismissed 처리
+                  const currentId = infoRequestAlert?.id;
                   const allInfoRequestIds = apiAlerts
                     .filter((a) => a.type === "INFO_UPDATE_REQUEST" && a.isRead !== true)
                     .map((a) => String(a.id));
-                  setDismissedInfoRequestIds((prev) => [
-                    ...new Set([...prev, ...allInfoRequestIds]),
-                  ]);
+                  const merged = [...new Set([
+                    ...(currentId ? [String(currentId)] : []),
+                    ...allInfoRequestIds,
+                  ])];
+                  setDismissedInfoRequestIds((prev) => {
+                    const next = [...new Set([...prev, ...merged])];
+                    try {
+                      localStorage.setItem("woori_guardian_dismissed_info_alerts", JSON.stringify(next));
+                    } catch { /* ignore */ }
+                    return next;
+                  });
                   setInfoRequestAlert(null);
                 }}
               >
@@ -2210,6 +2413,8 @@ function GuardianHeader({
   onOpenWelfareChat,
   onCheckInOk,
   onOpenConsultationModal,
+  onOpenInfoRequest,
+  afterLogo,
   unreadChatCount = 0,
 }) {
   const isCheckInRequestAlert = (alert) => {
@@ -2279,18 +2484,24 @@ function GuardianHeader({
       const isCheckInRequest = isCheckInRequestAlert(alert);
       const seniorDisplayName = formatSeniorDisplayName(alert.seniorName || alert.name);
 
+      const isInfoUpdateRequest = (alert.type || alert.rawAlert?.type) === "INFO_UPDATE_REQUEST";
+
       return {
         id: alert.id,
         title: isCheckInRequest
           ? `${seniorDisplayName} 안부 확인 요청`
           : alert.isFall
             ? "낙상 감지 알림"
-            : alert.message || `${seniorDisplayName} 알림`,
+            : isInfoUpdateRequest
+              ? "정보 입력 요청"
+              : alert.message || `${seniorDisplayName} 알림`,
         message: isCheckInRequest
           ? `${seniorDisplayName}께서 4시간 이상 접속하지 않았습니다. 안부 확인 후 복지사에게 알려주세요.`
           : alert.isFall
             ? [alert.message, alert.detailMessage].filter(Boolean).join(" ")
-            : alert.detailMessage || "",
+            : isInfoUpdateRequest
+              ? `복지사가 ${seniorDisplayName}의 정보 입력을 요청했습니다.`
+              : alert.detailMessage || "",
         category: alert.isFall ? "낙상" : alert.isSos ? "긴급" : alert.isSafeZone ? "긴급" : "정보",
         time: alert.time,
         isRead: alert.status !== "미확인",
@@ -2384,6 +2595,27 @@ function GuardianHeader({
       );
     }
 
+    const isInfoRequest = ["INFO_UPDATE_REQUEST"].includes(
+      alert.type || alert.raw?.type || alert.raw?.rawAlert?.type || ""
+    );
+    if (isInfoRequest) {
+      return (
+        <div className="guardian-alert-actions-below">
+          <button
+            type="button"
+            className="guardian-alert-primary-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenInfoRequest?.(alert);
+              closeNotificationPanel?.();
+            }}
+          >
+            정보 입력
+          </button>
+        </div>
+      );
+    }
+
     if (!alert?.isFall && !alert?.isSos && !alert?.isSafeZone) {
       return defaultAction;
     }
@@ -2409,6 +2641,7 @@ function GuardianHeader({
   return (
     <CommonHeader
       homePath="/guardian"
+      afterLogo={afterLogo}
       showNotificationButton
       notifications={guardianNotifications}
       notificationTabs={["전체", "읽지 않음", "긴급", "정보", "낙상"]}

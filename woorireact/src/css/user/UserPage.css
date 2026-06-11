@@ -1488,6 +1488,25 @@ main > .up-content-row:last-child {
   cursor: pointer;
 }
 
+/* 정보 입력 요청 모달 카테고리 카드 */
+.up-info-request-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.up-info-request-category-card {
+  background: #f0f4ee;
+  color: #4a7c5e;
+  border-radius: 10px;
+  padding: 10px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid #d6e4d6;
+}
+
 @media (max-width: 900px) {
   .up-sticky-side-content {
     position: static;
