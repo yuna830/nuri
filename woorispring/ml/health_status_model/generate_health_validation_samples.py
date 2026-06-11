@@ -22,11 +22,18 @@ COLUMNS = [
     "liver_disease",
     "cancer",
     "dementia",
+    "walking_limited",
+    "fine_motor_limited",
     "walking_aid",
     "vision",
     "hearing",
     "recent_fall",
     "has_surgery",
+    "surgery_count",
+    "recent_surgery_1y",
+    "recent_surgery_3y",
+    "surgery_recovery",
+    "surgery_detail",
     "physical_limitation_count",
     "max_hours",
 ]
@@ -45,8 +52,8 @@ def main() -> None:
     rows.extend(caution_cases())
     rows.extend(risk_cases())
 
-    if len(rows) != 200:
-        raise RuntimeError(f"Expected 200 validation rows, got {len(rows)}")
+    if len(rows) != 216:
+        raise RuntimeError(f"Expected 216 validation rows, got {len(rows)}")
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -67,7 +74,19 @@ def good_cases() -> list[dict]:
     for i, age in enumerate(range(68, 78), start=1):
         rows.append(row(f"good_no_disease_maintenance_{i:02d}", "good", age, gender=i, medicine_count=0, max_hours=4))
     for i, age in enumerate(range(65, 75), start=1):
-        rows.append(row(f"good_post_surgery_recovered_{i:02d}", "good", age, gender=i, has_surgery="yes", max_hours=5))
+        rows.append(row(
+            f"good_post_surgery_recovered_{i:02d}",
+            "good",
+            age,
+            gender=i,
+            has_surgery="yes",
+            surgery_count=1,
+            recent_surgery_1y="no",
+            recent_surgery_3y="yes" if i % 2 else "no",
+            surgery_recovery="회복완료",
+            surgery_detail="백내장 수술 회복완료",
+            max_hours=5,
+        ))
     return rows
 
 
@@ -91,7 +110,7 @@ def caution_cases() -> list[dict]:
             )
         )
     for i, age in enumerate(range(75, 90), start=1):
-        rows.append(row(f"caution_joint_limited_{i:02d}", "caution", age, gender=i, joint_disease="yes", physical_limitation_count=1, max_hours=4))
+        rows.append(row(f"caution_joint_limited_{i:02d}", "caution", age, gender=i, joint_disease="yes", walking_limited="yes", physical_limitation_count=1, max_hours=4))
     for i, age in enumerate(range(76, 84), start=1):
         rows.append(row(f"caution_medicine_count_{i:02d}", "caution", age, gender=i, medicine_count=3 + i % 3, max_hours=4))
     for i, age in enumerate(range(77, 85), start=1):
@@ -104,6 +123,20 @@ def caution_cases() -> list[dict]:
         rows.append(row(f"caution_serious_stable_{i:02d}", "caution", age, gender=i, heart_disease="yes" if i % 2 else "no", lung_disease="yes" if i % 2 == 0 else "no", medicine_count=2, max_hours=4))
     for i, age in enumerate(range(85, 89), start=1):
         rows.append(row(f"caution_very_old_no_disease_{i:02d}", "caution", age, gender=i, max_hours=4))
+    for i, age in enumerate(range(72, 80), start=1):
+        rows.append(row(
+            f"caution_recent_surgery_{i:02d}",
+            "caution",
+            age,
+            gender=i,
+            has_surgery="yes",
+            surgery_count=1,
+            recent_surgery_1y="yes" if i % 2 else "no",
+            recent_surgery_3y="yes",
+            surgery_recovery="회복중" if i % 2 else "회복완료",
+            surgery_detail="관절 수술",
+            max_hours=4,
+        ))
     return rows
 
 
@@ -116,7 +149,23 @@ def risk_cases() -> list[dict]:
     for i, age in enumerate(range(80, 90), start=1):
         rows.append(row(f"risk_low_hours_serious_{i:02d}", "risk", age, gender=i, heart_disease="yes" if i % 2 else "no", kidney_disease="yes" if i % 2 == 0 else "no", medicine_count=3, max_hours=2))
     for i, age in enumerate(range(82, 92), start=1):
-        rows.append(row(f"risk_many_limits_{i:02d}", "risk", age, gender=i, joint_disease="yes", walking_aid="yes", vision="limited", hearing="limited", medicine_count=4, physical_limitation_count=3, max_hours=2))
+        rows.append(row(f"risk_many_limits_{i:02d}", "risk", age, gender=i, walking_limited="yes", fine_motor_limited="yes", walking_aid="yes", vision="limited", hearing="limited", physical_limitation_count=5, max_hours=4))
+    for i, age in enumerate(range(78, 86), start=1):
+        rows.append(row(
+            f"risk_unrecovered_surgery_{i:02d}",
+            "risk",
+            age,
+            gender=i,
+            has_surgery="yes",
+            surgery_count=1,
+            recent_surgery_1y="yes",
+            recent_surgery_3y="yes",
+            surgery_recovery="미회복" if i % 2 else "회복중",
+            surgery_detail="척추 수술 후 활동 제한",
+            walking_limited="yes",
+            physical_limitation_count=1,
+            max_hours=2,
+        ))
     return rows
 
 
@@ -139,11 +188,18 @@ def row(case_id: str, expected_label: str, age: int, gender: int = 0, **override
         "liver_disease": overrides.pop("liver_disease", "no"),
         "cancer": overrides.pop("cancer", "no"),
         "dementia": overrides.pop("dementia", "no"),
+        "walking_limited": overrides.pop("walking_limited", "no"),
+        "fine_motor_limited": overrides.pop("fine_motor_limited", "no"),
         "walking_aid": overrides.pop("walking_aid", "no"),
         "vision": overrides.pop("vision", "normal"),
         "hearing": overrides.pop("hearing", "normal"),
         "recent_fall": overrides.pop("recent_fall", "no"),
         "has_surgery": overrides.pop("has_surgery", "no"),
+        "surgery_count": overrides.pop("surgery_count", 0),
+        "recent_surgery_1y": overrides.pop("recent_surgery_1y", "no"),
+        "recent_surgery_3y": overrides.pop("recent_surgery_3y", "no"),
+        "surgery_recovery": overrides.pop("surgery_recovery", ""),
+        "surgery_detail": overrides.pop("surgery_detail", ""),
         "physical_limitation_count": overrides.pop("physical_limitation_count", 0),
         "max_hours": overrides.pop("max_hours", 5),
     }

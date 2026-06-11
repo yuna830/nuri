@@ -1,6 +1,8 @@
 import { WELFARE_API_BASE } from "../config/api.js";
 const WELFARE_SENIORS_CACHE_KEY = "welfare:seniors";
 const welfareSeniorsCache = new Map();
+const HEALTH_EVALUATION_TIMEOUT_MS = 30000;
+const HEALTH_EVALUATION_BATCH_TIMEOUT_MS = 45000;
 
 const makeSeniorCacheKey = ({ page = 0, size = 6, welfareWorkerId = "all" } = {}) => `${welfareWorkerId || "all"}-${page}-${size}`;
 
@@ -144,6 +146,50 @@ export const fetchWelfareSeniorDetail = async (seniorId) => {
 };
 
 // 복지 알림 불러오기 API 추가
+export const fetchWelfareSeniorHealthEvaluation = async (seniorId) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), HEALTH_EVALUATION_TIMEOUT_MS);
+
+    let response;
+    try {
+        response = await fetch(`/api/seniors/${seniorId}/health-evaluation`, {
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+        throw new Error(`Failed to load senior health evaluation: ${response.status}`);
+    }
+
+    return response.json();
+};
+
+export const fetchWelfareSeniorHealthEvaluations = async (seniorIds = []) => {
+    const ids = [...new Set(seniorIds.filter((id) => id !== undefined && id !== null && id !== ""))];
+    if (ids.length === 0) return [];
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), HEALTH_EVALUATION_BATCH_TIMEOUT_MS);
+
+    let response;
+    try {
+        const params = new URLSearchParams({ ids: ids.join(",") });
+        response = await fetch(`/api/seniors/health-evaluations?${params.toString()}`, {
+            signal: controller.signal,
+        });
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+        throw new Error(`Failed to load senior health evaluations: ${response.status}`);
+    }
+
+    return response.json();
+};
+
 export const fetchWelfareAlerts = async ({ welfareWorkerId } = {}) => {
     const params = new URLSearchParams();
 

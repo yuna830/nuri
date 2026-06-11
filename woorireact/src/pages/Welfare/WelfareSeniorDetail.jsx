@@ -11,6 +11,7 @@ import {
 } from "../../utils/welfare/welfareSenior";
 import {
     fetchWelfareSeniorDetail,
+    fetchWelfareSeniorHealthEvaluation,
     requestGuardianConsultation,
     fetchSeniorAlerts,
     removeWelfareSenior,
@@ -139,16 +140,116 @@ const maxNumberFromText = (value) => {
     return numbers ? Math.max(...numbers.map(Number)) : 0;
 };
 
-const getGradeFromRiskScore = (score) => {
-    const riskScore = Number(score) || 0;
-    if (riskScore >= 60) return "위험";
-    if (riskScore >= 25) return "주의";
+const buildConditionGradeBasis = (status) => {
+    const normalized = normalizeHealthStatus(status);
+    if (normalized === "위험") {
+        return "최근 낙상, 중증 질환, 기능 제한, 최근 수술 후 회복 상태처럼 안전 확인이 필요한 신호를 우선 확인합니다.";
+    }
+    if (normalized === "주의") {
+        return "질환, 복약 수, 보행/감각 제한, 활동 가능 시간처럼 배치 전 확인이 필요한 신호를 함께 확인합니다.";
+    }
+    return "단일 불편 항목이 있어도 전체 건강 조건에서 크게 우려할 만한 신호가 뚜렷하지 않으면 양호로 설명합니다.";
+};
+
+const inferHealthStatusFromReasons = (reasons) => {
+    if (reasons.some((reason) => normalizeHealthStatus(reason.level) === "위험")) return "위험";
+    if (reasons.some((reason) => normalizeHealthStatus(reason.level) === "주의")) return "주의";
     return "양호";
 };
 
-const buildRiskGradeBasis = (score) => {
-    const riskScore = Number(score) || 0;
-    return `${riskScore}점은 ${getGradeFromRiskScore(riskScore)} 기준입니다. 0~24점은 양호, 25~59점은 주의, 60점 이상은 위험으로 설명합니다.`;
+const getReferenceReasonCriterion = (reason = {}) => {
+    const label = String(reason.label || "");
+
+    if (label.includes("낙상")) return "참고 항목: 낙상 이력 확인";
+    if (label.includes("복약")) return "참고 항목: 복약 정보 확인";
+    if (label.includes("주요 질환") || label.includes("질환") || ["고혈압", "당뇨", "심장질환", "뇌졸중", "신장질환", "호흡기질환", "암", "치매"].some((keyword) => label.includes(keyword))) {
+        return "참고 항목: 질환 정보 확인";
+    }
+    if (label.includes("활동")) return "참고 항목: 활동 가능 시간 확인";
+    if (label.includes("신체 제한")) return "참고 항목: 신체 제한 확인";
+    if (label.includes("보행")) return "참고 항목: 보행 상태 확인";
+    if (label.includes("시각")) return "참고 항목: 시각 상태 확인";
+    if (label.includes("청각")) return "참고 항목: 청각 상태 확인";
+    if (label.includes("어려운 업무")) return "참고 항목: 업무 제한 확인";
+    if (label.includes("수술")) return "참고 항목: 수술 이력 확인";
+    return "참고 항목: 건강 상태 확인";
+};
+
+const getReasonCriterion = (reason = {}, finalStatus) => {
+    const level = normalizeHealthStatus(reason.level);
+    const hasFinalStatus = finalStatus !== undefined && finalStatus !== null && String(finalStatus).trim() !== "";
+    const normalizedFinalStatus = normalizeHealthStatus(finalStatus);
+
+    if (hasFinalStatus && normalizedFinalStatus === "양호" && level !== "양호") {
+        return getReferenceReasonCriterion(reason);
+    }
+
+    if (reason.criterion) return reason.criterion;
+
+    const label = String(reason.label || "");
+    const count = maxNumberFromText(reason.value);
+
+    if (level === "양호") return "주의/위험 설명 조건 미충족";
+    if (label.includes("낙상")) return "위험 설명 조건: 최근 낙상";
+    if (label.includes("주요 질환 수")) return "위험 설명 조건: 중증 질환 2개 이상";
+    if (label.includes("신체 제한")) {
+        return count >= 4 || level === "위험"
+            ? "위험 설명 조건: 기능 제한 4개 이상"
+            : "주의 설명 조건: 기능 제한 확인";
+    }
+    if (label.includes("복약")) return "주의 설명 조건: 복약 3개 이상";
+    if (["심장질환", "뇌졸중", "신장질환", "호흡기질환", "암", "치매"].some((keyword) => label.includes(keyword))) {
+        return level === "위험" ? "위험 설명 조건: 중증 질환 상태" : "주의 설명 조건: 주요 질환 확인";
+    }
+    if (label.includes("질환") || ["고혈압", "당뇨"].some((keyword) => label.includes(keyword))) {
+        return "주의 설명 조건: 질환 1개 이상";
+    }
+    if (label.includes("활동")) return "주의 설명 조건: 짧은 활동 가능 시간";
+    if (["보행", "시각", "청각", "어려운 업무"].some((keyword) => label.includes(keyword))) {
+        return "주의 설명 조건: 보행/감각/업무 제한 확인";
+    }
+    return `${level} 설명 조건`;
+};
+
+const buildDecisionSummary = (status, reasons = [], source) => {
+    const normalized = normalizeHealthStatus(status);
+    const meaningfulReasons = reasons.filter((reason) => normalizeHealthStatus(reason.level) !== "양호");
+    const primaryLabels = meaningfulReasons
+        .slice(0, 2)
+        .map((reason) => reason.label)
+        .join(", ");
+    const prefix = source === "ML" ? `ML 모델이 ${normalized}로 예측했습니다.` : `${normalized}로 판정되었습니다.`;
+
+    if (normalized === "양호") {
+        return source === "ML"
+            ? "ML 모델이 양호로 예측했습니다. 주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않았습니다."
+            : "주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않아 양호로 판정되었습니다.";
+    }
+
+    return `${prefix} ${primaryLabels || "입력 건강 정보"} 조건이 판정 근거로 확인되었습니다.`;
+};
+
+const hasScoreText = (value) => {
+    const text = String(value || "");
+    return /\+\d+\s*점/.test(text) || /\d+(?:~\d+)?\s*점/.test(text) || text.includes("점수");
+};
+
+const getReasonDescription = (reason = {}, finalStatus) => {
+    const level = normalizeHealthStatus(reason.level);
+    const hasFinalStatus = finalStatus !== undefined && finalStatus !== null && String(finalStatus).trim() !== "";
+    const normalizedFinalStatus = normalizeHealthStatus(finalStatus);
+
+    if (hasFinalStatus && normalizedFinalStatus === "양호" && level !== "양호") {
+        const label = String(reason.label || "해당");
+        return `${label} 항목이 입력되어 참고로 표시했습니다. 다만 ML 모델은 질환, 복약 수, 활동 시간, 낙상 여부 등을 함께 보고 양호 가능성이 더 높다고 판단했습니다.`;
+    }
+
+    if (reason.description && !hasScoreText(reason.description)) return reason.description;
+    const criterion = getReasonCriterion(reason, finalStatus);
+    if (level === "양호") {
+        return "전체 건강 조건에서 크게 우려할 만한 신호가 뚜렷하지 않습니다.";
+    }
+    return `${criterion} 조건이 확인되어 업무 강도와 배치 조건을 확인해야 합니다.`;
 };
 
 const hasHealthProblemValue = (value) => {
@@ -163,28 +264,31 @@ const hasLimitedHealthValue = (value) => {
     const text = String(value || "").trim().toLowerCase();
     if (!text) return false;
     if (["없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0"].includes(text)) return false;
-    return ["불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "힘듦", "장시간", "계단", "무거운", "운반"]
+    return ["불편", "보조", "지팡이", "보행", "어려", "제한", "필요", "사용", "힘듦", "장시간", "계단", "무거운", "운반", "헷갈림", "도움"]
         .some((keyword) => text.includes(keyword));
+};
+
+const hasShortActivityHours = (value) => {
+    const hours = maxNumberFromText(value);
+    return hours > 0 && hours <= 4;
 };
 
 const buildFallbackHealthEvaluation = (senior = {}, healthInfo = {}) => {
     const reasons = [];
-    let riskScore = 0;
-    const addReason = (label, value, level, score, description, condition) => {
+    const addReason = (label, value, level, description, condition, criterion) => {
         if (condition) {
-            const point = Number(score) || 0;
-            riskScore += point;
             reasons.push({
                 label,
                 value: valueOrMissing(value, "입력값 있음"),
                 level,
-                score: point,
+                score: 0,
+                criterion: criterion || getReasonCriterion({ label, value, level }),
                 description,
             });
         }
     };
 
-    addReason("최근 낙상", healthInfo.recentFall, "위험", 40, "최근 낙상 이력이 있어 이동이 많은 업무는 주의가 필요합니다.", hasHealthProblemValue(healthInfo.recentFall));
+    addReason("최근 낙상", healthInfo.recentFall, "위험", "위험 설명 조건에 해당합니다. 최근 낙상 이력이 확인되어 이동이 많거나 계단을 오가는 업무는 피하는 것이 좋습니다.", hasHealthProblemValue(healthInfo.recentFall), "위험 설명 조건: 최근 낙상");
 
     [
         ["심장질환", healthInfo.heartDisease],
@@ -194,7 +298,7 @@ const buildFallbackHealthEvaluation = (senior = {}, healthInfo = {}) => {
         ["암", healthInfo.cancer],
         ["치매", healthInfo.dementia],
     ].forEach(([label, value]) => {
-        addReason(label, value, "주의", 30, "주요 질환 항목이 확인되어 고강도 업무 배치를 피하는 것이 좋습니다.", hasHealthProblemValue(value));
+        addReason(label, value, "주의", "주의 설명 조건에 해당합니다. 주요 질환 항목이 확인되어 고강도 업무 배치를 피하는 것이 좋습니다.", hasHealthProblemValue(value), "주의 설명 조건: 주요 질환 확인");
     });
 
     [
@@ -204,27 +308,27 @@ const buildFallbackHealthEvaluation = (senior = {}, healthInfo = {}) => {
         ["간질환", healthInfo.liverDisease],
         ["기타 질환", healthInfo.otherDisease],
     ].forEach(([label, value]) => {
-        addReason(label, value, "주의", 15, "질환 항목이 확인되어 업무 강도와 근무 시간 조정이 필요할 수 있습니다.", hasHealthProblemValue(value));
+        addReason(label, value, "주의", "주의 설명 조건에 해당합니다. 질환 항목이 확인되어 업무 강도와 근무 시간 조정이 필요할 수 있습니다.", hasHealthProblemValue(value), "주의 설명 조건: 질환 1개 이상");
     });
 
     const medicineCount = maxNumberFromText(healthInfo.medicineCount);
-    addReason("복약 수", healthInfo.medicineCount, medicineCount >= 6 ? "위험" : "주의", medicineCount >= 6 ? 20 : 10, "복약 수가 많아 근무 전 건강 상태 확인과 복약 일정 조정이 필요합니다.", medicineCount >= 3);
-    addReason("보행 보조", healthInfo.walkingAid, "주의", 20, "이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.", hasLimitedHealthValue(healthInfo.walkingAid));
-    addReason("시각", healthInfo.vision, "주의", 10, "시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.vision));
-    addReason("청각", healthInfo.hearing, "주의", 10, "안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.hearing));
-    addReason("어려운 업무", healthInfo.disabledWork, "주의", 15, "입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.", hasLimitedHealthValue(healthInfo.disabledWork));
+    addReason("복약 수", healthInfo.medicineCount, "주의", "주의 설명 조건에 해당합니다. 복약 수가 3개 이상으로 확인되어 근무 전 건강 상태와 복약 일정을 확인해야 합니다.", medicineCount >= 3, "주의 설명 조건: 복약 3개 이상");
+    addReason("보행 보조", healthInfo.walkingAid, "주의", "주의 설명 조건에 해당합니다. 보행 보조 또는 이동 제한이 확인되어 이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.", hasLimitedHealthValue(healthInfo.walkingAid), "주의 설명 조건: 보행 제한 확인");
+    addReason("시각", healthInfo.vision, "주의", "주의 설명 조건에 해당합니다. 시각 제한이 확인되어 시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.vision), "주의 설명 조건: 감각 제한 확인");
+    addReason("청각", healthInfo.hearing, "주의", "주의 설명 조건에 해당합니다. 청각 제한이 확인되어 안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.", hasLimitedHealthValue(healthInfo.hearing), "주의 설명 조건: 감각 제한 확인");
+    addReason("어려운 업무", healthInfo.disabledWork, "주의", "주의 설명 조건에 해당합니다. 입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.", hasLimitedHealthValue(healthInfo.disabledWork), "주의 설명 조건: 업무 제한 확인");
 
     const maxHours = maxNumberFromText(healthInfo.maxHours);
-    addReason("하루 활동 가능 시간", healthInfo.maxHours, maxHours <= 2 ? "위험" : "주의", maxHours <= 2 ? 25 : 15, "하루 활동 가능 시간이 짧아 짧은 근무 시간의 공고가 우선입니다.", maxHours > 0 && maxHours <= 3);
+    addReason("하루 활동 가능 시간", healthInfo.maxHours, "주의", "주의 설명 조건에 해당합니다. 하루 활동 가능 시간이 짧아 짧은 근무 시간의 공고가 우선입니다.", maxHours > 0 && maxHours <= 4, "주의 설명 조건: 짧은 활동 가능 시간");
 
-    riskScore = Math.min(100, Math.max(0, riskScore));
-    const status = normalizeHealthStatus(senior.healthStatus || healthInfo.healthStatus || getGradeFromRiskScore(riskScore));
+    const status = inferHealthStatusFromReasons(reasons);
     if (reasons.length === 0) {
         reasons.push({
             label: "주의/위험 조건",
             value: "감지되지 않음",
             level: "양호",
             score: 0,
+            criterion: "주의/위험 설명 조건 미충족",
             description: "현재 입력된 건강 정보에서는 주요 위험 요인이 확인되지 않았습니다.",
         });
     }
@@ -237,12 +341,10 @@ const buildFallbackHealthEvaluation = (senior = {}, healthInfo = {}) => {
             주의: status === "주의" ? 1 : 0,
             위험: status === "위험" ? 1 : 0,
         },
-        riskScore,
+        riskScore: 0,
         maxRiskScore: 100,
-        gradeBasis: buildRiskGradeBasis(riskScore),
-        summary: status === "양호"
-            ? `위험 점수 ${riskScore}점으로 주의 또는 위험으로 볼 만한 건강 조건이 감지되지 않아 양호로 판정되었습니다.`
-            : `위험 점수 ${riskScore}점입니다. ${reasons[0]?.label || "건강 정보"} 항목이 판정에 영향을 주어 ${status}로 판정되었습니다.`,
+        gradeBasis: buildConditionGradeBasis(status),
+        summary: buildDecisionSummary(status, reasons, "CLIENT_FALLBACK"),
         reasons,
     };
 };
@@ -257,7 +359,236 @@ const getEvaluationSourceLabel = (source) => {
     if (source === "ML") return "ML 모델 판정";
     if (source === "RULE_FALLBACK") return "규칙 기반 보조 판정";
     if (source === "NO_HEALTH_INFO") return "건강 정보 미등록";
-    return "화면 보조 판정";
+    return "저장 정보 기준 임시 표시";
+};
+
+const getCaseValidationLabel = (decision) => {
+    if (decision === "CONFIRMED") return "유사 사례 지지";
+    if (decision === "ADJUSTED_BY_SIMILAR_CASES") return "유사 사례 보정";
+    if (decision === "REVIEW_REQUIRED") return "추가 검토 필요";
+    if (decision === "CONFIRMED_LOW_SUPPORT") return "참고 확인";
+    return "검증 정보";
+};
+
+const getCaseSupportLabel = (caseValidation) => {
+    const supportLevel = caseValidation?.supportLevel;
+    if (supportLevel) return `사례 지지 ${supportLevel}`;
+
+    const agreeingCount = caseValidation?.agreeingCaseCount;
+    const totalCount = caseValidation?.similarCaseCount;
+    if (Number.isFinite(agreeingCount) && Number.isFinite(totalCount) && totalCount > 0) {
+        return `유사 사례 ${agreeingCount}/${totalCount}건 참고`;
+    }
+
+    return "유사 사례 참고";
+};
+
+const getReadableCaseSupportText = (status, caseValidation = null) => {
+    const totalCount = Number(caseValidation?.similarCaseCount);
+    const agreeingCount = Number(caseValidation?.agreeingCaseCount);
+    const finalStatus = normalizeHealthStatus(caseValidation?.finalPrediction || status);
+    const mlStatus = caseValidation?.mlPrediction ? normalizeHealthStatus(caseValidation.mlPrediction) : finalStatus;
+    const caseStatus = caseValidation?.casePrediction ? normalizeHealthStatus(caseValidation.casePrediction) : "";
+
+    if (!Number.isFinite(agreeingCount) || !Number.isFinite(totalCount) || totalCount <= 0) {
+        return "비슷한 CSV 사례를 함께 참고했습니다.";
+    }
+
+    if (caseValidation?.agreedWithModel) {
+        return `상위 유사 사례 ${totalCount}건 중 ${agreeingCount}건이 ML 예측(${mlStatus})과 같았습니다.`;
+    }
+
+    if (caseStatus && caseStatus !== finalStatus) {
+        return `상위 유사 사례 ${totalCount}건 중 ${agreeingCount}건은 ${caseStatus}였지만, 최종 판정은 ${finalStatus}로 유지했습니다.`;
+    }
+
+    return `상위 유사 사례 ${totalCount}건 중 ${agreeingCount}건이 ${finalStatus} 판정을 보였습니다.`;
+};
+
+const getCaseValidationTone = (decision) => {
+    if (decision === "ADJUSTED_BY_SIMILAR_CASES" || decision === "REVIEW_REQUIRED") return "caution";
+    return "good";
+};
+
+const READABLE_DISEASE_FIELDS = [
+    ["diabetes", "당뇨"],
+    ["hypertension", "고혈압"],
+    ["heartDisease", "심장질환"],
+    ["jointDisease", "관절질환"],
+    ["stroke", "뇌졸중"],
+    ["kidneyDisease", "신장질환"],
+    ["lungDisease", "호흡기질환"],
+    ["liverDisease", "간질환"],
+    ["cancer", "암"],
+    ["dementia", "치매"],
+    ["otherDisease", "기타 질환"],
+];
+
+const SERIOUS_DISEASE_KEYS = new Set(["heartDisease", "stroke", "kidneyDisease", "lungDisease", "cancer", "dementia"]);
+
+const READABLE_EMPTY_VALUES = new Set(["", "없음", "정상", "미입력", "미사용", "아니오", "no", "none", "false", "0", "nan"]);
+
+const isReadablePresent = (value) => {
+    const text = String(value ?? "").trim().toLowerCase();
+    return !READABLE_EMPTY_VALUES.has(text);
+};
+
+const getAndParticle = (value) => {
+    const text = String(value ?? "").trim();
+    if (!text) return "와";
+    const lastChar = text[text.length - 1];
+    const code = lastChar.charCodeAt(0);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+        return (code - 0xac00) % 28 === 0 ? "와" : "과";
+    }
+    return /[0-9]$/.test(lastChar) ? "과" : "와";
+};
+
+const getSubjectParticle = (value) => {
+    const text = String(value ?? "").trim();
+    if (!text) return "이";
+    const lastChar = text[text.length - 1];
+    const code = lastChar.charCodeAt(0);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+        return (code - 0xac00) % 28 === 0 ? "가" : "이";
+    }
+    return /[0-9]$/.test(lastChar) ? "이" : "가";
+};
+
+const withSubjectParticle = (value) => {
+    const text = String(value ?? "").trim();
+    return text ? `${text}${getSubjectParticle(text)}` : "";
+};
+
+const joinReadableItems = (items) => {
+    const cleanItems = items.filter(Boolean);
+    if (cleanItems.length === 0) return "";
+    if (cleanItems.length === 1) return cleanItems[0];
+    return cleanItems.join(", ");
+};
+
+const summarizeReadableGroup = (items, groupLabel, visibleCount = 2) => {
+    const cleanItems = items.filter(Boolean);
+    if (cleanItems.length === 0) return "";
+    if (cleanItems.length <= visibleCount) return joinReadableItems(cleanItems);
+    return `${cleanItems.slice(0, visibleCount).join(", ")} 등 ${groupLabel} ${cleanItems.length}개`;
+};
+
+const getReadableDiseaseNames = (healthInfo = {}) => (
+    READABLE_DISEASE_FIELDS
+        .filter(([key]) => isReadablePresent(healthInfo[key]))
+        .map(([, label]) => label)
+);
+
+const getReadableSeriousDiseaseNames = (healthInfo = {}) => (
+    READABLE_DISEASE_FIELDS
+        .filter(([key]) => SERIOUS_DISEASE_KEYS.has(key) && isReadablePresent(healthInfo[key]))
+        .map(([, label]) => label)
+);
+
+const getReadableMedicationCount = (healthInfo = {}, medications = []) => (
+    Math.max(maxNumberFromText(healthInfo.medicineCount), Array.isArray(medications) ? medications.length : 0)
+);
+
+const getReadableLimitations = (healthInfo = {}) => {
+    const limitations = [];
+    if (hasLimitedHealthValue(healthInfo.walkingAid)) limitations.push("보행 보조 필요");
+    if (hasLimitedHealthValue(healthInfo.vision)) limitations.push("시력 불편");
+    if (hasLimitedHealthValue(healthInfo.hearing)) limitations.push("청력 불편");
+    if (hasLimitedHealthValue(healthInfo.disabledWork)) limitations.push("업무 제한");
+    return limitations;
+};
+
+const getReadableStatusIntro = (status) => `최종 판정은 ${normalizeHealthStatus(status)}입니다.`;
+
+const makeReadableSentence = (items, fallback = "") => {
+    const cleanItems = items.filter(Boolean);
+    if (cleanItems.length === 0) return fallback;
+    if (cleanItems.length === 1) return cleanItems[0];
+
+    const toConnectingClause = (value) => {
+        const text = String(value || "").trim().replace(/[.。]+$/, "");
+        return text
+            .replace(/봐야 합니다$/, "봐야 하고")
+            .replace(/필요합니다$/, "필요하고")
+            .replace(/길지 않습니다$/, "길지 않고")
+            .replace(/많습니다$/, "많고")
+            .replace(/큰 편입니다$/, "큰 편이고")
+            .replace(/확인되었습니다$/, "확인되었고")
+            .replace(/확인됩니다$/, "확인되고")
+            .replace(/있습니다$/, "있고")
+            .replace(/입니다$/, "이고");
+    };
+
+    const clauses = cleanItems.map((item, index) => {
+        const text = String(item || "").trim().replace(/[.。]+$/, "");
+        return index === cleanItems.length - 1 ? text : toConnectingClause(text);
+    });
+
+    return clauses.join(", ");
+};
+
+const buildReadableHealthSummary = (status, healthInfo = {}, medications = [], caseValidation = null) => {
+    const normalized = normalizeHealthStatus(status);
+    const diseases = getReadableDiseaseNames(healthInfo);
+    const seriousDiseases = getReadableSeriousDiseaseNames(healthInfo);
+    const medicineCount = getReadableMedicationCount(healthInfo, medications);
+    const maxHours = maxNumberFromText(healthInfo.maxHours);
+    const limitations = getReadableLimitations(healthInfo);
+    const hasFall = hasHealthProblemValue(healthInfo.recentFall);
+
+    if (normalized === "위험") {
+        const reasons = [];
+        if (hasFall) reasons.push("최근 낙상 이력이 있어 이동 중 사고 가능성을 먼저 봐야 합니다");
+        if (seriousDiseases.length >= 2) {
+            reasons.push(`${withSubjectParticle(summarizeReadableGroup(seriousDiseases, "중증 질환"))} 함께 확인되어 건강 부담이 큰 편입니다`);
+        } else if (seriousDiseases.length === 1) {
+            reasons.push(`${seriousDiseases[0]}처럼 주의가 필요한 질환이 있습니다`);
+        } else if (diseases.length > 0) {
+            reasons.push(`${withSubjectParticle(summarizeReadableGroup(diseases, "질환"))} 확인되었습니다`);
+        }
+        if (medicineCount >= 6) reasons.push(`복약 수가 ${medicineCount}개로 많습니다`);
+        else if (medicineCount >= 3) reasons.push(`복약 수가 ${medicineCount}개입니다`);
+        if (maxHours > 0 && maxHours <= 4) reasons.push(`하루 활동 가능 시간이 ${maxHours}시간으로 길지 않습니다`);
+        if (limitations.length > 0) reasons.push(`${summarizeReadableGroup(limitations, "제한 항목")} 같은 제한 항목도 함께 확인됩니다`);
+
+        return `${getReadableStatusIntro(normalized)} ${makeReadableSentence(reasons, "여러 건강 조건을 함께 보았을 때 위험 가능성이 높게 예측되었습니다.")}. 무리한 업무 배치는 피하고, 복지사가 한 번 더 확인하는 것이 좋습니다.`;
+    }
+
+    if (normalized === "주의") {
+        const reasons = [];
+        if (diseases.length > 0) reasons.push(`${withSubjectParticle(summarizeReadableGroup(diseases, "질환"))} 있습니다`);
+        if (medicineCount >= 3) reasons.push(`복약 수가 ${medicineCount}개입니다`);
+        if (maxHours > 0 && maxHours <= 4) reasons.push(`하루 활동 가능 시간이 ${maxHours}시간입니다`);
+        if (limitations.length > 0) reasons.push(`${summarizeReadableGroup(limitations, "제한 항목")} 같은 제한 항목이 있습니다`);
+
+        const reasonText = makeReadableSentence(reasons, "확인이 필요한 건강 조건이 있습니다");
+        const tail = !hasFall && seriousDiseases.length < 2 && limitations.length < 4
+            ? "다만 위험으로 볼 정도의 큰 신호는 뚜렷하지 않습니다."
+            : "업무 강도와 활동 시간을 조정해 보는 것이 좋습니다.";
+        return `${getReadableStatusIntro(normalized)} ${reasonText}. ${tail}`.trim();
+    }
+
+    const mildDiseaseText = diseases.length > 0
+        ? `${withSubjectParticle(summarizeReadableGroup(diseases, "질환"))} 있지만, 복약 수나 활동 조건을 함께 봤을 때 큰 위험 신호는 보이지 않습니다.`
+        : "최근 낙상이나 중증 질환처럼 크게 우려할 만한 신호는 보이지 않습니다.";
+    return `${getReadableStatusIntro(normalized)} ${mildDiseaseText}`.trim();
+};
+
+const buildReadableCaseValidationMessage = (status, healthInfo = {}, medications = [], caseValidation = null) => {
+    const normalized = normalizeHealthStatus(caseValidation?.finalPrediction || status);
+    const countText = getReadableCaseSupportText(normalized, caseValidation);
+    const basisText = buildReadableHealthSummary(normalized, healthInfo, medications, caseValidation);
+
+    if (caseValidation?.decision === "ADJUSTED_BY_SIMILAR_CASES") {
+        return `${basisText} 처음 ML 예측과 유사 사례가 달라서, 더 가까운 사례 쪽을 참고해 최종 판정을 ${normalized}로 조정했습니다.`;
+    }
+
+    if (caseValidation?.decision === "REVIEW_REQUIRED" || caseValidation?.decision === "CONFIRMED_LOW_SUPPORT") {
+        return `${basisText} ${countText} 다만 사례가 완전히 일치한다고 보기는 어려워 담당자가 한 번 더 확인하면 좋습니다.`;
+    }
+
+    return `${basisText} ${countText} 그래서 ML 판정을 그대로 유지했습니다.`;
 };
 
 const getHealthTone = (status) => {
@@ -272,6 +603,7 @@ function WelfareSeniorDetail() {
     const location = useLocation();
     const [senior, setSenior] = useState(null);
     const [showCriteria, setShowCriteria] = useState(false);
+    const [showHealthReasons, setShowHealthReasons] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [message, setMessage] = useState("");
     const [counselingRecords, setCounselingRecords] = useState([]);
@@ -284,6 +616,8 @@ function WelfareSeniorDetail() {
     const [isConsultRequestModalOpen, setIsConsultRequestModalOpen] = useState(false);
     const [consultRequestMemo, setConsultRequestMemo] = useState("");
     const [seniorAlerts, setSeniorAlerts] = useState([]);
+    const [isHealthEvaluationLoading, setIsHealthEvaluationLoading] = useState(false);
+    const [healthEvaluationError, setHealthEvaluationError] = useState("");
     // const [isInfoRequestModalOpen, setIsInfoRequestModalOpen] = useState(false);
     // const [selectedInfoRequestKeys, setSelectedInfoRequestKeys] = useState([]);
     // const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
@@ -426,6 +760,45 @@ function WelfareSeniorDetail() {
 
     useEffect(() => {
         if (!senior?.id) return;
+        if (activeCategory !== HEALTH_EVALUATION_CATEGORY) return;
+        if (senior.healthEvaluation?.source === "ML") return;
+
+        let ignore = false;
+        setIsHealthEvaluationLoading(true);
+        setHealthEvaluationError("");
+
+        fetchWelfareSeniorHealthEvaluation(senior.id)
+            .then((healthEvaluation) => {
+                if (!ignore) {
+                    setSenior((prev) => prev
+                        ? {
+                            ...prev,
+                            healthEvaluation,
+                            healthStatus: healthEvaluation?.status || prev.healthStatus,
+                        }
+                        : prev
+                    );
+                }
+            })
+            .catch((error) => {
+                console.error("건강 판정 정보 로딩 실패:", error);
+                if (!ignore) {
+                    setHealthEvaluationError("최신 ML 판정을 아직 불러오지 못해 저장된 건강 정보 기준으로 임시 표시하고 있습니다.");
+                }
+            })
+            .finally(() => {
+                if (!ignore) {
+                    setIsHealthEvaluationLoading(false);
+                }
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, [senior?.id, senior?.healthEvaluation?.source, activeCategory]);
+
+    useEffect(() => {
+        if (!senior?.id) return;
 
         let ignore = false;
 
@@ -492,7 +865,7 @@ function WelfareSeniorDetail() {
         ? {
             ...fallbackHealthEvaluation,
             ...(senior.healthEvaluation || {}),
-            status: normalizeHealthStatus(senior.healthEvaluation?.status || senior.healthStatus || healthInfo.healthStatus),
+            status: normalizeHealthStatus(senior.healthEvaluation?.status || fallbackHealthEvaluation.status),
             reasons: senior.healthEvaluation?.reasons?.length
                 ? senior.healthEvaluation.reasons
                 : fallbackHealthEvaluation.reasons,
@@ -809,24 +1182,24 @@ function WelfareSeniorDetail() {
     );
 
     const renderHealthInfo = () => {
-        const hasValue = (value) => value != null && String(value).trim() !== "" && String(value).trim() !== "없음" && String(value).trim() !== "미입력";
-
         const cautionItems = [
-            ["당뇨", healthInfo.diabetes],
-            ["고혈압", healthInfo.hypertension],
-            ["심장질환", healthInfo.heartDisease],
-            ["관절질환", healthInfo.jointDisease],
-            ["뇌졸중", healthInfo.stroke],
-            ["신장질환", healthInfo.kidneyDisease],
-            ["호흡기질환", healthInfo.lungDisease],
-            ["간질환", healthInfo.liverDisease],
-            ["암", healthInfo.cancer],
-            ["보행 보조기구", healthInfo.walkingAid],
-            ["기억/판단", healthInfo.dementia],
-            ["시야", healthInfo.vision],
-            ["청각", healthInfo.hearing],
-            ["최근 낙상", healthInfo.recentFall],
-            ["수술 이력", healthInfo.hasSurgery],
+            ["당뇨", healthInfo.diabetes, hasHealthProblemValue],
+            ["고혈압", healthInfo.hypertension, hasHealthProblemValue],
+            ["심장질환", healthInfo.heartDisease, hasHealthProblemValue],
+            ["관절질환", healthInfo.jointDisease, hasHealthProblemValue],
+            ["뇌졸중", healthInfo.stroke, hasHealthProblemValue],
+            ["신장질환", healthInfo.kidneyDisease, hasHealthProblemValue],
+            ["호흡기질환", healthInfo.lungDisease, hasHealthProblemValue],
+            ["간질환", healthInfo.liverDisease, hasHealthProblemValue],
+            ["암", healthInfo.cancer, hasHealthProblemValue],
+            ["보행 보조기구", healthInfo.walkingAid, hasLimitedHealthValue],
+            ["기억/판단", healthInfo.dementia, hasLimitedHealthValue],
+            ["시야", healthInfo.vision, hasLimitedHealthValue],
+            ["청각", healthInfo.hearing, hasLimitedHealthValue],
+            ["최근 낙상", healthInfo.recentFall, hasHealthProblemValue],
+            ["하루 활동 가능 시간", healthInfo.maxHours, hasShortActivityHours],
+            ["어려운 업무", healthInfo.disabledWork, hasLimitedHealthValue],
+            ["수술 이력", healthInfo.hasSurgery, hasHealthProblemValue],
             ...(() => {
                 if (healthInfo.hasSurgery !== "있음") return [];
                 try {
@@ -836,12 +1209,12 @@ function WelfareSeniorDetail() {
                     if (!Array.isArray(list) || list.length === 0) return [];
                     return list.map((s, i) => {
                         const parts = [s.name, s.date, s.recovery].filter(Boolean);
-                        return [`수술 ${i + 1}`, parts.join(" · ") || "상세 미입력"];
+                        return [`수술 ${i + 1}`, parts.join(" · ") || "상세 미입력", () => true];
                     });
                 } catch { return []; }
             })(),
-            ["기타 참고사항", healthInfo.otherDisease],
-        ].filter(([, value]) => hasValue(value));
+            ["기타 참고사항", healthInfo.otherDisease, hasHealthProblemValue],
+        ].filter(([, value, isCautionValue]) => isCautionValue(value));
 
         return (
             <section className="wsd-detail-section">
@@ -891,50 +1264,59 @@ function WelfareSeniorDetail() {
         const tone = getHealthTone(status);
         const probabilities = healthEvaluation?.probabilities || {};
         const reasons = healthEvaluation?.reasons || [];
-        const maxRiskScore = Math.max(1, Number(healthEvaluation?.maxRiskScore) || 100);
-        const riskScore = Math.min(maxRiskScore, Math.max(0, Number(healthEvaluation?.riskScore) || 0));
-        const riskPercent = `${Math.round((riskScore / maxRiskScore) * 100)}%`;
-        const gradeBasis = healthEvaluation?.gradeBasis || buildRiskGradeBasis(riskScore);
-        const isMlEvaluation = String(healthEvaluation?.source || "").toUpperCase() === "ML";
-        const supportScoreText = isMlEvaluation
-            ? (healthEvaluation?.gradeBasis || `입력 항목 보조 점수 ${riskScore}점입니다. 최종 건강 등급은 위 ML 예측 확률을 기준으로 합니다.`)
-            : gradeBasis;
+        const caseValidation = healthEvaluation?.caseValidation;
+        const evaluationSummary = buildReadableHealthSummary(status, healthInfo, medications, caseValidation);
+        const gradeBasis = healthEvaluation?.gradeBasis && !hasScoreText(healthEvaluation.gradeBasis)
+            ? healthEvaluation.gradeBasis
+            : buildConditionGradeBasis(status);
         const criteria = [
             {
                 status: "양호",
-                title: "양호 기준",
-                range: "0~24점",
-                text: "최근 낙상, 주요 질환, 복약 과다, 보행/시각/청각 제한, 짧은 활동 시간 조건이 감지되지 않은 경우입니다.",
+                title: "양호 설명 조건",
+                summary: "주요 위험 조건 미확인",
+                text: "최근 낙상, 중증 질환 복수, 복약 과다, 보행/시각/청각 제한, 짧은 활동 시간 조건이 확인되지 않은 경우입니다.",
             },
             {
                 status: "주의",
-                title: "주의 기준",
-                range: "25~59점",
-                text: "질환이 하나 이상 있거나, 복약 수가 3개 이상이거나, 보행/감각 제한 또는 짧은 활동 시간이 확인된 경우입니다.",
+                title: "주의 설명 조건",
+                summary: "주의 조건 확인",
+                text: "질환 1개 이상, 복약 3개 이상, 보행/감각 제한 또는 짧은 활동 시간이 확인된 경우입니다.",
             },
             {
                 status: "위험",
-                title: "위험 기준",
-                range: "60점 이상",
-                text: "최근 낙상 이력, 주요 질환 복수 확인, 여러 신체 제한, 주요 질환과 매우 짧은 활동 시간이 함께 확인된 경우입니다.",
+                title: "위험 설명 조건",
+                summary: "위험 조건 확인",
+                text: "최근 낙상, 중증 질환 2개 이상, 기능 제한 4개 이상 등 위험 조건이 확인된 경우입니다.",
             },
         ];
-        const scoreRules = [
-            ["최근 낙상", "+40점", "낙상 이력이 있으면 이동/계단 업무 위험이 커집니다."],
-            ["주요 질환", "+30점", "심장질환, 뇌졸중, 신장질환, 호흡기질환, 암, 치매 등입니다."],
-            ["일반 질환", "+15점", "고혈압, 당뇨, 관절질환, 간질환, 기타 질환입니다."],
-            ["복약 수", "+10~20점", "3개 이상은 +10점, 6개 이상은 +20점입니다."],
-            ["보행 제한", "+20점", "보행 보조나 이동 제한이 있으면 반영합니다."],
-            ["시각/청각 제한", "+10점", "시야 확인이나 안내 청취가 필요한 업무를 조정합니다."],
-            ["활동 가능 시간", "+15~25점", "3시간 이하는 +15점, 2시간 이하는 +25점입니다."],
-        ];
+
+        if (isHealthEvaluationLoading && healthEvaluation?.source !== "ML") {
+            return (
+                <section className="wsd-detail-section">
+                    <div className="wsd-health-eval-heading">
+                        <div>
+                            <h2 className="wsd-section-title">건강 판정 근거</h2>
+                            <p>ML 예측 결과와 입력 건강 조건을 함께 보여주는 참고용 설명입니다.</p>
+                        </div>
+                    </div>
+
+                    <div className="wsd-health-eval-summary">
+                        <div>
+                            <span>판정 요약</span>
+                            <strong>ML 판정 불러오는 중</strong>
+                        </div>
+                        <p>최신 ML 판정을 불러오는 중입니다. 완료되면 현재 입력 건강 정보 기준의 판정과 근거를 표시합니다.</p>
+                    </div>
+                </section>
+            );
+        }
 
         return (
             <section className="wsd-detail-section">
                 <div className="wsd-health-eval-heading">
                     <div>
                         <h2 className="wsd-section-title">건강 판정 근거</h2>
-                        <p>건강 상태 모델 결과와 입력 건강 항목을 함께 보여주는 참고용 설명입니다.</p>
+                        <p>ML 예측 결과와 입력 건강 조건을 함께 보여주는 참고용 설명입니다.</p>
                     </div>
                 </div>
 
@@ -963,74 +1345,79 @@ function WelfareSeniorDetail() {
                             ))}
                         </div>
                     </div>
-
-                    <div className="wsd-health-summary-score">
-                        <span className="wsd-health-summary-label">{isMlEvaluation ? "입력 항목 보조 점수" : "설명용 위험 점수"}</span>
-                        <strong>{riskScore} / {maxRiskScore}점</strong>
-                        <div className="wsd-health-score-track">
-                            <div
-                                className={`wsd-health-score-fill wsd-health-score-fill-${getHealthTone(getGradeFromRiskScore(riskScore))}`}
-                                style={{ width: riskPercent }}
-                            />
-                        </div>
-                        <p>{supportScoreText}</p>
-                        {isMlEvaluation && <em className="wsd-health-score-note">최종 등급 아님</em>}
-                    </div>
                 </div>
 
                 <div className="wsd-health-eval-summary">
                     <div>
-                        <span>판정 방식</span>
+                        <span>판정 요약</span>
                         <strong>{getEvaluationSourceLabel(healthEvaluation?.source)}</strong>
                     </div>
-                    <p>{healthEvaluation?.summary || "건강 정보 기준으로 판정 근거를 계산했습니다."}</p>
-                    <small>이 결과는 의료 진단이 아니라 돌봄과 일자리 추천을 위한 참고 정보입니다.</small>
+                    <p>{evaluationSummary}</p>
+                    <small>{gradeBasis}</small>
+                    {isHealthEvaluationLoading && (
+                        <small>최신 ML 판정을 불러오는 중입니다. 화면은 저장된 건강 정보로 먼저 표시합니다.</small>
+                    )}
+                    {!isHealthEvaluationLoading && healthEvaluationError && (
+                        <small>{healthEvaluationError}</small>
+                    )}
                 </div>
 
                 <div className="wsd-health-reason-section">
                     <div className="wsd-health-reason-header">
-                        <h3>판정에 영향을 준 항목</h3>
-                        <button
-                            type="button"
-                            className="wsd-health-criteria-toggle"
-                            onClick={() => setShowCriteria(v => !v)}
-                        >
-                            판정 기준 보기
-                            <span>{showCriteria ? "▲" : "▼"}</span>
-                        </button>
-                    </div>
-                    <div className="wsd-health-reason-grid">
-                        {reasons.map((reason, index) => (
-                            <article
-                                className={`wsd-health-reason-card wsd-health-reason-card-${getHealthTone(reason.level)}`}
-                                key={`${reason.label}-${index}`}
+                        {showHealthReasons && <h3>판정 근거 자료</h3>}
+                        <div className="wsd-health-reason-actions">
+                            <button
+                                type="button"
+                                className="wsd-health-criteria-toggle"
+                                onClick={() => setShowHealthReasons(v => !v)}
                             >
-                                <div>
-                                    <strong>{reason.label}</strong>
-                                    <span>
-                                        {normalizeHealthStatus(reason.level)}
-                                        {Number(reason.score) > 0 ? ` +${reason.score}점` : ""}
-                                    </span>
-                                </div>
-                                <p>{valueOrMissing(reason.value)}</p>
-                                <small>{reason.description}</small>
-                            </article>
-                        ))}
+                                판정 근거 보기
+                                <span>{showHealthReasons ? "▲" : "▼"}</span>
+                            </button>
+                            <button
+                                type="button"
+                                className="wsd-health-criteria-toggle"
+                                onClick={() => setShowCriteria(v => !v)}
+                            >
+                                설명 기준 보기
+                                <span>{showCriteria ? "▲" : "▼"}</span>
+                            </button>
+                        </div>
                     </div>
+                    {showHealthReasons && (
+                        <div className="wsd-health-reason-grid">
+                            {reasons.length > 0 ? reasons.map((reason, index) => (
+                                <article
+                                    className={`wsd-health-reason-card wsd-health-reason-card-${getHealthTone(reason.level)}`}
+                                    key={`${reason.label}-${index}`}
+                                >
+                                    <div>
+                                        <strong>{reason.label}</strong>
+                                        <span>{normalizeHealthStatus(reason.level)}</span>
+                                    </div>
+                                    <em>{getReasonCriterion(reason, status)}</em>
+                                    <p>{valueOrMissing(reason.value)}</p>
+                                    <small>{getReasonDescription(reason, status)}</small>
+                                </article>
+                            )) : (
+                                <p className="wsd-empty-panel">표시할 판정 근거 자료가 없습니다.</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {showCriteria && <div className="wsd-health-criteria-section">
                     {(
                         <>
-                            <h3>등급별 판정 기준</h3>
-                            <div className="wsd-health-grade-scale" aria-label="등급별 위험 점수 구간">
+                            <h3>등급별 설명 기준</h3>
+                            <div className="wsd-health-grade-scale" aria-label="등급별 설명 조건">
                                 {criteria.map((item) => (
                                     <div
                                         className={`wsd-health-grade-segment wsd-health-grade-segment-${getHealthTone(item.status)}${item.status === status ? " wsd-health-grade-segment-active" : ""}`}
                                         key={item.status}
                                     >
                                         <span>{item.status}</span>
-                                        <strong>{item.range}</strong>
+                                        <strong>{item.summary}</strong>
                                     </div>
                                 ))}
                             </div>
@@ -1048,21 +1435,6 @@ function WelfareSeniorDetail() {
                                         <p>{item.text}</p>
                                     </article>
                                 ))}
-                            </div>
-
-                            <div className="wsd-health-score-rule-section">
-                                <h3>항목별 점수 기준</h3>
-                                <div className="wsd-health-score-rule-list">
-                                    {scoreRules.map(([label, score, description]) => (
-                                        <article className="wsd-health-score-rule-card" key={label}>
-                                            <div>
-                                                <strong>{label}</strong>
-                                                <span>{score}</span>
-                                            </div>
-                                            <p>{description}</p>
-                                        </article>
-                                    ))}
-                                </div>
                             </div>
                         </>
                     )}
