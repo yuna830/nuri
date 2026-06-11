@@ -166,7 +166,6 @@ public class AlertController {
         Senior senior = findSenior(request.seniorId());
 
         // 해당 대상자의 모든 미읽음 INFO_UPDATE_REQUEST 알림 읽음 처리
-        // (사용자·보호자 중 누가 입력했든 나머지 쪽 알림도 함께 닫힘)
         List<Alert> pendingRequests = alertRepository
                 .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(request.seniorId(), "INFO_UPDATE_REQUEST");
         for (Alert orig : pendingRequests) {
@@ -174,18 +173,37 @@ public class AlertController {
             alertRepository.save(orig);
         }
 
-        // 복지사에게 완료 알림 생성
+        boolean filledBySenior = "SENIOR".equalsIgnoreCase(request.filledBy());
+
+        // guardianId 조회
+        Long guardianId = guardianSeniorRepository.findBySeniorId(request.seniorId())
+                .stream()
+                .findFirst()
+                .map(GuardianSenior::getGuardianId)
+                .orElse(null);
+
         Alert alert = new Alert();
         alert.setSeniorId(request.seniorId());
-        alert.setGuardianId(null);
         alert.setType("PROFILE_UPDATE");
         alert.setTitle("정보 수정 완료");
-        alert.setMessage(senior.getName() + "님이 요청하신 정보 수정을 완료했습니다.");
         alert.setIsRead(false);
 
-        Alert saved = alertRepository.save(alert);
+        if (filledBySenior) {
+            // 사용자가 입력 → guardianId 설정 → 보호자 알림에 노출, 사용자 알림에서 제외
+            alert.setGuardianId(guardianId);
+            alert.setMessage(senior.getName() + "님이 직접 정보를 입력했습니다.");
+        } else {
+            // 보호자가 입력 → guardianId=null → 사용자 알림에 노출, 보호자 알림에서 제외
+            alert.setGuardianId(null);
+            alert.setMessage("보호자가 " + senior.getName() + "님의 정보를 입력했습니다.");
+        }
 
-        // 복지사 FCM 푸시 (모바일 앱이 있는 경우)
+        // 저장 + 상대방(보호자 또는 사용자) FCM 푸시
+        Alert saved = filledBySenior
+                ? saveAndPushToGuardian(alert)
+                : saveAndPushToSenior(alert);
+
+        // 복지사 FCM 푸시 (복지사 대시보드는 seniorId로 조회하므로 DB 저장 없이 FCM만)
         if (senior.getWelfareWorkerId() != null) {
             fcmPushService.sendToUser(
                     "WELFARE_WORKER",
@@ -804,9 +822,9 @@ public class AlertController {
 
     public record ProfileUpdateCompleteRequest(
             Long seniorId,
-            Long alertId
-    ) {
-    }
+            Long alertId,
+            String filledBy   // "SENIOR" or "GUARDIAN"
+    ) {}
 
     public record ConsentRequest(
             Long guardianId,

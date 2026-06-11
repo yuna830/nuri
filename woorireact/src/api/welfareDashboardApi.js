@@ -189,12 +189,12 @@ export const requestSeniorInfoUpdate = async ({
     return response.json();
 };
 
-// 정보수정 완료 알림 (복지사에게)
-export const notifyProfileUpdateComplete = async ({ seniorId, alertId }) => {
+// 정보수정 완료 알림 - filledBy 로 누가 입력했는지 
+export const notifyProfileUpdateComplete = async ({ seniorId, alertId, filledBy }) => {
     const response = await fetch("/api/alerts/profile-update-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seniorId, alertId }),
+        body: JSON.stringify({ seniorId, alertId, filledBy }),
     });
     if (!response.ok) throw new Error("완료 알림 전송 실패");
     return response.json().catch(() => ({}));
