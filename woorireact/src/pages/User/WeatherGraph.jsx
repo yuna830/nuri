@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import "../../css/user/WeatherGraph.css";
 import {
@@ -10,7 +10,7 @@ import {
 } from "../../utils/user/weatherAdvice";
 import { reverseGeocode } from "../../api/userPageApi.js";
 
-const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
 
 const toGrid = (lat, lon) => {
   const RE = 6371.00877, GRID = 5.0, SLAT1 = 30.0, SLAT2 = 60.0;
@@ -195,6 +195,9 @@ export default function WeatherGraph() {
   const [airData, setAirData]         = useState(null);
   const [pollenData, setPollenData]   = useState(null);
   const [profile, setProfile]         = useState(null);
+  const posRef = useRef(null);
+  const fetchHourlyRef = useRef(null);
+  const fetchCurrentRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -223,6 +226,33 @@ export default function WeatherGraph() {
     }
     if (airResult.status === "fulfilled" && airResult.value) {
       setChanged(setAirData, airResult.value);
+    }
+  };
+
+  const fetchCurrent = async (lat, lon) => {
+    try {
+      const { nx, ny } = toGrid(lat, lon);
+      const res = await fetch(`/api/weather?nx=${nx}&ny=${ny}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || data.error) return;
+      const curr = {
+        temp:  data.temp  ?? "--",
+        humid: data.humid ?? "--",
+        wsd:   data.wind  ?? "0",
+        pop:   data.rainProb ?? "0",
+        pty:   data.PTY   ?? "0",
+        sky:   data.SKY   ?? "1",
+        icon: (data.PTY && data.PTY !== "0") ? (PTY_ICON[data.PTY] || "🌧") : (SKY_ICON[data.SKY] || "☀️"),
+        isPast: false,
+        isNow: true,
+      };
+      setChanged(setCurrent, curr);
+      const weatherItems = getWeatherItems(curr.temp, curr.pty, curr.wsd, curr.humid);
+      const healthItems  = getHealthItems(profile, curr.temp, curr.pty);
+      setChanged(setAdviceItems, [...weatherItems, ...healthItems]);
+    } catch {
+      // fetchHourly의 기존 값 유지
     }
   };
 
@@ -313,24 +343,44 @@ export default function WeatherGraph() {
   };
 
   useEffect(() => {
+    fetchHourlyRef.current  = fetchHourly;
+    fetchCurrentRef.current = fetchCurrent;
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const pos = posRef.current;
+      if (pos) {
+        fetchHourlyRef.current(pos.lat, pos.lon);
+        fetchCurrentRef.current(pos.lat, pos.lon);
+      }
+    }, 30 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const run = (lat, lon) => {
+      posRef.current = { lat, lon };
+      fetchEnvironment(lat, lon);
+      fetchHourly(lat, lon);
+      fetchCurrent(lat, lon);
+    };
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async pos => {
           const { latitude: lat, longitude: lon } = pos.coords;
           setChanged(setAddress, await reverseGeocode(lat, lon));
-          fetchEnvironment(lat, lon);
-          fetchHourly(lat, lon);
+          run(lat, lon);
         },
         () => {
           setChanged(setAddress, "서울");
-          fetchEnvironment(37.5665, 126.9780);
-          fetchHourly(37.5665, 126.9780);
+          run(37.5665, 126.9780);
         }
       );
     } else {
       setChanged(setAddress, "서울");
-      fetchEnvironment(37.5665, 126.9780);
-      fetchHourly(37.5665, 126.9780);
+      run(37.5665, 126.9780);
     }
   }, []);
 

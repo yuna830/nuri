@@ -253,11 +253,6 @@ class _WeatherScreenState extends State<WeatherScreen>
     _loadAll();
     _refreshTimer =
         Timer.periodic(const Duration(minutes: 1), (_) => _loadAll());
-    widget.onRegisterAction?.call(
-      action: _loadAll,
-      icon: Icons.refresh,
-      tooltip: '새로고침',
-    );
   }
 
   @override

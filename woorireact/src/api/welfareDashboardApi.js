@@ -86,6 +86,45 @@ export const fetchWelfareSeniors = async ({ page, size, welfareWorkerId } = {}) 
     return data;
 };
 
+export const fetchAllWelfareSeniors = async ({ welfareWorkerId, size = 100 } = {}) => {
+    const firstPage = await fetchWelfareSeniors({
+        page: 0,
+        size,
+        welfareWorkerId,
+    });
+
+    if (Array.isArray(firstPage)) {
+        return firstPage;
+    }
+
+    const firstContent = Array.isArray(firstPage?.content) ? firstPage.content : [];
+    const totalPages = Math.max(1, Number(firstPage?.totalPages) || 1);
+
+    if (totalPages === 1) {
+        return firstContent;
+    }
+
+    const remainingPages = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+            fetchWelfareSeniors({
+                page: index + 1,
+                size,
+                welfareWorkerId,
+            })
+        )
+    );
+
+    return remainingPages.reduce((allSeniors, pageData) => {
+        const pageContent = Array.isArray(pageData)
+            ? pageData
+            : Array.isArray(pageData?.content)
+                ? pageData.content
+                : [];
+
+        return [...allSeniors, ...pageContent];
+    }, firstContent);
+};
+
 export const searchSeniorExact = async ({ name, phone }) => {
     const params = new URLSearchParams({
         name: name || "",

@@ -72,7 +72,7 @@ const fetchFallApi = async (path, options = {}) => {
     throw error;
   }
 };
-const WEATHER_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const WEATHER_SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
 const WEATHER_CACHE_TTL = 10 * 60 * 1000;
 
 export const toWeatherGrid = (lat, lon) => {

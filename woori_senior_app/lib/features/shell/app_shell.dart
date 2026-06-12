@@ -112,21 +112,44 @@ class _AppShellState extends State<AppShell> {
     final profile = await SeniorSessionStorage.getProfile(widget.seniorId);
     if (!mounted) return;
     if (profile == null) {
-      // 프로필 미로드 시 막지 않고 그냥 이동
       setState(() { _index = 3; });
+      return;
+    }
+    final senior = (profile['senior'] as Map<String, dynamic>?) ?? {};
+    final age = (senior['age'] as num?)?.toInt();
+    if (age != null && age < 20) {
+      _showAgeRestrictionModal(age);
       return;
     }
     final healthInfo = (profile['healthInfo'] as Map<String, dynamic>?) ?? {};
     final maxHours = healthInfo['maxHours'] as String? ?? '';
     final maxDistance = healthInfo['maxDistance'] as String? ?? '';
-    // '상관없음'은 사용자가 명시적으로 선택한 유효한 조건이므로 막지 않음
-    // 아직 한 번도 설정하지 않은 경우(빈 문자열)만 안내 모달 표시
     final noConditions = maxHours.isEmpty && maxDistance.isEmpty;
     if (noConditions) {
       _showJobConditionsModal();
     } else {
       setState(() { _index = 3; });
     }
+  }
+
+  void _showAgeRestrictionModal(int age) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('이용 연령 제한',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        content: Text(
+          '일자리 정보는 만 20세 이상부터\n이용할 수 있어요.\n\n현재 만 $age세',
+          style: const TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('닫기', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showJobConditionsModal() {
@@ -161,20 +184,22 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  void _registerAction({
-    required VoidCallback action,
-    required IconData icon,
-    required String tooltip,
-  }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _pageActions[_index] = action;
-          _pageActionIcons[_index] = icon;
-          _pageActionTooltips[_index] = tooltip;
-        });
-      }
-    });
+  // IndexedStack은 모든 탭을 한꺼번에 초기화하므로 _index를 동적으로 읽으면
+  // initState 시점(항상 _index=0)에 잘못된 탭에 등록됨.
+  // 각 탭의 인덱스를 클로저로 캡처해 올바른 슬롯에 저장한다.
+  void Function({required VoidCallback action, required IconData icon, required String tooltip})
+      _makeRegistrar(int tabIndex) {
+    return ({required VoidCallback action, required IconData icon, required String tooltip}) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _pageActions[tabIndex] = action;
+            _pageActionIcons[tabIndex] = icon;
+            _pageActionTooltips[tabIndex] = tooltip;
+          });
+        }
+      });
+    };
   }
 
   void _openSettings() {
@@ -413,22 +438,22 @@ class _AppShellState extends State<AppShell> {
       LocationScreen(
         seniorId: widget.seniorId,
         hideAppBar: true,
-        onRegisterAction: _registerAction,
+        onRegisterAction: _makeRegistrar(1),
       ),
       WeatherScreen(
         seniorId: widget.seniorId,
         hideAppBar: true,
-        onRegisterAction: _registerAction,
+        onRegisterAction: _makeRegistrar(2),
       ),
       JobScreen(
         seniorId: widget.seniorId,
         hideAppBar: true,
-        onRegisterAction: _registerAction,
+        onRegisterAction: _makeRegistrar(3),
       ),
       ProfileScreen(
         seniorId: widget.seniorId,
         hideAppBar: true,
-        onRegisterAction: _registerAction,
+        onRegisterAction: _makeRegistrar(4),
         onSaved: () => _go(0),
       ),
     ];

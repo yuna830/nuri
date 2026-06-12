@@ -1,4 +1,5 @@
 import { mapWelfareInfoForRag } from "./welfareInfoMap.js";
+import { FIELD_CATEGORY_MAP } from "../welfare/welfareSummaryStats.js";
 
 export const NONE = "없음";
 
@@ -130,41 +131,26 @@ export const SECTIONS = [
   { id: "job", label: "활동 및 일자리" },
 ];
 
-const INFO_REQUEST_SECTION_RULES = [
-  {
-    section: "personal",
-    pattern: /인적사항|이름|생년월일|성별|연락처|전화번호|주소/,
-  },
-  {
-    section: "body",
-    pattern: /신체정보|키|몸무게|BMI|흡연|음주|알레르기|신체/,
-  },
-  {
-    section: "medication",
-    pattern: /복약정보|복약|복용|약|복용 시작일|복용 간격|하루 복용 횟수|medicine/i,
-  },
-  {
-    section: "chronic",
-    pattern: /만성질환|만성|질환|당뇨|고혈압|심장질환|관절질환|수술|건강|chronic/i,
-  },
-  {
-    section: "mobility",
-    pattern: /거동\/인지\/감각|거동|인지|감각|보행|기억|판단|시력|청력|낙상|mobility/i,
-  },
-  {
-    section: "welfare",
-    pattern: /복지정보|복지|소득|가구|혜택|참고사항|welfare/i,
-  },
-  {
-    section: "job",
-    pattern: /활동 및 일자리|활동 조건|이동 가능 거리|이동|쉬는 시간|하기 어려운 작업|환경|일자리 희망조건|일자리|희망 급여|희망 요일|희망 직종|희망 근무|근무 형태|급여|직종|job|activity/i,
-  },
-];
+const CATEGORY_TO_SECTION = {
+  "인적사항": "personal",
+  "신체정보": "body",
+  "복약정보": "medication",
+  "만성질환": "chronic",
+  "거동/인지": "mobility",
+  "복지정보": "welfare",
+  "활동/일자리": "job",
+};
 
 export const getProfileSectionFromInfoRequest = (message = "") => {
   const text = String(message);
-  const matchedRule = INFO_REQUEST_SECTION_RULES.find((rule) => rule.pattern.test(text));
-  return matchedRule?.section || "personal";
+  // FIELD_CATEGORY_MAP의 필드명으로 먼저 정확히 매칭 (수술 이력 → 거동/인지 등 올바르게 처리)
+  for (const [field, cat] of Object.entries(FIELD_CATEGORY_MAP)) {
+    if (text.includes(field)) {
+      const section = CATEGORY_TO_SECTION[cat];
+      if (section) return section;
+    }
+  }
+  return "personal";
 };
 
 export const createMedicine = () => ({
@@ -223,6 +209,28 @@ export const inferGuardianRelationToSenior = (seniorRelationToGuardian = "", gua
   if (/(고모|이모|삼촌|외삼촌|숙모|외숙모|고모부|이모부|큰엄마|작은엄마|큰아빠|작은아빠)/.test(relation)) {
     return "조카";
   }
+
+  return "";
+};
+
+// inferGuardianRelationToSenior의 역방향: 보호자 관계 → 어르신 관계
+export const inferSeniorRelationFromGuardian = (guardianRelation = "", seniorGender = "") => {
+  const relation = guardianRelation.trim();
+
+  const isFemale = ["여성", "여자", "F", "female"].includes(seniorGender);
+  const isMale = ["남성", "남자", "M", "male"].includes(seniorGender);
+
+  const byGender = (femaleLabel, maleLabel, fallbackLabel) => {
+    if (isFemale) return femaleLabel;
+    if (isMale) return maleLabel;
+    return fallbackLabel;
+  };
+
+  if (/(아들|딸|자녀)/.test(relation)) return byGender("어머니", "아버지", "부모");
+  if (/(손자|손녀|손주)/.test(relation)) return byGender("할머니", "할아버지", "조부모");
+  if (/조카/.test(relation)) return byGender("고모", "삼촌", "친척");
+  if (/(배우자|남편|아내)/.test(relation)) return "배우자";
+  if (/(형|오빠|남동생|언니|누나|여동생|형제|자매)/.test(relation)) return byGender("자매", "형제", "형제자매");
 
   return "";
 };
