@@ -730,6 +730,7 @@
 
 /* 나이 제한 카드 */
 .jp-age-block {
+  grid-column: 1 / -1;
   align-items: center;
   justify-content: center;
 }
