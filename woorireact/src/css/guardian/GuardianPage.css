@@ -925,7 +925,7 @@
 }
 
 .guardian-profile-save {
-  background: #4F6F52;
+  background: #86A788;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -935,12 +935,12 @@
 }
 
 .guardian-profile-save:hover {
-  background: #3d5940;
+  background: #6F9272;
 }
 
 .guardian-profile-logout {
-  background: var(--danger-color);
-  border: none;
+  background: #A6463E;
+  border: 1px solid #A6463E;
   color: #fff;
   border-radius: 8px;
   padding: 10px;
@@ -949,7 +949,8 @@
 }
 
 .guardian-profile-logout:hover {
-  background: var(--danger-hover);
+  background: #8F382F;
+  border-color: #8F382F;
 }
 
 /* 주소 검색 */
@@ -964,9 +965,9 @@
 }
 
 .guardian-profile-addr-search {
-  background: #4F6F52;
-  color: #fff;
-  border: none;
+  background: #EEF6EF;
+  color: #4F6F52;
+  border: 1px solid #D4E8D6;
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.82rem;
@@ -977,7 +978,8 @@
 }
 
 .guardian-profile-addr-search:hover {
-  background: #3d5940;
+  background: #DDEBDD;
+  border-color: #B8D0B9;
 }
 
 .guardian-profile-addr-search:disabled {
