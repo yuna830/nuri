@@ -1,26 +1,34 @@
 package com.nuri.woori.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nuri.woori.entity.HealthInfo;
 import com.nuri.woori.entity.Senior;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class HealthStatusMlService {
 
+    private static final Logger log = LoggerFactory.getLogger(HealthStatusMlService.class);
     private static final Duration PROCESS_TIMEOUT = Duration.ofSeconds(20);
     private static final int MAX_RISK_SCORE = 100;
 
@@ -30,7 +38,7 @@ public class HealthStatusMlService {
 
     @Autowired
     public HealthStatusMlService(ObjectMapper objectMapper) {
-        this(objectMapper, Path.of("ml", "health_status_model"), null);
+        this(objectMapper, resolveDefaultModelDirectory(), null);
     }
 
     HealthStatusMlService(ObjectMapper objectMapper, Path modelDirectory, Path pythonExecutable) {
@@ -39,8 +47,96 @@ public class HealthStatusMlService {
         this.pythonExecutable = pythonExecutable;
     }
 
+    private static Path resolveDefaultModelDirectory() {
+        Path userDir = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+        Path parentDir = userDir.getParent();
+
+        List<Path> candidates = new ArrayList<>();
+        candidates.add(Path.of("ml", "health_status_model"));
+        candidates.add(userDir.resolve("ml").resolve("health_status_model"));
+        candidates.add(userDir.resolve("woorispring").resolve("ml").resolve("health_status_model"));
+        if (parentDir != null) {
+            candidates.add(parentDir.resolve("woorispring").resolve("ml").resolve("health_status_model"));
+        }
+        candidates.add(Path.of("D:", "nuri", "nuri-geonhee", "woorispring", "ml", "health_status_model"));
+
+        return candidates.stream()
+                .map(Path::toAbsolutePath)
+                .map(Path::normalize)
+                .filter(path -> Files.exists(path.resolve("predict_health_status.py")))
+                .findFirst()
+                .orElse(Path.of("ml", "health_status_model"));
+    }
+
     public String evaluate(Senior senior, HealthInfo healthInfo) {
         return evaluateWithDetails(senior, healthInfo).status();
+    }
+
+    public List<HealthEvaluation> evaluateAllWithDetails(List<HealthEvaluationInput> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            return List.of();
+        }
+
+        List<HealthEvaluation> evaluations = new ArrayList<>(inputs.size());
+        List<HealthEvaluationInput> mlInputs = new ArrayList<>();
+        List<Integer> mlIndexes = new ArrayList<>();
+        boolean modelAvailable = isModelAvailable();
+
+        for (int index = 0; index < inputs.size(); index++) {
+            HealthEvaluationInput input = inputs.get(index);
+            HealthInfo healthInfo = input == null ? null : input.healthInfo();
+
+            if (healthInfo == null) {
+                evaluations.add(evaluateWithDetails(input == null ? null : input.senior(), null));
+                continue;
+            }
+
+            if (!modelAvailable) {
+                evaluations.add(buildEvaluation(fallbackEvaluate(healthInfo), "RULE_FALLBACK", null, healthInfo, null));
+                continue;
+            }
+
+            evaluations.add(null);
+            mlInputs.add(input);
+            mlIndexes.add(index);
+        }
+
+        if (mlInputs.isEmpty()) {
+            return evaluations;
+        }
+
+        try {
+            List<HealthStatusPrediction> predictions = runPredictions(mlInputs);
+            if (predictions.size() != mlInputs.size()) {
+                throw new IllegalStateException("Health status ML prediction returned unexpected result count.");
+            }
+
+            for (int index = 0; index < mlInputs.size(); index++) {
+                HealthEvaluationInput input = mlInputs.get(index);
+                HealthStatusPrediction prediction = predictions.get(index);
+                evaluations.set(
+                        mlIndexes.get(index),
+                        buildEvaluation(
+                                normalizeStatus(prediction.prediction()),
+                                "ML",
+                                prediction.probabilities(),
+                                input.healthInfo(),
+                                prediction.caseValidation()
+                        )
+                );
+            }
+        } catch (IllegalStateException error) {
+            log.warn("Health status batch ML prediction failed. Falling back to rule-based evaluation. reason={}", error.getMessage());
+            for (int index = 0; index < mlInputs.size(); index++) {
+                HealthEvaluationInput input = mlInputs.get(index);
+                evaluations.set(
+                        mlIndexes.get(index),
+                        buildEvaluation(fallbackEvaluate(input.healthInfo()), "RULE_FALLBACK", null, input.healthInfo(), null)
+                );
+            }
+        }
+
+        return evaluations;
     }
 
     public HealthEvaluation evaluateWithDetails(Senior senior, HealthInfo healthInfo) {
@@ -51,19 +147,20 @@ public class HealthStatusMlService {
                     Map.of("양호", 1.0, "주의", 0.0, "위험", 0.0),
                     0,
                     MAX_RISK_SCORE,
-                    "0~24점은 양호, 25~59점은 주의, 60점 이상은 위험 기준입니다.",
+                    "건강 정보가 입력되지 않아 주의 또는 위험 설명 조건을 확인할 수 없습니다.",
                     "등록된 건강 정보가 없어 기본 양호 상태로 표시합니다.",
                     List.of(new HealthEvaluationReason(
                             "건강 정보",
                             "미등록",
                             "양호",
                             0,
-                            "건강 정보가 입력되면 모델 판정과 판정 근거가 함께 표시됩니다."))
+                            "건강 정보가 입력되면 모델 판정과 판정 근거가 함께 표시됩니다.")),
+                    null
             );
         }
 
         if (!isModelAvailable()) {
-            return buildEvaluation(fallbackEvaluate(healthInfo), "RULE_FALLBACK", null, healthInfo);
+            return buildEvaluation(fallbackEvaluate(healthInfo), "RULE_FALLBACK", null, healthInfo, null);
         }
 
         try {
@@ -72,10 +169,12 @@ public class HealthStatusMlService {
                     normalizeStatus(prediction.prediction()),
                     "ML",
                     prediction.probabilities(),
-                    healthInfo
+                    healthInfo,
+                    prediction.caseValidation()
             );
         } catch (IllegalStateException error) {
-            return buildEvaluation(fallbackEvaluate(healthInfo), "RULE_FALLBACK", null, healthInfo);
+            log.warn("Health status ML prediction failed. Falling back to rule-based evaluation. reason={}", error.getMessage());
+            return buildEvaluation(fallbackEvaluate(healthInfo), "RULE_FALLBACK", null, healthInfo, null);
         }
     }
 
@@ -87,10 +186,19 @@ public class HealthStatusMlService {
     }
 
     private HealthStatusPrediction runPrediction(Senior senior, HealthInfo healthInfo) {
+        return runPredictions(List.of(new HealthEvaluationInput(senior, healthInfo))).get(0);
+    }
+
+    private List<HealthStatusPrediction> runPredictions(List<HealthEvaluationInput> inputs) {
         Path inputPath = null;
         try {
             inputPath = Files.createTempFile("health-status-ml-", ".json");
-            objectMapper.writeValue(inputPath.toFile(), List.of(toPredictionRow(senior, healthInfo)));
+            objectMapper.writeValue(
+                    inputPath.toFile(),
+                    inputs.stream()
+                            .map(input -> toPredictionRow(input.senior(), input.healthInfo()))
+                            .toList()
+            );
 
             ProcessBuilder builder = new ProcessBuilder(List.of(
                     resolvePythonCommand(),
@@ -105,14 +213,17 @@ public class HealthStatusMlService {
             builder.environment().put("PYTHONUTF8", "1");
 
             Process process = builder.start();
-            boolean finished = process.waitFor(PROCESS_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+            CompletableFuture<String> stdoutFuture = readProcessOutput(process.getInputStream());
+            CompletableFuture<String> stderrFuture = readProcessOutput(process.getErrorStream());
+            long timeoutSeconds = Math.min(120, Math.max(PROCESS_TIMEOUT.toSeconds(), PROCESS_TIMEOUT.toSeconds() + (long) (inputs.size() - 1) * 10));
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 throw new IllegalStateException("Health status ML prediction timed out.");
             }
 
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            String stdout = stdoutFuture.join();
+            String stderr = stderrFuture.join();
             if (process.exitValue() != 0) {
                 throw new IllegalStateException("Health status ML prediction failed: " + stderr);
             }
@@ -122,7 +233,7 @@ public class HealthStatusMlService {
                 throw new IllegalStateException("Health status ML prediction returned no result.");
             }
 
-            return response.predictions().get(0);
+            return response.predictions();
         } catch (IOException error) {
             throw new IllegalStateException("Failed to run health status ML prediction.", error);
         } catch (InterruptedException error) {
@@ -136,6 +247,16 @@ public class HealthStatusMlService {
                 }
             }
         }
+    }
+
+    private CompletableFuture<String> readProcessOutput(InputStream stream) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            } catch (IOException error) {
+                throw new IllegalStateException("Failed to read health status ML process output.", error);
+            }
+        });
     }
 
     private Map<String, Object> toPredictionRow(Senior senior, HealthInfo healthInfo) {
@@ -162,7 +283,174 @@ public class HealthStatusMlService {
         row.put("vision", healthInfo.getVision());
         row.put("hearing", healthInfo.getHearing());
         row.put("walking_aid", healthInfo.getWalkingAid());
+        SurgeryFeatures surgeryFeatures = buildSurgeryFeatures(healthInfo);
+        row.put("has_surgery", surgeryFeatures.hasSurgery() ? "있음" : "없음");
+        row.put("surgery_count", surgeryFeatures.count());
+        row.put("recent_surgery_1y", surgeryFeatures.recentOneYear() ? "있음" : "없음");
+        row.put("recent_surgery_3y", surgeryFeatures.recentThreeYears() ? "있음" : "없음");
+        row.put("surgery_recovery", surgeryFeatures.recoveryStatus());
+        row.put("surgery_detail", surgeryFeatures.detail());
         return row;
+    }
+
+    private SurgeryFeatures buildSurgeryFeatures(HealthInfo healthInfo) {
+        if (healthInfo == null) {
+            return new SurgeryFeatures(false, 0, false, false, "", "");
+        }
+
+        List<String> details = new ArrayList<>();
+        String fallbackDetail = safe(healthInfo.getSurgeryDetail()).trim();
+        if (!fallbackDetail.isBlank()) {
+            details.add(fallbackDetail);
+        }
+
+        boolean hasSurgery = hasProblem(healthInfo.getHasSurgery()) || !fallbackDetail.isBlank();
+        boolean recentOneYear = false;
+        boolean recentThreeYears = false;
+        String recoveryStatus = "";
+        int count = 0;
+
+        String raw = safe(healthInfo.getSurgeriesJson()).trim();
+        if (!raw.isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(raw);
+                if (root.isArray()) {
+                    for (JsonNode item : root) {
+                        String name = textOf(item, "name");
+                        String dateText = textOf(item, "date");
+                        String recovery = textOf(item, "recovery");
+                        boolean hasItemValue = !name.isBlank() || !dateText.isBlank() || !recovery.isBlank();
+                        if (!hasItemValue) {
+                            continue;
+                        }
+                        count++;
+                        hasSurgery = true;
+                        if (!name.isBlank()) {
+                            details.add(name);
+                        }
+                        LocalDate surgeryDate = parseDate(dateText);
+                        if (surgeryDate != null) {
+                            LocalDate today = LocalDate.now();
+                            if (!surgeryDate.isAfter(today)) {
+                                recentOneYear = recentOneYear || !surgeryDate.isBefore(today.minusYears(1));
+                                recentThreeYears = recentThreeYears || !surgeryDate.isBefore(today.minusYears(3));
+                            }
+                        }
+                        recoveryStatus = mergeRecoveryStatus(recoveryStatus, recovery);
+                    }
+                }
+            } catch (IOException error) {
+                log.warn("Failed to parse surgeriesJson for health status ML input: {}", error.getMessage());
+            }
+        }
+
+        if (count == 0 && hasSurgery) {
+            count = 1;
+        }
+
+        return new SurgeryFeatures(
+                hasSurgery,
+                count,
+                recentOneYear,
+                recentThreeYears,
+                recoveryStatus,
+                String.join(", ", details.stream().filter(value -> !value.isBlank()).distinct().limit(4).toList())
+        );
+    }
+
+    private String textOf(JsonNode node, String fieldName) {
+        JsonNode value = node == null ? null : node.get(fieldName);
+        if (value == null || value.isNull()) {
+            return "";
+        }
+        return value.asText("").trim();
+    }
+
+    private LocalDate parseDate(String value) {
+        String text = safe(value).trim();
+        if (text.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String mergeRecoveryStatus(String current, String next) {
+        String value = safe(next).trim();
+        if (value.isBlank()) {
+            return current;
+        }
+        if (isRecoveryIncomplete(value)) {
+            return value;
+        }
+        return safe(current).isBlank() ? value : current;
+    }
+
+    private boolean isRecoveryIncomplete(String value) {
+        String text = safe(value).toLowerCase();
+        if (text.isBlank()) {
+            return false;
+        }
+        if (containsAny(text, "회복완료", "완료", "recovered", "complete", "정상")) {
+            return false;
+        }
+        return containsAny(text, "회복중", "미회복", "모름", "불완전", "치료", "재활", "중", "incomplete", "recovering", "unknown");
+    }
+
+    private boolean isSurgeryRisk(SurgeryFeatures surgeryFeatures, HealthInfo healthInfo) {
+        if (surgeryFeatures == null || !surgeryFeatures.hasSurgery()) {
+            return false;
+        }
+        int maxHours = maxNumber(healthInfo.getMaxHours());
+        boolean activityLimited = isNonNormal(healthInfo.getWalkingAid())
+                || hasLimitedText(healthInfo.getDisabledWork())
+                || (maxHours > 0 && maxHours <= 4)
+                || isHighImpactSurgery(surgeryFeatures.detail());
+        return surgeryFeatures.recentOneYear()
+                && isRecoveryIncomplete(surgeryFeatures.recoveryStatus())
+                && activityLimited;
+    }
+
+    private boolean isSurgeryCaution(SurgeryFeatures surgeryFeatures) {
+        if (surgeryFeatures == null || !surgeryFeatures.hasSurgery()) {
+            return false;
+        }
+        return surgeryFeatures.recentOneYear()
+                || surgeryFeatures.recentThreeYears()
+                || isRecoveryIncomplete(surgeryFeatures.recoveryStatus())
+                || isHighImpactSurgery(surgeryFeatures.detail());
+    }
+
+    private boolean isHighImpactSurgery(String value) {
+        String text = safe(value).toLowerCase();
+        if (text.isBlank()) {
+            return false;
+        }
+        return containsAny(text,
+                "관절", "무릎", "고관절", "척추", "허리", "디스크", "골절", "인공관절",
+                "심장", "스텐트", "관상동맥", "뇌", "뇌졸중", "암", "폐", "신장",
+                "다리", "발목", "발", "hip", "knee", "spine", "heart", "brain", "cancer");
+    }
+
+    private String surgeryReasonValue(SurgeryFeatures surgeryFeatures) {
+        List<String> parts = new ArrayList<>();
+        if (surgeryFeatures.recentOneYear()) {
+            parts.add("최근 1년 이내");
+        } else if (surgeryFeatures.recentThreeYears()) {
+            parts.add("최근 3년 이내");
+        } else {
+            parts.add("이력 있음");
+        }
+        if (!safe(surgeryFeatures.recoveryStatus()).isBlank()) {
+            parts.add(surgeryFeatures.recoveryStatus());
+        }
+        if (!safe(surgeryFeatures.detail()).isBlank()) {
+            parts.add(surgeryFeatures.detail());
+        }
+        return String.join(" / ", parts);
     }
 
     private String inferWalkingLimited(HealthInfo healthInfo) {
@@ -185,19 +473,22 @@ public class HealthStatusMlService {
         int medicineCount = maxNumber(healthInfo.getMedicineCount());
         int limitationCount = inferPhysicalLimitationCount(healthInfo);
         int maxHours = maxNumber(healthInfo.getMaxHours());
+        SurgeryFeatures surgeryFeatures = buildSurgeryFeatures(healthInfo);
 
         if (hasProblem(healthInfo.getRecentFall())
                 || seriousDiseaseCount >= 2
                 || limitationCount >= 4
                 || (seriousDiseaseCount >= 1 && maxHours > 0 && maxHours <= 2)
-                || (medicineCount >= 6 && diseaseCount >= 2)) {
+                || (medicineCount >= 6 && diseaseCount >= 2)
+                || isSurgeryRisk(surgeryFeatures, healthInfo)) {
             return "위험";
         }
 
         if (diseaseCount >= 1
                 || medicineCount >= 3
                 || limitationCount >= 1
-                || (maxHours > 0 && maxHours <= 3)) {
+                || (maxHours > 0 && maxHours <= 4)
+                || isSurgeryCaution(surgeryFeatures)) {
             return "주의";
         }
 
@@ -208,7 +499,8 @@ public class HealthStatusMlService {
             String status,
             String source,
             Map<String, Double> probabilities,
-            HealthInfo healthInfo
+            HealthInfo healthInfo,
+            CaseValidation caseValidation
     ) {
         String normalizedStatus = normalizeStatus(status);
         List<HealthEvaluationReason> reasons = buildReasons(normalizedStatus, healthInfo);
@@ -220,9 +512,10 @@ public class HealthStatusMlService {
                 normalizeProbabilities(normalizedStatus, probabilities),
                 riskScore,
                 MAX_RISK_SCORE,
-                buildGradeBasis(riskScore, source),
-                buildSummary(normalizedStatus, riskScore, reasons, source),
-                reasons
+                buildGradeBasis(normalizedStatus),
+                buildSummary(normalizedStatus, reasons, source, caseValidation),
+                reasons,
+                caseValidation
         );
     }
 
@@ -230,8 +523,27 @@ public class HealthStatusMlService {
         List<HealthEvaluationReason> reasons = new ArrayList<>();
 
         addIf(reasons, "최근 낙상", healthInfo.getRecentFall(), "위험",
-                "최근 낙상 이력이 있어 이동이 많은 업무나 계단 이동 업무는 주의가 필요합니다.",
+                "위험 설명 조건에 해당합니다. 최근 낙상 이력이 확인되어 이동이 많거나 계단을 오가는 업무는 피하는 것이 좋습니다.",
                 hasProblem(healthInfo.getRecentFall()));
+
+        SurgeryFeatures surgeryFeatures = buildSurgeryFeatures(healthInfo);
+        if (isSurgeryRisk(surgeryFeatures, healthInfo)) {
+            reasons.add(new HealthEvaluationReason(
+                    "수술 이력",
+                    surgeryReasonValue(surgeryFeatures),
+                    "위험",
+                    0,
+                    "위험 설명 조건에 해당합니다. 최근 수술 후 회복이 끝나지 않았거나 활동 제한과 연결될 가능성이 있어 업무 강도와 근무 시간을 보수적으로 봅니다."
+            ));
+        } else if (isSurgeryCaution(surgeryFeatures)) {
+            reasons.add(new HealthEvaluationReason(
+                    "수술 이력",
+                    surgeryReasonValue(surgeryFeatures),
+                    "주의",
+                    0,
+                    "주의 설명 조건에 해당합니다. 수술 이력과 회복 상태를 확인해 무리한 업무 배치를 피하는 것이 좋습니다."
+            ));
+        }
 
         addSeriousDiseaseReason(reasons, "심장질환", healthInfo.getHeartDisease());
         addSeriousDiseaseReason(reasons, "뇌졸중", healthInfo.getStroke());
@@ -247,47 +559,51 @@ public class HealthStatusMlService {
         addDiseaseReason(reasons, "기타 질환", healthInfo.getOtherDisease());
 
         int medicineCount = maxNumber(healthInfo.getMedicineCount());
-        addIf(reasons, "복약 수", healthInfo.getMedicineCount(), medicineCount >= 6 ? "위험" : "주의",
-                "복약 수가 많아 근무 전 건강 상태 확인과 복약 일정 조정이 필요합니다.",
+        addIf(reasons, "복약 수", healthInfo.getMedicineCount(), "주의",
+                "주의 설명 조건에 해당합니다. 복약 수가 3개 이상으로 확인되어 근무 전 건강 상태와 복약 일정을 확인해야 합니다.",
                 medicineCount >= 3);
 
         addIf(reasons, "보행 보조", healthInfo.getWalkingAid(), "주의",
-                "이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.",
+                "주의 설명 조건에 해당합니다. 보행 보조 또는 이동 제한이 확인되어 이동이 많거나 장시간 서 있는 업무는 조정이 필요합니다.",
                 isNonNormal(healthInfo.getWalkingAid()));
         addIf(reasons, "시각", healthInfo.getVision(), "주의",
-                "시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.",
+                "주의 설명 조건에 해당합니다. 시각 제한이 확인되어 시야 확인이 중요한 업무는 배치 전 확인이 필요합니다.",
                 isNonNormal(healthInfo.getVision()));
         addIf(reasons, "청각", healthInfo.getHearing(), "주의",
-                "안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.",
+                "주의 설명 조건에 해당합니다. 청각 제한이 확인되어 안내 청취나 고객 응대가 많은 업무는 배치 전 확인이 필요합니다.",
                 isNonNormal(healthInfo.getHearing()));
         addIf(reasons, "어려운 업무", healthInfo.getDisabledWork(), "주의",
-                "입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.",
+                "주의 설명 조건에 해당합니다. 입력된 제한 업무는 일자리 추천 시 제외하거나 조정해야 합니다.",
                 hasLimitedText(healthInfo.getDisabledWork()));
 
         int maxHours = maxNumber(healthInfo.getMaxHours());
-        addIf(reasons, "하루 활동 가능 시간", healthInfo.getMaxHours(), maxHours <= 2 ? "위험" : "주의",
-                "하루 활동 가능 시간이 짧아 짧은 근무 시간의 공고가 우선입니다.",
-                maxHours > 0 && maxHours <= 3);
+        addIf(reasons, "하루 활동 가능 시간", healthInfo.getMaxHours(), "주의",
+                "주의 설명 조건에 해당합니다. 하루 활동 가능 시간이 짧아 짧은 근무 시간의 공고가 우선입니다.",
+                maxHours > 0 && maxHours <= 4);
 
         int seriousDiseaseCount = seriousDiseaseCount(healthInfo);
         if (seriousDiseaseCount >= 2) {
+            String seriousDiseaseDetails = String.join(", ", seriousDiseaseDetails(healthInfo));
             reasons.add(new HealthEvaluationReason(
                     "주요 질환 수",
-                    seriousDiseaseCount + "개",
+                    seriousDiseaseCount + "개 (" + seriousDiseaseDetails + ")",
                     "위험",
-                    15,
-                    "주요 질환이 복수로 확인되어 업무 강도와 근무 시간을 보수적으로 봅니다."
+                    0,
+                    "위험 설명 조건에 해당합니다. " + seriousDiseaseDetails + " 같은 중증 질환이 함께 확인되어 업무 강도와 근무 시간을 보수적으로 봅니다."
             ));
         }
 
         int limitationCount = inferPhysicalLimitationCount(healthInfo);
         if (limitationCount >= 2) {
+            String limitationDetails = String.join(", ", physicalLimitationDetails(healthInfo));
             reasons.add(new HealthEvaluationReason(
                     "신체 제한 항목",
-                    limitationCount + "개",
+                    limitationCount + "개 (" + limitationDetails + ")",
                     limitationCount >= 4 ? "위험" : "주의",
-                    limitationCount >= 4 ? 20 : 10,
-                    "보행, 감각, 어려운 업무 항목이 함께 확인되어 배치 조건 조정이 필요합니다."
+                    0,
+                    limitationCount >= 4
+                            ? "위험 설명 조건에 해당합니다. " + limitationDetails + " 항목이 함께 확인되어 배치 조건 조정이 필요합니다."
+                            : "주의 설명 조건에 해당합니다. " + limitationDetails + " 항목이 함께 확인되어 배치 조건 조정이 필요합니다."
             ));
         }
 
@@ -306,13 +622,15 @@ public class HealthStatusMlService {
 
     private void addDiseaseReason(List<HealthEvaluationReason> reasons, String label, String value) {
         addIf(reasons, label, value, "주의",
-                "질환 항목이 확인되어 업무 강도와 근무 시간 조정이 필요할 수 있습니다.",
+                "주의 설명 조건에 해당합니다. 질환 항목이 확인되어 업무 강도와 근무 시간 조정이 필요할 수 있습니다.",
                 hasProblem(value));
     }
 
     private void addSeriousDiseaseReason(List<HealthEvaluationReason> reasons, String label, String value) {
         addIf(reasons, label, value, hasSevereText(value) ? "위험" : "주의",
-                "주요 질환 항목이 확인되어 고강도 업무 배치를 피하는 것이 좋습니다.",
+                hasSevereText(value)
+                        ? "위험 설명 조건에 해당합니다. 중증 질환 상태가 확인되어 고강도 업무 배치를 피하는 것이 좋습니다."
+                        : "주의 설명 조건에 해당합니다. 주요 질환 항목이 확인되어 고강도 업무 배치를 피하는 것이 좋습니다.",
                 hasProblem(value));
     }
 
@@ -329,7 +647,7 @@ public class HealthStatusMlService {
                     label,
                     safe(value).isBlank() ? "입력값 있음" : value,
                     level,
-                    reasonScore(label, value, level),
+                    0,
                     description
             ));
         }
@@ -368,8 +686,15 @@ public class HealthStatusMlService {
         int maxHours = maxNumber(healthInfo.getMaxHours());
         if (maxHours > 0 && maxHours <= 2) {
             score += 25;
-        } else if (maxHours > 0 && maxHours <= 3) {
+        } else if (maxHours > 0 && maxHours <= 4) {
             score += 15;
+        }
+
+        SurgeryFeatures surgeryFeatures = buildSurgeryFeatures(healthInfo);
+        if (isSurgeryRisk(surgeryFeatures, healthInfo)) {
+            score += 25;
+        } else if (isSurgeryCaution(surgeryFeatures)) {
+            score += 10;
         }
 
         if (seriousDiseaseCount(healthInfo) >= 2) {
@@ -412,13 +737,14 @@ public class HealthStatusMlService {
         return 0;
     }
 
-    private String buildGradeBasis(int riskScore, String source) {
-        if ("ML".equalsIgnoreCase(source)) {
-            return "입력 항목 보조 점수 " + riskScore + "점입니다. 이 점수는 판정 사유를 설명하기 위한 참고 지표이며, 최종 건강 등급은 ML 예측 결과를 우선합니다.";
+    private String buildGradeBasis(String status) {
+        if ("위험".equals(status)) {
+            return "최근 낙상, 중증 질환, 기능 제한, 최근 수술 후 회복 상태처럼 안전 확인이 필요한 신호를 우선 확인합니다.";
         }
-
-        String grade = gradeByRiskScore(riskScore);
-        return riskScore + "점은 " + grade + " 기준입니다. 0~24점은 양호, 25~59점은 주의, 60점 이상은 위험으로 설명합니다.";
+        if ("주의".equals(status)) {
+            return "질환, 복약 수, 보행/감각 제한, 활동 가능 시간처럼 배치 전 확인이 필요한 신호를 함께 확인합니다.";
+        }
+        return "단일 불편 항목이 있어도 전체 건강 조건에서 크게 우려할 만한 신호가 뚜렷하지 않으면 양호로 설명합니다.";
     }
 
     private String gradeByRiskScore(int riskScore) {
@@ -431,8 +757,20 @@ public class HealthStatusMlService {
         return "양호";
     }
 
-    private String buildSummary(String status, int riskScore, List<HealthEvaluationReason> reasons, String source) {
+    private String buildSummary(String status, List<HealthEvaluationReason> reasons, String source, CaseValidation caseValidation) {
         if ("ML".equalsIgnoreCase(source)) {
+            if (caseValidation != null && Boolean.TRUE.equals(caseValidation.enabled())) {
+                if ("CONFIRMED".equals(caseValidation.decision())) {
+                    return "ML 모델의 1차 예측을 유사 사례 CSV와 비교했고, " + caseValidation.message();
+                }
+                if ("ADJUSTED_BY_SIMILAR_CASES".equals(caseValidation.decision())) {
+                    return "ML 모델의 1차 예측과 유사 사례 CSV를 비교한 뒤, " + caseValidation.message();
+                }
+                if ("REVIEW_REQUIRED".equals(caseValidation.decision())) {
+                    return "ML 모델의 1차 예측과 유사 사례 CSV가 완전히 일치하지 않아 추가 검토가 필요합니다. " + caseValidation.message();
+                }
+            }
+
             String primaryLabels = reasons.stream()
                     .filter(reason -> status.equals(reason.level()) || "위험".equals(reason.level()))
                     .limit(2)
@@ -440,11 +778,15 @@ public class HealthStatusMlService {
                     .reduce((left, right) -> left + ", " + right)
                     .orElse("입력 건강 정보");
 
-            return "ML 모델이 " + status + "로 예측했습니다. " + primaryLabels + " 항목은 판정 근거를 설명하기 위한 입력 기반 보조 근거입니다.";
+            if ("양호".equals(status)) {
+                return "ML 모델이 양호로 예측했습니다. 주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않았습니다.";
+            }
+
+            return "ML 모델이 " + status + "로 예측했습니다. " + primaryLabels + " 조건이 판정 근거로 확인되었습니다.";
         }
 
         if ("양호".equals(status)) {
-            return "위험 점수 " + riskScore + "점으로 주의 또는 위험으로 볼 만한 건강 조건이 감지되지 않아 양호로 판정되었습니다.";
+            return "주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않아 양호로 판정되었습니다.";
         }
 
         String primaryLabels = reasons.stream()
@@ -454,7 +796,7 @@ public class HealthStatusMlService {
                 .reduce((left, right) -> left + ", " + right)
                 .orElse("입력 건강 정보");
 
-        return "위험 점수 " + riskScore + "점입니다. " + primaryLabels + " 항목이 판정에 영향을 주어 " + status + "로 판정되었습니다.";
+        return primaryLabels + " 조건이 확인되어 " + status + "로 판정되었습니다.";
     }
 
     private Map<String, Double> normalizeProbabilities(String status, Map<String, Double> probabilities) {
@@ -505,6 +847,17 @@ public class HealthStatusMlService {
         return count;
     }
 
+    private List<String> seriousDiseaseDetails(HealthInfo healthInfo) {
+        List<String> details = new ArrayList<>();
+        addDetailIfPresent(details, "심장질환", healthInfo.getHeartDisease(), true);
+        addDetailIfPresent(details, "뇌졸중", healthInfo.getStroke(), true);
+        addDetailIfPresent(details, "신장질환", healthInfo.getKidneyDisease(), true);
+        addDetailIfPresent(details, "호흡기질환", healthInfo.getLungDisease(), true);
+        addDetailIfPresent(details, "암", healthInfo.getCancer(), true);
+        addDetailIfPresent(details, "치매", healthInfo.getDementia(), true);
+        return details;
+    }
+
     private int generalDiseaseCount(HealthInfo healthInfo) {
         int count = 0;
         if (hasProblem(healthInfo.getHypertension())) count++;
@@ -522,6 +875,37 @@ public class HealthStatusMlService {
         if (isNonNormal(healthInfo.getHearing())) count++;
         if (hasLimitedText(healthInfo.getDisabledWork())) count++;
         return count;
+    }
+
+    private List<String> physicalLimitationDetails(HealthInfo healthInfo) {
+        List<String> details = new ArrayList<>();
+        addDetailIfPresent(details, "보행 보조", healthInfo.getWalkingAid(), false);
+        addDetailIfPresent(details, "시각", healthInfo.getVision(), false);
+        addDetailIfPresent(details, "청각", healthInfo.getHearing(), false);
+        if (hasLimitedText(healthInfo.getDisabledWork())) {
+            addDetail(details, "어려운 업무", healthInfo.getDisabledWork());
+        }
+        return details;
+    }
+
+    private void addDetailIfPresent(List<String> details, String label, String value, boolean diseaseValue) {
+        boolean present = diseaseValue ? hasProblem(value) : isNonNormal(value);
+        if (present) {
+            if (diseaseValue) {
+                details.add(label);
+                return;
+            }
+            addDetail(details, label, value);
+        }
+    }
+
+    private void addDetail(List<String> details, String label, String value) {
+        String safeValue = safe(value).trim();
+        if (safeValue.isBlank() || "입력값 있음".equals(safeValue)) {
+            details.add(label);
+            return;
+        }
+        details.add(label + ": " + safeValue);
     }
 
     private boolean hasProblem(String value) {
@@ -634,7 +1018,9 @@ public class HealthStatusMlService {
 
     private record HealthStatusPrediction(
             String prediction,
-            Map<String, Double> probabilities
+            String mlPrediction,
+            Map<String, Double> probabilities,
+            CaseValidation caseValidation
     ) {
     }
 
@@ -646,7 +1032,14 @@ public class HealthStatusMlService {
             Integer maxRiskScore,
             String gradeBasis,
             String summary,
-            List<HealthEvaluationReason> reasons
+            List<HealthEvaluationReason> reasons,
+            CaseValidation caseValidation
+    ) {
+    }
+
+    public record HealthEvaluationInput(
+            Senior senior,
+            HealthInfo healthInfo
     ) {
     }
 
@@ -656,6 +1049,42 @@ public class HealthStatusMlService {
             String level,
             Integer score,
             String description
+    ) {
+    }
+
+    public record CaseValidation(
+            Boolean enabled,
+            String decision,
+            String source,
+            String mlPrediction,
+            String casePrediction,
+            String finalPrediction,
+            Double modelProbability,
+            String supportLevel,
+            String supportText,
+            Double averageSimilarity,
+            Integer similarCaseCount,
+            Integer agreeingCaseCount,
+            Boolean agreedWithModel,
+            String message,
+            List<SimilarCase> examples
+    ) {
+    }
+
+    public record SimilarCase(
+            String label,
+            Double similarity,
+            String summary
+    ) {
+    }
+
+    private record SurgeryFeatures(
+            boolean hasSurgery,
+            int count,
+            boolean recentOneYear,
+            boolean recentThreeYears,
+            String recoveryStatus,
+            String detail
     ) {
     }
 }

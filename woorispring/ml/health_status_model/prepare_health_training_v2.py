@@ -28,6 +28,11 @@ EXTERNAL_COLUMN_ALIASES = {
     "hearing": ["hearing", "Hearing"],
     "recent_fall": ["recent_fall", "Recent Fall", "falls"],
     "has_surgery": ["has_surgery", "Surgery", "surgery_history"],
+    "surgery_count": ["surgery_count", "Surgery Count", "surgery_count_num"],
+    "recent_surgery_1y": ["recent_surgery_1y", "recent_surgery_1year"],
+    "recent_surgery_3y": ["recent_surgery_3y", "recent_surgery_3year"],
+    "surgery_recovery": ["surgery_recovery", "surgery_recovery_status"],
+    "surgery_detail": ["surgery_detail", "surgery_type", "surgery_name"],
     "walking_limited": ["walking_limited", "walking_difficulty", "mobility_limited"],
     "fine_motor_limited": ["fine_motor_limited", "fine_motor_difficulty"],
     "max_hours": ["max_hours", "Max Hours"],
@@ -239,6 +244,8 @@ def fill_defaults(df: pd.DataFrame) -> pd.DataFrame:
         "dementia",
         "recent_fall",
         "has_surgery",
+        "recent_surgery_1y",
+        "recent_surgery_3y",
     ]
     for column in disease_columns:
         if column in df.columns:
@@ -247,6 +254,7 @@ def fill_defaults(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = df[col].replace("", default).fillna(default)
     df["medicine_count"] = df["medicine_count"].replace("", "0").fillna("0")
+    df["surgery_count"] = df["surgery_count"].replace("", "0").fillna("0")
     df["max_hours"] = df["max_hours"].replace("", "5").fillna("5")
     return df
 
@@ -273,12 +281,24 @@ def weak_label(row: pd.Series) -> str:
     medicine_count = int(number(row["medicine_count"]) or 0)
     max_hours = int(number(row["max_hours"]) or 0)
     age = int(number(row["age"]) or 0)
+    has_surgery = problem(row["has_surgery"]) or (number(row["surgery_count"]) or 0) > 0
+    recent_surgery_1y = problem(row["recent_surgery_1y"])
+    recent_surgery_3y = problem(row["recent_surgery_3y"])
+    surgery_recovering = recovery_incomplete(row["surgery_recovery"])
+    surgery_high_impact = high_impact_surgery(row["surgery_detail"])
 
-    if problem(row["recent_fall"]) or serious >= 2 or limitations >= 4 or (serious >= 1 and 0 < max_hours <= 2):
+    surgery_risk = recent_surgery_1y and surgery_recovering and (
+        limitations >= 1 or (0 < max_hours <= 3) or surgery_high_impact
+    )
+    surgery_caution = has_surgery and (
+        recent_surgery_1y or recent_surgery_3y or surgery_recovering or surgery_high_impact
+    )
+
+    if problem(row["recent_fall"]) or serious >= 2 or limitations >= 4 or (serious >= 1 and 0 < max_hours <= 2) or surgery_risk:
         return "위험"
     if age >= 85:
         return "주의"
-    if serious >= 1 or chronic >= 1 or medicine_count >= 3 or limitations >= 1 or (0 < max_hours <= 3):
+    if serious >= 1 or chronic >= 1 or medicine_count >= 3 or limitations >= 1 or (0 < max_hours <= 3) or surgery_caution:
         return "주의"
     return "양호"
 
@@ -295,6 +315,26 @@ def limited(value: object) -> bool:
     if not text or any(keyword in text for keyword in ["없음", "정상", "양호", "미사용", "no", "none", "false", "0"]):
         return False
     return any(keyword in text for keyword in ["불편", "보조", "저하", "나쁨", "어려", "제한", "필요", "사용", "장애", "yes", "true", "1"])
+
+
+def recovery_incomplete(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    if any(keyword in text for keyword in ["회복완료", "완료", "recovered", "complete", "정상"]):
+        return False
+    return any(keyword in text for keyword in ["회복중", "미회복", "모름", "불완전", "치료", "재활", "중", "incomplete", "recovering", "unknown"])
+
+
+def high_impact_surgery(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    return any(keyword in text for keyword in [
+        "관절", "무릎", "고관절", "척추", "허리", "디스크", "골절", "인공관절",
+        "심장", "스텐트", "관상동맥", "뇌", "뇌졸중", "암", "폐", "신장",
+        "다리", "발목", "발", "hip", "knee", "spine", "heart", "brain", "cancer",
+    ])
 
 
 def number(value: object) -> float | None:

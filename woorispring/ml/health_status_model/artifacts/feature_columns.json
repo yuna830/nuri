@@ -32,5 +32,11 @@
   "very_short_hours_flag",
   "vision_limited_flag",
   "hearing_limited_flag",
-  "walking_aid_flag"
+  "walking_aid_flag",
+  "has_surgery_flag",
+  "surgery_count_num",
+  "recent_surgery_1y_flag",
+  "recent_surgery_3y_flag",
+  "surgery_recovery_incomplete_flag",
+  "surgery_high_impact_flag"
 ]

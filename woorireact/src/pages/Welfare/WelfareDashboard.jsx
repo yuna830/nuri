@@ -5,6 +5,7 @@ import { CheckCircle, MapPin, MessageCircle, Phone, Route, Search } from "lucide
 import {
     fetchWelfareAlerts,
     fetchWelfareSeniors,
+    fetchWelfareSeniorHealthEvaluations,
     requestSeniorInfoUpdate,
     searchSeniorExact,
     assignWelfareSenior,
@@ -184,9 +185,37 @@ function WelfareDashboard() {
                 });
                 const rawSeniors = Array.isArray(data) ? data : data.content;
                 const nextSeniors = Array.isArray(rawSeniors) ? rawSeniors.map(mapWelfareSenior) : [];
+                let seniorsWithMlHealthStatus = nextSeniors;
+
+                // 목록과 상세 화면이 서로 다른 판정을 보여주지 않도록,
+                // 표도 상세와 같은 ML 판정 API 결과를 받은 뒤 렌더링한다.
+                const seniorIds = nextSeniors.map((senior) => senior.id).filter(Boolean);
+                if (seniorIds.length > 0) {
+                    try {
+                        const evaluations = await fetchWelfareSeniorHealthEvaluations(seniorIds);
+                        if (Array.isArray(evaluations)) {
+                            const statusBySeniorId = new Map(
+                                evaluations
+                                    .filter((evaluation) => evaluation?.seniorId && evaluation?.healthStatus)
+                                    .map((evaluation) => [String(evaluation.seniorId), evaluation.healthStatus])
+                            );
+
+                            if (statusBySeniorId.size > 0) {
+                                seniorsWithMlHealthStatus = nextSeniors.map((senior) => {
+                                    const healthStatus = statusBySeniorId.get(String(senior.id));
+                                    return healthStatus
+                                        ? { ...senior, healthStatus, healthStatusSource: "ML" }
+                                        : senior;
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error("목록 건강 상태 ML 갱신 실패:", error);
+                    }
+                }
 
                 if (!ignore) {
-                    setSeniors(nextSeniors);
+                    setSeniors(seniorsWithMlHealthStatus);
                     setServerTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
                     setServerTotalSeniors(Array.isArray(data) ? nextSeniors.length : Number(data.totalElements || 0));
                 }

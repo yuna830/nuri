@@ -183,6 +183,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-size",    type=float, default=0.2)
     parser.add_argument("--cv-folds",     type=int,   default=5)
     parser.add_argument("--random-state", type=int,   default=42)
+    parser.add_argument("--labeling-method", default="K-FRAIL (임상 척도 기반)")
+    parser.add_argument(
+        "--apply-service-policy-labels",
+        action="store_true",
+        help="Relabel training rows by service health policy before model fitting.",
+    )
     return parser.parse_args()
 
 
@@ -204,6 +210,8 @@ def main() -> None:
         validate_columns(part, ["label"])
         frames.append(part)
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    if args.apply_service_policy_labels:
+        df = apply_service_policy_labels(df)
 
     y_raw = df["label"].map(normalize_label)
     x     = build_features(df)
@@ -350,7 +358,8 @@ def main() -> None:
     metrics = {
         "model":           "XGBoost (2-stage cascade)",
         "architecture":    "Stage1: 양호vs비양호 → Stage2: 주의vs위험",
-        "labeling_method": "K-FRAIL (임상 척도 기반)",
+        "labeling_method": args.labeling_method,
+        "service_policy_labeling": bool(args.apply_service_policy_labels),
         "total_rows":      int(len(df)),
         "train_rows":      int(len(x_train)),
         "test_rows":       int(len(x_test)),
@@ -389,6 +398,119 @@ def main() -> None:
         "stage1_auc": round(s1_auc, 4),
         "stage2_auc": round(s2_auc, 4) if s2_auc else None,
     }, ensure_ascii=False, indent=2))
+
+
+def apply_service_policy_labels(df: pd.DataFrame) -> pd.DataFrame:
+    working = df.copy()
+    for column in REQUIRED_COLUMNS:
+        if column not in working.columns:
+            working[column] = ""
+
+    serious = working.apply(serious_disease_count, axis=1)
+    chronic = working.apply(chronic_disease_count, axis=1)
+    limitations = working.apply(functional_limitation_count, axis=1)
+    medicine = working["medicine_count"].map(number).fillna(0)
+    max_hours = working["max_hours"].map(number).fillna(0)
+    recent_fall = working["recent_fall"].map(problem)
+    has_surgery = working["has_surgery"].map(problem) | (working["surgery_count"].map(number).fillna(0) > 0)
+    recent_surgery_1y = working["recent_surgery_1y"].map(problem)
+    recent_surgery_3y = working["recent_surgery_3y"].map(problem)
+    surgery_recovering = working["surgery_recovery"].map(recovery_incomplete)
+    surgery_high_impact = working["surgery_detail"].map(high_impact_surgery)
+
+    surgery_risk = recent_surgery_1y & surgery_recovering & (
+        (limitations >= 1) | ((max_hours > 0) & (max_hours <= 3)) | surgery_high_impact
+    )
+    surgery_caution = has_surgery & (
+        recent_surgery_1y | recent_surgery_3y | surgery_recovering | surgery_high_impact
+    )
+
+    risk = (recent_fall | (serious >= 2) | (limitations >= 4) | surgery_risk)
+    caution = (
+        ~risk
+        & (
+            (serious >= 1)
+            | (chronic >= 1)
+            | (medicine >= 3)
+            | (limitations >= 1)
+            | ((max_hours > 0) & (max_hours <= 3))
+            | surgery_caution
+        )
+    )
+
+    working.loc[risk, "label"] = "위험"
+    working.loc[caution, "label"] = "주의"
+    working.loc[~risk & ~caution, "label"] = "양호"
+    return working
+
+
+def serious_disease_count(row: pd.Series) -> int:
+    return sum(problem(row.get(column)) for column in [
+        "heart_disease",
+        "stroke",
+        "kidney_disease",
+        "lung_disease",
+        "cancer",
+        "dementia",
+    ])
+
+
+def chronic_disease_count(row: pd.Series) -> int:
+    return sum(problem(row.get(column)) for column in [
+        "hypertension",
+        "diabetes",
+        "joint_disease",
+        "liver_disease",
+    ])
+
+
+def functional_limitation_count(row: pd.Series) -> int:
+    return sum([
+        problem(row.get("walking_limited")),
+        problem(row.get("fine_motor_limited")),
+        limited(row.get("walking_aid")),
+        limited(row.get("vision")),
+        limited(row.get("hearing")),
+    ])
+
+
+def problem(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text or any(keyword in text for keyword in ["없음", "없다", "정상", "양호", "아니오", "no", "none", "false", "0"]):
+        return False
+    return any(keyword in text for keyword in ["있음", "있다", "주의", "위험", "질환", "진단", "치료", "관리", "제한", "중증", "경증", "yes", "true", "1"])
+
+
+def limited(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text or any(keyword in text for keyword in ["없음", "없다", "정상", "양호", "미사용", "no", "none", "false", "0"]):
+        return False
+    return any(keyword in text for keyword in ["불편", "보조", "저하", "나쁨", "어려", "제한", "필요", "사용", "장애", "yes", "true", "1"])
+
+
+def recovery_incomplete(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    if any(keyword in text for keyword in ["회복완료", "완료", "recovered", "complete", "정상"]):
+        return False
+    return any(keyword in text for keyword in ["회복중", "미회복", "모름", "불완전", "치료", "재활", "중", "incomplete", "recovering", "unknown"])
+
+
+def high_impact_surgery(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    return any(keyword in text for keyword in [
+        "관절", "무릎", "고관절", "척추", "허리", "디스크", "골절", "인공관절",
+        "심장", "스텐트", "관상동맥", "뇌", "뇌졸중", "암", "폐", "신장",
+        "다리", "발목", "발", "hip", "knee", "spine", "heart", "brain", "cancer",
+    ])
+
+
+def number(value: object) -> float:
+    parsed = pd.to_numeric(value, errors="coerce")
+    return 0.0 if pd.isna(parsed) else float(parsed)
 
 
 if __name__ == "__main__":
