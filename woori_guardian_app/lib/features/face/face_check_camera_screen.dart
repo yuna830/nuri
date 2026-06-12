@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -75,14 +76,30 @@ class _BouncingLoadingTextState extends State<_BouncingLoadingText>
   }
 }
 
+/// 사진에서 인식된 실종자 한 명 — 다중 인식(한 사진에 실종자 여러 명) 지원
+class FaceMatchCandidate {
+  final int seniorId;
+  final String? seniorName;
+  final double? similarity;
+
+  const FaceMatchCandidate({
+    required this.seniorId,
+    this.seniorName,
+    this.similarity,
+  });
+}
+
 class FaceVerifyResult {
   final bool matched;
   final String message;
   final String? seniorName;
 
-  // 발견 제보 전송에 필요한 정보 — 매치된 사용자 ID와 유사도
+  // 발견 제보 전송에 필요한 정보 — 매치된 사용자 ID와 유사도 (최고 유사도 1명)
   final int? seniorId;
   final double? similarity;
+
+  // 사진에서 인식된 실종자 전체 (여러 명일 수 있음)
+  final List<FaceMatchCandidate> matches;
 
   const FaceVerifyResult({
     required this.matched,
@@ -90,6 +107,7 @@ class FaceVerifyResult {
     this.seniorName,
     this.seniorId,
     this.similarity,
+    this.matches = const [],
   });
 }
 
@@ -411,6 +429,32 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     }
   }
 
+  // 발견자 폰의 현재 위치 — 보호자에게 "어디서 발견했는지" 알려주는 핵심 정보.
+  // 위치를 못 얻어도 제보 자체는 막지 않는다.
+  Future<Position?> _getCurrentPosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        return null;
+      }
+
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── 발견 제보 ─────────────────────────────────────────────────────────────
   // 이미 신고된 사용자과 일치/유사한 사람을 발견했을 때,
   // 새 신고를 만드는 대신 찍은 사진과 유사도를 보호자에게 알림으로 보낸다.
@@ -418,7 +462,21 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     final result = _lastVerifyResult;
     final captured = _capturedImage;
 
-    if (result == null || result.seniorId == null) {
+    // 인식된 실종자 전체에게 제보 — 한 사진에 여러 명이 인식될 수 있다.
+    final targets = result == null
+        ? const <FaceMatchCandidate>[]
+        : result.matches.isNotEmpty
+        ? result.matches
+        : [
+            if (result.seniorId != null)
+              FaceMatchCandidate(
+                seniorId: result.seniorId!,
+                seniorName: result.seniorName,
+                similarity: result.similarity,
+              ),
+          ];
+
+    if (targets.isEmpty) {
       setState(() => _guideText = '제보 대상 정보가 없습니다. 다시 확인해주세요.');
       return;
     }
@@ -430,6 +488,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     });
 
     try {
+      // 발견 위치 — 보호자가 어디로 가야 할지 알 수 있게 함께 보낸다.
+      final position = await _getCurrentPosition();
+
       // 찍은 사진을 업로드해 알림에 첨부
       String? imageUrl;
       if (captured != null) {
@@ -454,32 +515,50 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         }
       }
 
-      final response = await http
-          .post(
-            Uri.parse('${AppConfig.apiBaseUrl}/alerts/camera'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'seniorId': result.seniorId,
-              'type': 'AI_CANDIDATE_CONFIRM',
-              if (imageUrl != null) 'imageUrl': imageUrl,
-              if (result.similarity != null)
-                'similarityScore': result.similarity,
-              'candidateKind': 'FACE_MATCH',
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      // 인식된 실종자마다 각자의 보호자에게 알림 전송
+      var successCount = 0;
+      for (final target in targets) {
+        try {
+          final response = await http
+              .post(
+                Uri.parse('${AppConfig.apiBaseUrl}/alerts/camera'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({
+                  'seniorId': target.seniorId,
+                  'type': 'AI_CANDIDATE_CONFIRM',
+                  if (imageUrl != null) 'imageUrl': imageUrl,
+                  if (target.similarity != null)
+                    'similarityScore': target.similarity,
+                  'candidateKind': 'FACE_MATCH',
+                  if (position != null) ...{
+                    'latitude': position.latitude,
+                    'longitude': position.longitude,
+                  },
+                }),
+              )
+              .timeout(const Duration(seconds: 10));
+
+          if (response.statusCode == 200) successCount++;
+        } catch (_) {
+          // 일부 대상 전송 실패는 건너뛰고 나머지를 계속 보낸다.
+        }
+      }
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('보호자에게 발견 제보를 보냈습니다.')));
+      if (successCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              targets.length > 1
+                  ? '보호자에게 발견 제보를 보냈습니다. ($successCount/${targets.length}명)'
+                  : '보호자에게 발견 제보를 보냈습니다.',
+            ),
+          ),
+        );
         Navigator.pop(context);
       } else {
-        setState(
-          () => _guideText = '발견 제보 전송에 실패했습니다. (${response.statusCode})',
-        );
+        setState(() => _guideText = '발견 제보 전송에 실패했습니다.');
       }
     } on TimeoutException {
       if (!mounted) return;
@@ -603,6 +682,26 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       final similarity = data['bestSimilarity'];
       final similarityValue = similarity is num ? similarity.toDouble() : null;
 
+      // 사진 속에서 인식된 실종자 전체 (여러 명일 수 있음)
+      final matches = <FaceMatchCandidate>[];
+      final rawMatches = data['matches'];
+      if (rawMatches is List) {
+        for (final item in rawMatches) {
+          if (item is! Map) continue;
+          final matchSeniorId = (item['seniorId'] as num?)?.toInt();
+          if (matchSeniorId == null) continue;
+          final matchSimilarity = item['similarity'];
+          matches.add(
+            FaceMatchCandidate(
+              seniorId: matchSeniorId,
+              seniorName: item['seniorName']?.toString(),
+              similarity:
+                  matchSimilarity is num ? matchSimilarity.toDouble() : null,
+            ),
+          );
+        }
+      }
+
       String formatSimilarity(dynamic value) {
         if (value is num) return value.toStringAsFixed(2);
         return value?.toString() ?? '-';
@@ -610,6 +709,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       final scoreText = formatSimilarity(similarity);
       final displayName = name == null || name.isEmpty ? '등록된 실종자' : name;
+      final matchNames = matches
+          .map((m) => m.seniorName ?? '등록 실종자')
+          .join(', ');
 
       if (status == 'MATCH') {
         return FaceVerifyResult(
@@ -617,7 +719,10 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
           seniorName: name,
           seniorId: seniorId,
           similarity: similarityValue,
-          message: '$displayName님과 일치 가능성이 높습니다. 유사도: $scoreText',
+          matches: matches,
+          message: matches.length >= 2
+              ? '$matchNames님 등 ${matches.length}명과 유사한 얼굴이 인식되었습니다. 직접 확인 후 제보해주세요.'
+              : '$displayName님과 일치 가능성이 높습니다. 유사도: $scoreText',
         );
       }
 
@@ -628,7 +733,10 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
           seniorName: name,
           seniorId: seniorId,
           similarity: similarityValue,
-          message: '$displayName님과 비슷한 얼굴입니다. 직접 확인 후 제보해주세요. 유사도: $scoreText',
+          matches: matches,
+          message: matches.length >= 2
+              ? '$matchNames님 등 ${matches.length}명과 비슷한 얼굴입니다. 직접 확인 후 제보해주세요.'
+              : '$displayName님과 비슷한 얼굴입니다. 직접 확인 후 제보해주세요. 유사도: $scoreText',
         );
       }
 

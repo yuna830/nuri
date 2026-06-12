@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Maximize2, Search, X } from "lucide-react";
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 import { gToast } from "../../utils/guardian/guardianToast.js";
 
@@ -124,6 +124,8 @@ function EmergencyPanel({
     : "보호 대상자님";
   const [policeIndex, setPoliceIndex] = useState(0);
   const [isPoliceSearchOpen, setIsPoliceSearchOpen] = useState(false);
+  // AI 실종 후보를 모달로 크게 보기
+  const [expandedCandidate, setExpandedCandidate] = useState(null);
   const [policeSearchKeyword, setPoliceSearchKeyword] = useState("");
   const [activePanelTab, setActivePanelTab] = useState("today");
 
@@ -825,9 +827,27 @@ function EmergencyPanel({
                       )}
 
                       <div>
-                        <strong>{alert.seniorName || selectedElder.name}님과 유사한 후보</strong>
+                        <div className="ai-candidate-title-row">
+                          <strong>{alert.seniorName || selectedElder.name}님과 유사한 후보</strong>
+                          <button
+                            type="button"
+                            className="ai-candidate-expand"
+                            onClick={() => setExpandedCandidate(alert)}
+                            aria-label="크게 보기"
+                            title="크게 보기"
+                          >
+                            <Maximize2 size={14} />
+                          </button>
+                        </div>
                         {/* 유사도 수치는 보호자에게 혼란만 줘서 표시하지 않는다 */}
                         <p>{(alert.message || "").replace(/\s*유사도\s*\d+(\.\d+)?\s*%\.?/g, "")}</p>
+                        {(alert.address || alert.latitude) && (
+                          <em className="ai-candidate-location">
+                            발견 위치: {alert.address
+                              ? alert.address
+                              : `${Number(alert.latitude).toFixed(5)}, ${Number(alert.longitude).toFixed(5)}`}
+                          </em>
+                        )}
                         <span>{alert.time}</span>
 
                         <div className="ai-candidate-actions">
@@ -836,7 +856,7 @@ function EmergencyPanel({
                           </button>
 
                           <button type="button" onClick={() => onOpenEmergencyReport?.(alert)}>
-                            맞는 것 같아요
+                            맞아요
                           </button>
                         </div>
                       </div>
@@ -952,6 +972,87 @@ function EmergencyPanel({
               </button>
             </div>
 
+          </section>
+        </div>
+      )}
+
+      {expandedCandidate && (
+        <div
+          className="police-search-backdrop"
+          onClick={() => setExpandedCandidate(null)}
+        >
+          <section
+            className="ai-candidate-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="ai-candidate-modal-header">
+              <h2>
+                {expandedCandidate.seniorName || selectedElder.name}님과 유사한
+                후보
+              </h2>
+              <button
+                type="button"
+                onClick={() => setExpandedCandidate(null)}
+                aria-label="닫기"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {expandedCandidate.imageUrl && (
+              <img src={expandedCandidate.imageUrl} alt="AI 후보 이미지" />
+            )}
+
+            <p>
+              {(expandedCandidate.message || "").replace(
+                /\s*유사도\s*\d+(\.\d+)?\s*%\.?/g,
+                ""
+              )}
+            </p>
+
+            {(expandedCandidate.address || expandedCandidate.latitude) && (
+              <em className="ai-candidate-location">
+                발견 위치: {expandedCandidate.address
+                  ? expandedCandidate.address
+                  : `${Number(expandedCandidate.latitude).toFixed(5)}, ${Number(expandedCandidate.longitude).toFixed(5)}`}
+              </em>
+            )}
+
+            {expandedCandidate.latitude && expandedCandidate.longitude && (
+              <a
+                className="ai-candidate-map-link"
+                href={`https://map.kakao.com/link/map/발견 위치,${expandedCandidate.latitude},${expandedCandidate.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                지도에서 발견 위치 보기
+              </a>
+            )}
+
+            <span>{expandedCandidate.time}</span>
+
+            <div className="ai-candidate-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  onReadAlert?.(expandedCandidate.id);
+                  setExpandedCandidate(null);
+                }}
+              >
+                아니에요
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const candidate = expandedCandidate;
+                  setExpandedCandidate(null);
+                  onOpenEmergencyReport?.(candidate);
+                }}
+              >
+                맞아요
+              </button>
+            </div>
           </section>
         </div>
       )}

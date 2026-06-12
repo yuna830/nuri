@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/location/background_location_service.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 import '../chat/chat_screen.dart';
@@ -62,6 +63,9 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     _pollUnread();
     _notiTimer = Timer.periodic(const Duration(seconds: 10), (_) => _pollUnread());
+
+    // 앱을 닫아도 위치가 전송되도록 백그라운드 위치 서비스 시작
+    BackgroundLocationService.start(seniorId: widget.seniorId);
   }
 
   @override

@@ -36,6 +36,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   bool _hasGuardian = true;   // 프로필 로드 전 기본값
   bool _profileLoaded = false;
+  String _seniorName = '어르신'; // 프로필 로드 전 기본값
 
   // 보호자 유무에 따라 탭 목록이 달라짐
   List<_Tab> get _tabs => [
@@ -58,6 +59,10 @@ class _ChatScreenState extends State<ChatScreen>
       final raw = await const SeniorApi().fetchProfile(widget.seniorId);
       final senior = raw['senior'] as Map<String, dynamic>? ?? {};
       _hasGuardian = senior['hasGuardian'] != false; // null/true → true
+
+      // 채팅에 표시될 보낸 사람 이름 — 실제 이름 사용
+      final name = senior['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty) _seniorName = name;
     } catch (_) {
       _hasGuardian = true; // 오류 시 보수적으로 탭 유지
     }
@@ -187,6 +192,7 @@ class _ChatScreenState extends State<ChatScreen>
           if (t.roomType == 'AI') return _AiChatRoom(seniorId: widget.seniorId);
           return _HumanChatRoom(
             seniorId: widget.seniorId,
+            seniorName: _seniorName,
             roomType: t.roomType,
             isActive: ctrl.index == i,
             onRead: () {
@@ -210,11 +216,13 @@ class _Tab {
 class _HumanChatRoom extends StatefulWidget {
   const _HumanChatRoom({
     required this.seniorId,
+    required this.seniorName,
     required this.roomType,
     required this.isActive,
     required this.onRead,
   });
   final int seniorId;
+  final String seniorName;
   final String roomType;
   final bool isActive;
   final VoidCallback onRead;
@@ -300,7 +308,7 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
           'roomType': widget.roomType,
           'senderRole': 'SENIOR',
           'senderId': widget.seniorId,
-          'senderName': '어르신',
+          'senderName': widget.seniorName,
           'message': msg,
           if (attachUrl != null) 'attachmentUrl': attachUrl,
           if (attachType != null) 'attachmentType': attachType,

@@ -8,6 +8,7 @@ import 'package:kakao_map_plugin/kakao_map_plugin.dart' as kakao;
 
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/location/background_location_service.dart';
 import '../../core/storage/senior_session_storage.dart';
 import '../auth/login_screen.dart';
 
@@ -510,6 +511,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
     if (confirmed == true && mounted) {
+      // 로그아웃하면 백그라운드 위치 전송도 중지
+      await BackgroundLocationService.stop();
       await SeniorSessionStorage.clear();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
