@@ -4,23 +4,24 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
 // ── 색상 ─────────────────────────────────────────────────────────────────
-const _kGreen    = Color(0xFF86A788);
-const _kSafe     = Color(0xFF4A7A4C);
-const _kSafeBg   = Color(0xFFEEF5EE);
-const _kWarn     = Color(0xFFFF9500);
-const _kWarnBg   = Color(0xFFFFF4E5);
-const _kRed      = Color(0xFFB85252);
-const _kRedBg    = Color(0xFFF5EAEA);
-const _kIconGray = Color(0xFF8E8E93);
-const _kIconBg   = Color(0xFFF0F0F2);
-const _kBlue     = Color(0xFF1565C0);
-const _kBlueBg   = Color(0xFFE3F2FD);
-const _kTextMain = Color(0xFF1C1C1E);
-const _kTextSub  = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
-const _kDivider  = Color(0xFFE5E5EA);
+const _kGreen    = AppColors.green;
+const _kSafe     = AppColors.safe;
+const _kSafeBg   = AppColors.safeBg;
+const _kWarn     = AppColors.warn;
+const _kWarnBg   = AppColors.warnBg;
+const _kRed      = AppColors.red;
+const _kRedBg    = AppColors.redBg;
+const _kIconGray = AppColors.iconGray;
+const _kIconBg   = AppColors.iconBg;
+const _kBlue     = AppColors.blue;
+const _kBlueBg   = AppColors.blueBg;
+const _kTextMain = AppColors.textMain;
+const _kTextSub  = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
+const _kDivider  = AppColors.divider;
 const _kBg = Colors.white;
 
 class ContactSeniorScreen extends StatefulWidget {

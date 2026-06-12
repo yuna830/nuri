@@ -5,19 +5,20 @@ import '../../core/api/guardian_api.dart';
 import '../../core/models/alert.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
-const _kGreen = Color(0xFF86A788);
-const _kRed = Color(0xFFB85252);
-const _kSafe = Color(0xFF4A7A4C);
-const _kSafeBg = Color(0xFFEEF5EE);
-const _kWarn = Color(0xFFFF9500);
-const _kWarnBg = Color(0xFFFFF4E5);
-const _kNeutral = Color(0xFF6C6C70);
-const _kNeutralBg = Color(0xFFF2F2F7);
-const _kTextMain = Color(0xFF1C1C1E);
-const _kTextSub = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
-const _kDivider = Color(0xFFE5E5EA);
+const _kGreen = AppColors.green;
+const _kRed = AppColors.red;
+const _kSafe = AppColors.safe;
+const _kSafeBg = AppColors.safeBg;
+const _kWarn = AppColors.warn;
+const _kWarnBg = AppColors.warnBg;
+const _kNeutral = AppColors.neutral;
+const _kNeutralBg = AppColors.neutralBg;
+const _kTextMain = AppColors.textMain;
+const _kTextSub = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
+const _kDivider = AppColors.divider;
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -855,7 +856,7 @@ class _NotificationActionHeader extends StatelessWidget {
                                     ? FontWeight.w800
                                     : FontWeight.w600,
                                 color: selected
-                                    ? const Color(0xFF86A788)
+                                    ? AppColors.green
                                     : const Color(0xFF6C6C70),
                               ),
                             ),
@@ -866,7 +867,7 @@ class _NotificationActionHeader extends StatelessWidget {
                           height: 3,
                           decoration: BoxDecoration(
                             color: selected
-                                ? const Color(0xFF86A788)
+                                ? AppColors.green
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(99),
                           ),
@@ -1006,8 +1007,17 @@ class _AlertTile extends StatelessWidget {
                                 MaterialTapTargetSize.shrinkWrap,
                           ),
                         )
-                      else if (actions.length == 1)
-                        _buildActionButton(actions.first),
+                      else if (actions.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final action in actions) ...[
+                              _buildActionButton(action),
+                              if (action != actions.last)
+                                const SizedBox(width: 2),
+                            ],
+                          ],
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1023,22 +1033,6 @@ class _AlertTile extends StatelessWidget {
                     _formatTime(alert.createdAt),
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
-
-                  // 버튼 2개 이상: 하단에 가로로
-                  if (!isRead && actions.length >= 2) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: actions.asMap().entries.map((entry) {
-                        final isLast = entry.key == actions.length - 1;
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(right: isLast ? 0 : 4),
-                            child: _buildActionButton(entry.value),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -1052,56 +1046,27 @@ class _AlertTile extends StatelessWidget {
     final label = Text(
       action.label,
       style: TextStyle(
-        fontSize: 11,
-        fontWeight: action.primary ? FontWeight.w700 : FontWeight.w600,
+        fontSize: 12,
+        // 주요 버튼은 더 굵게 해서 텍스트만으로도 구분되게
+        fontWeight: action.primary ? FontWeight.w800 : FontWeight.w600,
       ),
     );
-    final filledStyle = FilledButton.styleFrom(
-      backgroundColor: action.color,
-      foregroundColor: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      minimumSize: const Size(0, 30),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    );
-    final outlinedStyle = OutlinedButton.styleFrom(
-      backgroundColor: Colors.white,
+    final textStyle = TextButton.styleFrom(
       foregroundColor: action.color,
-      side: BorderSide(color: action.color.withValues(alpha: 0.5)),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       minimumSize: const Size(0, 30),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
     );
 
-    if (action.primary) {
-      if (action.icon != null) {
-        return FilledButton.icon(
-          onPressed: action.onTap,
-          icon: Icon(action.icon, size: 13),
-          label: label,
-          style: filledStyle,
-        );
-      }
-      return FilledButton(
-        onPressed: action.onTap,
-        style: filledStyle,
-        child: label,
-      );
-    }
     if (action.icon != null) {
-      return OutlinedButton.icon(
+      return TextButton.icon(
         onPressed: action.onTap,
-        icon: Icon(action.icon, size: 12),
+        icon: Icon(action.icon, size: 13),
         label: label,
-        style: outlinedStyle,
+        style: textStyle,
       );
     }
-    return OutlinedButton(
-      onPressed: action.onTap,
-      style: outlinedStyle,
-      child: label,
-    );
+    return TextButton(onPressed: action.onTap, style: textStyle, child: label);
   }
 
   String _formatTime(DateTime? dt) {

@@ -11,6 +11,7 @@ import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
 enum _GuardianChatTarget { senior, socialWorker }
 
@@ -27,7 +28,7 @@ extension _GuardianChatTargetValue on _GuardianChatTarget {
   String get emptyText {
     switch (this) {
       case _GuardianChatTarget.senior:
-        return '아직 어르신과의 대화가 없습니다.';
+        return '아직 대상자와의 대화가 없습니다.';
       case _GuardianChatTarget.socialWorker:
         return '아직 담당 복지사와의 대화가 없습니다.';
     }
@@ -52,6 +53,8 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
   bool _loading = true;
 
   _GuardianChatTarget _selectedTarget = _GuardianChatTarget.senior;
+  // 보호 대상자별 미확인 채팅 수 — 대상자 선택 바텀시트의 빨간 배지에 사용
+  Map<int, int> _unreadBySenior = {};
 
   @override
   void initState() {
@@ -82,13 +85,44 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
         _selectedSenior = seniors.isNotEmpty ? seniors.first : null;
         _loading = false;
       });
+
+      // 처음 로드 시에도 한 번 불러오기
+      _loadUnreadBySenior();
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _showSeniorPicker() {
+  // 보호 대상자별 미확인 수 조회 메서드
+  Future<void> _loadUnreadBySenior() async {
+    final counts = <int, int>{};
+
+    for (final senior in _seniors) {
+      try {
+        final url = Uri.parse(
+          '${AppConfig.apiBaseUrl}/chat/unread'
+          '?viewerRole=GUARDIAN&seniorId=${senior.id}',
+        );
+        final response = await http
+            .get(url)
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode != 200) continue;
+
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data is Map<String, dynamic>) {
+          counts[senior.id] = (data['count'] as num?)?.toInt() ?? 0;
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _unreadBySenior = counts);
+  }
+
+  // 바텀시트 열기 전에 미확인 수를 새로 가져옴
+  Future<void> _showSeniorPicker() async {
     if (_seniors.length <= 1) return;
+    await _loadUnreadBySenior();
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -155,13 +189,39 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
                         color: Color(0xFF6D766A),
                       ),
                     ),
-                    trailing: _selectedSenior?.id == senior.id
-                        ? const Icon(
+                    // 미확인이 있으면 빨간 점+숫자, 선택된 대상자는 체크 표시
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if ((_unreadBySenior[senior.id] ?? 0) > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_unreadBySenior[senior.id]}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        if (_selectedSenior?.id == senior.id) ...[
+                          const SizedBox(width: 6),
+                          const Icon(
                             Icons.check,
                             size: 18,
-                            color: Color(0xFF86A788),
-                          )
-                        : null,
+                            color: AppColors.green,
+                          ),
+                        ],
+                      ],
+                    ),
                     onTap: () {
                       setState(() => _selectedSenior = senior);
                       Navigator.pop(ctx);
@@ -214,10 +274,31 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
                   ),
                   if (_seniors.length > 1) ...[
                     const SizedBox(width: 2),
-                    const Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 18,
-                      color: Color(0xFF6D766A),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 18,
+                          color: Color(0xFF6D766A),
+                        ),
+                        // 지금 보고 있는 대상자 외에 미확인이 있으면 빨간 점
+                        if (_unreadBySenior.entries.any(
+                          (e) => e.key != _selectedSenior?.id && e.value > 0,
+                        ))
+                          Positioned(
+                            top: -1,
+                            right: -1,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: AppColors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ],
@@ -257,12 +338,12 @@ class _GuardianChatScreenState extends State<GuardianChatScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF86A788)),
+              child: CircularProgressIndicator(color: AppColors.green),
             )
           : _seniors.isEmpty
           ? const Center(
               child: Text(
-                '연결된 어르신이 없습니다.',
+                '연결된 대상자가 없습니다.',
                 style: TextStyle(
                   color: Color(0xFF6D766A),
                   fontWeight: FontWeight.w700,
@@ -306,7 +387,7 @@ class _AppBarTargetToggle extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _AppBarTargetButton(
-            label: '어르신',
+            label: '사용자',
             selected: selectedTarget == _GuardianChatTarget.senior,
             onTap: () => onChanged(_GuardianChatTarget.senior),
           ),
@@ -558,7 +639,6 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
     setState(() => _sending = true);
 
     try {
-      final baseUrl = AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '');
       final uploadUri = Uri.parse('${AppConfig.apiBaseUrl}/uploads/chat');
       final request = http.MultipartRequest('POST', uploadUri);
       request.files.add(
@@ -571,7 +651,6 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
       if (fileUrl.isEmpty) throw Exception('업로드 실패');
 
       final isImage = mimeType?.startsWith('image/') ?? false;
-      final fullUrl = fileUrl.startsWith('http') ? fileUrl : '$baseUrl$fileUrl';
 
       await http.post(
         Uri.parse('${AppConfig.apiBaseUrl}/chat/senior/${widget.seniorId}'),
@@ -582,7 +661,8 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
           'senderId': widget.guardianId,
           'senderName': widget.guardianName,
           'message': '',
-          'attachmentUrl': fullUrl,
+          // 상대 경로 그대로 저장 — 서버 IP가 바뀌어도 표시 시점에 현재 주소로 변환된다.
+          'attachmentUrl': fileUrl,
           'attachmentType': isImage ? 'image' : 'file',
           'attachmentName': fileName,
         }),
@@ -603,6 +683,104 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
     }
   }
 
+  // 잘못 보낸 메시지 삭제 — 내가 보낸 메시지를 길게 눌렀을 때 호출
+  Future<void> _deleteMessage(Map<String, dynamic> message) async {
+    final messageId = message['id'];
+    if (messageId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '메시지 삭제',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '이 메시지를 삭제하시겠습니까?\n상대방 화면에서도 사라집니다.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.surfaceBeige,
+                        foregroundColor: AppColors.textSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('닫기', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('삭제', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final response = await http
+          .delete(
+            Uri.parse(
+              '${AppConfig.apiBaseUrl}/chat/messages/$messageId'
+              '?senderRole=GUARDIAN&senderId=${widget.guardianId}',
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        throw Exception('delete failed');
+      }
+
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('메시지 삭제에 실패했습니다.'),
+            backgroundColor: Color(0xFFD94E4E),
+          ),
+        );
+      }
+    }
+  }
+
   String? _dateKey(dynamic value) {
     if (value == null) return null;
     try {
@@ -616,7 +794,11 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   String _formatDateLabel(String key) {
     final parts = key.split('-');
     if (parts.length < 3) return key;
-    final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+    final dt = DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
     const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
     return '${dt.year}년 ${dt.month}월 ${dt.day}일 (${weekdays[dt.weekday - 1]})';
   }
@@ -647,7 +829,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF86A788)),
+        child: CircularProgressIndicator(color: AppColors.green),
       );
     }
 
@@ -674,7 +856,9 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                   itemBuilder: (_, index) {
                     final message = _messages[index];
                     final currDate = _dateKey(message['createdAt']);
-                    final prevDate = index > 0 ? _dateKey(_messages[index - 1]['createdAt']) : null;
+                    final prevDate = index > 0
+                        ? _dateKey(_messages[index - 1]['createdAt'])
+                        : null;
                     final showSep = currDate != null && currDate != prevDate;
 
                     return Column(
@@ -685,15 +869,24 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             child: Row(
                               children: [
-                                const Expanded(child: Divider(color: Color(0xFFE5E5EA))),
+                                const Expanded(
+                                  child: Divider(color: Color(0xFFE5E5EA)),
+                                ),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
                                   child: Text(
                                     _formatDateLabel(currDate!),
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFFAEAEB2)),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFFAEAEB2),
+                                    ),
                                   ),
                                 ),
-                                const Expanded(child: Divider(color: Color(0xFFE5E5EA))),
+                                const Expanded(
+                                  child: Divider(color: Color(0xFFE5E5EA)),
+                                ),
                               ],
                             ),
                           ),
@@ -701,6 +894,10 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                           message: message,
                           isMine: message['senderRole'] == 'GUARDIAN',
                           profileImageUrl: _profileImageFor(message),
+                          onLongPress:
+                              message['senderRole'] == 'GUARDIAN'
+                              ? () => _deleteMessage(message)
+                              : null,
                         ),
                       ],
                     );
@@ -723,11 +920,15 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMine,
     required this.profileImageUrl,
+    this.onLongPress,
   });
 
   final Map<String, dynamic> message;
   final bool isMine;
   final String profileImageUrl;
+
+  /// 내가 보낸 메시지를 길게 누르면 삭제 — 잘못 보낸 메시지 회수용
+  final VoidCallback? onLongPress;
 
   String _formatTime(dynamic value) {
     if (value == null) return '';
@@ -751,7 +952,14 @@ class _MessageBubble extends StatelessWidget {
     final attachmentType = message['attachmentType']?.toString() ?? '';
     final attachmentName = message['attachmentName']?.toString() ?? '';
 
-    return Padding(
+    // 상대 경로면 현재 서버 주소로 변환 — IP가 바뀌어도 항상 현재 설정 기준으로 연다.
+    final resolvedUrl = attachmentUrl.isEmpty || attachmentUrl.startsWith('http')
+        ? attachmentUrl
+        : '${AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '')}$attachmentUrl';
+
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         mainAxisAlignment: isMine
@@ -789,7 +997,7 @@ class _MessageBubble extends StatelessWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: isMine ? const Color(0xFF86A788) : Colors.white,
+                  color: isMine ? AppColors.green : Colors.white,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -812,7 +1020,7 @@ class _MessageBubble extends StatelessWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          attachmentUrl,
+                          resolvedUrl,
                           width: 200,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => const Icon(
@@ -828,9 +1036,7 @@ class _MessageBubble extends StatelessWidget {
                           Icon(
                             Icons.insert_drive_file_outlined,
                             size: 18,
-                            color: isMine
-                                ? Colors.white70
-                                : const Color(0xFF86A788),
+                            color: isMine ? Colors.white70 : AppColors.green,
                           ),
                           const SizedBox(width: 6),
                           Flexible(
@@ -881,6 +1087,7 @@ class _MessageBubble extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -897,14 +1104,14 @@ class _ChatAvatar extends StatelessWidget {
 
     return CircleAvatar(
       radius: 16,
-      backgroundColor: const Color(0xFF86A788).withValues(alpha: 0.2),
+      backgroundColor: AppColors.green.withValues(alpha: 0.2),
       child: ClipOval(
         child: resolvedUrl.isEmpty
             ? Center(
                 child: Text(
                   name.isNotEmpty ? name[0] : '?',
                   style: const TextStyle(
-                    color: Color(0xFF86A788),
+                    color: AppColors.green,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -920,7 +1127,7 @@ class _ChatAvatar extends StatelessWidget {
                     child: Text(
                       name.isNotEmpty ? name[0] : '?',
                       style: const TextStyle(
-                        color: Color(0xFF86A788),
+                        color: AppColors.green,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1034,9 +1241,7 @@ class _InputBar extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: sending
-                    ? const Color(0xFFD1D5DB)
-                    : const Color(0xFF86A788),
+                color: sending ? const Color(0xFFD1D5DB) : AppColors.green,
                 shape: BoxShape.circle,
               ),
               child: sending

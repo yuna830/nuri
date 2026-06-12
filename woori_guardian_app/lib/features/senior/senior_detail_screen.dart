@@ -1,15 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/models/alert.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
-const _kGreen = Color(0xFF86A788);
-const _kTextTitle = Color(0xFF1C1C1E);
-const _kTextSub = Color(0xFF6C6C70);
-const _kDivider = Color(0xFFE5E5EA);
+const _kGreen = AppColors.green;
+const _kTextTitle = AppColors.textMain;
+const _kTextSub = AppColors.textSub;
+const _kDivider = AppColors.divider;
 
 class SeniorDetailScreen extends StatefulWidget {
   final Senior senior;
@@ -84,6 +89,10 @@ class _SeniorDetailScreenState extends State<SeniorDetailScreen> {
         children: [
           _ProfileHeader(senior: senior),
           const SizedBox(height: 20),
+
+          // 얼굴 사전 등록 — 실종 신고 시 이 사진들이 얼굴 인식 비교 대상이 된다.
+          _FacePhotoSection(seniorId: senior.id),
+          const SizedBox(height: 14),
 
           _InfoSection(
             title: '기본 정보',
@@ -517,6 +526,355 @@ class _InfoSection extends StatelessWidget {
   }
 }
 
+// ── 얼굴 사진 관리 ───────────────────────────────────────────────────────────
+// 보호자가 평소에 사용자 얼굴 사진을 등록해두는 섹션.
+// 실종 신고가 접수되면 face_api가 이 사진들을 비교 대상으로 사용한다.
+class _FacePhotoSection extends StatefulWidget {
+  final int seniorId;
+
+  const _FacePhotoSection({required this.seniorId});
+
+  @override
+  State<_FacePhotoSection> createState() => _FacePhotoSectionState();
+}
+
+class _FacePhotoSectionState extends State<_FacePhotoSection> {
+  final _picker = ImagePicker();
+
+  List<Map<String, dynamic>> _photos = [];
+  bool _loading = true;
+  bool _busy = false;
+
+  static String get _serverBase =>
+      AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '');
+
+  String _resolveUrl(String url) =>
+      url.startsWith('http') ? url : '$_serverBase$url';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '${AppConfig.apiBaseUrl}/seniors/${widget.seniorId}/face-photos',
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data is List) {
+          _photos = data
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static const _maxPhotos = 4;
+
+  Future<void> _addPhoto() async {
+    if (_busy) return;
+
+    if (_photos.length >= _maxPhotos) {
+      _snack('얼굴 사진은 최대 $_maxPhotos장까지 등록할 수 있습니다.');
+      return;
+    }
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: _kGreen),
+              title: const Text('카메라로 촬영'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_outlined, color: _kGreen),
+              title: const Text('갤러리에서 선택'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1280,
+    );
+    if (picked == null) return;
+
+    setState(() => _busy = true);
+
+    try {
+      // ① 사진 업로드
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${AppConfig.apiBaseUrl}/uploads/senior-faces'),
+      );
+      request.files.add(
+        await http.MultipartFile.fromPath('image', picked.path),
+      );
+      final uploadResponse = await request.send().timeout(
+        const Duration(seconds: 15),
+      );
+      final uploadBody = await uploadResponse.stream.bytesToString();
+
+      if (uploadResponse.statusCode != 200) {
+        throw Exception('upload failed');
+      }
+
+      final imageUrl = (jsonDecode(uploadBody)
+              as Map<String, dynamic>)['imageUrl']
+          ?.toString();
+
+      if (imageUrl == null || imageUrl.isEmpty) {
+        throw Exception('no imageUrl');
+      }
+
+      // ② 얼굴 사진으로 등록 (서버가 face_api reload까지 수행)
+      final saveResponse = await http
+          .post(
+            Uri.parse(
+              '${AppConfig.apiBaseUrl}/seniors/${widget.seniorId}/face-photos',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'imageUrl': imageUrl}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (saveResponse.statusCode != 200) {
+        throw Exception('save failed');
+      }
+
+      await _load();
+      _snack('얼굴 사진이 등록되었습니다.');
+    } catch (_) {
+      // 응답 지연 등으로 실패 처리됐어도 실제로는 저장됐을 수 있으므로 목록을 다시 확인
+      await _load();
+      _snack('얼굴 사진 등록에 실패했습니다. 목록을 확인해주세요.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deletePhoto(Map<String, dynamic> photo) async {
+    final photoId = photo['id'];
+    if (photoId == null || _busy) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '얼굴 사진 삭제',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextTitle,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '이 사진을 삭제하시겠습니까?',
+                style: TextStyle(fontSize: 13, color: _kTextSub),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.surfaceBeige,
+                        foregroundColor: _kTextSub,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('닫기', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('삭제', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('${AppConfig.apiBaseUrl}/seniors/face-photos/$photoId'),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        throw Exception('delete failed');
+      }
+
+      await _load();
+      _snack('얼굴 사진이 삭제되었습니다.');
+    } catch (_) {
+      _snack('얼굴 사진 삭제에 실패했습니다.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFull = _photos.length >= _maxPhotos;
+
+    return _InfoSection(
+      title: '얼굴 사진 관리 (${_photos.length}/$_maxPhotos)',
+      trailing: TextButton.icon(
+        onPressed: _busy || isFull ? null : _addPhoto,
+        icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+        label: const Text('추가', style: TextStyle(fontSize: 13)),
+        style: TextButton.styleFrom(foregroundColor: _kGreen),
+      ),
+      children: [
+        const Text(
+          '등록한 사진은 실종 신고 시 얼굴 인식 비교에 사용됩니다. \n 정면 사진을 여러 장 등록할수록 정확도가 올라갑니다.',
+          style: TextStyle(fontSize: 12, color: _kTextSub, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: CircularProgressIndicator(color: _kGreen, strokeWidth: 2),
+            ),
+          )
+        else if (_photos.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              '등록된 얼굴 사진이 없습니다.',
+              style: TextStyle(fontSize: 13, color: _kTextSub),
+            ),
+          )
+        else
+          SizedBox(
+            height: 86,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _photos.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final photo = _photos[i];
+                final url = photo['imageUrl']?.toString() ?? '';
+
+                return Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: 78,
+                        height: 78,
+                        color: const Color(0xFFF2F2F2),
+                        child: url.isEmpty
+                            ? const Icon(
+                                Icons.broken_image_outlined,
+                                color: _kTextSub,
+                              )
+                            : Image.network(
+                                _resolveUrl(url),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.broken_image_outlined,
+                                  color: _kTextSub,
+                                ),
+                              ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: GestureDetector(
+                        onTap: () => _deletePhoto(photo),
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            size: 13,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+}
+
 class _JobApplicationTile extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -867,7 +1225,7 @@ class _ConsultRequestTile extends StatelessWidget {
                         const Icon(
                           Icons.calendar_today_outlined,
                           size: 15,
-                          color: Color(0xFF86A788),
+                          color: AppColors.green,
                         ),
                       ],
                     ],
@@ -997,12 +1355,12 @@ class _MedicationAlertModalState extends State<_MedicationAlertModal> {
   bool _isSending = false;
   String _medName(String med) => med.split(' / ').first.trim();
 
-  static const _kModalGreen = Color(0xFF86A788);
-  static const _kModalBg = Color(0xFFF5F5F5);
-  static const _kModalSub = Color(0xFF6C6C70);
-  static const _kModalHint = Color(0xFFAEAEB2);
-  static const _kModalDivider = Color(0xFFE5E5EA);
-  static const _kModalRed = Color(0xFFB85252);
+  static const _kModalGreen = AppColors.green;
+  static const _kModalBg = AppColors.modalBg;
+  static const _kModalSub = AppColors.textSub;
+  static const _kModalHint = AppColors.textHint;
+  static const _kModalDivider = AppColors.divider;
+  static const _kModalRed = AppColors.red;
 
   List<String> get _presets {
     final name = _selectedMed ?? '약';

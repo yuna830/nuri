@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../../core/config/app_config.dart';
+import '../../core/theme/app_colors.dart';
 import '../report/report_screen.dart';
 
 class FaceCheckCameraScreen extends StatefulWidget {
@@ -79,10 +80,16 @@ class FaceVerifyResult {
   final String message;
   final String? seniorName;
 
+  // 발견 제보 전송에 필요한 정보 — 매치된 사용자 ID와 유사도
+  final int? seniorId;
+  final double? similarity;
+
   const FaceVerifyResult({
     required this.matched,
     required this.message,
     this.seniorName,
+    this.seniorId,
+    this.similarity,
   });
 }
 
@@ -106,7 +113,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   bool get _isSelfieMode =>
       _controller?.description.lensDirection == CameraLensDirection.front;
 
-  static const _kGreen = Color(0xFF86A788);
+  static const _kGreen = AppColors.green;
   static String get _pythonServerUrl => AppConfig.faceApiBaseUrl;
 
   @override
@@ -356,7 +363,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
     try {
       final result = await _uploadFullImage(File(capturedImage.path)).timeout(
-        const Duration(seconds: 12),
+        const Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
         },
@@ -364,10 +371,10 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       if (!mounted) return;
 
-      // 일치/유사한 얼굴일 때만 신고하기
+      // 확인이 끝나면 신고하기로 전환 — 비매치인 사람은 신고 화면에서 '직접 입력'으로 이어진다.
       setState(() {
         _guideText = result.message;
-        _hasVerifyResult = result.matched;
+        _hasVerifyResult = true;
         _lastVerifyResult = result;
       });
     } on TimeoutException catch (e) {
@@ -377,6 +384,87 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _guideText = '얼굴 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // ── 발견 제보 ─────────────────────────────────────────────────────────────
+  // 이미 신고된 사용자과 일치/유사한 사람을 발견했을 때,
+  // 새 신고를 만드는 대신 찍은 사진과 유사도를 보호자에게 알림으로 보낸다.
+  Future<void> _sendDiscoveryReport() async {
+    final result = _lastVerifyResult;
+    final captured = _capturedImage;
+
+    if (result == null || result.seniorId == null) {
+      setState(() => _guideText = '제보 대상 정보가 없습니다. 다시 확인해주세요.');
+      return;
+    }
+    if (_isUploading) return;
+
+    setState(() {
+      _isUploading = true;
+      _guideText = '보호자에게 발견 제보를 보내는 중...';
+    });
+
+    try {
+      // 찍은 사진을 업로드해 알림에 첨부
+      String? imageUrl;
+      if (captured != null) {
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('${AppConfig.apiBaseUrl}/uploads/candidates'),
+        );
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            await _compressForUpload(captured.path),
+            filename: 'discovery.jpg',
+          ),
+        );
+        final uploadResponse = await request.send().timeout(
+          const Duration(seconds: 15),
+        );
+        final uploadBody = await uploadResponse.stream.bytesToString();
+        if (uploadResponse.statusCode == 200) {
+          final uploadData = jsonDecode(uploadBody) as Map<String, dynamic>;
+          imageUrl = uploadData['imageUrl']?.toString();
+        }
+      }
+
+      final response = await http
+          .post(
+            Uri.parse('${AppConfig.apiBaseUrl}/alerts/camera'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'seniorId': result.seniorId,
+              'type': 'AI_CANDIDATE_CONFIRM',
+              if (imageUrl != null) 'imageUrl': imageUrl,
+              if (result.similarity != null)
+                'similarityScore': result.similarity,
+              'candidateKind': 'FACE_MATCH',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('보호자에게 발견 제보를 보냈습니다.')),
+        );
+        Navigator.pop(context);
+      } else {
+        setState(
+          () => _guideText = '발견 제보 전송에 실패했습니다. (${response.statusCode})',
+        );
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() => _guideText = '발견 제보 전송 시간이 초과되었습니다.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _guideText = '발견 제보 전송에 실패했습니다.');
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -397,9 +485,26 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
     if (!mounted) return;
 
+    final isMatched = _lastVerifyResult?.matched ?? false;
+    final capturedPhotoPath = _capturedImage?.path;
+
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ReportScreen()),
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: const Text('실종/위험 신고'),
+            backgroundColor: AppColors.green,
+            foregroundColor: Colors.white,
+          ),
+          // 등록 얼굴과 일치하지 않는 사람은 '직접 입력'으로 신고하고,
+          // 방금 찍은 사진은 사진 첨부에 미리 넣어준다.
+          body: ReportScreen(
+            startInDirectInput: !isMatched,
+            initialPhotoPath: capturedPhotoPath,
+          ),
+        ),
+      ),
     );
 
     if (!mounted) return;
@@ -414,6 +519,19 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     } catch (_) {}
   }
 
+  // 업로드용 압축 — 카메라 원본(수 MB)을 그대로 올리면 전송이 수 초 이상 걸린다.
+  Future<List<int>> _compressForUpload(String path) async {
+    final bytes = await File(path).readAsBytes();
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null && decoded.width > 1280) {
+        final resized = img.copyResize(decoded, width: 1280);
+        return img.encodeJpg(resized, quality: 85);
+      }
+    } catch (_) {}
+    return bytes;
+  }
+
   Future<FaceVerifyResult> _uploadFullImage(File imageFile) async {
     try {
       final request = http.MultipartRequest(
@@ -422,18 +540,22 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       );
 
       request.files.add(
-        await http.MultipartFile.fromPath('faces', imageFile.path),
+        http.MultipartFile.fromBytes(
+          'faces',
+          await _compressForUpload(imageFile.path),
+          filename: 'face.jpg',
+        ),
       );
 
       final response = await request.send().timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 25),
         onTimeout: () {
           throw TimeoutException('얼굴 확인 연결 시간이 초과되었습니다.');
         },
       );
 
       final body = await response.stream.bytesToString().timeout(
-        const Duration(seconds: 3),
+        const Duration(seconds: 5),
         onTimeout: () {
           throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
         },
@@ -455,7 +577,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
           : null;
 
       final name = data['seniorName']?.toString() ?? candidateName;
+      final seniorId = (data['seniorId'] as num?)?.toInt();
       final similarity = data['bestSimilarity'];
+      final similarityValue = similarity is num ? similarity.toDouble() : null;
 
       String formatSimilarity(dynamic value) {
         if (value is num) return value.toStringAsFixed(2);
@@ -469,15 +593,20 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         return FaceVerifyResult(
           matched: true,
           seniorName: name,
+          seniorId: seniorId,
+          similarity: similarityValue,
           message: '$displayName님과 일치 가능성이 높습니다. 유사도: $scoreText',
         );
       }
 
+      // 유사 후보(CANDIDATE)도 보호자에게 발견 제보를 보낼 수 있게 허용
       if (status == 'CANDIDATE') {
         return FaceVerifyResult(
-          matched: false,
+          matched: true,
           seniorName: name,
-          message: '$displayName님과 비슷한 얼굴입니다. 확인이 필요합니다. 유사도: $scoreText',
+          seniorId: seniorId,
+          similarity: similarityValue,
+          message: '$displayName님과 비슷한 얼굴입니다. 직접 확인 후 제보해주세요. 유사도: $scoreText',
         );
       }
 
@@ -793,13 +922,21 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                         child: FilledButton(
                                           onPressed: _isUploading
                                               ? null
-                                              : _hasVerifyResult
-                                              ? _goToReportScreen
-                                              : _verifyCapturedImage,
+                                              : !_hasVerifyResult
+                                              ? _verifyCapturedImage
+                                              : (_lastVerifyResult?.matched ??
+                                                    false)
+                                              ? _sendDiscoveryReport
+                                              : _goToReportScreen,
                                           style: FilledButton.styleFrom(
-                                            backgroundColor: _kGreen,
+                                            backgroundColor: _hasVerifyResult
+                                                ? AppColors.red
+                                                : _kGreen,
                                             foregroundColor: Colors.white,
-                                            disabledBackgroundColor: _kGreen,
+                                            disabledBackgroundColor:
+                                                _hasVerifyResult
+                                                ? AppColors.red
+                                                : _kGreen,
                                             disabledForegroundColor:
                                                 Colors.white,
                                             shape: RoundedRectangleBorder(
@@ -810,9 +947,13 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                           child: Text(
                                             _isUploading
                                                 ? '확인 중'
-                                                : _hasVerifyResult
-                                                ? '신고하기'
-                                                : '확인하기',
+                                                : !_hasVerifyResult
+                                                ? '확인하기'
+                                                : (_lastVerifyResult
+                                                          ?.matched ??
+                                                      false)
+                                                ? '발견 제보하기'
+                                                : '신고하기',
                                             style: const TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w700,

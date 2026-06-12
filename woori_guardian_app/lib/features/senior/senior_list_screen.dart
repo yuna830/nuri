@@ -2,10 +2,11 @@
 import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
-const _kGreen = Color(0xFF86A788);
+const _kGreen = AppColors.green;
 const _kBg = Colors.white;
-const _kDivider = Color(0xFFE5E5EA);
+const _kDivider = AppColors.divider;
 
 class SeniorListScreen extends StatefulWidget {
   const SeniorListScreen({super.key});

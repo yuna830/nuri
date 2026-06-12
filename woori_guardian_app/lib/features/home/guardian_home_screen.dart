@@ -18,6 +18,7 @@ import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/storage/location_freshness_storage.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_header.dart';
 import '../../core/push/fcm_service.dart';
 import '../chat/guardian_chat_screen.dart';
@@ -26,30 +27,30 @@ import '../senior/senior_detail_screen.dart';
 // 한 곳에서 색상을 관리해 변경 시 전체가 일관되게 반영됩니다.
 abstract final class _C {
   /// 브랜드 그린 — AppBar·메인 버튼·포인트에만 사용
-  static const green = Color(0xFF86A788);
+  static const green = AppColors.green;
 
   /// 텍스트: 제목
-  static const textTitle = Color(0xFF1C1C1E);
+  static const textTitle = AppColors.textMain;
 
   /// 텍스트: 보조 정보
-  static const textSub = Color(0xFF6C6C70);
+  static const textSub = AppColors.textSub;
 
   /// 텍스트: 힌트 / 타임스탬프
-  static const textHint = Color(0xFFAEAEB2);
+  static const textHint = AppColors.textHint;
 
   /// 구분선 / 카드 테두리
-  static const divider = Color(0xFFE5E5EA);
+  static const divider = AppColors.divider;
 
   /// 상태: 안전 — 앱 브랜드 초록 계열로 통일
-  static const safe = Color(0xFF4A7A4C);
-  static const safeBg = Color(0xFFEEF5EE);
+  static const safe = AppColors.safe;
+  static const safeBg = AppColors.safeBg;
 
   /// 상태: 주의
-  static const warn = Color(0xFFFF9500);
-  static const warnBg = Color(0xFFFFF4E5);
+  static const warn = AppColors.warn;
+  static const warnBg = AppColors.warnBg;
 
   /// 위험(신고) 빨강
-  static const danger = Color(0xFFB85252);
+  static const danger = AppColors.red;
 }
 
 // GuardianHomeScreen — 탭 셸
@@ -72,7 +73,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   int _unreadChatCount = 0;
   Timer? _unreadTimer;
 
-  int? _selectedSeniorId; // 위치 탭으로 넘길 어르신 ID
+  int? _selectedSeniorId; // 위치 탭으로 넘길 사용자 ID
 
   static const _tabTitles = ['', '위치', '실종/위험 신고', '긴급 연락', ''];
 
@@ -383,7 +384,7 @@ class _HomeTabState extends State<_HomeTab> {
             Icon(Icons.people_outline, size: 56, color: _C.textHint),
             const SizedBox(height: 12),
             const Text(
-              '담당 어르신이 없습니다.',
+              '담당 대상자가 없습니다.',
               style: TextStyle(fontSize: 16, color: _C.textSub),
             ),
           ],
@@ -489,7 +490,7 @@ class _FaceCheckCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '카메라로 얼굴을 촬영해 등록된 실종자 정보와 비교합니다.',
+                      '촬영한 얼굴을 실종자 정보와 비교합니다.',
                       style: TextStyle(fontSize: 12, color: _C.textSub),
                     ),
                   ],
@@ -760,9 +761,9 @@ class _StatusBadge extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
+      // 점과 글자를 Row 중앙 정렬로 같은 높이에 맞춘다.
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 6,
@@ -773,25 +774,13 @@ class _StatusBadge extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 5),
-
-          // 글자만 배지 높이 기준 중앙 정렬
-          SizedBox(
-            height: 26,
-            child: Center(
-              child: Text(
-                status,
-                strutStyle: const StrutStyle(
-                  fontSize: 12,
-                  height: 1.0,
-                  forceStrutHeight: true,
-                ),
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.0,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.0,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
           ),
         ],

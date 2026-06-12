@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import 'core/storage/guardian_session_storage.dart';
+import 'core/theme/app_colors.dart';
 import 'features/auth/guardian_login_screen.dart';
 import 'features/home/guardian_home_screen.dart';
 
@@ -41,7 +42,7 @@ class WooriGuardianApp extends StatelessWidget {
       title: '우리 보호자 앱',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF86A788)),
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF6F5F3),
       ),

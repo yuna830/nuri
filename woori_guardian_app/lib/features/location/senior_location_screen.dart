@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
+import '../../core/theme/app_colors.dart';
 
 const double _defaultLat = 37.5665;
 const double _defaultLng = 126.9780;
@@ -129,7 +130,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.name} 위치'),
-        backgroundColor: const Color(0xFF86A788),
+        backgroundColor: AppColors.green,
         foregroundColor: Colors.white,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadLocation),
@@ -165,7 +166,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 CircularProgressIndicator(
-                                  color: Color(0xFF86A788),
+                                  color: AppColors.green,
                                 ),
                                 SizedBox(height: 12),
                                 Text(
@@ -224,7 +225,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
               child: _isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFF86A788),
+                        color: AppColors.green,
                       ),
                     )
                   : _errorMessage != null
@@ -251,7 +252,7 @@ class _SeniorLocationScreenState extends State<SeniorLocationScreen> {
           ElevatedButton(
             onPressed: _loadLocation,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF86A788),
+              backgroundColor: AppColors.green,
               foregroundColor: Colors.white,
             ),
             child: const Text('다시 시도'),

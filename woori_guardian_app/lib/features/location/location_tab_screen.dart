@@ -9,22 +9,23 @@ import '../../core/api/guardian_api.dart';
 import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 
 // ── 색상 ─────────────────────────────────────────────────────────────────
-const _kGreen = Color(0xFF86A788);
-const _kRed = Color(0xFFB85252);
-const _kSafe = Color(0xFF4A7A4C);
-const _kSafeBg = Color(0xFFEEF5EE);
-const _kWarn = Color(0xFFFF9500);
-const _kWarnBg = Color(0xFFFFF4E5);
-const _kNeutral = Color(0xFF6C6C70);
-const _kNeutralBg = Color(0xFFF2F2F7);
-const _kTextMain = Color(0xFF1C1C1E);
-const _kTextSub = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
-const _kDivider = Color(0xFFE5E5EA);
+const _kGreen = AppColors.green;
+const _kRed = AppColors.red;
+const _kSafe = AppColors.safe;
+const _kSafeBg = AppColors.safeBg;
+const _kWarn = AppColors.warn;
+const _kWarnBg = AppColors.warnBg;
+const _kNeutral = AppColors.neutral;
+const _kNeutralBg = AppColors.neutralBg;
+const _kTextMain = AppColors.textMain;
+const _kTextSub = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
+const _kDivider = AppColors.divider;
 
 const double _defaultLat = 37.5665;
 const double _defaultLng = 126.9780;
@@ -765,12 +766,12 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                   const SizedBox(width: 8),
                   _CenterChip(
                     icon: Icons.person_pin_circle_outlined,
-                    label: '현재 어르신 위치',
+                    label: '현재 대상자 위치',
                     selected: centerMode == _CenterMode.senior,
                     onTap: () {
                       if (_latitude == null || _longitude == null) {
                         ScaffoldMessenger.of(outerContext).showSnackBar(
-                          const SnackBar(content: Text('어르신의 현재 위치 정보가 없습니다.')),
+                          const SnackBar(content: Text('대상자의 현재 위치 정보가 없습니다.')),
                         );
                         return;
                       }
@@ -1606,7 +1607,7 @@ class _SheetContent extends StatelessWidget {
         padding: EdgeInsets.all(24),
         child: Center(
           child: Text(
-            '어르신을 선택해주세요.',
+            '대상자을 선택해주세요.',
             style: TextStyle(color: _kTextHint, fontSize: 14),
           ),
         ),
@@ -2119,9 +2120,9 @@ class _StatusBadge extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
+      // 점과 글자를 Row 중앙 정렬로 같은 높이에 맞춘다.
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 6,
@@ -2129,25 +2130,13 @@ class _StatusBadge extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
-
-          // 글자만 배지 중앙에 오도록 높이를 고정하고 Center로 감쌈
-          SizedBox(
-            height: 26,
-            child: Center(
-              child: Text(
-                status,
-                strutStyle: const StrutStyle(
-                  fontSize: 12,
-                  height: 1.0,
-                  forceStrutHeight: true,
-                ),
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.0,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.0,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
           ),
         ],

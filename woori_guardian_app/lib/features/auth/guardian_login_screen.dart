@@ -3,6 +3,7 @@ import '../home/guardian_home_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/push/fcm_service.dart';
+import '../../core/theme/app_colors.dart';
 
 class GuardianLoginScreen extends StatefulWidget {
   const GuardianLoginScreen({super.key});
@@ -20,7 +21,7 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
   final _api = GuardianApi();
   final _sessionStorage = GuardianSessionStorage();
 
-  static const _mainGreen = Color(0xFF86A788);
+  static const _mainGreen = AppColors.green;
 
   String? _validateInputs(String email, String password) {
     if (email.isEmpty) return '이메일을 입력해주세요.';

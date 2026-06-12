@@ -31,7 +31,8 @@ public class FcmPushService {
                         .putData("type", type == null ? "" : type)
                         .build();
 
-                FirebaseMessaging.getInstance().send(message);
+                // 동기 send()는 토큰 수만큼 구글 서버 왕복을 기다려 API 응답을 지연시킨다.
+                FirebaseMessaging.getInstance().sendAsync(message);
             } catch (Exception ignored) {
             }
         });

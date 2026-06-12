@@ -11,19 +11,20 @@ import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/utils/phone_number_input_formatter.dart';
+import '../../core/theme/app_colors.dart';
 
 // ── 색상 ─────────────────────────────────────────────────────────────────
-const _kGreen = Color(0xFF86A788);
-const _kSafe = Color(0xFF4A7A4C);
-const _kSafeBg = Color(0xFFEEF5EE);
-const _kWarn = Color(0xFFFF9500);
-const _kWarnBg = Color(0xFFFFF4E5);
-const _kRed = Color(0xFFB85252);
-const _kTextMain = Color(0xFF1C1C1E);
+const _kGreen = AppColors.green;
+const _kSafe = AppColors.safe;
+const _kSafeBg = AppColors.safeBg;
+const _kWarn = AppColors.warn;
+const _kWarnBg = AppColors.warnBg;
+const _kRed = AppColors.red;
+const _kTextMain = AppColors.textMain;
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
-const _kTextSub = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
-const _kDivider = Color(0xFFE5E5EA);
+const _kTextSub = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
+const _kDivider = AppColors.divider;
 const _kBg = Colors.white;
 
 // ── 신고 유형 ─────────────────────────────────────────────────────────────────
@@ -58,7 +59,18 @@ const _kGenderOptions = ['남성', '여성'];
 class ReportScreen extends StatefulWidget {
   final VoidCallback? onCompleted;
 
-  const ReportScreen({super.key, this.onCompleted});
+  /// 얼굴 확인 카메라에서 진입할 때 '직접 입력' 탭을 미리 선택한다.
+  final bool startInDirectInput;
+
+  /// 얼굴 확인 카메라에서 찍은 사진을 사진 첨부에 미리 넣는다.
+  final String? initialPhotoPath;
+
+  const ReportScreen({
+    super.key,
+    this.onCompleted,
+    this.startInDirectInput = false,
+    this.initialPhotoPath,
+  });
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -119,6 +131,13 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.startInDirectInput) {
+      _targetMode = _TargetMode.otherPerson;
+    }
+    final initialPhotoPath = widget.initialPhotoPath;
+    if (initialPhotoPath != null && initialPhotoPath.isNotEmpty) {
+      _photos.add(XFile(initialPhotoPath));
+    }
     _loadSeniors();
   }
 
@@ -162,7 +181,7 @@ class _ReportScreenState extends State<ReportScreen> {
           ? s.lastLocationAddress
           : '';
 
-      // 등록된 어르신의 마지막 위치 주소만 있을 수 있으므로 좌표는 비워둠
+      // 등록된 대상자의 마지막 위치 주소만 있을 수 있으므로 좌표는 비워둠
       _selectedLocationLatitude = null;
       _selectedLocationLongitude = null;
     }
@@ -580,7 +599,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Material(
       color: _kBg,
       child: Column(
         children: [
@@ -590,7 +609,7 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ① 어르신 선택 + 요약 카드
+                  // ① 사용자 선택 + 요약 카드
                   _buildSeniorSection(),
                   const SizedBox(height: 14),
 
@@ -654,7 +673,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // ── 어르신 선택 ────────────────────────────────────────────────────────────
+  // ── 사용자 선택 ────────────────────────────────────────────────────────────
 
   Widget _buildSeniorSection() {
     return Column(
@@ -702,7 +721,7 @@ class _ReportScreenState extends State<ReportScreen> {
         Row(
           children: [
             _TargetModeChip(
-              label: '등록된 어르신',
+              label: '등록된 대상자',
               icon: Icons.person_outline,
               selected: _targetMode == _TargetMode.registeredSenior,
               onTap: () {
@@ -758,7 +777,7 @@ class _ReportScreenState extends State<ReportScreen> {
             )
           else if (_seniors.isEmpty)
             const Text(
-              '등록된 어르신이 없습니다.',
+              '등록된 대상자가 없습니다.',
               style: TextStyle(fontSize: 13, color: _kTextHint),
             )
           else
@@ -1580,7 +1599,7 @@ class _TargetModeChip extends StatelessWidget {
   }
 }
 
-// ── 어르신 요약 카드 ──────────────────────────────────────────────────────────
+// ── 사용자 요약 카드 ──────────────────────────────────────────────────────────
 
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
@@ -1630,6 +1649,7 @@ class _SeniorCard extends StatelessWidget {
                   color: statusBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
+                // 점과 글자를 Row 중앙 정렬로 같은 높이에 맞춘다.
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1646,6 +1666,7 @@ class _SeniorCard extends StatelessWidget {
                       senior.status,
                       style: TextStyle(
                         fontSize: 11,
+                        height: 1.0,
                         fontWeight: FontWeight.w600,
                         color: statusColor,
                       ),

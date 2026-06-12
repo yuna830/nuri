@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-const _green = Color(0xFF86A788);
+import '../theme/app_colors.dart';
+
+const _green = AppColors.green;
 
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;

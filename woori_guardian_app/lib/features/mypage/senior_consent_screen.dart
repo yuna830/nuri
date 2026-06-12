@@ -2,15 +2,16 @@
 import '../../core/api/guardian_api.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
+import '../../core/theme/app_colors.dart';
 
 // ── 색상 ──────────────────────────────────────────────────────────────────
-const _kGreen = Color(0xFF86A788);
-const _kGreenBg = Color(0xFFEBF8EE);
+const _kGreen = AppColors.green;
+const _kGreenBg = AppColors.greenBg;
 const _kBg = Colors.white;
-const _kDiv = Color(0xFFE5E5EA);
-const _kMain = Color(0xFF1C1C1E);
-const _kSub = Color(0xFF6C6C70);
-const _kHint = Color(0xFFAEAEB2);
+const _kDiv = AppColors.divider;
+const _kMain = AppColors.textMain;
+const _kSub = AppColors.textSub;
+const _kHint = AppColors.textHint;
 
 // ── 동의 상태 ─────────────────────────────────────────────────────────────
 enum ConsentStatus { allowed, pending, denied, revoked }
@@ -256,7 +257,7 @@ class _SeniorConsentScreenState extends State<SeniorConsentScreen>
   }
 }
 
-// ── 어르신 행 ─────────────────────────────────────────────────────────────
+// ── 사용자 행 ─────────────────────────────────────────────────────────────
 class _SeniorRow extends StatelessWidget {
   final Senior senior;
   final int guardianId;
@@ -499,7 +500,7 @@ class _SeniorConsentDetailScreenState
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      '정보 공유 동의는 어르신이 직접 수락 또는 거절합니다.\n보호자는 필요한 항목에 대해 동의 요청만 보낼 수 있습니다.',
+                      '정보 공유 동의는 대상자가 직접 수락 또는 거절합니다.\n보호자는 필요한 항목에 대해 동의 요청만 보낼 수 있습니다.',
                       style: const TextStyle(
                         fontSize: 12,
                         color: _kHint,

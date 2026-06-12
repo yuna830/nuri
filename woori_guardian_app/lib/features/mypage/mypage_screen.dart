@@ -5,6 +5,7 @@ import '../../core/api/guardian_api.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/storage/location_freshness_storage.dart';
+import '../../core/theme/app_colors.dart';
 import '../auth/guardian_login_screen.dart';
 import '../notification/notification_settings_screen.dart';
 import 'senior_consent_screen.dart';
@@ -13,13 +14,13 @@ import '../senior/senior_list_screen.dart';
 import 'privacy_screen.dart';
 
 // ── 색상 ──────────────────────────────────────────────────────────────────
-const _kGreen = Color(0xFF86A788);
-const _kGreenBg = Color(0xFFEBF8EE);
-const _kDivider = Color(0xFFE5E5EA);
-const _kTextMain = Color(0xFF1C1C1E);
-const _kTextSub = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
-const _kRed = Color(0xFFB85252);
+const _kGreen = AppColors.green;
+const _kGreenBg = AppColors.greenBg;
+const _kDivider = AppColors.divider;
+const _kTextMain = AppColors.textMain;
+const _kTextSub = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
+const _kRed = AppColors.red;
 
 class MypageScreen extends StatefulWidget {
   const MypageScreen({super.key});

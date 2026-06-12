@@ -28,6 +28,10 @@ face_app.prepare(ctx_id=-1, det_size=(640, 640))
 known_embeddings = []
 last_alert_time_by_senior_id = {}
 
+# 이미지 URL별 임베딩 캐시 — reload 때마다 전체 사진을 재임베딩하지 않도록 한다.
+# (재임베딩이 verify와 CPU를 경쟁하면 앱 쪽 타임아웃이 발생한다)
+embedding_cache_by_url = {}
+
 
 def read_image(path: str):
     data = np.fromfile(path, dtype=np.uint8)
@@ -272,19 +276,25 @@ def load_missing_report_embeddings():
 
         for image_index, raw_image_url in enumerate(raw_image_urls):
             image_url = resolve_spring_url(raw_image_url)
-            image = read_image_from_url(image_url)
 
-            if image is None:
-                print(f"missing report skipped, cannot read image: {image_url}")
-                continue
-
-            embedding, _, _ = extract_largest_face_embedding(
-                image,
-                f"missing report {missing_report_id} image {image_index}",
-            )
+            embedding = embedding_cache_by_url.get(image_url)
 
             if embedding is None:
-                continue
+                image = read_image_from_url(image_url)
+
+                if image is None:
+                    print(f"missing report skipped, cannot read image: {image_url}")
+                    continue
+
+                embedding, _, _ = extract_largest_face_embedding(
+                    image,
+                    f"missing report {missing_report_id} image {image_index}",
+                )
+
+                if embedding is None:
+                    continue
+
+                embedding_cache_by_url[image_url] = embedding
 
             embeddings.append({
                 "source": "MISSING_REPORT",
@@ -301,10 +311,67 @@ def load_missing_report_embeddings():
     return embeddings
 
 
+def load_senior_face_embeddings():
+    """실종 신고가 ACTIVE인 어르신의 사전 등록 얼굴 사진을 비교 대상으로 불러온다."""
+    embeddings = []
+
+    try:
+        response = requests.get(
+            f"{SPRING_SERVER_URL}/api/seniors/face-photo-targets",
+            timeout=10,
+        )
+        response.raise_for_status()
+        targets = response.json()
+    except requests.RequestException as error:
+        print(f"senior face targets load failed: {error}")
+        return embeddings
+
+    for target in targets:
+        senior_id = target.get("seniorId")
+        senior_name = target.get("seniorName") or "보호 대상자"
+
+        for image_index, raw_image_url in enumerate(target.get("imageUrls") or []):
+            image_url = resolve_spring_url(raw_image_url)
+
+            embedding = embedding_cache_by_url.get(image_url)
+
+            if embedding is None:
+                image = read_image_from_url(image_url)
+
+                if image is None:
+                    print(f"senior face skipped, cannot read image: {image_url}")
+                    continue
+
+                embedding, _, _ = extract_largest_face_embedding(
+                    image,
+                    f"senior {senior_id} face {image_index}",
+                )
+
+                if embedding is None:
+                    continue
+
+                embedding_cache_by_url[image_url] = embedding
+
+            embeddings.append({
+                "source": "SENIOR_FACE",
+                "missing_report_id": None,
+                "senior_id": senior_id,
+                "senior_name": senior_name,
+                "description": None,
+                "image_url": image_url,
+                "file_name": None,
+                "embedding": embedding,
+            })
+
+    print(f"senior face embeddings loaded: {len(embeddings)}")
+    return embeddings
+
+
 def load_registered_embeddings():
     embeddings = []
     embeddings.extend(load_known_embeddings())
     embeddings.extend(load_missing_report_embeddings())
+    embeddings.extend(load_senior_face_embeddings())
     print(f"total registered embeddings loaded: {len(embeddings)}")
     return embeddings
 

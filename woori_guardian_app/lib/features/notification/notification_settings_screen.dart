@@ -1,9 +1,14 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _kGreen = Color(0xFF86A788);
-const _kBg = Colors.white;
-const _kDivider = Color(0xFFE5E5EA);
+import '../../core/theme/app_colors.dart';
+
+const _kGreen = AppColors.green;
+const _kBg = Color(0xFFF5F7F5);
+const _kDivider = AppColors.divider;
+const _kTextMain = AppColors.textMain;
+const _kTextSub = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
 
 class _NotifItem {
   final String key;
@@ -19,7 +24,8 @@ class _NotifItem {
   });
 }
 
-const _items = [
+// 긴급 알림 — 안전과 직결되는 알림
+const _urgentItems = [
   _NotifItem(
     key: 'notif_sos',
     label: 'SOS 알림',
@@ -44,6 +50,10 @@ const _items = [
     desc: '일정 시간 동안 위치 정보가 수신되지 않을 때',
     icon: Icons.gps_off_outlined,
   ),
+];
+
+// 일반 알림 — 일상 소식
+const _generalItems = [
   _NotifItem(
     key: 'notif_call',
     label: '전화 알림',
@@ -86,7 +96,7 @@ class _NotificationSettingsScreenState
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      for (final item in _items) {
+      for (final item in [..._urgentItems, ..._generalItems]) {
         _states[item.key] = prefs.getBool(item.key) ?? true;
       }
     });
@@ -110,41 +120,125 @@ class _NotificationSettingsScreenState
       ),
       body: _states.isEmpty
           ? const Center(child: CircularProgressIndicator(color: _kGreen))
-          : ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              itemCount: _items.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: _kDivider),
-              itemBuilder: (context, i) {
-                final item = _items[i];
-                final enabled = _states[item.key] ?? true;
-                return Container(
-                  color: Colors.white,
-                  child: ListTile(
-                    leading: Icon(item.icon,
-                        color: enabled ? _kGreen : const Color(0xFFAEAEB2),
-                        size: 22),
-                    title: Text(item.label,
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: enabled
-                                ? const Color(0xFF1C1C1E)
-                                : const Color(0xFFAEAEB2))),
-                    subtitle: Text(item.desc,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF6C6C70))),
-                    trailing: Switch(
-                      value: enabled,
-                      onChanged: (v) => _toggle(item.key, v),
-                      activeColor: _kGreen,
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                _sectionLabel('긴급 알림'),
+                const SizedBox(height: 8),
+                _buildGroupCard(_urgentItems, iconColor: AppColors.red),
+                const SizedBox(height: 20),
+                _sectionLabel('일반 알림'),
+                const SizedBox(height: 8),
+                _buildGroupCard(_generalItems, iconColor: _kGreen),
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    '알림을 끄면 해당 상황이 발생해도 푸시 알림이 오지 않습니다. 긴급 알림은 켜두는 것을 권장합니다.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _kTextHint,
+                      height: 1.5,
                     ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   ),
-                );
-              },
+                ),
+              ],
             ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.only(left: 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: _kTextSub,
+      ),
+    ),
+  );
+
+  Widget _buildGroupCard(List<_NotifItem> items, {required Color iconColor}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kDivider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (final item in items) ...[
+            _buildItemTile(item, iconColor),
+            if (item != items.last)
+              const Divider(height: 1, indent: 64, color: _kDivider),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemTile(_NotifItem item, Color iconColor) {
+    final enabled = _states[item.key] ?? true;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: (enabled ? iconColor : _kTextHint).withValues(
+                alpha: 0.12,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              item.icon,
+              size: 19,
+              color: enabled ? iconColor : _kTextHint,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: enabled ? _kTextMain : _kTextHint,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.desc,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: _kTextSub,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: (v) => _toggle(item.key, v),
+            activeColor: _kGreen,
+          ),
+        ],
+      ),
     );
   }
 }

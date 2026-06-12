@@ -130,7 +130,7 @@ class GuardianApi {
         final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
         return data.map((json) => Senior.fromJson(json)).toList();
       } else {
-        throw Exception('담당 어르신 목록을 불러오지 못했습니다.');
+        throw Exception('담당 대상자 목록을 불러오지 못했습니다.');
       }
     } catch (e) {
       throw Exception('목록 조회 중 오류가 발생했습니다: $e');

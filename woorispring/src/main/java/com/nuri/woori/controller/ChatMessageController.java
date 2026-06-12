@@ -101,6 +101,28 @@ public class ChatMessageController {
         return chatMessageRepository.save(chatMessage);
     }
 
+    // 잘못 보낸 메시지 삭제 — 본인이 보낸 메시지만 삭제할 수 있다.
+    @DeleteMapping("/messages/{messageId}")
+    public void deleteMessage(
+            @PathVariable Long messageId,
+            @RequestParam String senderRole,
+            @RequestParam Long senderId
+    ) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("Message not found"));
+
+        boolean isSender = senderRole != null
+                && senderRole.equals(message.getSenderRole())
+                && senderId != null
+                && senderId.equals(message.getSenderId());
+
+        if (!isSender) {
+            throw new RuntimeException("본인이 보낸 메시지만 삭제할 수 있습니다.");
+        }
+
+        chatMessageRepository.deleteById(messageId);
+    }
+
     private void setUnreadTargets(ChatMessage chatMessage) {
         String roomType = chatMessage.getRoomType();
         String senderRole = chatMessage.getSenderRole();

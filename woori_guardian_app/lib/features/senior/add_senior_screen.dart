@@ -2,14 +2,15 @@
 import '../../core/api/guardian_api.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/utils/phone_number_input_formatter.dart';
+import '../../core/theme/app_colors.dart';
 
-const _kGreen    = Color(0xFF86A788);
-const _kGreenBg  = Color(0xFFEBF8EE);
+const _kGreen    = AppColors.green;
+const _kGreenBg  = AppColors.greenBg;
 const _kBg = Colors.white;
-const _kDivider  = Color(0xFFE5E5EA);
-const _kTextMain = Color(0xFF1C1C1E);
-const _kTextSub  = Color(0xFF6C6C70);
-const _kTextHint = Color(0xFFAEAEB2);
+const _kDivider  = AppColors.divider;
+const _kTextMain = AppColors.textMain;
+const _kTextSub  = AppColors.textSub;
+const _kTextHint = AppColors.textHint;
 
 class AddSeniorScreen extends StatefulWidget {
   const AddSeniorScreen({super.key});
@@ -123,7 +124,7 @@ class _AddSeniorScreenState extends State<AddSeniorScreen> {
                     fontWeight: FontWeight.w600,
                     color: _kTextMain)),
             const SizedBox(height: 4),
-            const Text('이름과 전화번호로 등록된 어르신을 검색하세요.',
+            const Text('이름과 전화번호로 등록된 사용자를 검색하세요.',
                 style: TextStyle(fontSize: 13, color: _kTextSub)),
             const SizedBox(height: 20),
 
@@ -263,7 +264,7 @@ class _AddSeniorScreenState extends State<AddSeniorScreen> {
             Icon(Icons.search_off, size: 44, color: _kTextHint),
             SizedBox(height: 10),
             Text(
-              '등록된 어르신을 찾을 수 없습니다.\n이름과 전화번호를 다시 확인해주세요.',
+              '등록된 사용자를 찾을 수 없습니다.\n이름과 전화번호를 다시 확인해주세요.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: _kTextSub, height: 1.6),
             ),

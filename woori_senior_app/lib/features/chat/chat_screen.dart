@@ -1577,7 +1577,8 @@ class _AttachmentBubble extends StatelessWidget {
   final String mimeType;
   final bool isMine;
 
-  bool get _isImage => mimeType.startsWith('image/');
+  // 보호자 앱은 'image', 웹은 'image/jpeg' 형식으로 보내므로 둘 다 허용
+  bool get _isImage => mimeType.startsWith('image/') || mimeType == 'image';
 
   @override
   Widget build(BuildContext context) {
