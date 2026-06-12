@@ -404,6 +404,7 @@ export const getSavedJobProfile = () => {
       const jobPreference = profile.jobPreference ?? {};
       return {
         age: senior.age,
+        birthDate: senior.birthDate,
         address: senior.address || senior.region || "",
         city: senior.city || senior.sido || "",
         district: senior.district || senior.sigungu || "",

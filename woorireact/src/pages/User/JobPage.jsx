@@ -12,17 +12,23 @@ import {
   isPastDate,
   scoreJobMatch,
 } from "../../utils/user/jobApi";
+import { calculateAge } from "../../utils/user/profileForm.js";
 import "../../css/user/JobPage.css";
 
 const PAGE_SIZE = 20;
 const RECOMMEND_SIZE = 5;
 const CATEGORY_TARGET_SIZE = PAGE_SIZE + RECOMMEND_SIZE;
 const API_PAGE_SIZE = 200;
+const MIN_JOB_ACCESS_AGE = 18;
 
 const textOf = (...values) => values.filter(Boolean).join(" ");
 const toNumber = (value) => {
   const match = String(value || "").match(/\d+/);
   return match ? Number(match[0]) : null;
+};
+const getProfileAge = (profile) => {
+  if (!profile) return null;
+  return calculateAge(profile.birthDate) ?? toNumber(profile.age);
 };
 const getJobKey = (job) => `${job.source || "job"}-${job.jobId || job.recrtTitle || job.oranNm}`;
 
@@ -82,7 +88,8 @@ export default function JobPage() {
   const [selectedRecommendedApplication, setSelectedRecommendedApplication] = useState(null);
   const [hideExpired, setHideExpired] = useState(true);
   const deferredSearch = useDeferredValue(search);
-  const isJobAllowed = !profile || !profile.age || Number(profile.age) >= 20;
+  const profileAge = getProfileAge(profile);
+  const isJobAllowed = profileAge === null || profileAge >= MIN_JOB_ACCESS_AGE;
 
   useEffect(() => {
     setProfile(getSavedJobProfile());
@@ -528,10 +535,10 @@ export default function JobPage() {
               <div className="jp-age-gate-icon">🔒</div>
               <div className="jp-age-gate-title">이용 연령 제한</div>
               <div className="jp-age-gate-desc">
-                일자리 정보는 <strong>만 20세 이상</strong>부터<br />이용할 수 있어요.
+                일자리 정보는 <strong>만 18세 이상(생일 기준)</strong>부터<br />이용할 수 있어요.
               </div>
-              {profile?.age && (
-                <div className="jp-age-gate-badge">현재 만 {profile.age}세</div>
+              {profileAge !== null && (
+                <div className="jp-age-gate-badge">현재 만 {profileAge}세</div>
               )}
             </div>
           </main>

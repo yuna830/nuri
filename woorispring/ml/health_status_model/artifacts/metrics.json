@@ -1,67 +1,67 @@
 {
   "model": "XGBoost (2-stage cascade)",
   "architecture": "Stage1: 양호vs비양호 → Stage2: 주의vs위험",
-  "labeling_method": "서비스 정책 약지도 라벨",
-  "service_policy_labeling": true,
-  "total_rows": 60000,
-  "train_rows": 48000,
-  "test_rows": 12000,
+  "labeling_method": "K-FRAIL (임상 척도 기반)",
+  "service_policy_labeling": false,
+  "total_rows": 7092,
+  "train_rows": 5673,
+  "test_rows": 1419,
   "feature_count": 40,
   "label_distribution": {
-    "위험": 24552,
-    "주의": 21803,
-    "양호": 13645
+    "주의": 4590,
+    "양호": 1923,
+    "위험": 579
   },
   "stage2_train_distribution": {
-    "주의": 17442,
-    "위험": 19642
+    "주의": 3672,
+    "위험": 463
   },
   "cross_validation": {
-    "folds": 5,
-    "cv_accuracy_mean": 0.9089,
-    "cv_accuracy_std": 0.0037,
-    "cv_macro_f1_mean": 0.902,
-    "cv_macro_f1_std": 0.0038,
-    "cv_stage1_auc_mean": 0.9928,
-    "cv_stage2_auc_mean": 0.996
+    "folds": 3,
+    "cv_accuracy_mean": 0.9427,
+    "cv_accuracy_std": 0.0052,
+    "cv_macro_f1_mean": 0.9264,
+    "cv_macro_f1_std": 0.0116,
+    "cv_stage1_auc_mean": 0.9841,
+    "cv_stage2_auc_mean": 0.995
   },
   "holdout": {
-    "accuracy": 0.9127,
-    "macro_f1": 0.9062,
-    "auc_roc_3class": 0.9922,
-    "stage1_auc": 0.9932,
-    "stage2_auc": 0.9963,
+    "accuracy": 0.9479,
+    "macro_f1": 0.9439,
+    "auc_roc_3class": 0.9895,
+    "stage1_auc": 0.9858,
+    "stage2_auc": 0.9971,
     "classification_report": {
       "양호": {
-        "precision": 0.8094067015063019,
-        "recall": 0.9648222792231587,
-        "f1-score": 0.8803075894349716,
-        "support": 2729.0
+        "precision": 0.8755868544600939,
+        "recall": 0.9688311688311688,
+        "f1-score": 0.9198520345252774,
+        "support": 385.0
       },
       "주의": {
-        "precision": 0.9344520188778186,
-        "recall": 0.8172437514331575,
-        "f1-score": 0.8719266055045871,
-        "support": 4361.0
+        "precision": 0.9806818181818182,
+        "recall": 0.9400871459694989,
+        "f1-score": 0.9599555061179088,
+        "support": 918.0
       },
       "위험": {
-        "precision": 0.964119197243057,
-        "recall": 0.9686354378818737,
-        "f1-score": 0.966372041044397,
-        "support": 4910.0
+        "precision": 0.9646017699115044,
+        "recall": 0.9396551724137931,
+        "f1-score": 0.9519650655021834,
+        "support": 116.0
       },
-      "accuracy": 0.91275,
+      "accuracy": 0.9478505990133897,
       "macro avg": {
-        "precision": 0.9026593058757258,
-        "recall": 0.91690048951273,
-        "f1-score": 0.9062020786613186,
-        "support": 12000.0
+        "precision": 0.9402901475178055,
+        "recall": 0.9495244957381536,
+        "f1-score": 0.9439242020484565,
+        "support": 1419.0
       },
       "weighted avg": {
-        "precision": 0.9181534501000227,
-        "recall": 0.91275,
-        "f1-score": 0.9124765049751277,
-        "support": 12000.0
+        "precision": 0.9508531736207045,
+        "recall": 0.9478505990133897,
+        "f1-score": 0.9484215190322237,
+        "support": 1419.0
       }
     },
     "confusion_matrix": {
@@ -72,83 +72,83 @@
       ],
       "matrix": [
         [
-          2633,
-          96,
+          373,
+          12,
           0
         ],
         [
-          620,
-          3564,
-          177
+          51,
+          863,
+          4
         ],
         [
-          0,
-          154,
-          4756
+          2,
+          5,
+          109
         ]
       ]
     }
   },
   "top_features": [
     {
-      "feature": "recent_surgery_1y_flag",
-      "importance_stage1": 0.25195273756980896,
-      "importance_stage2": 0.05429646000266075,
-      "importance_avg": 0.15312460064888
+      "feature": "recent_fall_flag",
+      "importance_stage1": 0.08064127713441849,
+      "importance_stage2": 0.49507835507392883,
+      "importance_avg": 0.28785982728004456
     },
     {
-      "feature": "serious_disease_count",
-      "importance_stage1": 0.0,
-      "importance_stage2": 0.15163476765155792,
-      "importance_avg": 0.07581738382577896
+      "feature": "max_hours_num",
+      "importance_stage1": 0.4431389272212982,
+      "importance_stage2": 0.027442118152976036,
+      "importance_avg": 0.23529052734375
     },
     {
       "feature": "disease_count",
-      "importance_stage1": 0.075251005589962,
-      "importance_stage2": 0.07606545090675354,
-      "importance_avg": 0.07565823197364807
+      "importance_stage1": 0.18163350224494934,
+      "importance_stage2": 0.014510716311633587,
+      "importance_avg": 0.0980721116065979
     },
     {
-      "feature": "recent_fall_flag",
-      "importance_stage1": 0.0383070632815361,
-      "importance_stage2": 0.1105174720287323,
-      "importance_avg": 0.0744122713804245
+      "feature": "serious_disease_count",
+      "importance_stage1": 0.004967698827385902,
+      "importance_stage2": 0.17250770330429077,
+      "importance_avg": 0.08873770385980606
     },
     {
       "feature": "short_hours_flag",
-      "importance_stage1": 0.13524648547172546,
-      "importance_stage2": 0.009540513157844543,
-      "importance_avg": 0.072393499314785
+      "importance_stage1": 0.0,
+      "importance_stage2": 0.12219687551259995,
+      "importance_avg": 0.06109843775629997
     },
     {
       "feature": "comorbidity_score",
-      "importance_stage1": 0.10125956684350967,
-      "importance_stage2": 0.043261755257844925,
-      "importance_avg": 0.07226066291332245
+      "importance_stage1": 0.042865343391895294,
+      "importance_stage2": 0.04963371902704239,
+      "importance_avg": 0.04624953120946884
+    },
+    {
+      "feature": "walking_limited_flag",
+      "importance_stage1": 0.03235030174255371,
+      "importance_stage2": 0.009283456951379776,
+      "importance_avg": 0.020816879346966743
+    },
+    {
+      "feature": "bmi_obese_flag",
+      "importance_stage1": 0.03628120198845863,
+      "importance_stage2": 0.004800095222890377,
+      "importance_avg": 0.020540649071335793
     },
     {
       "feature": "high_medication_flag",
-      "importance_stage1": 0.10948100686073303,
-      "importance_stage2": 0.022330420091748238,
-      "importance_avg": 0.06590571254491806
+      "importance_stage1": 0.022220678627490997,
+      "importance_stage2": 0.007854795083403587,
+      "importance_avg": 0.015037736855447292
     },
     {
-      "feature": "surgery_high_impact_flag",
-      "importance_stage1": 0.09158194810152054,
-      "importance_stage2": 0.028708862140774727,
-      "importance_avg": 0.06014540418982506
-    },
-    {
-      "feature": "surgery_recovery_incomplete_flag",
-      "importance_stage1": 0.0,
-      "importance_stage2": 0.11024405807256699,
-      "importance_avg": 0.05512202903628349
-    },
-    {
-      "feature": "joint_disease_flag",
-      "importance_stage1": 0.0,
-      "importance_stage2": 0.0836397185921669,
-      "importance_avg": 0.04181985929608345
+      "feature": "chronic_disease_count",
+      "importance_stage1": 0.007373773958534002,
+      "importance_stage2": 0.01615825481712818,
+      "importance_avg": 0.011766014620661736
     }
   ]
 }

@@ -37,7 +37,7 @@ except ImportError:
     USING_XGB = False
     print("[경고] xgboost 미설치 → HistGradientBoostingClassifier 로 대체합니다.")
 
-from health_features import FEATURE_COLUMNS, build_features, load_rows, normalize_label, validate_columns
+from health_features import FEATURE_COLUMNS, align_features, build_features, load_rows, normalize_label, validate_columns
 from health_features import REQUIRED_COLUMNS
 
 # ── 라벨 상수 ─────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ def main() -> None:
         df = apply_service_policy_labels(df)
 
     y_raw = df["label"].map(normalize_label)
-    x     = build_features(df)
+    x     = align_features(build_features(df), FEATURE_COLUMNS)
 
     label_counts = y_raw.value_counts()
     print(f"\n[데이터] 총 {len(df):,}건")
