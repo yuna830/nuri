@@ -110,6 +110,11 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   bool _hasVerifyResult = false;
   FaceVerifyResult? _lastVerifyResult;
 
+  double _minZoom = 1.0;
+  double _maxZoom = 1.0;
+  double _currentZoom = 1.0;
+  double _zoomAtScaleStart = 1.0;
+
   bool get _isSelfieMode =>
       _controller?.description.lensDirection == CameraLensDirection.front;
 
@@ -157,6 +162,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
 
       await controller.initialize();
 
+      final minZoom = await controller.getMinZoomLevel();
+      final maxZoom = await controller.getMaxZoomLevel();
+
       if (!mounted) {
         await controller.dispose();
         return;
@@ -172,6 +180,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         _hasVerifyResult = false;
         _lastVerifyResult = null;
         _guideText = '얼굴을 화면에 맞춰주세요.';
+        _minZoom = minZoom;
+        _maxZoom = maxZoom;
+        _currentZoom = minZoom; // 카메라 전환 시 줌 초기화
       });
 
       await controller.startImageStream(_processCameraImage);
@@ -215,6 +226,17 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         _isInitializing = false;
       });
     }
+  }
+
+  Future<void> _setZoom(double zoom) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    final clamped = zoom.clamp(_minZoom, _maxZoom);
+    if ((clamped - _currentZoom).abs() < 0.01) return;
+
+    setState(() => _currentZoom = clamped);
+    await controller.setZoomLevel(clamped);
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -450,9 +472,9 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('보호자에게 발견 제보를 보냈습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('보호자에게 발견 제보를 보냈습니다.')));
         Navigator.pop(context);
       } else {
         setState(
@@ -809,9 +831,43 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                               ),
                             ),
                           )
+                        // 두 손가락으로 확대, 축소
+                        // 두 손가락으로 확대, 축소
                         else if (controller != null)
                           Positioned.fill(
-                            child: _buildCameraPreview(controller),
+                            child: GestureDetector(
+                              onScaleStart: (_) =>
+                                  _zoomAtScaleStart = _currentZoom,
+                              onScaleUpdate: (details) =>
+                                  _setZoom(_zoomAtScaleStart * details.scale),
+                              child: _buildCameraPreview(controller),
+                            ),
+                          ),
+
+                        // ▼▼ 여기에 추가 — 현재 줌 배율 표시 ▼▼
+                        if (_capturedImage == null &&
+                            _currentZoom > _minZoom + 0.05)
+                          Positioned(
+                            top: 16,
+                            right: 16,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Text(
+                                'x${_currentZoom.toStringAsFixed(1)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                           ),
                         Positioned(
                           left: 20,
@@ -949,8 +1005,7 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                                 ? '확인 중'
                                                 : !_hasVerifyResult
                                                 ? '확인하기'
-                                                : (_lastVerifyResult
-                                                          ?.matched ??
+                                                : (_lastVerifyResult?.matched ??
                                                       false)
                                                 ? '발견 제보하기'
                                                 : '신고하기',

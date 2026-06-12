@@ -113,6 +113,12 @@ def infer_question_mode(question: str, requested_mode: str) -> str:
         "제도알려",
         "뭐가있",
         "목록",
+        "관련복지",
+        "복지알려",
+        "맞는복지",
+        "받을복지",
+        "해당하는복지",
+        "복지추천",
     ]
 
     if any(pattern in normalized for pattern in recommend_patterns):

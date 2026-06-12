@@ -12,6 +12,7 @@ import '../contact/contact_senior_screen.dart';
 import '../mypage/mypage_screen.dart';
 import '../auth/guardian_login_screen.dart';
 import '../face/face_check_camera_screen.dart';
+import '../missing/missing_persons_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/models/senior.dart';
@@ -409,6 +410,17 @@ class _HomeTabState extends State<_HomeTab> {
             },
           ),
           const SizedBox(height: 12),
+          _MissingPersonsCard(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MissingPersonsScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
           for (var i = 0; i < _seniors.length; i++) ...[
             _SeniorCard(
               senior: _seniors[i],
@@ -491,6 +503,78 @@ class _FaceCheckCard extends StatelessWidget {
                     SizedBox(height: 4),
                     Text(
                       '촬영한 얼굴을 실종자 정보와 비교합니다.',
+                      style: TextStyle(fontSize: 12, color: _C.textSub),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 22, color: _C.textHint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 실종자 목록 진입 카드 — 다른 보호자가 신고한 실종자를 확인하고 제보할 수 있다.
+class _MissingPersonsCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _MissingPersonsCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE0E8E0), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.redBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.person_search_outlined,
+                  color: AppColors.red,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '실종자 목록',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _C.textTitle,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '현재 신고된 실종자를 확인하고, 발견하면 제보할 수 있습니다.',
                       style: TextStyle(fontSize: 12, color: _C.textSub),
                     ),
                   ],
