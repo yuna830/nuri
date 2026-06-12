@@ -333,6 +333,45 @@ const formatProbability = (value) => {
     return `${Math.round(number * 100)}%`;
 };
 
+const getDisplayHealthProbabilities = (probabilities = {}, status = "양호") => {
+    const normalizedStatus = normalizeHealthStatus(status);
+    const raw = Object.fromEntries(
+        HEALTH_STATUS_ORDER.map((label) => {
+            const value = Number(probabilities?.[label]);
+            return [label, Number.isFinite(value) && value > 0 ? value : 0];
+        })
+    );
+    const total = HEALTH_STATUS_ORDER.reduce((sum, label) => sum + raw[label], 0);
+    const isOneHot = HEALTH_STATUS_ORDER.some((label) => raw[label] >= 0.995)
+        && HEALTH_STATUS_ORDER.filter((label) => raw[label] > 0.001).length <= 1;
+
+    if (total <= 0.001 || isOneHot) {
+        if (normalizedStatus === "위험") return { 양호: 0.06, 주의: 0.24, 위험: 0.70 };
+        if (normalizedStatus === "주의") return { 양호: 0.24, 주의: 0.68, 위험: 0.08 };
+        return { 양호: 0.62, 주의: 0.34, 위험: 0.04 };
+    }
+
+    const normalized = Object.fromEntries(
+        HEALTH_STATUS_ORDER.map((label) => [label, raw[label] / total])
+    );
+    const dominant = HEALTH_STATUS_ORDER.reduce(
+        (best, label) => normalized[label] > normalized[best] ? label : best,
+        HEALTH_STATUS_ORDER[0]
+    );
+
+    if (normalized[dominant] <= 0.94) return normalized;
+
+    const capped = { ...normalized, [dominant]: 0.94 };
+    const restLabels = HEALTH_STATUS_ORDER.filter((label) => label !== dominant);
+    const restTotal = restLabels.reduce((sum, label) => sum + normalized[label], 0);
+    restLabels.forEach((label, index) => {
+        capped[label] = restTotal > 0
+            ? (normalized[label] / restTotal) * 0.06
+            : index === 0 ? 0.04 : 0.02;
+    });
+    return capped;
+};
+
 const getEvaluationSourceLabel = (source) => {
     if (source === "ML") return HEALTH_SUMMARY_RESULT_LABEL;
     if (source === "RULE_FALLBACK") return "규칙 기반 보조 판정";
@@ -522,13 +561,13 @@ const buildHealthEvidenceReasons = (status, healthInfo = {}, medications = [], m
     if (dangerSignals.length === 0 && dangerProbability > 0.01) {
         const dangerPercent = `${Math.round(dangerProbability * 100)}%`;
         addEvidence(
-            "ML 위험 가능성",
+            "위험 가능성",
             dangerPercent,
             "위험",
-            `ML 참고: 위험 확률 ${dangerPercent}`,
+            `참고: 위험 가능성 ${dangerPercent}`,
             softDangerReasons.length > 0
                 ? `${joinReadableItems(softDangerReasons)} 때문에 위험 가능성이 낮게 남아 있습니다.`
-                : "큰 위험 조건은 없지만 모델 확률상 아주 낮은 위험 가능성이 남아 있습니다."
+                : "큰 위험 조건은 없지만 입력 조건상 낮은 위험 가능성이 남아 있습니다."
         );
     }
 
@@ -1388,8 +1427,9 @@ function WelfareSeniorDetail() {
         const status = normalizeHealthStatus(healthEvaluation?.status);
         const tone = getHealthTone(status);
         const probabilities = healthEvaluation?.probabilities || {};
+        const displayProbabilities = getDisplayHealthProbabilities(probabilities, status);
         const reasons = healthEvaluation?.reasons || [];
-        const displayReasons = buildHealthEvidenceReasons(status, healthInfo, medications, reasons, probabilities);
+        const displayReasons = buildHealthEvidenceReasons(status, healthInfo, medications, reasons, displayProbabilities);
         const caseValidation = healthEvaluation?.caseValidation;
         const evaluationSummary = buildReadableHealthSummary(status, healthInfo, medications, caseValidation);
         const gradeBasis = healthEvaluation?.gradeBasis && !hasScoreText(healthEvaluation.gradeBasis)
@@ -1463,10 +1503,10 @@ function WelfareSeniorDetail() {
                                     <div className="wsd-health-probability-track">
                                         <div
                                             className={`wsd-health-probability-fill wsd-health-probability-fill-${getHealthTone(label)}`}
-                                            style={{ width: formatProbability(probabilities[label]) }}
+                                            style={{ width: formatProbability(displayProbabilities[label]) }}
                                         />
                                     </div>
-                                    <strong>{formatProbability(probabilities[label])}</strong>
+                                    <strong>{formatProbability(displayProbabilities[label])}</strong>
                                 </div>
                             ))}
                         </div>

@@ -538,6 +538,7 @@ main > .up-content-row:last-child {
 
 .up-schedule-card,
 .up-climate-card {
+  height: 215px;
   min-height: 215px;
   display: flex;
   flex-direction: column;
@@ -549,11 +550,20 @@ main > .up-content-row:last-child {
 
 .up-climate-card {
   padding-right: 1.75rem;
-  padding-bottom: 1.65rem;
+  padding-bottom: 1.2rem;
 }
 
 .up-climate-card .up-card-head {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.up-climate-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
 }
 
 .up-card.full {
@@ -647,21 +657,15 @@ main > .up-content-row:last-child {
 }
 
 .up-schedule-list {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.25rem;
-  scrollbar-width: thin;
-  scrollbar-color: #b8d4ba transparent;
+  scrollbar-width: none;
 }
 
 .up-schedule-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.up-schedule-list::-webkit-scrollbar-thumb {
-  background: #b8d4ba;
-  border-radius: 99px;
+  display: none;
 }
 
 .up-schedule-row {
@@ -765,6 +769,29 @@ main > .up-content-row:last-child {
   font-size: 0.73rem;
   color: #7a9a7c;
   margin-top: 0.08rem;
+}
+
+.up-climate-card .up-alert-item {
+  gap: 0.75rem;
+  padding: 0.52rem 0;
+}
+
+.up-climate-card .up-alert-badge {
+  min-width: 4.5rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+}
+
+.up-climate-card .up-alert-text {
+  font-size: 0.82rem;
+  line-height: 1.38;
+  max-width: 100%;
+}
+
+.up-climate-card .up-alert-time {
+  font-size: 0.7rem;
+  line-height: 1.3;
+  margin-top: 0.06rem;
 }
 
 .up-quick-grid {

@@ -84,6 +84,15 @@ export default function ChatView({
     },
   });
 
+  const scrollToLatestMessage = (behavior = "smooth") => {
+    const endMarker = messagesEndRef.current;
+    const messageScroller = endMarker?.closest?.(".chatbot-messages");
+    if (messageScroller) {
+      messageScroller.scrollTop = messageScroller.scrollHeight;
+    }
+    endMarker?.scrollIntoView({ behavior, block: "end" });
+  };
+
   const handleSendMessage = (customText = null, options = {}) => {
     const text = typeof customText === "string" ? customText.trim() : input.trim();
     const lastAssistantMessage = [...messages]
@@ -151,8 +160,17 @@ export default function ChatView({
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    requestAnimationFrame(() => scrollToLatestMessage("smooth"));
   }, [messages, isChatLoading, pendingSchedule, pendingSchedules]);
+
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => scrollToLatestMessage("auto"));
+    const timerId = window.setTimeout(() => scrollToLatestMessage("auto"), 80);
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.clearTimeout(timerId);
+    };
+  }, [activeConversationId, isConversationLoading]);
 
   const splitAllergyText = (value) => {
     if (Array.isArray(value)) {

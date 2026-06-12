@@ -10,23 +10,29 @@ class SeniorHomeData {
     required this.schedules,
     required this.climateAlerts,
     required this.alerts,
+    required this.latestLocation,
+    required this.safeZones,
   });
 
   final Map<String, dynamic> senior;
   final List<dynamic> schedules;
   final List<dynamic> climateAlerts;
   final List<dynamic> alerts;
+  final Map<String, dynamic>? latestLocation;
+  final List<dynamic> safeZones;
 }
 
 class SeniorApi {
   const SeniorApi();
 
   Future<SeniorHomeData> fetchHomeData(int seniorId) async {
-    final results = await Future.wait([
+    final results = await Future.wait<dynamic>([
       _getJson('/api/seniors/$seniorId'),
       _getJsonList('/api/schedules/senior/$seniorId/today'),
       _getJsonList('/api/climate-alerts/senior/$seniorId/today'),
       _getJsonList('/api/alerts/senior/$seniorId'),
+      fetchLatestLocation(seniorId).catchError((_) => null),
+      fetchSafeZones(seniorId).catchError((_) => <dynamic>[]),
     ]);
 
     return SeniorHomeData(
@@ -34,6 +40,8 @@ class SeniorApi {
       schedules: results[1] as List<dynamic>,
       climateAlerts: results[2] as List<dynamic>,
       alerts: results[3] as List<dynamic>,
+      latestLocation: results[4] as Map<String, dynamic>?,
+      safeZones: results[5] as List<dynamic>,
     );
   }
 
@@ -206,7 +214,8 @@ class SeniorApi {
     required String relation,
   }) async {
     final response = await http.patch(
-      Uri.parse('$apiBaseUrl/api/guardians/$guardianId/seniors/$seniorId/relation'),
+      Uri.parse(
+          '$apiBaseUrl/api/guardians/$guardianId/seniors/$seniorId/relation'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'relation': relation}),
     );
@@ -237,8 +246,8 @@ class SeniorApi {
     final params = <String, String>{'size': '3000'};
     if (keyword.isNotEmpty) params['keyword'] = keyword;
 
-    final uri = Uri.parse('$apiBaseUrl/api/job-cache')
-        .replace(queryParameters: params);
+    final uri =
+        Uri.parse('$apiBaseUrl/api/job-cache').replace(queryParameters: params);
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -374,7 +383,8 @@ class SeniorApi {
   }
 
   /// 7단계 전체 데이터로 회원가입
-  Future<Map<String, dynamic>> signUpSeniorFull(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> signUpSeniorFull(
+      Map<String, dynamic> data) async {
     final response = await http.post(
       Uri.parse('$apiBaseUrl/api/seniors'),
       headers: {'Content-Type': 'application/json'},
@@ -398,22 +408,52 @@ class SeniorApi {
     required String region,
     String incomeLevel = '',
     String householdType = '',
-  }) => signUpSeniorFull({
-    'name': name, 'phone': phone, 'birthDate': birthDate,
-    'gender': gender, 'region': region,
-    'incomeLevel': incomeLevel, 'householdType': householdType,
-    'age': '', 'disabilityGrade': '', 'disabilityType': '',
-    'profileImageUrl': '', 'height': '', 'weight': '',
-    'smoking': '', 'drinking': '', 'allergies': '',
-    'medicineCount': '', 'medicationsJson': '[]',
-    'diabetes': '', 'hypertension': '', 'heartDisease': '',
-    'jointDisease': '', 'stroke': '', 'kidneyDisease': '',
-    'lungDisease': '', 'liverDisease': '', 'cancer': '',
-    'walkingAid': '', 'dementia': '', 'vision': '', 'hearing': '', 'recentFall': '',
-    'hasSurgery': '', 'surgeryDetail': '', 'otherDisease': '',
-    'maxHours': '', 'maxDistance': '', 'disabledWork': [],
-    'payType': '', 'hopeDays': [], 'hopeJobType': [], 'hopeCondition': [], 'memo': '',
-  });
+  }) =>
+      signUpSeniorFull({
+        'name': name,
+        'phone': phone,
+        'birthDate': birthDate,
+        'gender': gender,
+        'region': region,
+        'incomeLevel': incomeLevel,
+        'householdType': householdType,
+        'age': '',
+        'disabilityGrade': '',
+        'disabilityType': '',
+        'profileImageUrl': '',
+        'height': '',
+        'weight': '',
+        'smoking': '',
+        'drinking': '',
+        'allergies': '',
+        'medicineCount': '',
+        'medicationsJson': '[]',
+        'diabetes': '',
+        'hypertension': '',
+        'heartDisease': '',
+        'jointDisease': '',
+        'stroke': '',
+        'kidneyDisease': '',
+        'lungDisease': '',
+        'liverDisease': '',
+        'cancer': '',
+        'walkingAid': '',
+        'dementia': '',
+        'vision': '',
+        'hearing': '',
+        'recentFall': '',
+        'hasSurgery': '',
+        'surgeryDetail': '',
+        'otherDisease': '',
+        'maxHours': '',
+        'maxDistance': '',
+        'disabledWork': [],
+        'payType': '',
+        'hopeDays': [],
+        'hopeJobType': [],
+        'hopeCondition': [],
+        'memo': '',
+      });
 
   /// 보호자 이름+전화번호로 검색
   Future<Map<String, dynamic>?> searchGuardian({
