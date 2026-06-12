@@ -677,6 +677,10 @@ function GuardianPage() {
       alert.fallDetails && typeof alert.fallDetails === "object" ? alert.fallDetails : {}
     );
     const alertsWithLocation = apiAlerts.map((alert) => {
+      // AI 후보 알림의 위치는 "발견자가 찍은 곳"이므로
+      // 어르신의 현재 위치로 대체하면 틀린 정보가 된다 → 대체하지 않음.
+      if (alert.type === "AI_CANDIDATE_CONFIRM") return alert;
+
       const fallbackLocation = getFallbackLocation(alert);
 
       if (!fallbackLocation) return alert;
@@ -1478,25 +1482,36 @@ function GuardianPage() {
   };
 
   const handleReadAlert = async (alertId) => {
+    // 누르는 즉시 화면에서 제거(낙관적 처리) — 서버 호출이 실패하면 되돌린다.
+    setApiAlerts((prev) =>
+      prev.map((alert) =>
+        String(alert.id) === String(alertId) ? { ...alert, isRead: true } : alert
+      )
+    );
+
+    setInfoRequestAlert((currentAlert) =>
+      String(currentAlert?.id) === String(alertId) ? null : currentAlert
+    );
+
     try {
       const updatedAlert = await readAlert(alertId);
 
-      setApiAlerts((prev) =>
-        prev.map((alert) => {
-          if (String(alert.id) !== String(alertId)) return alert;
-          // 응답이 유효한 객체면 교체, 아니면 기존 alert에 isRead만 덮어씀
-          if (updatedAlert && typeof updatedAlert === "object" && updatedAlert.id) {
-            return updatedAlert;
-          }
-          return { ...alert, isRead: true };
-        })
-      );
-
-      setInfoRequestAlert((currentAlert) =>
-        String(currentAlert?.id) === String(alertId) ? null : currentAlert
-      );
+      if (updatedAlert && typeof updatedAlert === "object" && updatedAlert.id) {
+        setApiAlerts((prev) =>
+          prev.map((alert) =>
+            String(alert.id) === String(alertId) ? updatedAlert : alert
+          )
+        );
+      }
     } catch (error) {
       console.error("알림 확인 처리 실패:", error);
+      gToast.error("알림 확인 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+
+      setApiAlerts((prev) =>
+        prev.map((alert) =>
+          String(alert.id) === String(alertId) ? { ...alert, isRead: false } : alert
+        )
+      );
     }
   };
 
@@ -1692,6 +1707,16 @@ function GuardianPage() {
     if (alert?.isFall) {
       setMissingDescription(
         `${targetElder?.name ?? selectedElder.name}님의 낙상 감지 후 보호자 확인 또는 대처가 없어 신고합니다. ${alert.message || ""}`
+      );
+    } else if (alert?.isCandidateConfirm || alert?.type === "AI_CANDIDATE_CONFIRM") {
+      const sightingLocation = alert.address
+        || (alert.latitude && alert.longitude
+          ? `${Number(alert.latitude).toFixed(5)}, ${Number(alert.longitude).toFixed(5)}`
+          : "");
+      setMissingDescription(
+        `AI 발견 제보에서 ${targetElder?.name ?? selectedElder.name}님과 유사한 인물이 확인되어 신고합니다.`
+        + (sightingLocation ? ` 발견 위치: ${sightingLocation}.` : "")
+        + ` ${alert.message || ""}`
       );
     } else {
       setMissingDescription(

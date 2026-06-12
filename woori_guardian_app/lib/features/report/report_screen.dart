@@ -2270,9 +2270,24 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _reports = [];
-  int _selectedTab = 0; // 0=전체, 1=접수 완료, 2=취소
+  List<Map<String, dynamic>> _allActiveReports = [];
+  String? _myGuardianId;
+  int _selectedScope = 0; // 0=전체 실종자, 1=내 신고, 2=다른 보호자 신고
+  int _selectedTab = 0; // 내 신고 내 필터: 0=전체, 1=접수 완료, 2=취소
 
   List<Map<String, dynamic>> get _filteredReports {
+    // 전체 실종자 — 모든 보호자의 ACTIVE 신고
+    if (_selectedScope == 0) {
+      return _allActiveReports;
+    }
+
+    // 다른 보호자가 접수한 신고만
+    if (_selectedScope == 2) {
+      return _allActiveReports
+          .where((r) => r['guardianId']?.toString() != _myGuardianId)
+          .toList();
+    }
+
     if (_selectedTab == 1) {
       return _reports.where((r) {
         final s = r['status']?.toString() ?? '';
@@ -2321,17 +2336,27 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           ? body
           : (body['content'] ?? body['data'] ?? body['reports'] ?? []) as List;
 
+      // 전체 실종자 목록 (모든 보호자의 ACTIVE 신고) — 실패해도 내 신고는 보여준다.
+      var activeReports = <Map<String, dynamic>>[];
+      try {
+        final activeRes = await http
+            .get(Uri.parse('${AppConfig.apiBaseUrl}/missing-reports/active'))
+            .timeout(const Duration(seconds: 15));
+        if (activeRes.statusCode == 200) {
+          final activeBody = jsonDecode(utf8.decode(activeRes.bodyBytes));
+          if (activeBody is List) {
+            activeReports = activeBody.cast<Map<String, dynamic>>();
+          }
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
+        _myGuardianId = guardianId;
         _reports = list.cast<Map<String, dynamic>>();
+        _allActiveReports = activeReports;
         _isLoading = false;
       });
-
-      // 디버그용
-      for (final r in _reports) {
-        print('report imageUrl: ${r['imageUrl']}');
-        print('report imageUrls: ${r['imageUrls']}');
-      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -2352,6 +2377,30 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         elevation: 0,
       ),
       body: _buildBody(),
+    );
+  }
+
+  Widget _buildScopeChip(int index, String label) {
+    final selected = _selectedScope == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedScope = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? _kGreen : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? _kGreen : _kDivider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : _kTextSub,
+          ),
+        ),
+      ),
     );
   }
 
@@ -2410,59 +2459,80 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       );
     }
 
-    if (_reports.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.campaign_outlined, size: 48, color: _kTextHint),
-            SizedBox(height: 12),
-            Text(
-              '접수된 신고 내역이 없습니다.',
-              style: TextStyle(fontSize: 15, color: _kTextSub),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Column(
       children: [
-        // 탭 바
+        // 범위 선택: 전체 실종자(모든 보호자의 신고) / 내 신고
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(
             children: [
-              _buildTabChip(0, '전체'),
+              _buildScopeChip(0, '전체 실종자'),
               const SizedBox(width: 8),
-              _buildTabChip(1, '접수 완료'),
+              _buildScopeChip(1, '내 신고'),
               const SizedBox(width: 8),
-              _buildTabChip(2, '취소'),
+              _buildScopeChip(2, '다른 보호자'),
             ],
           ),
         ),
+        // 내 신고일 때만 상태 필터 표시
+        if (_selectedScope == 1) ...[
+          const SizedBox(height: 8),
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                _buildTabChip(0, '전체'),
+                const SizedBox(width: 8),
+                _buildTabChip(1, '접수 완료'),
+                const SizedBox(width: 8),
+                _buildTabChip(2, '취소'),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 4),
-        // 기존 RefreshIndicator
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadReports,
             color: _kGreen,
             child: _filteredReports.isEmpty
-                ? const Center(
-                    child: Text(
-                      '해당 내역이 없습니다.',
-                      style: TextStyle(fontSize: 14, color: _kTextSub),
-                    ),
+                ? ListView(
+                    children: [
+                      const SizedBox(height: 120),
+                      Icon(
+                        _selectedScope == 0
+                            ? Icons.person_search_outlined
+                            : Icons.campaign_outlined,
+                        size: 48,
+                        color: _kTextHint,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _selectedScope == 0
+                            ? '현재 신고된 실종자가 없습니다.'
+                            : '해당 내역이 없습니다.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 15, color: _kTextSub),
+                      ),
+                    ],
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                     itemCount: _filteredReports.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => _ReportHistoryCard(
-                      report: _filteredReports[i],
-                      onCancelled: _loadReports,
-                    ),
+                    itemBuilder: (_, i) {
+                      final report = _filteredReports[i];
+                      // 신고 취소는 내가 접수한 신고만 가능
+                      final isMine =
+                          report['guardianId']?.toString() == _myGuardianId;
+                      return _ReportHistoryCard(
+                        report: report,
+                        canCancel: isMine,
+                        onCancelled: _loadReports,
+                      );
+                    },
                   ),
           ),
         ),
@@ -2476,7 +2546,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
 class _ReportHistoryCard extends StatelessWidget {
   final Map<String, dynamic> report;
   final VoidCallback? onCancelled;
-  const _ReportHistoryCard({required this.report, this.onCancelled});
+
+  /// 신고 취소 가능 여부 — 내가 접수한 신고만 true
+  final bool canCancel;
+
+  const _ReportHistoryCard({
+    required this.report,
+    this.onCancelled,
+    this.canCancel = true,
+  });
 
   String get _typeLabel {
     final type =
@@ -2775,8 +2853,9 @@ class _ReportHistoryCard extends StatelessWidget {
               _buildImageGrid(imageUrls, context),
             ],
 
-            // 취소 상태가 아닐 때만 표시
-            if (report['status']?.toString() != 'CANCELLED' &&
+            // 내 신고이면서 취소 상태가 아닐 때만 표시
+            if (canCancel &&
+                report['status']?.toString() != 'CANCELLED' &&
                 report['status']?.toString() != 'CANCELED') ...[
               const SizedBox(height: 20),
               const Divider(color: _kDivider),

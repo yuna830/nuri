@@ -465,6 +465,7 @@ async def verify_faces(
             "message": "등록 얼굴 임베딩이 없습니다.",
             "bestSimilarity": 0,
             "bestCandidate": None,
+            "matches": [],
             "faces": [],
         }
 
@@ -515,69 +516,74 @@ async def verify_faces(
             })
             continue
 
-        largest_face = max(
+        # 가장 큰 얼굴 하나만 보면 행인이 가까이 찍혔을 때 실종자를 놓치고,
+        # 실종자가 두 명 이상 찍힌 경우도 처리하지 못한다.
+        # → 검출된 모든 얼굴(크기순 최대 10명)을 각각 비교한다.
+        sorted_faces = sorted(
             detected_faces,
             key=lambda face: (face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]),
-        )
+            reverse=True,
+        )[:10]
 
-        left, top, right, bottom = map(int, largest_face.bbox)
-        bbox = [left, top, right, bottom]
-        quality_score, quality_reasons = estimate_upload_face_quality(image, largest_face)
+        for face in sorted_faces:
+            left, top, right, bottom = map(int, face.bbox)
+            bbox = [left, top, right, bottom]
+            quality_score, quality_reasons = estimate_upload_face_quality(image, face)
 
-        if quality_score < LIVE_FACE_QUALITY_MIN_SCORE:
-            results.append({
-                "index": index,
-                "matched": False,
-                "status": "LOW_QUALITY",
-                "similarity": 0,
-                "qualityScore": round(quality_score, 4),
-                "qualityReasons": quality_reasons,
-                "bbox": bbox,
-                "sourceDevice": sourceDevice,
-            })
-            continue
+            if quality_score < LIVE_FACE_QUALITY_MIN_SCORE:
+                results.append({
+                    "index": index,
+                    "matched": False,
+                    "status": "LOW_QUALITY",
+                    "similarity": 0,
+                    "qualityScore": round(quality_score, 4),
+                    "qualityReasons": quality_reasons,
+                    "bbox": bbox,
+                    "sourceDevice": sourceDevice,
+                })
+                continue
 
-        best_match = None
-        best_similarity = 0.0
+            best_match = None
+            best_similarity = 0.0
 
-        for known in known_embeddings:
-            similarity = cosine_similarity(
-                known["embedding"],
-                largest_face.embedding,
+            for known in known_embeddings:
+                similarity = cosine_similarity(
+                    known["embedding"],
+                    face.embedding,
+                )
+
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match = known
+
+            if best_similarity >= MATCH_THRESHOLD:
+                match_status = "MATCH"
+                matched = True
+            elif best_similarity >= CANDIDATE_THRESHOLD:
+                match_status = "CANDIDATE"
+                matched = False
+            else:
+                match_status = "NO_MATCH"
+                matched = False
+
+            best_overall_similarity = max(best_overall_similarity, best_similarity)
+
+            if match_status in ("MATCH", "CANDIDATE"):
+                final_matched = True
+
+            results.append(
+                make_match_payload(
+                    best_match=best_match,
+                    matched=matched,
+                    match_status=match_status,
+                    best_similarity=best_similarity,
+                    quality_score=quality_score,
+                    quality_reasons=quality_reasons,
+                    bbox=bbox,
+                    index=index,
+                    source_device=sourceDevice,
+                )
             )
-
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_match = known
-
-        if best_similarity >= MATCH_THRESHOLD:
-            match_status = "MATCH"
-            matched = True
-        elif best_similarity >= CANDIDATE_THRESHOLD:
-            match_status = "CANDIDATE"
-            matched = False
-        else:
-            match_status = "NO_MATCH"
-            matched = False
-
-        best_overall_similarity = max(best_overall_similarity, best_similarity)
-
-        if match_status in ("MATCH", "CANDIDATE"):
-            final_matched = True
-
-        results.append(
-            make_match_payload(
-                best_match=best_match,
-                matched=matched,
-                match_status=match_status,
-                best_similarity=best_similarity,
-                quality_score=quality_score,
-                quality_reasons=quality_reasons,
-                bbox=bbox,
-                index=index,
-                source_device=sourceDevice,
-            )
-        )
 
     matched_face = next((face for face in results if face.get("status") == "MATCH"), None)
     candidate_face = next((face for face in results if face.get("status") == "CANDIDATE"), None)
@@ -585,6 +591,31 @@ async def verify_faces(
 
     final_face = matched_face or candidate_face
     final_status = "MATCH" if matched_face else "CANDIDATE" if candidate_face else "NO_MATCH"
+
+    # 실종자별 최고 유사도 결과 — 한 사진에 실종자가 여러 명 찍힌 경우를 위해
+    # 매치/후보로 인식된 실종자를 전부 모은다.
+    best_by_senior = {}
+    for face in results:
+        senior_id = face.get("seniorId")
+        if senior_id is None or face.get("status") not in ("MATCH", "CANDIDATE"):
+            continue
+        previous = best_by_senior.get(senior_id)
+        if previous is None or (face.get("similarity") or 0) > (previous.get("similarity") or 0):
+            best_by_senior[senior_id] = face
+
+    matches = [
+        {
+            "seniorId": face.get("seniorId"),
+            "seniorName": face.get("seniorName"),
+            "similarity": face.get("similarity"),
+            "status": face.get("status"),
+        }
+        for face in sorted(
+            best_by_senior.values(),
+            key=lambda face: face.get("similarity") or 0,
+            reverse=True,
+        )
+    ]
 
     if final_matched and matched_face and can_send_alert(matched_face.get("seniorId")):
         post_camera_alert(matched_face.get("seniorId"), best_overall_similarity)
@@ -601,5 +632,6 @@ async def verify_faces(
         "description": final_face.get("description") if final_face else None,
         "imageUrl": final_face.get("imageUrl") if final_face else None,
         "bestCandidate": best_candidate,
+        "matches": matches,
         "faces": results,
     }

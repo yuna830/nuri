@@ -1218,20 +1218,151 @@
   overflow-y: auto;
 }
 
+/* 카드 안에 카드를 두지 않고 항목 사이를 선으로 구분 */
 .ai-candidate-item {
   display: grid;
   grid-template-columns: 92px 1fr;
   gap: 12px;
   align-items: stretch;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  padding: 0 0 12px;
   background: #ffffff;
+}
+
+.ai-candidate-item + .ai-candidate-item {
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
 }
 
 /* 사진이 없는 알림은 내용이 카드 전체 폭을 쓰도록 */
 .ai-candidate-item:not(:has(img)) {
   grid-template-columns: 1fr;
+}
+
+.ai-candidate-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-candidate-expand {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-candidate-expand:hover {
+  background: #f4f6ee;
+  color: var(--text-main);
+}
+
+/* 후보 크게 보기 모달 */
+.ai-candidate-modal {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+}
+
+.ai-candidate-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-candidate-modal-header h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-main);
+}
+
+.ai-candidate-modal-header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ai-candidate-modal-header button:hover {
+  background: #f4f6ee;
+  color: var(--text-main);
+}
+
+.ai-candidate-modal img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #f8f8f3;
+}
+
+.ai-candidate-modal p {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.ai-candidate-modal span {
+  color: var(--text-sub);
+  font-size: 12px;
+}
+
+.ai-candidate-location {
+  color: var(--deep-green);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  word-break: keep-all;
+}
+
+.ai-candidate-map-link {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #f8f8f3;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ai-candidate-map-link:hover {
+  background: #efefe8;
+}
+
+.ai-candidate-modal .ai-candidate-actions {
+  margin-top: 0;
+  padding-top: 4px;
+}
+
+.ai-candidate-modal .ai-candidate-actions button {
+  height: 40px;
+  font-size: 13.5px;
 }
 
 .ai-candidate-item img {

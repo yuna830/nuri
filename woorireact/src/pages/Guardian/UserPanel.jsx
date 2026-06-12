@@ -340,7 +340,7 @@ function UserPanel({
                 <img
                   src={profileImage}
                   alt={`${selectedElder.name} 프로필`}
-                  fetchpriority="high"
+                  fetchPriority="high"
                   className={profileImageLoaded ? "loaded" : ""}
                   onLoad={() => setProfileImageLoaded(true)}
                 />
