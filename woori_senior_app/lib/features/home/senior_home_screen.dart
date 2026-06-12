@@ -966,13 +966,6 @@ class _HomeBody extends StatelessWidget {
       return alert['type'] == 'MEDICINE';
     }).length;
   }
-
-  String _nextScheduleSummary(List<dynamic> schedules) {
-    if (schedules.isEmpty) return '오늘 등록된 일정이 없어요.';
-    final time = scheduleTime(schedules.first);
-    final title = scheduleTitle(schedules.first);
-    return time.isEmpty ? '다음: $title' : '다음: $time $title';
-  }
 }
 
 // ─────────────────────────────────────────────
@@ -1690,13 +1683,79 @@ class _ScheduleCard extends StatelessWidget {
   const _ScheduleCard({required this.schedules});
   final List<dynamic> schedules;
 
+  dynamic _nextUpcoming() {
+    final now = TimeOfDay.now();
+    for (final s in schedules) {
+      final t = scheduleTime(s);
+      if (t.length < 5) return s;
+      final parts = t.split(':');
+      if (parts.length < 2) return s;
+      final h = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts[1]) ?? 0;
+      if (h > now.hour || (h == now.hour && m >= now.minute)) return s;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final next = _nextUpcoming();
     return _BaseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle(title: '오늘 일정'),
+          Row(
+            children: [
+              const Expanded(child: _SectionTitle(title: '오늘 일정')),
+              if (schedules.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF86A788).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${schedules.length}건',
+                    style: const TextStyle(
+                      color: Color(0xFF48624B),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (next != null) ...[
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                const Icon(Icons.arrow_right, size: 16, color: Color(0xFF86A788)),
+                const SizedBox(width: 2),
+                Text(
+                  () {
+                    final t = scheduleTime(next);
+                    final title = scheduleTitle(next);
+                    return t.isEmpty ? '다음: $title' : '다음: $t $title';
+                  }(),
+                  style: const TextStyle(
+                    color: Color(0xFF48624B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (schedules.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            const Text(
+              '오늘 일정이 모두 끝났어요.',
+              style: TextStyle(
+                color: Color(0xFF6D766A),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (schedules.isEmpty)
             const Text('등록된 일정이 없어요.',
@@ -1705,48 +1764,101 @@ class _ScheduleCard extends StatelessWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w700))
           else
-            ...schedules.map((s) => _ScheduleRow(
-                  time: scheduleTime(s),
-                  text: scheduleTitle(s),
-                )),
+            _buildScheduleRows(),
         ],
       ),
+    );
+  }
+
+  Widget _buildScheduleRows() {
+    final now = TimeOfDay.now();
+    bool passedDividerInserted = false;
+    final rows = <Widget>[];
+
+    for (int i = 0; i < schedules.length; i++) {
+      final s = schedules[i];
+      final t = scheduleTime(s);
+      final isPast = t.length >= 5 && () {
+        final parts = t.split(':');
+        if (parts.length < 2) return false;
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        return h < now.hour || (h == now.hour && m < now.minute);
+      }();
+
+      // 지난 일정 → 미래 일정 경계에 구분선 삽입
+      if (!isPast && !passedDividerInserted && rows.isNotEmpty) {
+        passedDividerInserted = true;
+        rows.add(const Padding(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          child: Divider(
+            color: Color(0xFFDDE8DE),
+            thickness: 1,
+            height: 1,
+          ),
+        ));
+      }
+
+      rows.add(_ScheduleRow(
+        time: scheduleTime(s),
+        text: scheduleTitle(s),
+        isPast: isPast,
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: rows,
     );
   }
 }
 
 class _ScheduleRow extends StatelessWidget {
-  const _ScheduleRow({required this.time, required this.text});
+  const _ScheduleRow({required this.time, required this.text, this.isPast = false});
   final String time;
   final String text;
+  final bool isPast;
 
   @override
   Widget build(BuildContext context) {
+    final textColor = isPast ? const Color(0xFFB0BAB0) : const Color(0xFF1F2A20);
+    final timeColor = isPast ? const Color(0xFFB0BAB0) : const Color(0xFF48624B);
+    final dotColor = isPast ? const Color(0xFFCDD6CD) : const Color(0xFF86A788);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 11),
       child: Row(
         children: [
           SizedBox(
             width: 72,
-            child: Text(time.isEmpty ? '시간 없음' : time,
-                style: const TextStyle(
-                    color: Color(0xFF48624B),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900)),
+            child: Text(
+              time.isEmpty ? '시간 없음' : time,
+              style: TextStyle(
+                color: timeColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                decoration: isPast ? TextDecoration.lineThrough : null,
+                decorationColor: timeColor,
+              ),
+            ),
           ),
           Container(
             width: 8,
             height: 8,
-            decoration: const BoxDecoration(
-                color: Color(0xFF86A788), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    color: Color(0xFF1F2A20),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800)),
+            child: Text(
+              text,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                decoration: isPast ? TextDecoration.lineThrough : null,
+                decorationColor: textColor,
+              ),
+            ),
           ),
         ],
       ),

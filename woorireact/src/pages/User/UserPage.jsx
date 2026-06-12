@@ -1646,10 +1646,12 @@ export default function UserPage() {
                       try {
                         const saved = sessionStorage.getItem("currentSenior");
                         if (saved) {
-                          const hi = JSON.parse(saved)?.healthInfo ?? {};
-                          const noHours = !hi.maxHours || hi.maxHours === "상관없음";
-                          const noDistance = !hi.maxDistance || hi.maxDistance === "상관없음";
-                          if (noHours && noDistance) { setShowJobModal(true); return; }
+                          const parsed = JSON.parse(saved);
+                          const age = Number(parsed?.senior?.age ?? parsed?.age ?? 0);
+                          if (!age || age >= 20) {
+                            const hi = parsed?.healthInfo ?? {};
+                            if (!hi.maxHours && !hi.maxDistance) { setShowJobModal(true); return; }
+                          }
                         }
                       } catch { /* 로드 실패 시 그냥 진행 */ }
                     }
@@ -1759,9 +1761,17 @@ export default function UserPage() {
               <div className="up-card-label">오늘 일정</div>
               <div className="up-stat-value">{todaySchedules.length}건</div>
               <div className="up-stat-sub">
-                {todaySchedules.length > 0
-                  ? `다음: ${todaySchedules[0].time} ${todaySchedules[0].text}`
-                  : "오늘 등록된 일정이 없어요"}
+                {(() => {
+                  if (todaySchedules.length === 0) return "오늘 등록된 일정이 없어요";
+                  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                  const next = todaySchedules.find(s => {
+                    if (!s.time || s.time === "시간 미정") return true;
+                    const [h, m] = s.time.split(":").map(Number);
+                    return h * 60 + m >= nowMin;
+                  });
+                  if (next) return `다음: ${next.time} ${next.text}`;
+                  return "오늘 일정이 모두 끝났어요";
+                })()}
               </div>
             </div>
           </div>
@@ -1793,13 +1803,31 @@ export default function UserPage() {
                     등록된 일정이 없어요.
                   </div>
                 ) : (
-                  scheduleList.map((s, i) => (
-                    <div key={i} className="up-schedule-row">
-                      <div className="up-schedule-time">{s.time}</div>
-                      <div className="up-schedule-dot" />
-                      <div className="up-schedule-text">{s.text}</div>
-                    </div>
-                  ))
+                  (() => {
+                    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                    const isPast = (s) => {
+                      if (!s.time || s.time === "시간 미정") return false;
+                      const [h, m] = s.time.split(":").map(Number);
+                      return h * 60 + m < nowMin;
+                    };
+                    const rows = [];
+                    let dividerInserted = false;
+                    scheduleList.forEach((s, i) => {
+                      const past = isPast(s);
+                      if (!past && !dividerInserted && rows.length > 0) {
+                        dividerInserted = true;
+                        rows.push(<div key="divider" className="up-schedule-divider" />);
+                      }
+                      rows.push(
+                        <div key={i} className={`up-schedule-row${past ? " past" : ""}`}>
+                          <div className={`up-schedule-time${past ? " past" : ""}`}>{s.time}</div>
+                          <div className={`up-schedule-dot${past ? " past" : ""}`} />
+                          <div className={`up-schedule-text${past ? " past" : ""}`}>{s.text}</div>
+                        </div>
+                      );
+                    });
+                    return rows;
+                  })()
                 )}
               </div>
             </div>

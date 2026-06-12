@@ -676,6 +676,10 @@ main > .up-content-row:last-child {
   border-bottom: none;
 }
 
+.up-schedule-row:has(+ .up-schedule-divider) {
+  border-bottom: none;
+}
+
 .up-schedule-time {
   font-size: 0.78rem;
   font-weight: 700;
@@ -694,6 +698,28 @@ main > .up-content-row:last-child {
 .up-schedule-text {
   font-size: 0.88rem;
   color: #1e2a1f;
+}
+
+.up-schedule-time.past {
+  color: #b8c4b9;
+  text-decoration: line-through;
+  text-decoration-color: #b8c4b9;
+}
+
+.up-schedule-dot.past {
+  background: #cdd6cd;
+}
+
+.up-schedule-text.past {
+  color: #b8c4b9;
+  text-decoration: line-through;
+  text-decoration-color: #b8c4b9;
+}
+
+.up-schedule-divider {
+  border: none;
+  border-top: 1px solid #dde8de;
+  margin: 2px 0;
 }
 
 .up-alert-item {
