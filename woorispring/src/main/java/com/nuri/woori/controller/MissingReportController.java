@@ -86,6 +86,15 @@ public class MissingReportController {
                 .toList();
     }
 
+    // 모든 보호자가 볼 수 있는 실종자 목록 — 발견 제보 시나리오의 시작점
+    @GetMapping("/active")
+    public List<MissingReportResponse> getActiveMissingReports() {
+        return missingReportRepository.findByStatus("ACTIVE")
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     @GetMapping("/face-targets")
     public List<MissingFaceTargetResponse> getFaceTargets() {
         return missingReportRepository.findByStatus("ACTIVE")

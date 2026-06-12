@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import GuardianWelfarePanel from "./GuardianWelfarePanel";
 import { gToast } from "../../utils/guardian/guardianToast.js";
 
@@ -808,35 +809,6 @@ function EmergencyPanel({
 
         {activePanelTab === "safety" && (
           <>
-            <section className="card safe182-card">
-              <div className="card-header">
-                <h2>실종 정보 확인</h2>
-              </div>
-
-              <div className="safe182-body">
-                <p>
-                  실종 의심 시 최근 위치와 실종 정보를 확인하세요. <br />
-                  긴급 상황은 즉시 112에 신고하세요.
-                </p>
-
-                <div className="safe182-actions">
-                  <button
-                    type="button"
-                    onClick={() => window.open("https://www.safe182.go.kr", "_blank")}
-                  >
-                    112 신고 안내
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsPoliceSearchOpen(true)}
-                  >
-                    실종자 검색
-                  </button>
-                </div>
-              </div>
-            </section>
-
             <section className="card ai-candidate-card">
               <div className="card-header">
                 <h2>AI 실종 후보 확인</h2>
@@ -854,7 +826,8 @@ function EmergencyPanel({
 
                       <div>
                         <strong>{alert.seniorName || selectedElder.name}님과 유사한 후보</strong>
-                        <p>{alert.message}</p>
+                        {/* 유사도 수치는 보호자에게 혼란만 줘서 표시하지 않는다 */}
+                        <p>{(alert.message || "").replace(/\s*유사도\s*\d+(\.\d+)?\s*%\.?/g, "")}</p>
                         <span>{alert.time}</span>
 
                         <div className="ai-candidate-actions">
@@ -874,8 +847,17 @@ function EmergencyPanel({
             </section>
 
             <section className="card police-missing-card">
-              <div className="card-header">
+              <div className="card-header police-missing-header">
                 <h2>최근 실종 경보</h2>
+                <button
+                  type="button"
+                  className="police-search-button"
+                  onClick={() => setIsPoliceSearchOpen(true)}
+                  aria-label="실종자 검색"
+                  title="실종자 검색"
+                >
+                  <Search size={16} />
+                </button>
               </div>
 
               <div className="police-missing-list">

@@ -26,6 +26,7 @@ function cleanAnswerText(value) {
 
 function WelfarePolicyChatPage() {
     const [seniors, setSeniors] = useState([]);
+    const [seniorsLoading, setSeniorsLoading] = useState(true);
     const [selectedSeniorId, setSelectedSeniorId] = useState("");
     const [question, setQuestion] = useState("");
     const [messages, setMessages] = useState([]);
@@ -46,12 +47,14 @@ function WelfarePolicyChatPage() {
 
         if (!workerId) {
             setSeniors([]);
+            setSeniorsLoading(false);
             return;
         }
 
         fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: workerId })
             .then((data) => setSeniors(Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : []))
-            .catch(() => setSeniors([]));
+            .catch(() => setSeniors([]))
+            .finally(() => setSeniorsLoading(false));
     }, []);
 
     useEffect(() => {
@@ -193,14 +196,21 @@ function WelfarePolicyChatPage() {
                         <select
                             className="wpc-select"
                             value={selectedSeniorId}
+                            disabled={seniorsLoading}
                             onChange={(event) => setSelectedSeniorId(event.target.value)}
                         >
-                            <option value="">대상자 선택 없이 질문하기</option>
-                            {seniors.map((senior) => (
-                                <option key={senior.id} value={senior.id}>
-                                    {senior.name}
-                                </option>
-                            ))}
+                            {seniorsLoading ? (
+                                <option value="">대상자 목록을 불러오는 중...</option>
+                            ) : (
+                                <>
+                                    <option value="">대상자 선택 없이 질문하기</option>
+                                    {seniors.map((senior) => (
+                                        <option key={senior.id} value={senior.id}>
+                                            {senior.name}
+                                        </option>
+                                    ))}
+                                </>
+                            )}
                         </select>
 
                         <div className="wpc-history">
