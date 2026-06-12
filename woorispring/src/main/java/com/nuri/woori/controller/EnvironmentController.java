@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @CrossOrigin(origins = "*")
 public class EnvironmentController {
     private static final String AIRKOREA_SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
-    private static final long CACHE_TTL_MS = Duration.ofMinutes(10).toMillis();
+    private static final long CACHE_TTL_MS = Duration.ofMinutes(60).toMillis();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))

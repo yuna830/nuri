@@ -10,7 +10,7 @@ import {
 import { fetchAirQuality, fetchPollenIndex, fetchUVIndex } from "../../utils/user/weatherAdvice";
 import "../../css/user/WeatherAlert.css";
 
-const SERVICE_KEY = "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
 const DEFAULT_POS = { lat: 37.5665, lon: 126.9780 };
 const DEFAULT_CLIMATE_INSIGHT = {
   region: "현재 위치 확인 중",

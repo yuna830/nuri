@@ -1,11 +1,9 @@
-const SENURI_SERVICE_KEY =
-  import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY ||
-  "M1FEdIziwexRX6M%2BKOI2PolaM4N3Hr6gNs3Dd26lwB202guC%2B2hsoMRPlmN0g%2FFPF3YvFT0WEf99ZYNyb22rKQ%3D%3D";
+const SENURI_SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
 
 const SEOUL_JOB_KEYS = [
-  import.meta.env.VITE_SEOUL_JOB_KEY_1 || "6c4977427a77616e37304c58714a4d",
-  import.meta.env.VITE_SEOUL_JOB_INFO_KEY || "6f484f795777616e373678665a556e",
-  import.meta.env.VITE_SEOUL_JOB_KEY_3 || "554d6c414677616e37314b43545549",
+  import.meta.env.VITE_SEOUL_JOB_KEY_1,
+  import.meta.env.VITE_SEOUL_JOB_INFO_KEY,
+  import.meta.env.VITE_SEOUL_JOB_KEY_3,
 ].filter(Boolean);
 
 const JOB_CACHE_TTL_MS = 10 * 60 * 1000;

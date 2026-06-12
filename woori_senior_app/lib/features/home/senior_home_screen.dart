@@ -102,6 +102,21 @@ bool _isToday(dynamic value) {
 }
 
 // ─────────────────────────────────────────────
+//  INFO_UPDATE_REQUEST 탭 매핑 (JS FIELD_CATEGORY_MAP과 동일)
+// ─────────────────────────────────────────────
+// 탭 순서: 0인적사항 1신체 2복약 3만성 4거동/인지 5복지 6활동및일자리
+const _fieldSectionMap = <String, int>{
+  '연락처': 0, '주소': 0, '생년월일/나이': 0, '성별': 0, '장애 등급': 0, '장애 유형': 0,
+  '흡연': 1, '음주': 1,
+  '복약 정보': 2,
+  '당뇨': 3, '고혈압': 3, '심장질환': 3, '관절질환': 3, '뇌졸중': 3,
+  '신장질환': 3, '호흡기질환': 3, '간질환': 3, '암': 3,
+  '보행 보조기': 4, '치매': 4, '시력': 4, '청력': 4, '최근 낙상': 4, '수술 이력': 4, '수술 상세': 4,
+  '생계비 현황': 5, '가구 유형': 5, '연금 현황': 5, '주거 유형': 5,
+  '최대 근무 시간': 6, '이동 가능 거리': 6, '휴식 필요': 6, '희망 급여 유형': 6,
+};
+
+// ─────────────────────────────────────────────
 //  alert 유형 helpers
 // ─────────────────────────────────────────────
 bool _isSos(Map a) => a['type'] == 'SOS';
@@ -514,13 +529,13 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     final alertId = id is int ? id : int.tryParse('$id');
     final message = '${alert['message'] ?? ''}';
 
-    // 메시지 내용으로 해당 탭 추정 (실제 탭 순서: 0인적사항 1신체 2복약 3만성 4거동 5복지 6활동및일자리)
     int sectionIndex = 0;
-    if (RegExp(r'복약|약|복용').hasMatch(message)) sectionIndex = 2;
-    else if (RegExp(r'만성|질환|수술').hasMatch(message)) sectionIndex = 3;
-    else if (RegExp(r'거동|인지|감각|보행').hasMatch(message)) sectionIndex = 4;
-    else if (RegExp(r'복지|소득|가구|혜택').hasMatch(message)) sectionIndex = 5;
-    else if (RegExp(r'활동|이동|쉬는|작업|일자리|희망|근무|직종').hasMatch(message)) sectionIndex = 6;
+    for (final entry in _fieldSectionMap.entries) {
+      if (message.contains(entry.key)) {
+        sectionIndex = entry.value;
+        break;
+      }
+    }
 
     if (!context.mounted) return;
     Navigator.push(

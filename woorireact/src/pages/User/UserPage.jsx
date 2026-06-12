@@ -1177,7 +1177,7 @@ export default function UserPage() {
     };
 
     loadCallRequest();
-    const timerId = setInterval(loadCallRequest, 1000);
+    const timerId = setInterval(loadCallRequest, 30 * 1000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") loadCallRequest();
