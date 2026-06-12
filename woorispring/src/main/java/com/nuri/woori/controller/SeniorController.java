@@ -32,7 +32,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @RestController
@@ -223,7 +226,62 @@ public class SeniorController {
         Senior senior = seniorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Senior not found"));
 
-        return toProfileResponseWithHealthEvaluation(senior);
+        return toProfileResponse(senior);
+    }
+
+    @GetMapping("/health-evaluations")
+    public List<SeniorHealthEvaluationSummaryResponse> getSeniorHealthEvaluations(@RequestParam List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> limitedIds = ids.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .limit(20)
+                .toList();
+        Map<Long, Senior> seniorsById = new LinkedHashMap<>();
+        seniorRepository.findAllById(limitedIds)
+                .forEach(senior -> seniorsById.put(senior.getId(), senior));
+
+        List<Long> inputIds = new ArrayList<>();
+        List<HealthStatusMlService.HealthEvaluationInput> inputs = new ArrayList<>();
+        for (Long id : limitedIds) {
+            Senior senior = seniorsById.get(id);
+            if (senior == null) {
+                continue;
+            }
+
+            HealthInfo healthInfo = healthInfoRepository
+                    .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                    .orElse(null);
+            inputIds.add(id);
+            inputs.add(new HealthStatusMlService.HealthEvaluationInput(senior, healthInfo));
+        }
+
+        List<HealthStatusMlService.HealthEvaluation> evaluations = healthStatusMlService.evaluateAllWithDetails(inputs);
+        List<SeniorHealthEvaluationSummaryResponse> responses = new ArrayList<>();
+        for (int index = 0; index < inputIds.size() && index < evaluations.size(); index++) {
+            HealthStatusMlService.HealthEvaluation evaluation = evaluations.get(index);
+            responses.add(new SeniorHealthEvaluationSummaryResponse(
+                    inputIds.get(index),
+                    evaluation.status(),
+                    evaluation.source()
+            ));
+        }
+
+        return responses;
+    }
+
+    @GetMapping("/{id}/health-evaluation")
+    public HealthStatusMlService.HealthEvaluation getSeniorHealthEvaluation(@PathVariable Long id) {
+        Senior senior = seniorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Senior not found"));
+        HealthInfo healthInfo = healthInfoRepository
+                .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                .orElse(null);
+
+        return healthStatusMlService.evaluateWithDetails(senior, healthInfo);
     }
 
     //    @PatchMapping("/{id}/welfare-worker")
@@ -685,10 +743,7 @@ public class SeniorController {
                     ? seniorRepository.findAll(Sort.by(Sort.Direction.DESC, "id"))
                     : seniorRepository.findByWelfareWorkerIdOrderByIdDesc(welfareWorkerId);
 
-            return seniors
-                    .stream()
-                    .map(this::toWelfareSeniorListResponse)
-                    .toList();
+            return toWelfareSeniorListResponses(seniors);
         }
 
         int pageNumber = Math.max(0, page == null ? 0 : page);
@@ -699,10 +754,7 @@ public class SeniorController {
                 : seniorRepository.findByWelfareWorkerId(welfareWorkerId, pageRequest);
 
         return new WelfareSeniorPageResponse(
-                seniorPage.getContent()
-                        .stream()
-                        .map(this::toWelfareSeniorListResponse)
-                        .toList(),
+                toWelfareSeniorListResponses(seniorPage.getContent()),
                 seniorPage.getTotalElements(),
                 seniorPage.getTotalPages(),
                 seniorPage.getNumber(),
@@ -722,11 +774,38 @@ public class SeniorController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    private List<WelfareSeniorListResponse> toWelfareSeniorListResponses(List<Senior> seniors) {
+        Map<Long, HealthInfo> healthInfos = new LinkedHashMap<>();
+
+        for (Senior senior : seniors) {
+            HealthInfo healthInfo = healthInfoRepository
+                    .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
+                    .orElse(null);
+            healthInfos.put(senior.getId(), healthInfo);
+        }
+
+        return seniors.stream()
+                .map(senior -> toWelfareSeniorListResponse(
+                        senior,
+                        healthInfos.get(senior.getId()),
+                        null
+                ))
+                .toList();
+    }
+
     private WelfareSeniorListResponse toWelfareSeniorListResponse(Senior senior) {
         HealthInfo healthInfo = healthInfoRepository
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
 
+        return toWelfareSeniorListResponse(senior, healthInfo, null);
+    }
+
+    private WelfareSeniorListResponse toWelfareSeniorListResponse(
+            Senior senior,
+            HealthInfo healthInfo,
+            HealthStatusMlService.HealthEvaluation precomputedHealthEvaluation
+    ) {
         JobPreference jobPreference = jobPreferenceRepository
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
@@ -751,6 +830,9 @@ public class SeniorController {
                 : jobRequestCount > 0 ? "일자리 요청" : "없음";
 
         String locationStatus = hasSafeZoneExitAlert ? "안전구역 이탈" : "정상";
+        String healthStatus = precomputedHealthEvaluation != null
+                ? precomputedHealthEvaluation.status()
+                : healthInfo == null ? null : healthInfo.getHealthStatus();
 
         return new WelfareSeniorListResponse(
                 senior.getId(),
@@ -761,7 +843,7 @@ public class SeniorController {
                 senior.getGender(),
                 senior.getPhone(),
                 senior.getRegion() == null ? senior.getAddress() : senior.getRegion(),
-                healthInfo == null ? null : healthInfo.getHealthStatus(),
+                healthStatus,
                 locationStatus,
                 alertStatus,
                 senior.getWorkRequestStatus(),
@@ -1082,5 +1164,11 @@ public class SeniorController {
             String socialWorkerPhone,
             String socialWorkerCenter,
             HealthStatusMlService.HealthEvaluation healthEvaluation) {
+    }
+
+    public record SeniorHealthEvaluationSummaryResponse(
+            Long seniorId,
+            String healthStatus,
+            String source) {
     }
 }

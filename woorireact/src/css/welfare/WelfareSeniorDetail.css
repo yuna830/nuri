@@ -621,10 +621,10 @@
     margin-bottom: 18px;
 }
 
-/* ── 상단 3단 요약 ── */
+/* ── 상단 요약 ── */
 .wsd-health-summary-row {
     display: grid;
-    grid-template-columns: 160px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 160px minmax(0, 1fr);
     gap: 14px;
     margin-bottom: 18px;
 }
@@ -796,6 +796,131 @@
     font-weight: 700;
 }
 
+.wsd-health-case-validation {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid #d4e8d6;
+    border-left: 4px solid #86a788;
+    border-radius: 12px;
+    background: #ffffff;
+    margin-bottom: 18px;
+}
+
+.wsd-health-case-validation-caution {
+    border-left-color: #f0c24d;
+    background: #fffdf7;
+}
+
+.wsd-health-case-validation-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.wsd-health-case-validation-head div {
+    display: grid;
+    gap: 4px;
+}
+
+.wsd-health-case-validation-head span {
+    color: #7a9a7c;
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
+.wsd-health-case-validation-head strong {
+    color: #1e2a1f;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.wsd-health-case-validation-head em {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: #edf6ee;
+    color: #2f6a3b;
+    font-size: 0.78rem;
+    font-style: normal;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.wsd-health-case-validation-caution .wsd-health-case-validation-head em {
+    background: #fff0c2;
+    color: #8a640e;
+}
+
+.wsd-health-case-validation>p {
+    margin: 0;
+    color: #1e2a1f;
+    font-size: 0.94rem;
+    font-weight: 800;
+    line-height: 1.55;
+}
+
+.wsd-health-case-validation-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.wsd-health-case-validation-stats span {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8fbf5;
+    color: #6f876f;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.wsd-health-case-validation-stats strong {
+    color: #1e2a1f;
+    font-size: 0.92rem;
+    font-weight: 900;
+}
+
+.wsd-health-similar-case-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.wsd-health-similar-case-list article {
+    display: grid;
+    gap: 5px;
+    padding: 10px 12px;
+    border: 1px solid #d4e8d6;
+    border-radius: 10px;
+    background: #f8fbf5;
+}
+
+.wsd-health-similar-case-list span {
+    color: #2f6a3b;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.wsd-health-similar-case-list strong {
+    color: #1e2a1f;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.wsd-health-similar-case-list p {
+    margin: 0;
+    color: #6f876f;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
 .wsd-health-score-panel {
     display: grid;
     gap: 10px;
@@ -901,11 +1026,20 @@
     margin: 0;
 }
 
+.wsd-health-reason-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
 .wsd-health-criteria-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0;
     padding: 8px 16px;
     border: 1px solid #d4e8d6;
     border-radius: 999px;
@@ -982,7 +1116,7 @@
 
 .wsd-health-grade-scale {
     display: grid;
-    grid-template-columns: 24fr 35fr 41fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: hidden;
     border: 1px solid #d4e8d6;
     border-radius: 999px;
@@ -1132,17 +1266,20 @@
     box-shadow: inset 3px 0 0 #d86969;
 }
 
-.wsd-health-reason-grid,
-.wsd-health-criteria-grid,
-.wsd-health-score-rule-list {
+.wsd-health-criteria-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
 }
 
+.wsd-health-reason-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
 .wsd-health-reason-card,
-.wsd-health-criteria-card,
-.wsd-health-score-rule-card {
+.wsd-health-criteria-card {
     display: grid;
     gap: 8px;
     padding: 14px;
@@ -1151,8 +1288,7 @@
     background: #ffffff;
 }
 
-.wsd-health-reason-card div,
-.wsd-health-score-rule-card div {
+.wsd-health-reason-card div {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1160,16 +1296,14 @@
 }
 
 .wsd-health-reason-card strong,
-.wsd-health-criteria-card strong,
-.wsd-health-score-rule-card strong {
+.wsd-health-criteria-card strong {
     color: #1e2a1f;
     font-size: 0.95rem;
     font-weight: 900;
 }
 
 .wsd-health-reason-card span,
-.wsd-health-criteria-card span,
-.wsd-health-score-rule-card span {
+.wsd-health-criteria-card span {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1184,8 +1318,7 @@
 }
 
 .wsd-health-reason-card p,
-.wsd-health-criteria-card p,
-.wsd-health-score-rule-card p {
+.wsd-health-criteria-card p {
     margin: 0;
     color: #1e2a1f;
     font-size: 0.9rem;
@@ -1197,6 +1330,14 @@
     color: #6f876f;
     font-size: 0.8rem;
     font-weight: 700;
+    line-height: 1.45;
+}
+
+.wsd-health-reason-card em {
+    color: #476f4b;
+    font-size: 0.82rem;
+    font-style: normal;
+    font-weight: 900;
     line-height: 1.45;
 }
 
@@ -2499,7 +2640,9 @@
     .wsd-health-eval-heading,
     .wsd-health-reason-grid,
     .wsd-health-criteria-grid,
-    .wsd-health-score-rule-list {
+    .wsd-health-score-rule-list,
+    .wsd-health-case-validation-stats,
+    .wsd-health-similar-case-list {
         grid-template-columns: 1fr;
     }
 
@@ -2617,5 +2760,18 @@
     .wsd-health-criteria-row {
         grid-template-columns: 1fr;
         gap: 6px;
+    }
+
+    .wsd-health-case-validation-head {
+        flex-direction: column;
+    }
+
+    .wsd-health-reason-header {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .wsd-health-reason-actions {
+        justify-content: flex-start;
     }
 }

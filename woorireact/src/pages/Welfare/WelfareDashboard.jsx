@@ -4,7 +4,8 @@ import { CheckCircle, MapPin, MessageCircle, Phone, Route, Search } from "lucide
 
 import {
     fetchWelfareAlerts,
-    fetchWelfareSeniors,
+    fetchAllWelfareSeniors,
+    fetchWelfareSeniorHealthEvaluations,
     requestSeniorInfoUpdate,
     searchSeniorExact,
     assignWelfareSenior,
@@ -38,7 +39,7 @@ import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
 
 import "../../css/welfare/WelfareDashboard.css";
 
-const ITEM_PER_PAGE = 5;
+const ITEM_PER_PAGE = 7;
 
 const EMERGENCY_FILTER_VALUES = [
     "미응답 SOS",
@@ -116,8 +117,6 @@ function WelfareDashboard() {
     const [draftSearchKeyword, setDraftSearchKeyword] = useState("");
     const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
     const [summaryFilter, setSummaryFilter] = useState("all");
-    const [serverTotalPages, setServerTotalPages] = useState(1);
-    const [serverTotalSeniors, setServerTotalSeniors] = useState(0);
     const [infoRequestTarget, setInfoRequestTarget] = useState(null);
     const [infoRequestTargets, setInfoRequestTargets] = useState({
         toSenior: true,
@@ -177,18 +176,41 @@ function WelfareDashboard() {
                 setIsLoadingSeniors(true);
                 setSeniorLoadError("");
 
-                const data = await fetchWelfareSeniors({
-                    page: currentPage - 1,
-                    size: ITEM_PER_PAGE,
+                const data = await fetchAllWelfareSeniors({
                     welfareWorkerId: currentWorker.id,
                 });
-                const rawSeniors = Array.isArray(data) ? data : data.content;
-                const nextSeniors = Array.isArray(rawSeniors) ? rawSeniors.map(mapWelfareSenior) : [];
+                const nextSeniors = Array.isArray(data) ? data.map(mapWelfareSenior) : [];
+                let seniorsWithMlHealthStatus = nextSeniors;
+
+                // 목록과 상세 화면이 서로 다른 판정을 보여주지 않도록,
+                // 표도 상세와 같은 ML 판정 API 결과를 받은 뒤 렌더링한다.
+                const seniorIds = nextSeniors.map((senior) => senior.id).filter(Boolean);
+                if (seniorIds.length > 0) {
+                    try {
+                        const evaluations = await fetchWelfareSeniorHealthEvaluations(seniorIds);
+                        if (Array.isArray(evaluations)) {
+                            const statusBySeniorId = new Map(
+                                evaluations
+                                    .filter((evaluation) => evaluation?.seniorId && evaluation?.healthStatus)
+                                    .map((evaluation) => [String(evaluation.seniorId), evaluation.healthStatus])
+                            );
+
+                            if (statusBySeniorId.size > 0) {
+                                seniorsWithMlHealthStatus = nextSeniors.map((senior) => {
+                                    const healthStatus = statusBySeniorId.get(String(senior.id));
+                                    return healthStatus
+                                        ? { ...senior, healthStatus, healthStatusSource: "ML" }
+                                        : senior;
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error("목록 건강 상태 ML 갱신 실패:", error);
+                    }
+                }
 
                 if (!ignore) {
-                    setSeniors(nextSeniors);
-                    setServerTotalPages(Array.isArray(data) ? 1 : Math.max(1, data.totalPages || 1));
-                    setServerTotalSeniors(Array.isArray(data) ? nextSeniors.length : Number(data.totalElements || 0));
+                    setSeniors(seniorsWithMlHealthStatus);
                 }
             } catch (error) {
                 console.error("대상자 데이터 로딩 실패:", error);
@@ -209,7 +231,7 @@ function WelfareDashboard() {
         return () => {
             ignore = true;
         };
-    }, [currentPage, currentWorker, seniorReloadKey]);
+    }, [currentWorker, seniorReloadKey]);
 
     useEffect(() => {
         if (!currentWorker) return;
@@ -246,9 +268,8 @@ function WelfareDashboard() {
         let ignore = false;
         const load = async () => {
             try {
-                const data = await fetchWelfareSeniors({ welfareWorkerId: currentWorker.id });
-                const raw = Array.isArray(data) ? data : data.content || [];
-                if (!ignore) setNotificationSeniors(raw.map(mapWelfareSenior));
+                const data = await fetchAllWelfareSeniors({ welfareWorkerId: currentWorker.id });
+                if (!ignore) setNotificationSeniors(data.map(mapWelfareSenior));
             } catch { /* silent */ }
         };
         load();
@@ -341,7 +362,6 @@ function WelfareDashboard() {
         return 4;
     };
 
-    const isClientMode = summaryFilter !== "all";
     const sortedSeniors = filteredSeniors
         .slice()
         .sort(
@@ -349,16 +369,15 @@ function WelfareDashboard() {
                 getPriorityRank(first) - getPriorityRank(second) ||
                 Number(second.id) - Number(first.id)
         );
-    const totalPages = isClientMode
-        ? Math.max(1, Math.ceil(sortedSeniors.length / ITEM_PER_PAGE))
-        : Math.max(1, serverTotalPages);
-    const currentSeniors = isClientMode
-        ? sortedSeniors.slice((currentPage - 1) * ITEM_PER_PAGE, currentPage * ITEM_PER_PAGE)
-        : sortedSeniors;
+    const totalPages = Math.max(1, Math.ceil(sortedSeniors.length / ITEM_PER_PAGE));
+    const currentSeniors = sortedSeniors.slice(
+        (currentPage - 1) * ITEM_PER_PAGE,
+        currentPage * ITEM_PER_PAGE
+    );
 
     const seniorSummaryCounts = {
         ...getSeniorSummaryCounts(notificationSeniors.length > 0 ? notificationSeniors : seniors),
-        totalSeniors: serverTotalSeniors || seniors.length,
+        totalSeniors: seniors.length,
     };
 
     const toggleDraftFilter = (filterKey, option) => {

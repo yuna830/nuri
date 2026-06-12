@@ -47,6 +47,12 @@ REQUIRED_COLUMNS = [
     "vision",
     "hearing",
     "walking_aid",
+    "has_surgery",
+    "surgery_count",
+    "recent_surgery_1y",
+    "recent_surgery_3y",
+    "surgery_recovery",
+    "surgery_detail",
 ]
 
 PREDICT_REQUIRED_COLUMNS = [c for c in REQUIRED_COLUMNS if c != "label"]
@@ -125,6 +131,13 @@ FEATURE_COLUMNS = [
     "vision_limited_flag",    # 시력 제한
     "hearing_limited_flag",   # 청력 제한
     "walking_aid_flag",       # 보행 보조기구 사용
+    # 수술 이력
+    "has_surgery_flag",              # 수술 이력 있음
+    "surgery_count_num",             # 수술 건수
+    "recent_surgery_1y_flag",        # 최근 1년 이내 수술
+    "recent_surgery_3y_flag",        # 최근 3년 이내 수술
+    "surgery_recovery_incomplete_flag", # 회복 중/미회복/모름
+    "surgery_high_impact_flag",      # 활동 제한과 연결 가능성이 큰 수술명/부위
 ]
 
 
@@ -209,6 +222,16 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     feat["hearing_limited_flag"]  = w["hearing"].map(not_normal).astype(int)
     feat["walking_aid_flag"]      = w["walking_aid"].map(not_normal).astype(int)
 
+    # 수술 이력
+    surgery_count = w["surgery_count"].map(extract_number).fillna(0)
+    has_surgery = w["has_surgery"].map(has_condition) | (surgery_count > 0)
+    feat["has_surgery_flag"] = has_surgery.astype(int)
+    feat["surgery_count_num"] = surgery_count
+    feat["recent_surgery_1y_flag"] = w["recent_surgery_1y"].map(has_condition).astype(int)
+    feat["recent_surgery_3y_flag"] = w["recent_surgery_3y"].map(has_condition).astype(int)
+    feat["surgery_recovery_incomplete_flag"] = w["surgery_recovery"].map(recovery_incomplete).astype(int)
+    feat["surgery_high_impact_flag"] = w["surgery_detail"].map(high_impact_surgery).astype(int)
+
     return feat[FEATURE_COLUMNS]
 
 
@@ -264,6 +287,28 @@ def extract_number(value: object) -> float | None:
     text = _normalize_text(value)
     nums = [float(m) for m in re.findall(r"\d+(?:\.\d+)?", text)]
     return max(nums) if nums else None
+
+
+def recovery_incomplete(value: object) -> bool:
+    """수술 후 회복 상태가 완료가 아니면 True."""
+    text = _normalize_text(value).lower()
+    if not text:
+        return False
+    if any(kw in text for kw in ["회복완료", "완료", "recovered", "complete", "정상"]):
+        return False
+    return any(kw in text for kw in ["회복중", "미회복", "모름", "불완전", "치료", "재활", "중", "incomplete", "recovering", "unknown"])
+
+
+def high_impact_surgery(value: object) -> bool:
+    """활동·보행·근무 가능성에 직접 영향이 큰 수술명/부위를 감지."""
+    text = _normalize_text(value).lower()
+    if not text:
+        return False
+    return any(kw in text for kw in [
+        "관절", "무릎", "고관절", "척추", "허리", "디스크", "골절", "인공관절",
+        "심장", "스텐트", "관상동맥", "뇌", "뇌졸중", "암", "폐", "신장",
+        "다리", "발목", "발", "hip", "knee", "spine", "heart", "brain", "cancer",
+    ])
 
 
 def _gender_flag(value: object) -> int:
