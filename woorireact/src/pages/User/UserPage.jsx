@@ -1569,7 +1569,7 @@ export default function UserPage() {
                   <img
                     src={resolveUploadUrl(profileImageUrl)}
                     alt="프로필 사진"
-                    fetchpriority="high"
+                    fetchPriority="high"
                     className={profileImageLoaded ? "loaded" : ""}
                     onLoad={() => setProfileImageLoaded(true)}
                   />
