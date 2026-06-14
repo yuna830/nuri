@@ -150,21 +150,9 @@ function getLatestFoodAnalysisMemory(history) {
   );
   if (memoryIndex < 0) return "";
 
-  const latestUserIndex = history.findLastIndex(
-    (message, index) => index < memoryIndex && message.role === "user"
-  );
-  if (latestUserIndex < 0) return "";
+  const messagesSinceAnalysis = history.length - memoryIndex - 1;
+  if (messagesSinceAnalysis > 12) return "";
 
-  const sourceMessage = history[latestUserIndex];
-  const imageUrls =
-    sourceMessage.imageUrls ||
-    (sourceMessage.imageUrl ? [sourceMessage.imageUrl] : []);
-
-  const hasLaterUserMessage = history.some(
-    (message, index) => index > memoryIndex && message.role === "user"
-  );
-
-  if (!imageUrls.length || hasLaterUserMessage) return "";
   return history[memoryIndex].content || "";
 }
 

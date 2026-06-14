@@ -34,6 +34,7 @@ import {
   getProfileSectionFromInfoRequest,
   inferGuardianRelationToSeniorLabel,
 } from "../../utils/user/profileForm.js";
+import { fetchUVIndex } from "../../utils/user/weatherAdvice.js";
 import { findWelfarePrograms, normalizePerson } from "../../welfareChat";
 import "leaflet/dist/leaflet.css";
 import "../../css/user/UserPage.css";
@@ -642,6 +643,18 @@ export default function UserPage() {
       const seniorId = getSavedSeniorId();
       const savedAlerts = seniorId ? await fetchTodayClimateAlerts(seniorId).catch(() => []) : [];
       const envAlerts = [];
+      const uv = await fetchUVIndex().catch(() => null);
+
+      if (uv?.value >= 3) {
+        const uvLevelText = uv.value >= 8 ? "매우 높음" : uv.value >= 6 ? "높음" : "보통";
+        envAlerts.push({
+          type: "자외선",
+          color: uv.value >= 8 ? COLORS.danger : uv.value >= 6 ? "#f0a500" : "#4f9cc9",
+          msg: `자외선 지수가 ${uv.value}로 ${uvLevelText}입니다. 외출 시 모자나 선크림을 챙겨주세요.`,
+          time: currentDateTime,
+          sortTime: now.getTime(),
+        });
+      }
 
       const isReadableAlert = (alert) => {
         const text = `${alert.type || ""} ${alert.message || ""}`;
@@ -1840,21 +1853,23 @@ export default function UserPage() {
                 </button>
               </div>
 
-              {climatePreviewAlerts.map((a, i) => (
-                <div key={i} className="up-alert-item">
-                  <span className="up-alert-badge" style={{
-                    background: a.color,
-                    color: "#fff",
-                    border: `1px solid ${a.color}`,
-                  }}>
-                    {a.type}
-                  </span>
-                  <div>
-                    <div className="up-alert-text">{a.msg}</div>
-                    <div className="up-alert-time">{a.time}</div>
+              <div className="up-climate-list">
+                {climatePreviewAlerts.map((a, i) => (
+                  <div key={i} className="up-alert-item">
+                    <span className="up-alert-badge" style={{
+                      background: a.color,
+                      color: "#fff",
+                      border: `1px solid ${a.color}`,
+                    }}>
+                      {a.type}
+                    </span>
+                    <div>
+                      <div className="up-alert-text">{a.msg}</div>
+                      <div className="up-alert-time">{a.time}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 

@@ -45,6 +45,8 @@ DEFAULT_CASE_EXAMPLES = Path("data/processed/health_status_policy_training_sampl
 CASE_CONFIRM_THRESHOLD = 0.6
 CASE_ADJUST_THRESHOLD = 0.7
 LOW_MODEL_CONFIDENCE_THRESHOLD = 0.65
+PROBABILITY_TEMPERATURE = 2.0
+PROBABILITY_FLOOR = 0.0001
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,6 +84,18 @@ def cascade_predict_proba(features: np.ndarray, stage1, stage2) -> np.ndarray:
     p_danger     = p_nonhealthy * p2[:, 1]
 
     return np.stack([p_healthy, p_caution, p_danger], axis=1)
+
+
+def calibrate_output_probabilities(probabilities: np.ndarray) -> np.ndarray:
+    """
+    XGBoost models trained from weak/service labels tend to be over-confident.
+    Temperature scaling keeps the class order but exposes uncertainty in the API
+    so the welfare UI does not show every near-certain prediction as 100%.
+    """
+    clipped = np.clip(probabilities, PROBABILITY_FLOOR, 1.0)
+    tempered = np.power(clipped, 1.0 / PROBABILITY_TEMPERATURE)
+    totals = tempered.sum(axis=1, keepdims=True)
+    return tempered / np.where(totals == 0, 1.0, totals)
 
 
 def load_case_examples(path: str | Path, feature_columns: list[str]):
@@ -451,8 +465,9 @@ def main() -> None:
     # ── 캐스케이드 예측 ───────────────────────────────────────────────────────
     p1       = stage1.predict_proba(features)   # [P(양호), P(비양호)]
     p2       = stage2.predict_proba(features)   # [P(주의|비양호), P(위험|비양호)]
-    proba3   = cascade_predict_proba(features, stage1, stage2)
-    pred_idx = np.argmax(proba3, axis=1)
+    raw_proba3 = cascade_predict_proba(features, stage1, stage2)
+    proba3   = calibrate_output_probabilities(raw_proba3)
+    pred_idx = np.argmax(raw_proba3, axis=1)
 
     # ── 결과 조립 ─────────────────────────────────────────────────────────────
     results = []

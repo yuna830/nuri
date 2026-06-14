@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -56,7 +57,9 @@ String _resolveImageUrl(String url) {
   // localhost or 127.0.0.1 → 에뮬레이터에서 접근 불가, apiBaseUrl로 교체
   try {
     final uri = Uri.parse(url);
-    if (uri.host == 'localhost' || uri.host == '127.0.0.1' || uri.host == '::1') {
+    if (uri.host == 'localhost' ||
+        uri.host == '127.0.0.1' ||
+        uri.host == '::1') {
       final base = Uri.parse(apiBaseUrl);
       return uri.replace(host: base.host, port: base.port).toString();
     }
@@ -84,7 +87,8 @@ List<String> _parseList(dynamic v) {
   return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 }
 
-String _textFrom(Map<String, dynamic> data, List<String> keys, String fallback) {
+String _textFrom(
+    Map<String, dynamic> data, List<String> keys, String fallback) {
   for (final key in keys) {
     final v = data[key];
     final t = v == null ? '' : '$v'.trim();
@@ -101,29 +105,147 @@ bool _isToday(dynamic value) {
   return d.year == now.year && d.month == now.month && d.day == now.day;
 }
 
+double _metersApart(double lat1, double lon1, double lat2, double lon2) {
+  const r = 6371000.0;
+  final phi1 = lat1 * pi / 180;
+  final phi2 = lat2 * pi / 180;
+  final dPhi = (lat2 - lat1) * pi / 180;
+  final dLambda = (lon2 - lon1) * pi / 180;
+  final a = sin(dPhi / 2) * sin(dPhi / 2) +
+      cos(phi1) * cos(phi2) * sin(dLambda / 2) * sin(dLambda / 2);
+  return 2 * r * atan2(sqrt(a), sqrt(1 - a));
+}
+
+class _SafeZoneStatus {
+  const _SafeZoneStatus({
+    required this.isInRange,
+    required this.statusText,
+    required this.detailText,
+    required this.address,
+  });
+
+  final bool? isInRange;
+  final String statusText;
+  final String detailText;
+  final String address;
+}
+
+_SafeZoneStatus _resolveSafeZoneStatus({
+  required Map<String, dynamic>? latestLocation,
+  required List<dynamic> safeZones,
+  required String fallbackAddress,
+}) {
+  final address =
+      _textFrom(latestLocation ?? const {}, ['address'], fallbackAddress);
+  final lat = (latestLocation?['latitude'] as num?)?.toDouble();
+  final lon = (latestLocation?['longitude'] as num?)?.toDouble();
+  if (lat == null || lon == null) {
+    return _SafeZoneStatus(
+      isInRange: null,
+      statusText: '위치 확인 중',
+      detailText: '최신 위치를 불러오면 안전 반경을 판정합니다.',
+      address: address,
+    );
+  }
+
+  final zones = safeZones.whereType<Map<String, dynamic>>().toList();
+  if (zones.isEmpty) {
+    return _SafeZoneStatus(
+      isInRange: null,
+      statusText: '안전 반경 미설정',
+      detailText: '보호자가 안전 반경을 지정하면 상태가 표시됩니다.',
+      address: address,
+    );
+  }
+
+  final distances = zones
+      .map((zone) {
+        final zLat = (zone['centerLatitude'] as num?)?.toDouble();
+        final zLon = (zone['centerLongitude'] as num?)?.toDouble();
+        final radius = (zone['radiusMeters'] as num?)?.toInt() ?? 200;
+        if (zLat == null || zLon == null) return null;
+        return (
+          distance: _metersApart(lat, lon, zLat, zLon).round(),
+          radius: radius,
+          name: '${zone['name'] ?? '안전 장소'}',
+        );
+      })
+      .whereType<({int distance, int radius, String name})>()
+      .toList()
+    ..sort((a, b) => a.distance.compareTo(b.distance));
+
+  if (distances.isEmpty) {
+    return _SafeZoneStatus(
+      isInRange: null,
+      statusText: '안전 반경 확인 중',
+      detailText: '안전 반경 좌표를 확인할 수 없습니다.',
+      address: address,
+    );
+  }
+
+  final nearest = distances.first;
+  final inRange = distances.any((item) => item.distance <= item.radius);
+  return _SafeZoneStatus(
+    isInRange: inRange,
+    statusText: inRange ? '안전 반경 안' : '안전 반경 이탈',
+    detailText: inRange
+        ? '${nearest.name}까지 ${nearest.distance}m'
+        : '${nearest.name} 기준 ${nearest.radius}m 초과 · 현재 ${nearest.distance}m',
+    address: address,
+  );
+}
+
 // ─────────────────────────────────────────────
 //  INFO_UPDATE_REQUEST 탭 매핑 (JS FIELD_CATEGORY_MAP과 동일)
 // ─────────────────────────────────────────────
 // 탭 순서: 0인적사항 1신체 2복약 3만성 4거동/인지 5복지 6활동및일자리
 const _fieldSectionMap = <String, int>{
-  '연락처': 0, '주소': 0, '생년월일/나이': 0, '성별': 0, '장애 등급': 0, '장애 유형': 0,
-  '흡연': 1, '음주': 1,
+  '연락처': 0,
+  '주소': 0,
+  '생년월일/나이': 0,
+  '성별': 0,
+  '장애 등급': 0,
+  '장애 유형': 0,
+  '흡연': 1,
+  '음주': 1,
   '복약 정보': 2,
-  '당뇨': 3, '고혈압': 3, '심장질환': 3, '관절질환': 3, '뇌졸중': 3,
-  '신장질환': 3, '호흡기질환': 3, '간질환': 3, '암': 3,
-  '보행 보조기': 4, '치매': 4, '시력': 4, '청력': 4, '최근 낙상': 4, '수술 이력': 4, '수술 상세': 4,
-  '생계비 현황': 5, '가구 유형': 5, '연금 현황': 5, '주거 유형': 5,
-  '최대 근무 시간': 6, '이동 가능 거리': 6, '휴식 필요': 6, '희망 급여 유형': 6,
+  '당뇨': 3,
+  '고혈압': 3,
+  '심장질환': 3,
+  '관절질환': 3,
+  '뇌졸중': 3,
+  '신장질환': 3,
+  '호흡기질환': 3,
+  '간질환': 3,
+  '암': 3,
+  '보행 보조기': 4,
+  '치매': 4,
+  '시력': 4,
+  '청력': 4,
+  '최근 낙상': 4,
+  '수술 이력': 4,
+  '수술 상세': 4,
+  '생계비 현황': 5,
+  '가구 유형': 5,
+  '연금 현황': 5,
+  '주거 유형': 5,
+  '최대 근무 시간': 6,
+  '이동 가능 거리': 6,
+  '휴식 필요': 6,
+  '희망 급여 유형': 6,
 };
 
 // ─────────────────────────────────────────────
 //  alert 유형 helpers
 // ─────────────────────────────────────────────
 bool _isSos(Map a) => a['type'] == 'SOS';
-bool _isCallRequest(Map a) => a['type'] == 'CALL_REQUEST' && a['isRead'] != true;
+bool _isCallRequest(Map a) =>
+    a['type'] == 'CALL_REQUEST' && a['isRead'] != true;
 bool _isMedicine(Map a) => a['type'] == 'MEDICINE' && a['isRead'] != true;
-bool _isInfoRequest(Map a) => a['type'] == 'INFO_UPDATE_REQUEST' && a['isRead'] != true;
-bool _isCheckIn(Map a) => a['type'] == 'CHECK_IN_MESSAGE' && a['isRead'] != true;
+bool _isInfoRequest(Map a) =>
+    a['type'] == 'INFO_UPDATE_REQUEST' && a['isRead'] != true;
+bool _isCheckIn(Map a) =>
+    a['type'] == 'CHECK_IN_MESSAGE' && a['isRead'] != true;
 
 // ─────────────────────────────────────────────
 //  SeniorHomeScreen
@@ -247,13 +369,15 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx).padding.bottom + 32),
+        padding: EdgeInsets.fromLTRB(
+            24, 20, 24, MediaQuery.of(ctx).padding.bottom + 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // 핸들
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: const Color(0xFFDDDDDD),
                 borderRadius: BorderRadius.circular(2),
@@ -262,7 +386,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
             const SizedBox(height: 20),
             // 아이콘
             Container(
-              width: 60, height: 60,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F5E9),
                 borderRadius: BorderRadius.circular(30),
@@ -327,8 +452,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
                         borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('입력하기',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w900)),
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                 ),
               ),
             ]),
@@ -347,7 +472,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
   }
 
   void _startAlertPolling() {
-    _alertTimer = Timer.periodic(const Duration(seconds: 15), (_) => _pollAlerts());
+    _alertTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) => _pollAlerts());
   }
 
   Future<void> _pollAlerts() async {
@@ -357,7 +483,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
       final alerts = await _api.fetchAlerts(widget.seniorId);
       if (!mounted) return;
       _processAlerts(alerts);
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       _isPolling = false;
     }
   }
@@ -372,12 +499,14 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
       _checkInAlert = _firstOfType(alerts, _isCheckIn);
 
       // SOS pending: SOS가 있고 unread면 pending 표시
-      final sosList = alerts.whereType<Map<String, dynamic>>().where(_isSos).toList();
+      final sosList =
+          alerts.whereType<Map<String, dynamic>>().where(_isSos).toList();
       if (_sosPending && sosList.isEmpty) _sosPending = false;
     });
   }
 
-  Map<String, dynamic>? _firstOfType(List<dynamic> alerts, bool Function(Map) test) {
+  Map<String, dynamic>? _firstOfType(
+      List<dynamic> alerts, bool Function(Map) test) {
     for (final a in alerts) {
       if (a is Map<String, dynamic> && test(a)) {
         final id = a['id'];
@@ -427,23 +556,27 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF6D766A),
               side: const BorderSide(color: Color(0xFFB0BDB1)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소', style: TextStyle(fontWeight: FontWeight.w800)),
+            child:
+                const Text('취소', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFD94E4E),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
             ),
             onPressed: () {
               Navigator.pop(ctx);
               _sendSos();
             },
-            child: const Text('보내기', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: const Text('보내기',
+                style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -600,7 +733,8 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        title:
+            const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
         content: const Text('로그아웃 하시겠어요?'),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
@@ -614,8 +748,7 @@ class _SeniorHomeScreenState extends State<SeniorHomeScreen>
               await SeniorSessionStorage.clear();
               if (!mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                    builder: (_) => const SeniorLoginScreen()),
+                MaterialPageRoute(builder: (_) => const SeniorLoginScreen()),
                 (_) => false,
               );
             },
@@ -783,20 +916,33 @@ class _HomeBody extends StatelessWidget {
 
     final name = _textFrom(senior, ['name'], '어르신');
     final region = _textFrom(senior, ['region', 'address'], '현재 위치 확인 중');
+    final safeZoneStatus = _resolveSafeZoneStatus(
+      latestLocation: data.latestLocation,
+      safeZones: data.safeZones,
+      fallbackAddress: region,
+    );
     final profileImageUrl = _textFrom(senior, ['profileImageUrl'], '');
     // ignore: avoid_print
-    print('[DEBUG] profileImageUrl raw: $profileImageUrl → resolved: ${_resolveImageUrl(profileImageUrl)}');
+    print(
+        '[DEBUG] profileImageUrl raw: $profileImageUrl → resolved: ${_resolveImageUrl(profileImageUrl)}');
     final livingCostStatus = _textFrom(healthInfo, ['livingCostStatus'], '');
     final householdType = _textFrom(healthInfo, ['householdType'], '');
     final pensionStatus = _textFrom(healthInfo, ['pensionStatus'], '');
     final housingType = _textFrom(healthInfo, ['housingType'], '');
     final currentBenefitsList = _parseList(healthInfo['currentBenefits']);
-    final age = senior['age'] is int ? senior['age'] as int : int.tryParse('${senior['age'] ?? ''}');
+    final age = senior['age'] is int
+        ? senior['age'] as int
+        : int.tryParse('${senior['age'] ?? ''}');
     // 건강 관련 텍스트 합치기 (매칭용)
     final healthText = [
-      healthInfo['diabetes'], healthInfo['hypertension'], healthInfo['heartDisease'],
-      healthInfo['jointDisease'], healthInfo['stroke'], healthInfo['walkingAid'],
-      healthInfo['dementia'], healthInfo['recentFall'],
+      healthInfo['diabetes'],
+      healthInfo['hypertension'],
+      healthInfo['heartDisease'],
+      healthInfo['jointDisease'],
+      healthInfo['stroke'],
+      healthInfo['walkingAid'],
+      healthInfo['dementia'],
+      healthInfo['recentFall'],
     ].where((v) => v != null && v != '없음' && v != '').join(' ');
     final welfarePrograms = _matchWelfarePrograms(
       age: age,
@@ -812,7 +958,8 @@ class _HomeBody extends StatelessWidget {
     final guardianPhone = _textFrom(profile, ['guardianPhone'], '');
     final workerPhone = _textFrom(profile, ['socialWorkerPhone'], '');
     final guardianIdRaw = profile['guardianId'];
-    final guardianId = guardianIdRaw == null ? null : (guardianIdRaw as num).toInt();
+    final guardianId =
+        guardianIdRaw == null ? null : (guardianIdRaw as num).toInt();
     final medicineCount = _medicineCount(data.alerts);
 
     return RefreshIndicator(
@@ -820,11 +967,12 @@ class _HomeBody extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 120),
         children: [
-          _ProfileHeader(name: name, region: region, profileImageUrl: profileImageUrl),
+          _ProfileHeader(
+              name: name, region: region, profileImageUrl: profileImageUrl),
           const SizedBox(height: 16),
           _SosButton(onPressed: () {
-            final state = context
-                .findAncestorStateOfType<_SeniorHomeScreenState>();
+            final state =
+                context.findAncestorStateOfType<_SeniorHomeScreenState>();
             state?._showSosDialog();
           }),
           const SizedBox(height: 14),
@@ -866,42 +1014,54 @@ class _HomeBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _LocationCard(region: region, onTap: onTabSwitch != null ? () => onTabSwitch!(1) : null),
+          _LocationCard(
+            region: safeZoneStatus.address,
+            statusText: safeZoneStatus.statusText,
+            detailText: safeZoneStatus.detailText,
+            isInRange: safeZoneStatus.isInRange,
+            onTap: onTabSwitch != null ? () => onTabSwitch!(1) : null,
+          ),
           const SizedBox(height: 14),
           IntrinsicHeight(
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _SmallStatusCard(
-                  title: '오늘 낙상',
-                  value: '$fallCount건',
-                  description: fallCount > 0 ? '감지 이력을 확인해주세요.' : '감지된 낙상이 없어요.',
-                  icon: Icons.health_and_safety_outlined,
-                  valueColor: fallCount > 0
-                      ? const Color(0xFFD94E4E)
-                      : const Color(0xFF1F2A20),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => FallHistoryScreen(seniorId: seniorId),
-                  )),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _SmallStatusCard(
+                    title: '오늘 낙상',
+                    value: '$fallCount건',
+                    description:
+                        fallCount > 0 ? '감지 이력을 확인해주세요.' : '감지된 낙상이 없어요.',
+                    icon: Icons.health_and_safety_outlined,
+                    valueColor: fallCount > 0
+                        ? const Color(0xFFD94E4E)
+                        : const Color(0xFF1F2A20),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FallHistoryScreen(seniorId: seniorId),
+                        )),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SmallStatusCard(
-                  title: '복약 알림',
-                  value: '$medicineCount건',
-                  description:
-                      medicineCount > 0 ? '복약 알림을 확인하세요.' : '복용 알림이 없어요.',
-                  icon: Icons.medication_outlined,
-                  valueColor: const Color(0xFF1F2A20),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => NotificationScreen(seniorId: seniorId, typeFilter: 'MEDICINE'),
-                  )),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _SmallStatusCard(
+                    title: '복약 알림',
+                    value: '$medicineCount건',
+                    description:
+                        medicineCount > 0 ? '복약 알림을 확인하세요.' : '복용 알림이 없어요.',
+                    icon: Icons.medication_outlined,
+                    valueColor: const Color(0xFF1F2A20),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => NotificationScreen(
+                              seniorId: seniorId, typeFilter: 'MEDICINE'),
+                        )),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           _WelfareCheckCard(
@@ -910,8 +1070,8 @@ class _HomeBody extends StatelessWidget {
             pensionStatus: pensionStatus,
             housingType: housingType,
             programs: welfarePrograms,
-            onTap: () => _showInfo(context, '복지제도 확인',
-                '입력하신 복지 정보를 바탕으로 신청 가능한 제도를 안내합니다.'),
+            onTap: () => _showInfo(
+                context, '복지제도 확인', '입력하신 복지 정보를 바탕으로 신청 가능한 제도를 안내합니다.'),
           ),
           const SizedBox(height: 14),
           _ScheduleCard(schedules: data.schedules),
@@ -922,7 +1082,8 @@ class _HomeBody extends StatelessWidget {
     );
   }
 
-  Future<void> _callPhone(BuildContext context, String phone, String label) async {
+  Future<void> _callPhone(
+      BuildContext context, String phone, String label) async {
     final number = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     if (number.isEmpty) {
       _showInfo(context, '$label 전화', '전화번호가 등록되어 있지 않아요.');
@@ -1119,7 +1280,8 @@ class _AlertOverlay extends StatelessWidget {
                               ),
                             ),
                             child: Text(cancelLabel!,
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                                style: const TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w600)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1135,7 +1297,8 @@ class _AlertOverlay extends StatelessWidget {
                           ),
                           onPressed: onConfirm,
                           child: Text(confirmLabel,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w700)),
                         ),
                       ),
                     ],
@@ -1187,8 +1350,8 @@ class _CheckInOverlay extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text('보호자 안부 메시지',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w900)),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -1451,12 +1614,32 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.region, this.onTap});
+  const _LocationCard({
+    required this.region,
+    required this.statusText,
+    required this.detailText,
+    required this.isInRange,
+    this.onTap,
+  });
+
   final String region;
+  final String statusText;
+  final String detailText;
+  final bool? isInRange;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isOutside = isInRange == false;
+    final color = isOutside ? const Color(0xFFD94E4E) : const Color(0xFF86A788);
+    final textColor =
+        isOutside ? const Color(0xFF9E3030) : const Color(0xFF48624B);
+    final icon = isInRange == null
+        ? Icons.location_searching
+        : isOutside
+            ? Icons.warning_amber_rounded
+            : Icons.check_circle;
+
     return _BaseCard(
       onTap: onTap,
       child: Row(
@@ -1467,17 +1650,25 @@ class _LocationCard extends StatelessWidget {
               children: [
                 const _SectionTitle(title: '현재 위치'),
                 const SizedBox(height: 10),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.check_circle, color: Color(0xFF86A788), size: 20),
-                    SizedBox(width: 8),
-                    Text('안전 반경 안',
+                    Icon(icon, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Text(statusText,
                         style: TextStyle(
-                            color: Color(0xFF48624B),
+                            color: textColor,
                             fontSize: 16,
                             fontWeight: FontWeight.w900)),
                   ],
                 ),
+                if (detailText.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(detailText,
+                      style: const TextStyle(
+                          color: Color(0xFF6D766A),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ],
                 const SizedBox(height: 8),
                 Text(region,
                     style: const TextStyle(
@@ -1628,36 +1819,36 @@ class _WelfareCheckCard extends StatelessWidget {
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             ...programs.map((p) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4FBF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFD4E8D6)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(p.name,
-                      style: const TextStyle(
-                          color: Color(0xFF1F2A20),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 4),
-                  Text(p.summary,
-                      style: const TextStyle(
-                          color: Color(0xFF4A5F4B),
-                          fontSize: 13,
-                          height: 1.4)),
-                  const SizedBox(height: 4),
-                  Text(p.reason,
-                      style: const TextStyle(
-                          color: Color(0xFF86A788),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            )),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4FBF4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD4E8D6)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.name,
+                          style: const TextStyle(
+                              color: Color(0xFF1F2A20),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(p.summary,
+                          style: const TextStyle(
+                              color: Color(0xFF4A5F4B),
+                              fontSize: 13,
+                              height: 1.4)),
+                      const SizedBox(height: 4),
+                      Text(p.reason,
+                          style: const TextStyle(
+                              color: Color(0xFF86A788),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                )),
           ],
         ],
       ),
@@ -1724,7 +1915,8 @@ class _ScheduleCard extends StatelessWidget {
               const Expanded(child: _SectionTitle(title: '오늘 일정')),
               if (schedules.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF86A788).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -1744,7 +1936,8 @@ class _ScheduleCard extends StatelessWidget {
             const SizedBox(height: 5),
             Row(
               children: [
-                const Icon(Icons.arrow_right, size: 16, color: Color(0xFF86A788)),
+                const Icon(Icons.arrow_right,
+                    size: 16, color: Color(0xFF86A788)),
                 const SizedBox(width: 2),
                 Text(
                   () {
@@ -1793,13 +1986,14 @@ class _ScheduleCard extends StatelessWidget {
     for (int i = 0; i < schedules.length; i++) {
       final s = schedules[i];
       final t = scheduleTime(s);
-      final isPast = t.length >= 5 && () {
-        final parts = t.split(':');
-        if (parts.length < 2) return false;
-        final h = int.tryParse(parts[0]) ?? 0;
-        final m = int.tryParse(parts[1]) ?? 0;
-        return h < now.hour || (h == now.hour && m < now.minute);
-      }();
+      final isPast = t.length >= 5 &&
+          () {
+            final parts = t.split(':');
+            if (parts.length < 2) return false;
+            final h = int.tryParse(parts[0]) ?? 0;
+            final m = int.tryParse(parts[1]) ?? 0;
+            return h < now.hour || (h == now.hour && m < now.minute);
+          }();
 
       // 지난 일정 → 미래 일정 경계에 구분선 삽입
       if (!isPast && !passedDividerInserted && rows.isNotEmpty) {
@@ -1829,15 +2023,18 @@ class _ScheduleCard extends StatelessWidget {
 }
 
 class _ScheduleRow extends StatelessWidget {
-  const _ScheduleRow({required this.time, required this.text, this.isPast = false});
+  const _ScheduleRow(
+      {required this.time, required this.text, this.isPast = false});
   final String time;
   final String text;
   final bool isPast;
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isPast ? const Color(0xFFB0BAB0) : const Color(0xFF1F2A20);
-    final timeColor = isPast ? const Color(0xFFB0BAB0) : const Color(0xFF48624B);
+    final textColor =
+        isPast ? const Color(0xFFB0BAB0) : const Color(0xFF1F2A20);
+    final timeColor =
+        isPast ? const Color(0xFFB0BAB0) : const Color(0xFF48624B);
     final dotColor = isPast ? const Color(0xFFCDD6CD) : const Color(0xFF86A788);
 
     return Padding(
@@ -1890,24 +2087,59 @@ class _ScheduleRow extends StatelessWidget {
   final humid = n(w['humid'] ?? w['REH'] ?? '50');
 
   if (temp >= 33) {
-    return (message: '오늘 폭염 주의. 수분 섭취를 자주 하고 낮 외출을 자제하세요.', icon: Icons.wb_sunny, iconBg: const Color(0xFFFFECCC), iconColor: const Color(0xFFE07B00));
+    return (
+      message: '오늘 폭염 주의. 수분 섭취를 자주 하고 낮 외출을 자제하세요.',
+      icon: Icons.wb_sunny,
+      iconBg: const Color(0xFFFFECCC),
+      iconColor: const Color(0xFFE07B00)
+    );
   }
   if (temp <= 0) {
-    return (message: '오늘 한파 주의. 외출 시 보온에 신경 쓰고 빙판길을 조심하세요.', icon: Icons.ac_unit, iconBg: const Color(0xFFDCEEFF), iconColor: const Color(0xFF4C8ED9));
+    return (
+      message: '오늘 한파 주의. 외출 시 보온에 신경 쓰고 빙판길을 조심하세요.',
+      icon: Icons.ac_unit,
+      iconBg: const Color(0xFFDCEEFF),
+      iconColor: const Color(0xFF4C8ED9)
+    );
   }
   if (rainProb >= 60) {
-    return (message: '오늘 비 올 확률 ${rainProb.toInt()}%. 우산과 미끄럼 방지 신발을 챙기세요.', icon: Icons.umbrella, iconBg: const Color(0xFFDCEEFF), iconColor: const Color(0xFF4C8ED9));
+    return (
+      message: '오늘 비 올 확률 ${rainProb.toInt()}%. 우산과 미끄럼 방지 신발을 챙기세요.',
+      icon: Icons.umbrella,
+      iconBg: const Color(0xFFDCEEFF),
+      iconColor: const Color(0xFF4C8ED9)
+    );
   }
   if (wind >= 9) {
-    return (message: '오늘 강풍 주의. 외출 시 보행 보조도구를 꼭 챙기세요.', icon: Icons.air, iconBg: const Color(0xFFFFF3CD), iconColor: const Color(0xFFE07B00));
+    return (
+      message: '오늘 강풍 주의. 외출 시 보행 보조도구를 꼭 챙기세요.',
+      icon: Icons.air,
+      iconBg: const Color(0xFFFFF3CD),
+      iconColor: const Color(0xFFE07B00)
+    );
   }
   if (humid < 35) {
-    return (message: '오늘 대기가 건조해요. 수분 섭취와 보습에 신경 쓰세요.', icon: Icons.water_drop_outlined, iconBg: const Color(0xFFEBF5E9), iconColor: const Color(0xFF4C8A50));
+    return (
+      message: '오늘 대기가 건조해요. 수분 섭취와 보습에 신경 쓰세요.',
+      icon: Icons.water_drop_outlined,
+      iconBg: const Color(0xFFEBF5E9),
+      iconColor: const Color(0xFF4C8A50)
+    );
   }
   if (temp >= 27) {
-    return (message: '오늘 더위 대비. 자외선 차단제를 바르고 그늘에서 쉬어가세요.', icon: Icons.wb_sunny_outlined, iconBg: const Color(0xFFFFECCC), iconColor: const Color(0xFFE07B00));
+    return (
+      message: '오늘 더위 대비. 자외선 차단제를 바르고 그늘에서 쉬어가세요.',
+      icon: Icons.wb_sunny_outlined,
+      iconBg: const Color(0xFFFFECCC),
+      iconColor: const Color(0xFFE07B00)
+    );
   }
-  return (message: '오늘 기후는 비교적 안전해요. 가벼운 산책을 즐기세요.', icon: Icons.wb_sunny_outlined, iconBg: const Color(0xFFEBF5E9), iconColor: const Color(0xFF4C8A50));
+  return (
+    message: '오늘 기후는 비교적 안전해요. 가벼운 산책을 즐기세요.',
+    icon: Icons.wb_sunny_outlined,
+    iconBg: const Color(0xFFEBF5E9),
+    iconColor: const Color(0xFF4C8A50)
+  );
 }
 
 class _ClimateAlertCard extends StatelessWidget {
@@ -1933,20 +2165,44 @@ class _ClimateAlertCard extends StatelessWidget {
       final level = '${a['level'] ?? ''}';
       final isDangerous = ['danger', 'warning'].contains(level);
       final isCaution = level == 'caution';
-      if (type.contains('HEATWAVE') || type.contains('heat') || type.contains('더위')) {
-        icon = Icons.wb_sunny; iconBg = const Color(0xFFFFECCC); iconColor = const Color(0xFFE07B00);
-      } else if (type.contains('COLDWAVE') || type.contains('cold') || type.contains('한파')) {
-        icon = Icons.ac_unit; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
-      } else if (type.contains('RAIN') || type.contains('rain') || type.contains('비')) {
-        icon = Icons.umbrella; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
-      } else if (type.contains('SNOW') || type.contains('snow') || type.contains('눈')) {
-        icon = Icons.ac_unit; iconBg = const Color(0xFFDCEEFF); iconColor = const Color(0xFF4C8ED9);
-      } else if (type.contains('WIND') || type.contains('wind') || type.contains('바람')) {
-        icon = Icons.air; iconBg = const Color(0xFFFFF3CD); iconColor = const Color(0xFFE07B00);
+      if (type.contains('HEATWAVE') ||
+          type.contains('heat') ||
+          type.contains('더위')) {
+        icon = Icons.wb_sunny;
+        iconBg = const Color(0xFFFFECCC);
+        iconColor = const Color(0xFFE07B00);
+      } else if (type.contains('COLDWAVE') ||
+          type.contains('cold') ||
+          type.contains('한파')) {
+        icon = Icons.ac_unit;
+        iconBg = const Color(0xFFDCEEFF);
+        iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('RAIN') ||
+          type.contains('rain') ||
+          type.contains('비')) {
+        icon = Icons.umbrella;
+        iconBg = const Color(0xFFDCEEFF);
+        iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('SNOW') ||
+          type.contains('snow') ||
+          type.contains('눈')) {
+        icon = Icons.ac_unit;
+        iconBg = const Color(0xFFDCEEFF);
+        iconColor = const Color(0xFF4C8ED9);
+      } else if (type.contains('WIND') ||
+          type.contains('wind') ||
+          type.contains('바람')) {
+        icon = Icons.air;
+        iconBg = const Color(0xFFFFF3CD);
+        iconColor = const Color(0xFFE07B00);
       } else if (isDangerous || isCaution) {
-        icon = Icons.warning_amber_rounded; iconBg = const Color(0xFFFFF3CD); iconColor = const Color(0xFFE07B00);
+        icon = Icons.warning_amber_rounded;
+        iconBg = const Color(0xFFFFF3CD);
+        iconColor = const Color(0xFFE07B00);
       } else {
-        icon = Icons.wb_sunny_outlined; iconBg = const Color(0xFFEBF5E9); iconColor = const Color(0xFF4C8A50);
+        icon = Icons.wb_sunny_outlined;
+        iconBg = const Color(0xFFEBF5E9);
+        iconColor = const Color(0xFF4C8A50);
       }
     } else if (weather != null) {
       final tip = _weatherTip(weather!);
@@ -2025,9 +2281,12 @@ List<_WelfareProgram> _matchWelfarePrograms({
 }) {
   final results = <_WelfareProgram>[];
   final isAlone = householdType.contains('혼자') || householdType.contains('독거');
-  final isLowIncome = livingCostStatus.contains('없어요') || livingCostStatus.contains('기초연금') || livingCostStatus.contains('지원');
+  final isLowIncome = livingCostStatus.contains('없어요') ||
+      livingCostStatus.contains('기초연금') ||
+      livingCostStatus.contains('지원');
   final alreadyBenefits = currentBenefits.join(' ');
-  final hasHealthIssue = RegExp(r'치매|낙상|보행|관절|뇌졸중|거동|인지|요양').hasMatch(healthText);
+  final hasHealthIssue =
+      RegExp(r'치매|낙상|보행|관절|뇌졸중|거동|인지|요양').hasMatch(healthText);
 
   // 기초연금
   if ((age == null || age >= 65) && !alreadyBenefits.contains('기초연금')) {
@@ -2097,7 +2356,8 @@ class _AppFeatureGrid extends StatelessWidget {
   VoidCallback _go(BuildContext ctx, int tab, Widget Function() fallback) {
     return onTabSwitch != null
         ? () => onTabSwitch!(tab)
-        : () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => fallback()));
+        : () =>
+            Navigator.push(ctx, MaterialPageRoute(builder: (_) => fallback()));
   }
 
   @override
@@ -2277,7 +2537,8 @@ void _showGuardianActionSheet(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
               color: const Color(0xFFDDDDDD),
@@ -2413,10 +2674,12 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
     _nameCtrl = TextEditingController(text: widget.initialName);
     _relationCtrl = TextEditingController(text: widget.initialRelation);
     _phoneCtrl = TextEditingController(
-      text: PhoneNumberFormatter().formatEditUpdate(
-        const TextEditingValue(text: ''),
-        TextEditingValue(text: widget.initialPhone),
-      ).text,
+      text: PhoneNumberFormatter()
+          .formatEditUpdate(
+            const TextEditingValue(text: ''),
+            TextEditingValue(text: widget.initialPhone),
+          )
+          .text,
     );
   }
 
@@ -2472,7 +2735,9 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
         left: 24,
         right: 24,
         top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 72,
+        bottom: MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).padding.bottom +
+            72,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2481,7 +2746,8 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
           // 핸들
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 color: const Color(0xFFE0E0E0),
@@ -2491,11 +2757,15 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
           ),
           const Text(
             '보호자 정보 수정',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF1F2A20)),
           ),
           const SizedBox(height: 20),
           // 이름 (보호자 계정 이름 — 읽기 전용)
-          _EditField(label: '이름', controller: _nameCtrl, hint: '홍길동', readOnly: true),
+          _EditField(
+              label: '이름', controller: _nameCtrl, hint: '홍길동', readOnly: true),
           const SizedBox(height: 14),
           // 관계 (수정 가능)
           _EditField(
@@ -2520,12 +2790,18 @@ class _GuardianEditSheetState extends State<_GuardianEditSheet> {
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF86A788),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
               child: _saving
-                  ? const SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('저장', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('저장',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
             ),
           ),
         ],
@@ -2554,7 +2830,10 @@ class _EditField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF6D766A))),
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6D766A))),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
@@ -2571,8 +2850,10 @@ class _EditField extends StatelessWidget {
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFCECECE)),
             filled: true,
-            fillColor: readOnly ? const Color(0xFFEEEEEE) : const Color(0xFFF5F7F5),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            fillColor:
+                readOnly ? const Color(0xFFEEEEEE) : const Color(0xFFF5F7F5),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -2625,7 +2906,7 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
   final _phoneCtrl = TextEditingController();
   final _relationCtrl = TextEditingController();
 
-  Map<String, dynamic>? _found;   // 검색 결과
+  Map<String, dynamic>? _found; // 검색 결과
   bool _searching = false;
   bool _saving = false;
   String? _errorMsg;
@@ -2645,16 +2926,23 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
       setState(() => _errorMsg = '이름과 전화번호를 모두 입력해주세요.');
       return;
     }
-    setState(() { _searching = true; _errorMsg = null; });
+    setState(() {
+      _searching = true;
+      _errorMsg = null;
+    });
     try {
       final result = await const SeniorApi().searchGuardian(
-        name: name, phone: phone,
+        name: name,
+        phone: phone,
       );
       if (result == null) {
         setState(() => _errorMsg = '일치하는 보호자를 찾을 수 없어요.\n이름과 전화번호를 다시 확인해주세요.');
       } else {
         FocusScope.of(context).unfocus();
-        setState(() { _found = result; _step = 1; });
+        setState(() {
+          _found = result;
+          _step = 1;
+        });
       }
     } catch (_) {
       setState(() => _errorMsg = '검색 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
@@ -2669,10 +2957,13 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
       setState(() => _errorMsg = '관계를 입력해주세요.');
       return;
     }
-    setState(() { _saving = true; _errorMsg = null; });
+    setState(() {
+      _saving = true;
+      _errorMsg = null;
+    });
     try {
-      final guardianId = _found!['id'] as int? ??
-          int.tryParse('${_found!['id']}') ?? 0;
+      final guardianId =
+          _found!['id'] as int? ?? int.tryParse('${_found!['id']}') ?? 0;
       await const SeniorApi().connectGuardian(
         guardianId: guardianId,
         seniorId: widget.seniorId,
@@ -2698,7 +2989,9 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 24, right: 24, top: 20,
+        left: 24,
+        right: 24,
+        top: 20,
         bottom: MediaQuery.of(context).viewInsets.bottom + 120,
       ),
       child: Column(
@@ -2708,7 +3001,8 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
           // 핸들
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: const Color(0xFFDDDDDD),
                 borderRadius: BorderRadius.circular(2),
@@ -2721,32 +3015,38 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
           Row(children: [
             if (_step == 1)
               GestureDetector(
-                onTap: () => setState(() { _step = 0; _found = null; _errorMsg = null; }),
+                onTap: () => setState(() {
+                  _step = 0;
+                  _found = null;
+                  _errorMsg = null;
+                }),
                 child: const Padding(
                   padding: EdgeInsets.only(right: 8),
-                  child: Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF1F2A20)),
+                  child: Icon(Icons.arrow_back_ios_new,
+                      size: 18, color: Color(0xFF1F2A20)),
                 ),
               ),
             Expanded(
               child: Text(
                 _step == 0 ? '보호자 검색' : '관계 선택',
                 style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1F2A20)),
               ),
             ),
           ]),
           const SizedBox(height: 6),
           Text(
-            _step == 0
-                ? '보호자 앱에 가입된 이름과 전화번호로 검색해요.'
-                : '어르신과 보호자의 관계를 선택해주세요.',
+            _step == 0 ? '보호자 앱에 가입된 이름과 전화번호로 검색해요.' : '어르신과 보호자의 관계를 선택해주세요.',
             style: const TextStyle(fontSize: 13, color: Color(0xFF6D766A)),
           ),
           const SizedBox(height: 20),
 
           if (_step == 0) ...[
             // ── 검색 단계 ──
-            _ConnectField(label: '보호자 이름', controller: _nameCtrl, hint: '예: 김철수'),
+            _ConnectField(
+                label: '보호자 이름', controller: _nameCtrl, hint: '예: 김철수'),
             const SizedBox(height: 12),
             _ConnectField(
               label: '보호자 전화번호',
@@ -2764,7 +3064,8 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(_errorMsg!,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFFD94E4E))),
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFFD94E4E))),
               ),
               const SizedBox(height: 12),
             ],
@@ -2773,14 +3074,18 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF86A788),
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: _searching
                   ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
                   : const Text('검색',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
             ),
           ] else ...[
             // ── 관계 선택 단계 ──
@@ -2805,14 +3110,16 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
                       children: [
                         Text('${_found!['name'] ?? ''}',
                             style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
                                 color: Color(0xFF1F2A20))),
                         Text('${_found!['phone'] ?? ''}',
                             style: const TextStyle(
                                 fontSize: 13, color: Color(0xFF6D766A))),
                       ]),
                 ),
-                const Icon(Icons.check_circle, color: Color(0xFF86A788), size: 22),
+                const Icon(Icons.check_circle,
+                    color: Color(0xFF86A788), size: 22),
               ]),
             ),
             const SizedBox(height: 20),
@@ -2833,7 +3140,8 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(_errorMsg!,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFFD94E4E))),
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFFD94E4E))),
               ),
               const SizedBox(height: 12),
             ],
@@ -2842,14 +3150,18 @@ class _GuardianConnectSheetState extends State<_GuardianConnectSheet> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF86A788),
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: _saving
                   ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
                   : const Text('연동 완료',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
             ),
           ],
         ],
@@ -2879,19 +3191,23 @@ class _ConnectField extends StatelessWidget {
       children: [
         Text(label,
             style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1F2A20))),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1F2A20))),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           keyboardType: keyboardType ?? TextInputType.text,
-          textInputAction: isPhone ? TextInputAction.done : TextInputAction.next,
+          textInputAction:
+              isPhone ? TextInputAction.done : TextInputAction.next,
           inputFormatters: isPhone ? [PhoneNumberFormatter()] : null,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFCECECE), fontSize: 14),
             filled: true,
             fillColor: const Color(0xFFF7F5E8),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,

@@ -341,13 +341,13 @@ export default function ChatAssistant() {
 
     const newMessages = messages.slice(persistedMessageCountRef.current);
     persistedMessageCountRef.current = messages.length;
-    const visibleMessages = newMessages.filter((message) => !message.hidden && message.content);
+    const persistableMessages = newMessages.filter((message) => message.content);
 
-    if (visibleMessages.length === 0) return;
+    if (persistableMessages.length === 0) return;
 
     saveQueueRef.current = saveQueueRef.current
       .then(async () => {
-        for (const message of visibleMessages) {
+        for (const message of persistableMessages) {
           await saveAssistantMessage(seniorId, activeConversationId, message);
         }
         await refreshConversations(seniorId);
