@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/guardian_api.dart';
+import '../../core/config/app_config.dart';
 import '../../core/models/alert.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/theme/app_colors.dart';
+
+String _resolveImageUrl(String? raw) {
+  if (raw == null || raw.isEmpty) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) {
+    return raw;
+  }
+  final origin = AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '');
+  return raw.startsWith('/') ? '$origin$raw' : '$origin/$raw';
+}
 
 const _kGreen = AppColors.green;
 const _kRed = AppColors.red;
@@ -541,7 +551,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       case 'SOS':
       case 'FALL_DETECTED':
       case 'FALL_RISK':
-      case 'SAFE_ZONE_EXIT':
         return [
           _AlertAction(
             label: '전화',
@@ -549,6 +558,21 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
             color: _kRed,
             primary: true,
             onTap: () => _showCallModal(alert),
+          ),
+          _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
+        ];
+
+      case 'SAFE_ZONE_EXIT':
+        return [
+          _AlertAction(
+            label: '신고',
+            icon: Icons.campaign_outlined,
+            color: _kRed,
+            primary: true,
+            onTap: () {
+              // 알림 센터를 닫으면서 홈에 '신고 탭 열기' 신호를 보낸다
+              Navigator.pop(context, 'openReport');
+            },
           ),
           _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
         ];
@@ -607,10 +631,139 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           ),
         ];
 
+      // 실종 후보 확인 / 얼굴·사람 감지 → 위치 보기 + 확인
+      case 'AI_CANDIDATE_CONFIRM':
+      case 'FACE_MATCH':
+      case 'PERSON_DETECTED':
+        return [
+          if (alert.latitude != null && alert.longitude != null)
+            _AlertAction(
+              label: '위치 보기',
+              icon: Icons.location_on_outlined,
+              color: _kRed,
+              primary: true,
+              onTap: () => _showDetectionDetail(alert),
+            ),
+          _AlertAction(label: '확인', color: Colors.grey, onTap: confirm),
+        ];
+
       // 기본 (정보성 알림)
       default:
         return [_AlertAction(label: '확인', color: _kGreen, onTap: confirm)];
     }
+  }
+
+  // ── 실종 후보 위치/이미지 상세 모달 ────────────────────────────────────────
+  void _showDetectionDetail(AlertModel alert) {
+    final lat = alert.latitude!;
+    final lng = alert.longitude!;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          24,
+          20,
+          MediaQuery.of(ctx).padding.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              alert.title,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              alert.message,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6C6C70)),
+            ),
+            const SizedBox(height: 16),
+            // 감지 이미지
+            if (alert.imageUrl != null && alert.imageUrl!.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  _resolveImageUrl(alert.imageUrl),
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 60,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      '이미지를 불러올 수 없습니다',
+                      style: TextStyle(color: Color(0xFF6C6C70), fontSize: 13),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            // 감지 위치
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, size: 18, color: _kRed),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '위도 ${lat.toStringAsFixed(5)}, 경도 ${lng.toStringAsFixed(5)}',
+                      style: const TextStyle(fontSize: 13, color: _kTextMain),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            // 위치 탭으로 이동
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(
+                    context,
+                    {
+                      'action': 'openLocation',
+                      'seniorId': alert.seniorId,
+                      'detectionLat': alert.latitude,
+                      'detectionLng': alert.longitude,
+                      'detectionMessage': alert.message,
+                    },
+                  );
+                },
+                icon: const Icon(Icons.map_outlined, size: 16),
+                label: const Text('위치 탭에서 보기'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -954,8 +1107,10 @@ class _AlertTile extends StatelessWidget {
         side: isRead
             ? BorderSide.none
             : BorderSide(
-                color: config.iconColor.withValues(alpha: 0.4),
-                width: 1,
+                color: config.iconColor.withValues(
+                  alpha: alert.type == 'SAFE_ZONE_EXIT' ? 0.7 : 0.4,
+                ),
+                width: alert.type == 'SAFE_ZONE_EXIT' ? 1.5 : 1,
               ),
       ),
       child: Padding(
@@ -1033,6 +1188,20 @@ class _AlertTile extends StatelessWidget {
                     _formatTime(alert.createdAt),
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
+                  // 감지 이미지 미리보기 (카메라 알림 전용)
+                  if (alert.imageUrl != null && alert.imageUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _resolveImageUrl(alert.imageUrl),
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1090,16 +1259,6 @@ class AlertDisplayConfig {
   });
 }
 
-// ── 긴급/일반 구분 상수 ─────────────────────────────────────────────
-const _kUrgentTypes = {
-  'SOS',
-  'UNANSWERED_SOS',
-  'FALL_DETECTED',
-  'FALL_RISK',
-  'SAFE_ZONE_EXIT',
-  'CHECK_IN_REQUEST',
-};
-
 // ── 타입별 아이콘 (색은 alertConfig에서 통합 관리) ──────────────────
 IconData _alertIcon(String type) {
   switch (type) {
@@ -1140,12 +1299,33 @@ IconData _alertIcon(String type) {
 }
 
 AlertDisplayConfig alertConfig(String type) {
-  final isUrgent = _kUrgentTypes.contains(type);
-  return AlertDisplayConfig(
-    icon: _alertIcon(type),
-    iconColor: isUrgent ? const Color(0xFFB85252) : const Color(0xFF9E9E9E),
-    bgColor: isUrgent ? const Color(0xFFF5EAEA) : const Color(0xFFF3F4F6),
-  );
+  switch (type) {
+    // 최고 위험 — 선명한 빨간색
+    case 'SAFE_ZONE_EXIT':
+      return AlertDisplayConfig(
+        icon: _alertIcon(type),
+        iconColor: const Color(0xFFD32F2F),
+        bgColor: const Color(0xFFFFEBEE),
+      );
+    // 긴급
+    case 'SOS':
+    case 'UNANSWERED_SOS':
+    case 'FALL_DETECTED':
+    case 'FALL_RISK':
+    case 'CHECK_IN_REQUEST':
+      return AlertDisplayConfig(
+        icon: _alertIcon(type),
+        iconColor: const Color(0xFFB85252),
+        bgColor: const Color(0xFFF5EAEA),
+      );
+    // 일반
+    default:
+      return AlertDisplayConfig(
+        icon: _alertIcon(type),
+        iconColor: const Color(0xFF9E9E9E),
+        bgColor: const Color(0xFFF3F4F6),
+      );
+  }
 }
 
 // ── 상담 일정 선택 바텀시트 ──────────────────────────────────────────────

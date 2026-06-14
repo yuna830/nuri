@@ -85,7 +85,12 @@ class Senior {
     // 기본 상태: 백엔드 active 값으로 홈/상세 화면의 상태 배지를 만듭니다.
     final name = _readString(seniorObj, ['name'], fallback: '이름 없음');
     final active = seniorObj['active'] == true;
-    final status = active ? '안전' : '주의';
+    final locationStatus = _readString(json, ['locationStatus']);
+    final status = locationStatus.contains('이탈')
+        ? '이탈'
+        : active
+        ? '안전'
+        : '주의';
 
     // 위치 정보: 마지막 GPS가 없을 때도 화면이 깨지지 않도록 기본 문구를 둡니다.
     var lastAddress = '위치 정보 없음';

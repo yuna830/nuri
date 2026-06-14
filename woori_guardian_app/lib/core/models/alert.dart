@@ -9,8 +9,9 @@ class AlertModel {
   final DateTime? createdAt;
   final double? latitude;
   final double? longitude;
-  final String? guardianResponseType;  
-  final String? guardianScheduleAt;   
+  final String? imageUrl;
+  final String? guardianResponseType;
+  final String? guardianScheduleAt;
 
   AlertModel({
     required this.id,
@@ -23,8 +24,9 @@ class AlertModel {
     this.createdAt,
     this.latitude,
     this.longitude,
-    this.guardianResponseType,   
-    this.guardianScheduleAt,    
+    this.imageUrl,
+    this.guardianResponseType,
+    this.guardianScheduleAt,
   });
 
   factory AlertModel.fromJson(Map<String, dynamic> json) {
@@ -41,8 +43,9 @@ class AlertModel {
           : null,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      guardianResponseType: json['guardianResponseType'] as String?,  
-      guardianScheduleAt: json['guardianScheduleAt'] as String?,      
+      imageUrl: json['imageUrl'] as String?,
+      guardianResponseType: json['guardianResponseType'] as String?,
+      guardianScheduleAt: json['guardianScheduleAt'] as String?,
     );
   }
 
@@ -58,8 +61,9 @@ class AlertModel {
       createdAt: createdAt,
       latitude: latitude,
       longitude: longitude,
-      guardianResponseType: guardianResponseType,  
-      guardianScheduleAt: guardianScheduleAt,      
+      imageUrl: imageUrl,
+      guardianResponseType: guardianResponseType,
+      guardianScheduleAt: guardianScheduleAt,
     );
   }
 }

@@ -645,10 +645,18 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
         await http.MultipartFile.fromPath('file', filePath, filename: fileName),
       );
       final uploadRes = await request.send();
-      final uploadBody = jsonDecode(await uploadRes.stream.bytesToString());
+      final uploadBodyText = await uploadRes.stream.bytesToString();
 
+      if (uploadRes.statusCode < 200 || uploadRes.statusCode >= 300) {
+        throw Exception('업로드 실패 (${uploadRes.statusCode})');
+      }
+
+      final uploadBody = jsonDecode(uploadBodyText) as Map<String, dynamic>;
       final fileUrl = uploadBody['fileUrl']?.toString() ?? '';
-      if (fileUrl.isEmpty) throw Exception('업로드 실패');
+
+      if (fileUrl.isEmpty) {
+        throw Exception('업로드 실패');
+      }
 
       final isImage = mimeType?.startsWith('image/') ?? false;
 
@@ -894,8 +902,7 @@ class _GuardianHumanChatRoomState extends State<_GuardianHumanChatRoom> {
                           message: message,
                           isMine: message['senderRole'] == 'GUARDIAN',
                           profileImageUrl: _profileImageFor(message),
-                          onLongPress:
-                              message['senderRole'] == 'GUARDIAN'
+                          onLongPress: message['senderRole'] == 'GUARDIAN'
                               ? () => _deleteMessage(message)
                               : null,
                         ),
@@ -952,141 +959,154 @@ class _MessageBubble extends StatelessWidget {
     final attachmentType = message['attachmentType']?.toString() ?? '';
     final attachmentName = message['attachmentName']?.toString() ?? '';
 
+    final isImageAttachment =
+        attachmentType == 'image' ||
+        attachmentType.startsWith('image/') ||
+        RegExp(
+          r'\.(jpg|jpeg|png|gif|webp|bmp)$',
+          caseSensitive: false,
+        ).hasMatch(attachmentUrl);
+
+    final isFileAttachment = attachmentUrl.isNotEmpty && !isImageAttachment;
+
     // 상대 경로면 현재 서버 주소로 변환 — IP가 바뀌어도 항상 현재 설정 기준으로 연다.
-    final resolvedUrl = attachmentUrl.isEmpty || attachmentUrl.startsWith('http')
+    final resolvedUrl =
+        attachmentUrl.isEmpty || attachmentUrl.startsWith('http')
         ? attachmentUrl
         : '${AppConfig.apiBaseUrl.replaceAll(RegExp(r'/api$'), '')}$attachmentUrl';
 
     return GestureDetector(
       onLongPress: onLongPress,
       child: Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        mainAxisAlignment: isMine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isMine) ...[
-            _ChatAvatar(name: senderName, imageUrl: profileImageUrl),
-            const SizedBox(width: 8),
-          ],
-          Column(
-            crossAxisAlignment: isMine
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              if (!isMine && senderName.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    senderName,
-                    style: const TextStyle(
-                      color: Color(0xFF6D766A),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.65,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isMine ? AppColors.green : Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMine ? 16 : 4),
-                    bottomRight: Radius.circular(isMine ? 4 : 16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (attachmentType == 'image' && attachmentUrl.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          resolvedUrl,
-                          width: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.broken_image,
-                            color: Colors.grey,
-                          ),
-                        ),
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          mainAxisAlignment: isMine
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isMine) ...[
+              _ChatAvatar(name: senderName, imageUrl: profileImageUrl),
+              const SizedBox(width: 8),
+            ],
+            Column(
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (!isMine && senderName.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      senderName,
+                      style: const TextStyle(
+                        color: Color(0xFF6D766A),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
-                    if (attachmentType == 'file' && attachmentUrl.isNotEmpty)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.insert_drive_file_outlined,
-                            size: 18,
-                            color: isMine ? Colors.white70 : AppColors.green,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              attachmentName.isNotEmpty ? attachmentName : '파일',
-                              style: TextStyle(
-                                color: isMine
-                                    ? Colors.white
-                                    : const Color(0xFF1F2A20),
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                              ),
+                    ),
+                  ),
+                Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.65,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMine ? AppColors.green : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMine ? 16 : 4),
+                      bottomRight: Radius.circular(isMine ? 4 : 16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (attachmentUrl.isNotEmpty && isImageAttachment)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            resolvedUrl,
+                            width: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.broken_image,
+                              color: Colors.grey,
                             ),
                           ),
-                        ],
-                      ),
-                    if (text.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: attachmentUrl.isNotEmpty ? 6 : 0,
                         ),
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            color: isMine
-                                ? Colors.white
-                                : const Color(0xFF1F2A20),
-                            fontSize: 14,
-                            height: 1.4,
+                      if (isFileAttachment)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.insert_drive_file_outlined,
+                              size: 18,
+                              color: isMine ? Colors.white70 : AppColors.green,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                attachmentName.isNotEmpty
+                                    ? attachmentName
+                                    : '파일',
+                                style: TextStyle(
+                                  color: isMine
+                                      ? Colors.white
+                                      : const Color(0xFF1F2A20),
+                                  fontSize: 13,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (text.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: attachmentUrl.isNotEmpty ? 6 : 0,
+                          ),
+                          child: Text(
+                            text,
+                            style: TextStyle(
+                              color: isMine
+                                  ? Colors.white
+                                  : const Color(0xFF1F2A20),
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              if (time.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(
-                    time,
-                    style: const TextStyle(
-                      color: Color(0xFFD1D5DB),
-                      fontSize: 10,
-                    ),
+                    ],
                   ),
                 ),
-            ],
-          ),
-        ],
-      ),
+                if (time.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        color: Color(0xFFD1D5DB),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

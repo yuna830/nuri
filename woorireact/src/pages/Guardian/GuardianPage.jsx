@@ -509,6 +509,7 @@ function GuardianPage() {
 
   const [isLoadingElders, setIsLoadingElders] = useState(true);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(true);
   const [selectedRouteDate, setSelectedRouteDate] = useState(getDateValue());
 
   const [isMedicineAlertOpen, setIsMedicineAlertOpen] = useState(false);
@@ -738,6 +739,22 @@ function GuardianPage() {
     return map;
   }, [apiAlerts, reportedAlertIds]);
 
+  const tripartiteRooms = useMemo(() => [
+    {
+      roomType: "SENIOR_GUARDIAN",
+      seniorId: selectedElder?.id,
+      title: selectedElder?.name || "사용자",
+      subtitle: "사용자와 1:1 대화",
+    },
+    {
+      roomType: "GUARDIAN_WELFARE",
+      seniorId: selectedElder?.id,
+      title: "복지사",
+      subtitle: `${selectedElder?.name || "사용자"}님 담당 복지사와 1:1 대화`,
+    },
+  ], [selectedElder?.id, selectedElder?.name]);
+
+
   const mergeElderProfile = (freshElder, previousElder) => ({
     ...freshElder,
     relation: freshElder.relation || previousElder?.relation,
@@ -846,12 +863,19 @@ function GuardianPage() {
   }, [loadGuardianSeniorsWithLocation]);
 
   const refreshLatestLocations = useCallback(async () => {
+    const isViewingToday = selectedRouteDate === getDateValue();
+
     const nextElders = await Promise.all(
-      elders.map((elder) => appendLatestLocationToElder(elder))
+      elders.map((elder) =>
+        appendLatestLocationToElder(elder, {
+          // 오늘 보기 + 현재 선택된 대상자일 때만 동선에 추가
+          appendToRoute: isViewingToday && elder.id === activeElderId,
+        })
+      )
     );
 
     setElders(nextElders);
-  }, [elders]);
+  }, [elders, selectedRouteDate, activeElderId]);
 
   const loadGuardianAlerts = useCallback(() => {
     const guardianId = getCurrentGuardianId();
@@ -935,8 +959,6 @@ function GuardianPage() {
 
   useEffect(() => {
     setIsSafeZoneOpen(false);
-    setIsRouteVisible(true);
-    setSelectedRouteDate(getDateValue());
   }, [selectedElderId]);
 
   useEffect(() => {
@@ -960,6 +982,31 @@ function GuardianPage() {
 
     return () => clearInterval(profileRefreshIntervalId);
   }, [activeElderId, refreshSeniorProfile]);
+
+  useEffect(() => {
+    if (!activeElderId) return;
+    const elder = elders.find((e) => e.id === activeElderId);
+    if (!elder) return;
+    const today = getDateValue();
+    setSelectedRouteDate(today);
+    setIsLoadingRoute(true);
+    fetchRouteHistoryByDate(activeElderId, today, elder.address)
+      .then((nextRouteHistory) => {
+        setElders((prev) =>
+          prev.map((e) =>
+            e.id === activeElderId
+              ? { ...e, routeHistory: nextRouteHistory }
+              : e
+          )
+        );
+        setIsRouteVisible(true);
+      })
+      .catch((error) => {
+        console.error("날짜별 동선 경로 조회 실패:", error);
+      })
+      .finally(() => setIsLoadingRoute(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeElderId]);
 
   if (isLoadingElders) {
     return (
@@ -1086,6 +1133,7 @@ function GuardianPage() {
 
     try {
       setSelectedRouteDate(dateValue);
+      setIsLoadingRoute(true);
 
       const nextRouteHistory = await fetchRouteHistoryByDate(
         activeElderId,
@@ -1105,6 +1153,8 @@ function GuardianPage() {
     } catch (error) {
       console.error("날짜별 동선 경로 조회 실패:", error);
       gToast.error("선택한 날짜의 동선 경로를 불러오지 못했습니다.");
+    } finally {
+      setIsLoadingRoute(false);
     }
   };
 
@@ -1991,20 +2041,7 @@ function GuardianPage() {
         isOpen={isChatOpen}
         seniorId={selectedElder?.id}
         seniorName={selectedElder?.name || "사용자"}
-        rooms={[
-          {
-            roomType: "SENIOR_GUARDIAN",
-            seniorId: selectedElder?.id,
-            title: selectedElder?.name || "사용자",
-            subtitle: "사용자와 1:1 대화",
-          },
-          {
-            roomType: "GUARDIAN_WELFARE",
-            seniorId: selectedElder?.id,
-            title: "복지사",
-            subtitle: `${selectedElder?.name || "사용자"}님 담당 복지사와 1:1 대화`,
-          },
-        ]}
+        rooms={tripartiteRooms}
         senderRole="GUARDIAN"
         senderId={guardian?.id || getCurrentGuardianId()}
         senderName={guardian?.name || "보호자"}
@@ -2158,6 +2195,7 @@ function GuardianPage() {
           displayedAlerts={displayedAlerts}
           policeAlerts={policeAlerts}
           routeHistory={routeHistory}
+          isLoadingRoute={isLoadingRoute}
           selectedRouteDate={selectedRouteDate}
           safeZones={safeZones}
           safeZoneForm={safeZoneForm}

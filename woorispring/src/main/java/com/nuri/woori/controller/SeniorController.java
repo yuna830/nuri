@@ -171,7 +171,8 @@ public class SeniorController {
                 "",
                 "",
                 "",
-                healthEvaluation);
+                healthEvaluation,
+                getLocationStatus(savedSenior.getId()));
     }
 
     @GetMapping
@@ -502,7 +503,8 @@ public class SeniorController {
                 "",
                 "",
                 "",
-                healthEvaluation);
+                healthEvaluation,
+                "정상");
     }
 
     @PatchMapping("/{id}/decision")
@@ -964,7 +966,8 @@ public class SeniorController {
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
                 welfareWorker == null ? "" : welfareWorker.getCenter(),
-                null);
+                null,
+                getLocationStatus(senior.getId()));
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior) {
@@ -1010,7 +1013,8 @@ public class SeniorController {
                 welfareWorker == null ? "" : welfareWorker.getName(),
                 welfareWorker == null ? "" : welfareWorker.getPhone(),
                 welfareWorker == null ? "" : welfareWorker.getCenter(),
-                null);
+                null,
+                getLocationStatus(senior.getId()));
     }
 
     private SeniorProfileResponse toProfileResponseWithHealthEvaluation(Senior senior) {
@@ -1030,7 +1034,8 @@ public class SeniorController {
                 response.socialWorkerName(),
                 response.socialWorkerPhone(),
                 response.socialWorkerCenter(),
-                healthStatusMlService.evaluateWithDetails(response.senior(), response.healthInfo()));
+                healthStatusMlService.evaluateWithDetails(response.senior(), response.healthInfo()),
+                response.locationStatus());
     }
 
     private WelfareWorker findWelfareWorker(Senior senior) {
@@ -1084,6 +1089,13 @@ public class SeniorController {
                 .filter(value -> !value.isBlank())
                 .reduce((left, right) -> left + "," + right)
                 .orElse(null);
+    }
+
+    private String getLocationStatus(Long seniorId) {
+        boolean hasSafeZoneExitAlert = alertRepository
+                .existsBySeniorIdAndTypeAndIsReadFalse(seniorId, "SAFE_ZONE_EXIT");
+
+        return hasSafeZoneExitAlert ? "안전구역 이탈" : "정상";
     }
 
     public record SeniorCreateRequest(
@@ -1163,7 +1175,8 @@ public class SeniorController {
             String socialWorkerName,
             String socialWorkerPhone,
             String socialWorkerCenter,
-            HealthStatusMlService.HealthEvaluation healthEvaluation) {
+            HealthStatusMlService.HealthEvaluation healthEvaluation,
+            String locationStatus) {
     }
 
     public record SeniorHealthEvaluationSummaryResponse(

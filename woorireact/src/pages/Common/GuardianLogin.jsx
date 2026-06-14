@@ -342,7 +342,7 @@ export default function GuardianLogin() {
                 <input
                   className="login-input"
                   value={helpForm.phone}
-                  onChange={(event) => setHelp("phone", event.target.value)}
+                  onChange={(event) => setHelp("phone", formatPhoneNumber(event.target.value))}
                   placeholder="예: 010-0000-0000"
                 />
 

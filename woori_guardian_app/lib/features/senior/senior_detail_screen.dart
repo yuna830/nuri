@@ -385,7 +385,7 @@ class _ProfileHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: isSafe ? const Color(0xFFEEF5EE) : const Color(0xFFFFF4E5),
+              color: isSafe ? const Color(0xFFEEF5EE) : const Color(0xFFF5EAEA),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -393,7 +393,7 @@ class _ProfileHeader extends StatelessWidget {
               style: TextStyle(
                 color: isSafe
                     ? const Color(0xFF4A7A4C)
-                    : const Color(0xFFFF9500),
+                    : const Color(0xFFB85252),
                 fontWeight: FontWeight.w700,
               ),
             ),

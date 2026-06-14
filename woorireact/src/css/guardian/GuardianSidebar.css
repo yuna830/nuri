@@ -914,6 +914,24 @@
   background: transparent;
 }
 
+@keyframes route-loading-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+.route-loading-text {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+  color: #888;
+  font-size: 13px;
+}
+
+.route-loading-text span {
+  display: inline-block;
+  animation: route-loading-bounce 0.8s ease-in-out infinite;
+}
+
 .guardian-medication-card {
   overflow: hidden;
   text-align: left;

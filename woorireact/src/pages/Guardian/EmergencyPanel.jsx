@@ -94,6 +94,7 @@ function EmergencyPanel({
   displayedAlerts = [],
   policeAlerts,
   routeHistory,
+  isLoadingRoute = false,
   lastNormalLocation,
   safeZones = [],
   safeZoneForm,
@@ -449,7 +450,17 @@ function EmergencyPanel({
               </div>
 
               <ol className="route-list">
-                {routeHistory.length === 0 ? (
+                {isLoadingRoute ? (
+                  <li>
+                    <span className="route-loading-text">
+                      {"이동 경로 불러오는 중...".split("").map((char, i) => (
+                        <span key={i} style={{ animationDelay: `${i * 0.06}s` }}>
+                          {char === " " ? " " : char}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ) : routeHistory.length === 0 ? (
                   <li>
                     <span>이동 경로가 없습니다.</span>
                   </li>

@@ -14,6 +14,7 @@ import '../auth/guardian_login_screen.dart';
 import '../face/face_check_camera_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/models/alert.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
@@ -51,6 +52,7 @@ abstract final class _C {
 
   /// 위험(신고) 빨강
   static const danger = AppColors.red;
+  static const dangerBg = AppColors.redBg;
 }
 
 // GuardianHomeScreen — 탭 셸
@@ -74,6 +76,10 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
   Timer? _unreadTimer;
 
   int? _selectedSeniorId; // 위치 탭으로 넘길 사용자 ID
+  Senior? _reportSenior; // 신고 탭으로 넘길 대상자
+  double? _detectionLat;
+  double? _detectionLng;
+  String? _detectionMessage;
 
   static const _tabTitles = ['', '위치', '실종/위험 신고', '긴급 연락', ''];
 
@@ -196,21 +202,50 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
     return int.tryParse(s);
   }
 
-  void _navigateToLocationTab(int seniorId) {
+  void _navigateToLocationTab(
+    int seniorId, {
+    double? detectionLat,
+    double? detectionLng,
+    String? detectionMessage,
+  }) {
     setState(() {
       _selectedSeniorId = seniorId;
+      _detectionLat = detectionLat;
+      _detectionLng = detectionLng;
+      _detectionMessage = detectionMessage;
       _selectedIndex = 1;
     });
   }
 
-  void _navigateToReportTab() => setState(() => _selectedIndex = 2);
+  void _navigateToReportTab(Senior senior) => setState(() {
+    _reportSenior = senior;
+    _selectedIndex = 2;
+  });
 
   Future<void> _openNotificationCenter() async {
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
     );
     _refreshUnreadCount();
+
+    if (!mounted) return;
+
+    if (result == 'openReport') {
+      setState(() => _selectedIndex = 2);
+    } else if (result is Map && result['action'] == 'openLocation') {
+      final seniorId = result['seniorId'] as int?;
+      if (seniorId != null) {
+        _navigateToLocationTab(
+          seniorId,
+          detectionLat: result['detectionLat'] as double?,
+          detectionLng: result['detectionLng'] as double?,
+          detectionMessage: result['detectionMessage'] as String?,
+        );
+      } else {
+        setState(() => _selectedIndex = 1);
+      }
+    }
   }
 
   String get _headerTitle {
@@ -242,8 +277,17 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
             onViewLocation: _navigateToLocationTab,
             onReport: _navigateToReportTab,
           ),
-          LocationTabScreen(initialSeniorId: _selectedSeniorId),
-          ReportScreen(onCompleted: () => setState(() => _selectedIndex = 0)),
+          LocationTabScreen(
+            initialSeniorId: _selectedSeniorId,
+            initialDetectionLat: _detectionLat,
+            initialDetectionLng: _detectionLng,
+            initialDetectionMessage: _detectionMessage,
+          ),
+          ReportScreen(
+            key: ValueKey(_reportSenior?.id),
+            initialSenior: _reportSenior,
+            onCompleted: () => setState(() => _selectedIndex = 0),
+          ),
           const ContactSeniorScreen(),
           const MypageScreen(),
         ],
@@ -292,7 +336,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
 
 class _HomeTab extends StatefulWidget {
   final void Function(int seniorId) onViewLocation;
-  final VoidCallback onReport;
+  final void Function(Senior senior) onReport;
 
   const _HomeTab({required this.onViewLocation, required this.onReport});
 
@@ -308,6 +352,7 @@ class _HomeTabState extends State<_HomeTab> {
   String? _errorMessage;
   List<Senior> _seniors = [];
   int _staleHours = LocationFreshnessStorage.defaultStaleHours;
+  Set<int> _exitedSeniorIds = {};
 
   @override
   void initState() {
@@ -326,12 +371,26 @@ class _HomeTabState extends State<_HomeTab> {
       if (idStr == null || idStr.isEmpty) {
         throw Exception('보호자 세션 정보가 없습니다. 다시 로그인해주세요.');
       }
-      final staleHours = await LocationFreshnessStorage().getStaleHours();
-      final seniors = await _api.fetchGuardianSeniors(int.parse(idStr));
+      final guardianId = int.parse(idStr);
+      final results = await Future.wait([
+        LocationFreshnessStorage().getStaleHours(),
+        _api.fetchGuardianSeniors(guardianId),
+        _api.fetchGuardianAlerts(guardianId),
+      ]);
+      final staleHours = results[0] as int;
+      final seniors = results[1] as List<Senior>;
+      final alerts = results[2] as List<AlertModel>;
+
+      final exitedIds = alerts
+          .where((a) => a.type == 'SAFE_ZONE_EXIT' && !a.isRead && a.seniorId != null)
+          .map((a) => a.seniorId!)
+          .toSet();
+
       if (mounted)
         setState(() {
           _seniors = seniors;
           _staleHours = staleHours;
+          _exitedSeniorIds = exitedIds;
           _isLoading = false;
         });
     } catch (e) {
@@ -413,8 +472,9 @@ class _HomeTabState extends State<_HomeTab> {
             _SeniorCard(
               senior: _seniors[i],
               staleHours: _staleHours,
+              isOutsideZone: _exitedSeniorIds.contains(_seniors[i].id),
               onViewLocation: widget.onViewLocation,
-              onReport: widget.onReport,
+              onReport: () => widget.onReport(_seniors[i]),
               onOpenDetail: () {
                 Navigator.push(
                   context,
@@ -508,6 +568,7 @@ class _FaceCheckCard extends StatelessWidget {
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
   final int staleHours;
+  final bool isOutsideZone;
   final void Function(int seniorId) onViewLocation;
   final VoidCallback onReport;
   final VoidCallback onOpenDetail;
@@ -515,6 +576,7 @@ class _SeniorCard extends StatelessWidget {
   const _SeniorCard({
     required this.senior,
     required this.staleHours,
+    required this.isOutsideZone,
     required this.onViewLocation,
     required this.onReport,
     required this.onOpenDetail,
@@ -556,9 +618,12 @@ class _SeniorCard extends StatelessWidget {
         onTap: onOpenDetail,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isOutsideZone ? const Color(0xFFFFF5F5) : Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE0E8E0), width: 1),
+            border: Border.all(
+              color: isOutsideZone ? const Color(0xFFD32F2F) : const Color(0xFFE0E8E0),
+              width: isOutsideZone ? 1.5 : 1,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.06),
@@ -593,11 +658,11 @@ class _SeniorCard extends StatelessWidget {
                     ],
                     const Spacer(),
                     _StatusBadge(
-                      status:
-                          senior.status == '안전' &&
-                              senior.isLocationStale(staleHours)
-                          ? '확인 필요'
-                          : senior.status,
+                      status: isOutsideZone
+                          ? '안전구역 이탈'
+                          : (senior.status == '안전' && senior.isLocationStale(staleHours)
+                              ? '확인 필요'
+                              : senior.status),
                     ),
                   ],
                 ),
@@ -613,9 +678,9 @@ class _SeniorCard extends StatelessWidget {
                   sub: senior.lastLocationAt == null
                       ? '마지막 확인 기록 없음'
                       : '마지막 확인 ${senior.lastLocationAgoText} · ${senior.lastLocationTime}',
-                  subColor: senior.isLocationStale(staleHours)
-                      ? _C.warn
-                      : null,
+                  subColor: isOutsideZone
+                      ? const Color(0xFFD32F2F)
+                      : (senior.isLocationStale(staleHours) ? _C.warn : null),
                 ),
 
                 if (senior.keyDiseases.isNotEmpty) ...[
@@ -750,9 +815,19 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSafe = status == '안전';
+    final isDanger = status == '이탈' || status == '안전구역 이탈';
 
-    final color = isSafe ? _C.safe : _C.warn;
-    final bgColor = isSafe ? _C.safeBg : _C.warnBg;
+    final color = isSafe
+        ? _C.safe
+        : isDanger
+        ? _C.danger
+        : _C.warn;
+
+    final bgColor = isSafe
+        ? _C.safeBg
+        : isDanger
+        ? _C.dangerBg
+        : _C.warnBg;
 
     return Container(
       height: 26,
@@ -768,10 +843,7 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
           Text(

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/locations")
@@ -60,12 +61,23 @@ public class LocationController {
                 request.latitude(),
                 request.longitude()
         ) < 50) {
+            // 갱신 전 좌표를 보존 — 이탈 검사의 '직전 위치' 비교에 사용
+            LocationStatus previousSnapshot = new LocationStatus();
+            previousSnapshot.setLatitude(latestLocation.getLatitude());
+            previousSnapshot.setLongitude(latestLocation.getLongitude());
+            previousSnapshot.setAccuracy(latestLocation.getAccuracy());
+
             latestLocation.setLatitude(request.latitude());
             latestLocation.setLongitude(request.longitude());
             latestLocation.setAddress(request.address());
             latestLocation.setAccuracy(request.accuracy());
             latestLocation.setReceivedAt(LocalDateTime.now());
-            return locationStatusRepository.save(latestLocation);
+            LocationStatus updatedLocation = locationStatusRepository.save(latestLocation);
+
+            // 구역 밖에서 멈춰 있는 경우(50m 미만 이동)에도 이탈 알림이 가야 한다.
+            createSafeZoneExitAlertsIfNeeded(request, previousSnapshot);
+
+            return updatedLocation;
         }
 
         LocationStatus locationStatus = new LocationStatus();
@@ -174,7 +186,14 @@ public class LocationController {
                     savedAlert.getGuardianId(),
                     savedAlert.getTitle(),
                     savedAlert.getMessage(),
-                    savedAlert.getType()
+                    savedAlert.getType(),
+                    Map.of(
+                            "alertId", String.valueOf(savedAlert.getId()),
+                            "seniorId", String.valueOf(savedAlert.getSeniorId()),
+                            "latitude", String.valueOf(savedAlert.getLatitude()),
+                            "longitude", String.valueOf(savedAlert.getLongitude()),
+                            "safeZoneName", safeZoneName
+                    )
             );
         }
     }

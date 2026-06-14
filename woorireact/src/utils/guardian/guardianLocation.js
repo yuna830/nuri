@@ -62,20 +62,22 @@ export const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddre
 
   if (!Array.isArray(locations)) return [];
 
-  const routeHistory = await Promise.all(
-    locations
-      .filter((location) => location?.latitude && location?.longitude)
-      .map(async (location) => ({
-        lat: location.latitude,
-        lng: location.longitude,
-        address: await fetchFullRoadAddress(
-          location.latitude,
-          location.longitude,
-          location.address || fallbackAddress
-        ),
-        receivedAt: location.receivedAt || new Date().toISOString(),
-      }))
-  );
+  const filtered = locations.filter((l) => l?.latitude && l?.longitude);
+  const routeHistory = [];
+  for (const location of filtered) {
+    const address = await fetchFullRoadAddress(
+      location.latitude,
+      location.longitude,
+      location.address || fallbackAddress
+    );
+    routeHistory.push({
+      lat: location.latitude,
+      lng: location.longitude,
+      address,
+      receivedAt: location.receivedAt || new Date().toISOString(),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+  }
 
   return routeHistory.filter((point, index, list) => {
     if (index === 0) return true;
@@ -95,10 +97,20 @@ export const fetchRouteHistoryByDate = async (seniorId, dateValue, fallbackAddre
   });
 };
 
-export const appendLatestLocationToElder = async (elder) => {
+export const appendLatestLocationToElder = async (elder, { appendToRoute = true } = {}) => {
   const realLocation = await fetchLatestLocation(elder.id, elder.address);
 
   if (!realLocation) return elder;
+
+  // 동선에 추가하지 않는 경우: 현재 위치(지도 마커)만 갱신
+  if (!appendToRoute) {
+    return {
+      ...elder,
+      currentLocation: realLocation,
+      lastNormalLocation: realLocation,
+      routeHistory: elder.routeHistory || [],
+    };
+  }
 
   const lastRoutePoint = elder.routeHistory?.[elder.routeHistory.length - 1];
 

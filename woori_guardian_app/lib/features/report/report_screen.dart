@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
+import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
 import '../../core/utils/phone_number_input_formatter.dart';
@@ -65,11 +67,15 @@ class ReportScreen extends StatefulWidget {
   /// 얼굴 확인 카메라에서 찍은 사진을 사진 첨부에 미리 넣는다.
   final String? initialPhotoPath;
 
+  /// 홈 화면에서 특정 대상자를 선택하고 신고 탭으로 넘어올 때 즉시 표시할 대상자.
+  final Senior? initialSenior;
+
   const ReportScreen({
     super.key,
     this.onCompleted,
     this.startInDirectInput = false,
     this.initialPhotoPath,
+    this.initialSenior,
   });
 
   @override
@@ -85,6 +91,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Senior? _selectedSenior;
   List<Senior> _seniors = [];
   bool _seniorsLoading = true;
+  String? _zoneStatusBadge;
 
   final _descCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
@@ -138,6 +145,13 @@ class _ReportScreenState extends State<ReportScreen> {
     if (initialPhotoPath != null && initialPhotoPath.isNotEmpty) {
       _photos.add(XFile(initialPhotoPath));
     }
+    // 홈에서 넘어온 대상자를 API 응답 전에 즉시 표시
+    if (widget.initialSenior != null) {
+      _selectedSenior = widget.initialSenior;
+      _seniorsLoading = false;
+      _applyLastKnownLocation(widget.initialSenior!);
+      _loadZoneStatus(widget.initialSenior!);
+    }
     _loadSeniors();
   }
 
@@ -166,8 +180,14 @@ class _ReportScreenState extends State<ReportScreen> {
         _seniors = list;
         _seniorsLoading = false;
         if (list.isNotEmpty) {
-          _selectedSenior = list.first;
-          _applyLastKnownLocation(list.first);
+          // 이미 선택된 대상자가 있으면 목록의 최신 데이터로 교체, 없으면 첫 번째 선택
+          final currentId = _selectedSenior?.id;
+          final initial = currentId != null
+              ? list.firstWhere((s) => s.id == currentId, orElse: () => list.first)
+              : list.first;
+          _selectedSenior = initial;
+          _applyLastKnownLocation(initial);
+          _loadZoneStatus(initial);
         }
       });
     } catch (_) {
@@ -185,6 +205,50 @@ class _ReportScreenState extends State<ReportScreen> {
       _selectedLocationLatitude = null;
       _selectedLocationLongitude = null;
     }
+  }
+
+  Future<void> _loadZoneStatus(Senior senior) async {
+    setState(() => _zoneStatusBadge = null);
+    try {
+      final zones = await _api.fetchSafeZones(senior.id);
+      final location = await _api.fetchLatestLocation(senior.id);
+      final lat = (location['latitude'] as num?)?.toDouble();
+      final lng = (location['longitude'] as num?)?.toDouble();
+      if (zones.isEmpty || lat == null || lng == null) return;
+
+      final inside = zones.any(
+        (zone) =>
+            _zoneDistanceMeters(
+              zone.centerLatitude,
+              zone.centerLongitude,
+              lat,
+              lng,
+            ) <=
+            zone.radiusMeters,
+      );
+
+      if (mounted && _selectedSenior?.id == senior.id) {
+        setState(() => _zoneStatusBadge = inside ? '안전' : '이탈');
+      }
+    } catch (_) {}
+  }
+
+  double _zoneDistanceMeters(
+    double lat1,
+    double lng1,
+    double lat2,
+    double lng2,
+  ) {
+    const earthRadius = 6371000.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLng = (lng2 - lng1) * math.pi / 180;
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
   // ── 액션 ─────────────────────────────────────────────────────────────────
@@ -534,6 +598,7 @@ class _ReportScreenState extends State<ReportScreen> {
       if (_seniors.isNotEmpty) {
         _selectedSenior = _seniors.first;
         _applyLastKnownLocation(_seniors.first);
+        _loadZoneStatus(_seniors.first);
       }
     });
   }
@@ -792,6 +857,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
                   if (v != null) {
                     _applyLastKnownLocation(v);
+                    _loadZoneStatus(v);
                   }
                 });
               },
@@ -799,7 +865,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
           if (_selectedSenior != null) ...[
             const SizedBox(height: 8),
-            _SeniorCard(senior: _selectedSenior!),
+            _SeniorCard(senior: _selectedSenior!, statusOverride: _zoneStatusBadge)
           ],
         ] else ...[
           Row(
@@ -1603,11 +1669,13 @@ class _TargetModeChip extends StatelessWidget {
 
 class _SeniorCard extends StatelessWidget {
   final Senior senior;
-  const _SeniorCard({required this.senior});
+  final String? statusOverride; // 안전구역 기준 상태 (안전/이탈)
+  const _SeniorCard({required this.senior, this.statusOverride});
 
   @override
   Widget build(BuildContext context) {
-    final isSafe = senior.status == '안전';
+    final statusText = statusOverride ?? senior.status;
+    final isSafe = statusText == '안전';
     final statusColor = isSafe ? _kSafe : _kWarn;
     final statusBg = isSafe ? _kSafeBg : _kWarnBg;
 
@@ -2998,7 +3066,8 @@ class _ReportHistoryCard extends StatelessWidget {
         report['targetName']?.toString() ??
         _nameFromDescription(description);
     final location = report['lastSeenAddress']?.toString() ?? '';
-    final isCancelled = report['status']?.toString() == 'CANCELLED' ||
+    final isCancelled =
+        report['status']?.toString() == 'CANCELLED' ||
         report['status']?.toString() == 'CANCELED';
 
     return Opacity(
@@ -3006,88 +3075,88 @@ class _ReportHistoryCard extends StatelessWidget {
       child: GestureDetector(
         onTap: () => _showDetail(context),
         child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kDivider),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    seniorName.isNotEmpty ? seniorName : '이름 없음',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: _kTextMain,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _statusLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _statusColor,
-                  ),
-                ),
-              ],
-            ),
-            if (location.isNotEmpty) ...[
-              const SizedBox(height: 4),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kDivider),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
-                  const Icon(
-                    Icons.location_on_outlined,
-                    size: 12,
-                    color: _kTextHint,
-                  ),
-                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      location,
-                      maxLines: 1,
+                      seniorName.isNotEmpty ? seniorName : '이름 없음',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextMain,
+                      ),
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: _kTextSub),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _statusLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _statusColor,
                     ),
                   ),
                 ],
               ),
-            ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(
-                  Icons.access_time_outlined,
-                  size: 12,
-                  color: _kTextHint,
+              if (location.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 12,
+                      color: _kTextHint,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: _kTextSub),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  _dateLabel,
-                  style: const TextStyle(fontSize: 12, color: _kTextHint),
-                ),
-                const Spacer(),
-                const Icon(Icons.chevron_right, size: 14, color: _kTextHint),
               ],
-            ),
-          ],
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time_outlined,
+                    size: 12,
+                    color: _kTextHint,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _dateLabel,
+                    style: const TextStyle(fontSize: 12, color: _kTextHint),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right, size: 14, color: _kTextHint),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 

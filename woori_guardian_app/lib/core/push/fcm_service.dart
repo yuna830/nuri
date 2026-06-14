@@ -22,10 +22,7 @@ class FcmService {
   static final _local = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
-  static Future<void> init({
-    required String role,
-    required int userId,
-  }) async {
+  static Future<void> init({required String role, required int userId}) async {
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
@@ -39,11 +36,7 @@ class FcmService {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     }
 
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
@@ -58,7 +51,8 @@ class FcmService {
 
     await _local
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
 
     final token = await _messaging.getToken();
@@ -73,12 +67,20 @@ class FcmService {
     if (!_initialized) {
       FirebaseMessaging.onMessage.listen((message) {
         final notification = message.notification;
-        if (notification == null) return;
+        final type = message.data['type'] ?? '';
+
+        final title =
+            notification?.title ??
+            (type == 'SAFE_ZONE_EXIT' ? '안전 반경 이탈' : '우리 알림');
+
+        final body =
+            notification?.body ??
+            (type == 'SAFE_ZONE_EXIT' ? '보호 대상자가 안전 반경을 벗어났습니다.' : '');
 
         _local.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
+          message.messageId.hashCode,
+          title,
+          body,
           const NotificationDetails(
             android: AndroidNotificationDetails(
               'woori_alerts',
@@ -103,11 +105,7 @@ class FcmService {
       await http.post(
         Uri.parse('${AppConfig.apiBaseUrl}/push-tokens'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'role': role,
-          'userId': userId,
-          'token': token,
-        }),
+        body: jsonEncode({'role': role, 'userId': userId, 'token': token}),
       );
     } catch (e) {
       debugPrint('[FCM] Token registration failed: $e');

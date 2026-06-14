@@ -172,7 +172,7 @@ export default function TripartiteChatModal({
         ? previousKey
         : visibleRooms[0]?.key || "";
     });
-  }, [initialRoomType, isOpen, visibleRooms, noTabSelected]);
+  }, [initialRoomType, isOpen, noTabSelected]);
 
   const loadMessages = async ({ silent = false, page = 0, appendOlder = false } = {}) => {
     const targetSeniorId = activeRoom?.seniorId || seniorId;
@@ -263,7 +263,7 @@ export default function TripartiteChatModal({
         senderName,
         message,
         attachmentUrl: uploaded0?.fileUrl || uploaded0?.imageUrl || "",
-        attachmentType: firstFile?.type || "",
+        attachmentType: firstFile ? (firstFile.type.startsWith("image/") ? "image" : "file") : "",
         attachmentName: uploaded0?.fileName || firstFile?.name || "",
       });
 
@@ -279,7 +279,7 @@ export default function TripartiteChatModal({
           senderName,
           message: "",
           attachmentUrl: uploaded?.fileUrl || uploaded?.imageUrl || "",
-          attachmentType: file.type || "",
+          attachmentType: file.type.startsWith("image/") ? "image" : "file",
           attachmentName: uploaded?.fileName || file.name || "",
         });
       }

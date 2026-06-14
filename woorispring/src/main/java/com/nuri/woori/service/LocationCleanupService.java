@@ -8,13 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 /**
- * 위치 데이터 정리 — DB 용량 절약을 위해 30분이 지난 위치 기록을 삭제한다.
+ * 위치 데이터 정리 — DB 용량 절약을 위해 7일이 지난 위치 기록을 삭제한다.
  * 단, 어르신별 가장 최근 위치 1건은 남겨 '마지막 위치' 표시가 깨지지 않게 한다.
  */
 @Service
 public class LocationCleanupService {
 
-    private static final int RETENTION_MINUTES = 30;
+    private static final int RETENTION_MINUTES = 60 * 24 * 7; // 7일
 
     private final LocationStatusRepository locationStatusRepository;
 

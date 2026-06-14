@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:kakao_map_sdk/kakao_map_sdk.dart' as kakao;
 import '../../core/api/guardian_api.dart';
+import '../../core/models/alert.dart';
 import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/guardian_session_storage.dart';
@@ -217,11 +218,32 @@ class _MapPickScreenState extends State<_MapPickScreen> {
 
 class LocationTabScreen extends StatefulWidget {
   final int? initialSeniorId;
+  final double? initialDetectionLat;
+  final double? initialDetectionLng;
+  final String? initialDetectionMessage;
 
-  const LocationTabScreen({super.key, this.initialSeniorId});
+  const LocationTabScreen({
+    super.key,
+    this.initialSeniorId,
+    this.initialDetectionLat,
+    this.initialDetectionLng,
+    this.initialDetectionMessage,
+  });
 
   @override
   State<LocationTabScreen> createState() => _LocationTabScreenState();
+}
+
+// ── 마커 팝업 데이터 ─────────────────────────────────────────────────────────
+class _MarkerPopup {
+  final String title;
+  final String description;
+  final Color color;
+  const _MarkerPopup({
+    required this.title,
+    required this.description,
+    required this.color,
+  });
 }
 
 class _LocationTabScreenState extends State<LocationTabScreen> {
@@ -231,11 +253,13 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
   kakao.KakaoMapController? _mapController;
   kakao.Poi? _seniorPoi;
+  kakao.Poi? _detectionPoi;
   final List<kakao.Polygon> _zonePolygons = [];
 
   List<Senior> _seniors = [];
   bool _seniorsLoading = true;
   Senior? _selectedSenior;
+  int? _guardianId;
 
   bool _locationLoading = false;
   String? _locationError;
@@ -243,6 +267,15 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   String _time = '-';
   double? _latitude;
   double? _longitude;
+
+  // 최근 카메라 감지 위치
+  double? _detectionLat;
+  double? _detectionLng;
+  String? _detectionMessage;
+  String? _detectionTime;
+
+  // 마커 탭 팝업
+  _MarkerPopup? _activePopup;
 
   List<SafeZone> _zones = [];
   bool _zonesLoading = false;
@@ -268,10 +301,21 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   void didUpdateWidget(LocationTabScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.initialSeniorId != oldWidget.initialSeniorId &&
+    final seniorChanged = widget.initialSeniorId != oldWidget.initialSeniorId &&
         widget.initialSeniorId != null &&
-        _seniors.isNotEmpty) {
-      _selectSeniorById(widget.initialSeniorId!);
+        _seniors.isNotEmpty;
+
+    final detectionChanged = widget.initialDetectionLat != oldWidget.initialDetectionLat &&
+        widget.initialDetectionLat != null;
+
+    if (seniorChanged || detectionChanged) {
+      // seniorId가 바뀌었거나 발견 위치가 새로 넘어온 경우 → 다시 로드
+      final targetId = widget.initialSeniorId;
+      if (targetId != null && _seniors.any((s) => s.id == targetId)) {
+        _selectSeniorById(targetId);
+      } else if (_selectedSenior != null) {
+        _selectSenior(_selectedSenior!);
+      }
     }
   }
 
@@ -290,11 +334,13 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
       if (guardianIdStr == null || guardianIdStr.isEmpty) return;
 
-      final seniors = await _api.fetchGuardianSeniors(int.parse(guardianIdStr));
+      final gid = int.parse(guardianIdStr);
+      final seniors = await _api.fetchGuardianSeniors(gid);
 
       if (!mounted) return;
 
       setState(() {
+        _guardianId = gid;
         _seniors = seniors;
         _seniorsLoading = false;
       });
@@ -302,6 +348,13 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       if (seniors.isEmpty) return;
 
       final targetId = widget.initialSeniorId;
+
+      // 알림에서 넘어온 발견 위치가 있으면 미리 세팅
+      if (widget.initialDetectionLat != null) {
+        _detectionLat = widget.initialDetectionLat;
+        _detectionLng = widget.initialDetectionLng;
+        _detectionMessage = widget.initialDetectionMessage;
+      }
 
       if (targetId != null && seniors.any((s) => s.id == targetId)) {
         _selectSeniorById(targetId);
@@ -332,6 +385,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       _time = '-';
       _latitude = null;
       _longitude = null;
+      _detectionLat = null;
+      _detectionLng = null;
+      _detectionMessage = null;
+      _detectionTime = null;
+      _activePopup = null;
       _zones = [];
       _zonesError = null;
       _routeHistory = [];
@@ -343,11 +401,17 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       _fetchLocation(senior, gen),
       _fetchZones(senior.id, gen),
       _fetchRouteHistory(senior.id, _routeHistoryDate),
+      _fetchDetectionLocation(senior.id, gen),
     ]);
 
     // stale 응답이면 무시, 아니면 한 번만 오버레이 갱신
     if (gen != _fetchGeneration) return;
     await _syncMapOverlays();
+
+    // 알림에서 발견 위치로 온 경우 그 위치로 지도 중심 이동
+    if (_detectionLat != null && _detectionLng != null && widget.initialDetectionLat != null) {
+      await _moveMap(_detectionLat!, _detectionLng!);
+    }
   }
 
   Future<void> _fetchLocation(Senior senior, int gen) async {
@@ -382,6 +446,62 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         _locationError = e.toString().replaceAll('Exception: ', '');
         _locationLoading = false;
       });
+    }
+  }
+
+  static const _cameraAlertTypes = {
+    'AI_CANDIDATE_CONFIRM',
+    'FACE_MATCH',
+    'PERSON_DETECTED',
+    'FALL_RISK',
+  };
+
+  Future<void> _fetchDetectionLocation(int seniorId, int gen) async {
+    // 알림에서 직접 넘어온 좌표가 있으면 그 값을 사용
+    if (widget.initialDetectionLat != null) {
+      if (!mounted || gen != _fetchGeneration) return;
+      setState(() {
+        _detectionLat = widget.initialDetectionLat;
+        _detectionLng = widget.initialDetectionLng;
+        _detectionMessage = widget.initialDetectionMessage;
+      });
+      return;
+    }
+
+    final gid = _guardianId;
+    if (gid == null) return;
+    try {
+      final alerts = await _api.fetchGuardianAlerts(gid);
+      if (!mounted || gen != _fetchGeneration) return;
+
+      final detection = alerts
+          .where(
+            (a) =>
+                a.seniorId == seniorId &&
+                _cameraAlertTypes.contains(a.type) &&
+                a.latitude != null &&
+                a.longitude != null,
+          )
+          .fold<AlertModel?>(null, (prev, cur) {
+            if (prev == null) return cur;
+            final prevTime = prev.createdAt ?? DateTime(0);
+            final curTime = cur.createdAt ?? DateTime(0);
+            return curTime.isAfter(prevTime) ? cur : prev;
+          });
+
+      if (detection == null) return;
+
+      final rawTime = detection.createdAt?.toLocal().toString() ?? '';
+      final timeStr = rawTime.length > 16 ? rawTime.substring(0, 16) : rawTime;
+
+      setState(() {
+        _detectionLat = detection.latitude;
+        _detectionLng = detection.longitude;
+        _detectionMessage = detection.message;
+        _detectionTime = timeStr;
+      });
+    } catch (_) {
+      // detection 실패는 조용히 무시
     }
   }
 
@@ -504,17 +624,26 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Future<void> _clearMapOverlays() async {
-    if (_seniorPoi != null) {
-      try {
-        await _seniorPoi!.remove();
-      } on PlatformException catch (e) {
-        debugPrint('[KAKAO] senior poi remove ignored: ${e.message ?? e.code}');
-      } catch (e) {
-        debugPrint('[KAKAO] senior poi remove ignored: $e');
+    for (final entry in [
+      (_seniorPoi, 'senior'),
+      (_detectionPoi, 'detection'),
+    ]) {
+      final poi = entry.$1;
+      final label = entry.$2;
+      if (poi != null) {
+        try {
+          await poi.remove();
+        } on PlatformException catch (e) {
+          debugPrint(
+            '[KAKAO] $label poi remove ignored: ${e.message ?? e.code}',
+          );
+        } catch (e) {
+          debugPrint('[KAKAO] $label poi remove ignored: $e');
+        }
       }
-
-      _seniorPoi = null;
     }
+    _seniorPoi = null;
+    _detectionPoi = null;
 
     final polygons = List<kakao.Polygon>.from(_zonePolygons);
     _zonePolygons.clear();
@@ -562,18 +691,30 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
     await _clearMapOverlays();
 
-    // 현재 위치 마커
-    // 이 마커는 Flutter 화면 위에 고정되는 아이콘이 아니라,
-    // 실제 카카오맵 좌표에 붙는 Poi 마커입니다.
+    // 마지막 위치 마커 (파란색)
     if (_latitude != null && _longitude != null) {
       final icon = await kakao.KImage.fromWidget(
-        const Icon(Icons.location_pin, size: 48, color: Color(0xFF4A90E2)),
-        const Size(48, 48),
+        const Icon(Icons.location_pin, size: 52, color: Color(0xFF4A90E2)),
+        const Size(52, 52),
         context: context,
       );
 
       _seniorPoi = await controller.labelLayer.addPoi(
         kakao.LatLng(_latitude!, _longitude!),
+        style: kakao.PoiStyle(icon: icon, anchor: const kakao.KPoint(0.5, 1.0)),
+      );
+    }
+
+    // 발견 위치 마커 (빨간색)
+    if (_detectionLat != null && _detectionLng != null) {
+      final icon = await kakao.KImage.fromWidget(
+        const Icon(Icons.location_pin, size: 52, color: Color(0xFFE53935)),
+        const Size(52, 52),
+        context: context,
+      );
+
+      _detectionPoi = await controller.labelLayer.addPoi(
+        kakao.LatLng(_detectionLat!, _detectionLng!),
         style: kakao.PoiStyle(icon: icon, anchor: const kakao.KPoint(0.5, 1.0)),
       );
     }
@@ -603,6 +744,111 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     if (_selectedSenior != null) {
       await _selectSenior(_selectedSenior!);
     }
+  }
+
+  // 마커 탭 감지 — 탭 위치가 마커 좌표에서 ~150m 이내이면 팝업 표시
+  void _handleMapTap(kakao.LatLng pos) {
+    const thresholdDeg = 0.0014; // ≈ 150m
+    final lat = pos.latitude;
+    final lng = pos.longitude;
+
+    _MarkerPopup? popup;
+
+    if (_detectionLat != null && _detectionLng != null) {
+      final dLat = (lat - _detectionLat!).abs();
+      final dLng = (lng - _detectionLng!).abs();
+      if (dLat < thresholdDeg && dLng < thresholdDeg) {
+        final desc = [
+          if (_detectionMessage != null && _detectionMessage!.isNotEmpty)
+            _detectionMessage!,
+          if (_detectionTime != null && _detectionTime!.isNotEmpty)
+            _detectionTime!,
+        ].join('\n');
+        popup = _MarkerPopup(
+          title: '발견 위치',
+          description: desc.isNotEmpty ? desc : '카메라 감지 위치',
+          color: const Color(0xFFE53935),
+        );
+      }
+    }
+
+    if (popup == null && _latitude != null && _longitude != null) {
+      final dLat = (lat - _latitude!).abs();
+      final dLng = (lng - _longitude!).abs();
+      if (dLat < thresholdDeg && dLng < thresholdDeg) {
+        popup = _MarkerPopup(
+          title: '마지막 위치',
+          description: '${_selectedSenior?.name ?? '노인'}님의 마지막 위치\n$_time',
+          color: const Color(0xFF4A90E2),
+        );
+      }
+    }
+
+    setState(() => _activePopup = popup);
+  }
+
+  Widget _buildMarkerPopup(_MarkerPopup popup) {
+    return Positioned(
+      left: 12,
+      right: 12,
+      // Sheet 초기 높이(30%) + 여유 8px 위에 띄움
+      bottom: MediaQuery.of(context).size.height * 0.30 + 8,
+      child: GestureDetector(
+        onTap: () {},
+        child: Material(
+          elevation: 6,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: popup.color, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.location_pin, color: popup.color, size: 28),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        popup.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: popup.color,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        popup.description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF555555),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.close,
+                    size: 18,
+                    color: Color(0xFF999999),
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => setState(() => _activePopup = null),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ── 안전 구역 CRUD ────────────────────────────────────────────────────────
@@ -1271,6 +1517,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
               await _syncMapOverlays();
             },
+            onMapClick: (_, position) {
+              _handleMapTap(position);
+            },
           ),
         ),
 
@@ -1340,6 +1589,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
             );
           },
         ),
+
+        // 팝업은 Sheet보다 위에 렌더링
+        if (_activePopup != null) _buildMarkerPopup(_activePopup!),
       ],
     );
   }
