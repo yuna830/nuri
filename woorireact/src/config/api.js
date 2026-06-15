@@ -27,4 +27,4 @@ export const RAG_API_BASE =
   trimEnv(import.meta.env.VITE_RAG_API_BASE) || sameHostBase("8001");
 
 export const FACE_API_BASE =
-  trimEnv(import.meta.env.VITE_FACE_API_BASE_URL) || sameHostBase("8000");
+  trimEnv(import.meta.env.VITE_FACE_API_BASE_URL) || sameHostBase("8003");

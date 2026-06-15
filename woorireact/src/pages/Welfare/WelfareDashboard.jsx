@@ -205,7 +205,7 @@ function WelfareDashboard() {
                             }
                         }
                     } catch (error) {
-                        console.error("목록 건강 상태 ML 갱신 실패:", error);
+                        console.error("목록 건강 상태 건강 정보 실패:", error);
                     }
                 }
 
