@@ -126,11 +126,13 @@ public class AlertController {
         boolean sendToGuardian = request.toGuardian() == null || request.toGuardian();
 
         if (sendToSenior) {
-            // 이미 미읽음 요청이 있으면 중복 생성 방지
-            boolean hasPending = alertRepository.findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
-                    request.seniorId(), "INFO_UPDATE_REQUEST")
-                    .stream().anyMatch(a -> a.getGuardianId() == null);
-            if (!hasPending) {
+            List<Alert> pendingSeniorList = alertRepository
+                    .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
+                            request.seniorId(), "INFO_UPDATE_REQUEST");
+            Alert existingSenior = pendingSeniorList.stream()
+                    .filter(a -> a.getGuardianId() == null)
+                    .findFirst().orElse(null);
+            if (existingSenior == null) {
                 Alert seniorAlert = new Alert();
                 seniorAlert.setSeniorId(request.seniorId());
                 seniorAlert.setGuardianId(null);
@@ -139,16 +141,19 @@ public class AlertController {
                 seniorAlert.setMessage(buildInfoUpdateMessage(senior.getName(), request.missingFields()));
                 seniorAlert.setIsRead(false);
                 alerts.add(saveAndPushToSenior(seniorAlert));
+            } else {
+                alerts.add(existingSenior); // 기존 미읽음 알림을 응답에 포함
             }
         }
 
         if (sendToGuardian) {
             guardianSeniorRepository.findBySeniorId(request.seniorId()).forEach(link -> {
-                // 해당 보호자에게도 미읽음 요청이 없을 때만 생성
-                boolean hasPending = alertRepository.findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
-                        request.seniorId(), "INFO_UPDATE_REQUEST")
-                        .stream().anyMatch(a -> link.getGuardianId().equals(a.getGuardianId()));
-                if (!hasPending) {
+                List<Alert> pendingList = alertRepository.findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(
+                        request.seniorId(), "INFO_UPDATE_REQUEST");
+                Alert existing = pendingList.stream()
+                        .filter(a -> link.getGuardianId().equals(a.getGuardianId()))
+                        .findFirst().orElse(null);
+                if (existing == null) {
                     Alert guardianAlert = new Alert();
                     guardianAlert.setSeniorId(request.seniorId());
                     guardianAlert.setGuardianId(link.getGuardianId());
@@ -157,6 +162,9 @@ public class AlertController {
                     guardianAlert.setMessage(buildGuardianInfoUpdateMessage(senior.getName(), request.missingFields()));
                     guardianAlert.setIsRead(false);
                     alerts.add(saveAndPushToGuardian(guardianAlert));
+                } else {
+                    // 이미 미읽음 요청이 있으면 기존 알림을 응답에 포함
+                    alerts.add(existing);
                 }
             });
         }

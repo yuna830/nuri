@@ -56,7 +56,7 @@ export const getHealthItems = (profile, temp, pty) => {
   return items;
 };
 
-const PUBLIC_DATA_SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
+const PUBLIC_DATA_SERVICE_KEY = encodeURIComponent(import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "");
 
 const CACHE_TTL = 30 * 60 * 1000;
 const RATE_LIMIT_COOLDOWN = 10 * 60 * 1000;

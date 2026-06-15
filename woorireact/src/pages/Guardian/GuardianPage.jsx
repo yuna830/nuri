@@ -23,6 +23,7 @@ import {
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import { mapSeniorProfileToElder } from "../../utils/guardian/guardianProfile";
 import {
+  calculateAge,
   LIVING_COST_STATUSES,
   HOUSEHOLD_TYPES,
   PENSION_STATUSES,
@@ -265,13 +266,6 @@ const INFO_REQUEST_FIELDS = [
     type: "text",
     placeholder: "기타 건강 관련 참고사항을 입력해주세요",
   },
-  {
-    key: "otherDisease",
-    label: "기타 건강 참고사항",
-    aliases: ["건강 정보"],
-    type: "text",
-    placeholder: "기타 건강 관련 참고사항을 입력해주세요",
-  },
 
   // ── 복지 정보 ──────────────────────────────────────
   {
@@ -377,6 +371,11 @@ const isFieldEmpty = (field, elder) => {
 
 const getInfoRequestFieldKeys = (alert, elder) => {
   const message = `${alert?.message ?? ""} ${alert?.title ?? ""}`;
+
+  // 수술 상세 요청은 elder 캐시 값과 무관하게 hasSurgery 표시
+  if (message.includes("수술 상세")) {
+    return ["hasSurgery"];
+  }
 
   // 1. 메시지에서 직접 필드 라벨 매핑 → 그 중 실제 비어있는 것만
   const directKeys = Object.entries(MESSAGE_LABEL_TO_KEY)
@@ -1015,7 +1014,7 @@ function GuardianPage() {
         console.error("날짜별 동선 경로 조회 실패:", error);
       })
       .finally(() => setIsLoadingRoute(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeElderId]);
 
   if (isLoadingElders) {
@@ -1601,23 +1600,31 @@ function GuardianPage() {
       ...prev,
       ...buildInfoRequestForm(targetElder),
     }));
+
+    const isSurgeryDetailRequest =
+      (alert?.message || "").includes("수술 상세") ||
+      (alert?.title || "").includes("수술 상세");
+
+    if (isSurgeryDetailRequest) {
+      setInfoRequestForm((prev) => ({ ...prev, hasSurgery: "있음" }));
+    }
+
     try {
       const raw = targetElder.healthInfo?.surgeriesJson;
       const parsed = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
       const mapped = Array.isArray(parsed) && parsed.length > 0
         ? parsed.map((s) => ({ name: s.name || "", date: s.date || s.year || "", recovery: s.recovery || "" }))
         : [];
-      // hasSurgery가 "있음"인데 수술 상세가 없으면 빈 카드 1개 자동 추가
       setInfoRequestSurgeries(
         mapped.length > 0
           ? mapped
-          : targetElder.healthInfo?.hasSurgery === "있음"
+          : (targetElder.healthInfo?.hasSurgery === "있음" || isSurgeryDetailRequest)
             ? [{ name: "", date: "", recovery: "" }]
             : []
       );
     } catch {
       setInfoRequestSurgeries(
-        targetElder.healthInfo?.hasSurgery === "있음"
+        (targetElder.healthInfo?.hasSurgery === "있음" || isSurgeryDetailRequest)
           ? [{ name: "", date: "", recovery: "" }]
           : []
       );
@@ -2424,15 +2431,19 @@ function GuardianPage() {
       {infoRequestAlert && (
         <div className="guardian-info-request-backdrop">
           <section className="guardian-info-request-modal">
-            <h2>보호 대상자 정보 입력 요청</h2>
+            <h2 style={{ textAlign: "center" }}>보호 대상자 정보 입력 요청</h2>
             {(() => {
-              const cats = getInfoAlertCategories(infoRequestAlert.message || "");
+              const targetElder = elders.find((e) => String(e.id) === String(infoRequestAlert.seniorId));
+              const elderAge = targetElder?.birthDate ? calculateAge(targetElder.birthDate) : (Number(targetElder?.age) || null);
+              const isMinor = elderAge !== null && elderAge < 18;
+              const cats = getInfoAlertCategories(infoRequestAlert.message || "")
+                .filter((cat) => !isMinor || cat !== "활동/일자리");
               return cats.length > 0 ? (
                 <>
-                  <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 12px" }}>
+                  <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 12px", textAlign: "center" }}>
                     아래 카테고리에 미입력 정보가 있습니다.
                   </p>
-                  <div className="guardian-info-request-category-grid">
+                  <div className="guardian-info-request-category-grid" style={{ justifyContent: "center" }}>
                     {cats.map((cat) => (
                       <div key={cat} className="guardian-info-request-category-card">
                         {cat}
