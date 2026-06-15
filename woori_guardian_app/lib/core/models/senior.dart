@@ -13,6 +13,9 @@ class Senior {
   // 마지막 GPS 수신 시각 원본 — 위치 신선도(미접속) 판단에 사용합니다.
   final DateTime? lastLocationAt;
 
+  final double? lastLat;
+  final double? lastLng;
+
   // 프로필/담당자 정보: 상세 화면 상단과 기본 정보 영역에 표시합니다.
   final String profileImageUrl;
   final String socialWorkerName;
@@ -53,6 +56,8 @@ class Senior {
     required this.lastLocationAddress,
     required this.lastLocationTime,
     this.lastLocationAt,
+    this.lastLat,
+    this.lastLng,
     this.profileImageUrl = '',
     this.socialWorkerName = '-',
     this.socialWorkerPhone = '-',
@@ -137,6 +142,8 @@ class Senior {
       lastLocationAddress: lastAddress,
       lastLocationTime: lastTime,
       lastLocationAt: lastAt,
+      lastLat: (lastGpsObj['latitude'] as num?)?.toDouble(),
+      lastLng: (lastGpsObj['longitude'] as num?)?.toDouble(),
       profileImageUrl: _readString(
         seniorObj,
         [

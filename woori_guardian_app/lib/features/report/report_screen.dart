@@ -183,11 +183,15 @@ class _ReportScreenState extends State<ReportScreen> {
           // 이미 선택된 대상자가 있으면 목록의 최신 데이터로 교체, 없으면 첫 번째 선택
           final currentId = _selectedSenior?.id;
           final initial = currentId != null
-              ? list.firstWhere((s) => s.id == currentId, orElse: () => list.first)
+              ? list.firstWhere(
+                  (s) => s.id == currentId,
+                  orElse: () => list.first,
+                )
               : list.first;
           _selectedSenior = initial;
           _applyLastKnownLocation(initial);
           _loadZoneStatus(initial);
+          _loadFacePhotos(initial);
         }
       });
     } catch (_) {
@@ -205,6 +209,38 @@ class _ReportScreenState extends State<ReportScreen> {
       _selectedLocationLatitude = null;
       _selectedLocationLongitude = null;
     }
+  }
+
+  Future<void> _loadFacePhotos(Senior senior) async {
+    if (_photos.isNotEmpty) return;
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              '${AppConfig.apiBaseUrl}/seniors/${senior.id}/face-photos',
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return;
+      final list = jsonDecode(utf8.decode(res.bodyBytes)) as List;
+      for (final item in list) {
+        if (!mounted || _photos.length >= 4) break;
+        final rawUrl = item['imageUrl']?.toString() ?? '';
+        if (rawUrl.isEmpty) continue;
+        final url = rawUrl.startsWith('http')
+            ? rawUrl
+            : '${AppConfig.apiBaseUrl}$rawUrl';
+        final imgRes = await http
+            .get(Uri.parse(url))
+            .timeout(const Duration(seconds: 10));
+        if (imgRes.statusCode != 200) continue;
+        final file = File(
+          '${Directory.systemTemp.path}/face_${senior.id}_${_photos.length}.jpg',
+        );
+        await file.writeAsBytes(imgRes.bodyBytes);
+        if (mounted) setState(() => _photos.add(XFile(file.path)));
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadZoneStatus(Senior senior) async {
@@ -674,6 +710,51 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ReportHistoryScreen(),
+                      ),
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F8F5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFD0DDD0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.assignment_outlined,
+                            size: 18,
+                            color: _kGreen,
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              '신고 내역 보기',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _kTextMain,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: _kTextSub,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   // ① 사용자 선택 + 요약 카드
                   _buildSeniorSection(),
                   const SizedBox(height: 14),
@@ -758,27 +839,6 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(width: 3),
             const Text('*', style: TextStyle(fontSize: 13, color: _kRed)),
             const Spacer(),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ReportHistoryScreen()),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '내역 보기',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: _kTextSub,
-                    ),
-                  ),
-                  SizedBox(width: 1),
-                  Icon(Icons.chevron_right, size: 14, color: _kTextHint),
-                ],
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -854,18 +914,22 @@ class _ReportScreenState extends State<ReportScreen> {
               onChanged: (v) {
                 setState(() {
                   _selectedSenior = v;
-
-                  if (v != null) {
-                    _applyLastKnownLocation(v);
-                    _loadZoneStatus(v);
-                  }
+                  _photos.clear(); // 다른 사람으로 바꾸면 이전 사진 초기화
                 });
+                if (v != null) {
+                  _applyLastKnownLocation(v);
+                  _loadZoneStatus(v);
+                  _loadFacePhotos(v); // ← 추가
+                }
               },
             ),
 
           if (_selectedSenior != null) ...[
             const SizedBox(height: 8),
-            _SeniorCard(senior: _selectedSenior!, statusOverride: _zoneStatusBadge)
+            _SeniorCard(
+              senior: _selectedSenior!,
+              statusOverride: _zoneStatusBadge,
+            ),
           ],
         ] else ...[
           Row(
@@ -2332,30 +2396,30 @@ class ReportHistoryScreen extends StatefulWidget {
   State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
 }
 
-class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
+class _ReportHistoryScreenState extends State<ReportHistoryScreen>
+    with SingleTickerProviderStateMixin {
   final _sessionStorage = GuardianSessionStorage();
 
+  late final TabController _tabController;
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _reports = [];
   List<Map<String, dynamic>> _allActiveReports = [];
   String? _myGuardianId;
-  int _selectedScope = 0; // 0=전체 실종자, 1=내 신고, 2=다른 보호자 신고
   int _selectedTab = 0; // 내 신고 내 필터: 0=전체, 1=접수 완료, 2=취소
 
   List<Map<String, dynamic>> get _filteredReports {
-    // 전체 실종자 — 모든 보호자의 ACTIVE 신고
-    if (_selectedScope == 0) {
-      return _allActiveReports;
-    }
+    final scope = _tabController.index;
 
-    // 다른 보호자가 접수한 신고만
-    if (_selectedScope == 2) {
+    if (scope == 0) return _allActiveReports;
+
+    if (scope == 2) {
       return _allActiveReports
           .where((r) => r['guardianId']?.toString() != _myGuardianId)
           .toList();
     }
 
+    // scope == 1 (내 신고)
     if (_selectedTab == 1) {
       return _reports.where((r) {
         final s = r['status']?.toString() ?? '';
@@ -2374,7 +2438,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() => setState(() {}));
     _loadReports();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReports() async {
@@ -2421,8 +2493,18 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       if (!mounted) return;
       setState(() {
         _myGuardianId = guardianId;
-        _reports = list.cast<Map<String, dynamic>>();
-        _allActiveReports = activeReports;
+        _reports = (list.cast<Map<String, dynamic>>())
+          ..sort((a, b) {
+            final aTime = a['createdAt']?.toString() ?? '';
+            final bTime = b['createdAt']?.toString() ?? '';
+            return bTime.compareTo(aTime);
+          });
+        _allActiveReports = activeReports
+          ..sort((a, b) {
+            final aTime = a['createdAt']?.toString() ?? '';
+            final bTime = b['createdAt']?.toString() ?? '';
+            return bTime.compareTo(aTime);
+          });
         _isLoading = false;
       });
     } catch (e) {
@@ -2445,54 +2527,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         elevation: 0,
       ),
       body: _buildBody(),
-    );
-  }
-
-  Widget _buildScopeChip(int index, String label) {
-    final selected = _selectedScope == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedScope = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? _kGreen : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? _kGreen : _kDivider),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : _kTextSub,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabChip(int index, String label) {
-    final selected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? _kGreen : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? _kGreen : _kDivider),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : _kTextSub,
-          ),
-        ),
-      ),
     );
   }
 
@@ -2529,38 +2563,71 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
 
     return Column(
       children: [
-        // 범위 선택: 전체 실종자(모든 보호자의 신고) / 내 신고
+        // 탭: 전체 실종자 / 내 신고 / 다른 보호자
         Container(
           color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
-            children: [
-              _buildScopeChip(0, '전체 실종자'),
-              const SizedBox(width: 8),
-              _buildScopeChip(1, '내 신고'),
-              const SizedBox(width: 8),
-              _buildScopeChip(2, '다른 보호자'),
+          child: TabBar(
+            controller: _tabController,
+            labelColor: _kGreen,
+            unselectedLabelColor: _kTextSub,
+            indicatorColor: _kGreen,
+            indicatorWeight: 2.5,
+            labelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            tabs: const [
+              Tab(text: '전체 실종자'),
+              Tab(text: '내 신고'),
+              Tab(text: '다른 보호자'),
             ],
           ),
         ),
-        // 내 신고일 때만 상태 필터 표시
-        if (_selectedScope == 1) ...[
-          const SizedBox(height: 8),
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildTabChip(0, '전체'),
-                const SizedBox(width: 8),
-                _buildTabChip(1, '접수 완료'),
-                const SizedBox(width: 8),
-                _buildTabChip(2, '취소'),
-              ],
+        // 내 신고 탭일 때만 상태 필터 드롭다운 표시
+        if (_tabController.index == 1)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 6, 16, 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: _kDivider),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: _selectedTab,
+                    isDense: true,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: _kTextSub,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextMain,
+                    ),
+                    onChanged: (v) => setState(() => _selectedTab = v ?? 0),
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('전체')),
+                      DropdownMenuItem(value: 1, child: Text('접수 완료')),
+                      DropdownMenuItem(value: 2, child: Text('취소')),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ],
-        const SizedBox(height: 4),
+        const SizedBox(height: 0),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadReports,
@@ -2570,7 +2637,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     children: [
                       const SizedBox(height: 120),
                       Icon(
-                        _selectedScope == 0
+                        _tabController.index == 0
                             ? Icons.person_search_outlined
                             : Icons.campaign_outlined,
                         size: 48,
@@ -2578,7 +2645,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _selectedScope == 0
+                        _tabController.index == 0
                             ? '현재 신고된 실종자가 없습니다.'
                             : '해당 내역이 없습니다.',
                         textAlign: TextAlign.center,

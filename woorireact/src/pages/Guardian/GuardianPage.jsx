@@ -529,6 +529,7 @@ function GuardianPage() {
   });
 
   const [infoRequestAlert, setInfoRequestAlert] = useState(null);
+  const [emergencyAlert, setEmergencyAlert] = useState(null);
   const [isElderEditOpen, setIsElderEditOpen] = useState(false);
   const [editingElder, setEditingElder] = useState(null);
   const [dismissedInfoRequestIds, setDismissedInfoRequestIds] = useState(() => {
@@ -911,8 +912,15 @@ function GuardianPage() {
         }
 
         if (didLoadAlertsRef.current && newAlerts.length > 0) {
-          const latestAlert = newAlerts[0];
-
+          const EMERGENCY_TYPES = new Set([
+            "SOS", "UNANSWERED_SOS",
+            "FALL_DETECTED", "FALL_RISK",
+            "SAFE_ZONE_EXIT",
+          ]);
+          const latestEmergency = newAlerts.find((a) => EMERGENCY_TYPES.has(a.type));
+          if (latestEmergency) {
+            setEmergencyAlert(latestEmergency);
+          }
         }
 
         didLoadAlertsRef.current = true;
@@ -2491,6 +2499,77 @@ function GuardianPage() {
           </section>
         </div>
       )}
+
+      {emergencyAlert && (() => {
+        const emergencyTitles = {
+          SOS: "SOS 긴급 요청",
+          UNANSWERED_SOS: "SOS 미응답",
+          FALL_DETECTED: "낙상 감지",
+          FALL_RISK: "낙상 위험",
+          SAFE_ZONE_EXIT: "안전구역 이탈",
+        };
+        const isSafeZoneType = emergencyAlert.type === "SAFE_ZONE_EXIT";
+        const accentColor = isSafeZoneType ? "#d4870a" : "#b05252";
+
+        const handleDismiss = () => {
+          readAlert(emergencyAlert.id).catch(() => { });
+          setEmergencyAlert(null);
+        };
+
+        return (
+          <div className="guardian-emergency-backdrop" onClick={handleDismiss}>
+            <section
+              className="guardian-emergency-modal"
+              style={{ borderTopColor: accentColor }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 style={{ color: accentColor }}>
+                {emergencyTitles[emergencyAlert.type] ?? "긴급 알림"}
+              </h2>
+              {emergencyAlert.message && (
+                <p className="guardian-emergency-message">{emergencyAlert.message}</p>
+              )}
+              <div className="guardian-emergency-actions">
+                {isSafeZoneType ? (
+                  <button
+                    type="button"
+                    style={{ background: "#e8e8e8", color: "#444", border: "none" }}
+                    className="guardian-emergency-btn-primary"
+                    onClick={() => {
+                      setSelectedElderId(emergencyAlert.seniorId);
+                      handleDismiss();
+                    }}
+                  >
+                    위치 보기
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    style={{ background: "#e8e8e8", color: "#444", border: "none" }}
+                    className="guardian-emergency-btn-primary"
+                    onClick={() => {
+                      setSelectedElderId(emergencyAlert.seniorId);
+                      setChatInitialRoomType("SENIOR_GUARDIAN");
+                      setIsChatOpen(true);
+                      handleDismiss();
+                    }}
+                  >
+                    채팅하기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="guardian-emergency-btn-primary"
+                  style={{ background: accentColor, border: "none" }}
+                  onClick={handleDismiss}
+                >
+                  확인
+                </button>
+              </div>
+            </section>
+          </div>
+        );
+      })()}
 
       {isElderEditOpen && editingElder && (
         <div className="guardian-info-form-backdrop">
