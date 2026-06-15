@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchSeniorChatMessages, sendSeniorChatMessage, uploadChatAttachment } from "../api/chatApi";
+import { fetchSeniorChatMessages, sendSeniorChatMessage, uploadChatAttachment, deleteChatMessage } from "../api/chatApi";
 import "../css/common/TripartiteChatModal.css";
 
 const UNREAD_POLL_MS = 15_000;
@@ -234,6 +234,16 @@ export default function TripartiteChatModal({
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages.length, isOpen]);
 
+  const handleDeleteMessage = async (messageId) => {
+    if (!window.confirm("이 메시지를 삭제할까요?")) return;
+    try {
+      await deleteChatMessage({ messageId, senderRole, senderId });
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch {
+      alert("메시지 삭제에 실패했습니다.");
+    }
+  };
+
   const handleSend = async () => {
     const message = draft.trim();
     const targetSeniorId = activeRoom?.seniorId || seniorId;
@@ -457,6 +467,16 @@ export default function TripartiteChatModal({
                           <strong>{message.senderName || ROLE_LABELS[message.senderRole] || "참여자"}</strong>
                           <span>{ROLE_LABELS[message.senderRole] || message.senderRole}</span>
                           <time>{formatChatTime(message.createdAt)}</time>
+                          {isMine && (
+                            <button
+                              className="tcm-delete-btn"
+                              type="button"
+                              onClick={() => handleDeleteMessage(message.id)}
+                              aria-label="메시지 삭제"
+                            >
+                              삭제
+                            </button>
+                          )}
                         </div>
                         {message.message && <p>{message.message}</p>}
                         {message.attachmentUrl && (() => {

@@ -130,6 +130,26 @@
     font-size: 14px;
 }
 
+.wja-senior-select {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    font-family: "Noto Sans KR", sans-serif;
+    font-weight: 600;
+    color: var(--main-color);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.wja-search-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border-color);
+    flex-shrink: 0;
+}
+
 .wja-search-row {
     height: 44px;
     margin: 14px 0;

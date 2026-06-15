@@ -123,3 +123,11 @@ export const uploadChatAttachment = async (file) => {
 
 export const fetchChatMessages = fetchSeniorChatMessages;
 export const sendChatMessage = sendSeniorChatMessage;
+
+export const deleteChatMessage = async ({ messageId, senderRole, senderId }) => {
+  const params = new URLSearchParams({ senderRole, senderId });
+  const response = await fetch(`/api/chat/messages/${messageId}?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("메시지 삭제에 실패했습니다.");
+};

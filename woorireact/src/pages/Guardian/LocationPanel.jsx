@@ -15,6 +15,7 @@ function LocationPanel({
   formatShortAddress,
   onRefreshLocation,
   mapFocusVersion = 0,
+  sightingLocation = null,
 }) {
   const center = { lat: mapCenter[0], lng: mapCenter[1] };
   const route = routeHistory.length > 1
@@ -95,6 +96,8 @@ function LocationPanel({
           currentLocation={hasCurrentLocation ? location : null}
           currentLabel={`${selectedElder.name} 현재 위치<br />${distance}m 거리`}
           safeZoneLabel={`${safeZoneForm.name} 안전 반경 중심`}
+          sightingLocation={sightingLocation}
+          sightingLabel={`${selectedElder.name}님 유사 인물 발견 위치`}
           route={route}
           showRoute={isRouteVisible && hasCurrentLocation}
           autoFit={false}

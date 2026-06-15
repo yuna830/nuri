@@ -1,7 +1,8 @@
-import { POLICE_API_BASE, SPRING_API_BASE } from "../config/api.js";
+import { POLICE_API_BASE, RAG_API_BASE, SPRING_API_BASE } from "../config/api.js";
 
 const API_BASE_URL = SPRING_API_BASE;
 const POLICE_API_BASE_URL = POLICE_API_BASE;
+const FACE_API_BASE_URL = RAG_API_BASE;
 
 export function getPolicePhotoUrl(alertId) {
   if (!alertId) return "";
@@ -203,4 +204,19 @@ export function sendCheckInReply({ seniorId, guardianId, reply, originalMessage 
       originalMessage,
     }),
   });
+}
+
+/**
+ * 어르신 등록 사진과 경찰청 실종자 사진 전체를 얼굴 인식으로 비교
+ * @returns {Promise<Record<number, number>>} alertId → 유사도(0~1)
+ */
+export async function compareSeniorFaceToPolice(seniorId) {
+  const response = await fetch(`${FACE_API_BASE_URL}/api/face/compare-police`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seniorId }),
+  });
+  if (!response.ok) return {};
+  const data = await response.json();
+  return data.scores ?? {};
 }

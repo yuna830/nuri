@@ -88,6 +88,8 @@ export default function KakaoMap({
   safeZone,
   safeZones = [],
   currentLocation,
+  sightingLocation = null,
+  sightingLabel = "발견 위치",
   route = [],
   showRoute = true,
   currentLabel = "현재 위치",
@@ -103,6 +105,8 @@ export default function KakaoMap({
   const safeZoneOverlaysRef = useRef([]);  // 안전 반경용 오버레이 (드물게 변경)
   const currentMarkerRef = useRef(null);   // 현재 위치 마커 (위치만 업데이트)
   const currentInfoRef = useRef(null);
+  const sightingMarkerRef = useRef(null);
+  const sightingInfoRef = useRef(null);
   const [failed, setFailed] = useState(false);
 
   const normalizedCenter = useMemo(() => {
@@ -227,6 +231,46 @@ export default function KakaoMap({
       currentInfoRef.current = info;
     }
   }, [failed, currentLocation, currentLabel]);
+
+  // 신고/발견 위치 마커 — 붉은색으로 구분
+  useEffect(() => {
+    if (failed || !mapRef.current || !window.kakao?.maps) return;
+    const maps = window.kakao.maps;
+
+    // 기존 마커 제거
+    if (sightingMarkerRef.current) {
+      sightingMarkerRef.current.setMap(null);
+      sightingMarkerRef.current = null;
+    }
+    if (sightingInfoRef.current) {
+      sightingInfoRef.current.close();
+      sightingInfoRef.current = null;
+    }
+
+    if (!isValidPoint(sightingLocation)) return;
+
+    const position = toLatLng(maps, sightingLocation);
+    const marker = new maps.Marker({
+      position,
+      image: new maps.MarkerImage(
+        "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png",
+        new maps.Size(24, 35),
+      ),
+    });
+    marker.setMap(mapRef.current);
+
+    const info = new maps.InfoWindow({
+      content: `<div style="padding:6px 10px;font-size:12px;color:#c0392b;font-weight:bold;">${sightingLabel}</div>`,
+    });
+    maps.event.addListener(marker, "click", () => info.open(mapRef.current, marker));
+
+    sightingMarkerRef.current = marker;
+    sightingInfoRef.current = info;
+
+    // 지도 중심을 신고 위치로 이동
+    mapRef.current.setCenter(position);
+    mapRef.current.setLevel(4);
+  }, [failed, sightingLocation, sightingLabel]);
 
   // 포커스 이동
   const lastFocusKeyRef = useRef("");

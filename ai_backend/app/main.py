@@ -7,6 +7,7 @@ from app.api.chat import router as chat_router
 from app.api.upload import router as upload_router
 from app.api.public_welfare import router as public_welfare_router
 from app.api import rag_documents
+from app.api.face import router as face_router, preload_police_embeddings
 
 from app.core.config import settings
 from app.services.embedding_service import EmbeddingService
@@ -32,7 +33,14 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
 app.include_router(public_welfare_router, prefix="/api/public-welfare", tags=["public-welfare"])
-app.include_router(rag_documents.router,prefix="/api/rag-documents",tags=["RAG Documents"],)
+app.include_router(rag_documents.router, prefix="/api/rag-documents", tags=["RAG Documents"])
+app.include_router(face_router, prefix="/api/face", tags=["face"])
+
+
+@app.on_event("startup")
+async def startup_event():
+    import threading
+    threading.Thread(target=preload_police_embeddings, daemon=True).start()
 
 
 @app.get("/health")

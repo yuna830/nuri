@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
@@ -76,6 +77,23 @@ class _BouncingLoadingTextState extends State<_BouncingLoadingText>
   }
 }
 
+/// 경찰청 실종자 DB 매치 결과
+class PoliceMatchResult {
+  final int alertId;
+  final double similarity;
+  final String name;
+  final String? gender;
+  final String? ageNow;
+
+  const PoliceMatchResult({
+    required this.alertId,
+    required this.similarity,
+    required this.name,
+    this.gender,
+    this.ageNow,
+  });
+}
+
 /// 사진에서 인식된 실종자 한 명 — 다중 인식(한 사진에 실종자 여러 명) 지원
 class FaceMatchCandidate {
   final int seniorId;
@@ -127,6 +145,8 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
   bool _hasMatchedFace = false;
   bool _hasVerifyResult = false;
   FaceVerifyResult? _lastVerifyResult;
+  List<PoliceMatchResult> _policeMatches = [];
+  bool _isLoadingPolice = false;
 
   double _minZoom = 1.0;
   double _maxZoom = 1.0;
@@ -380,6 +400,8 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
       _guideText = '얼굴을 화면에 맞춰주세요.';
       _hasVerifyResult = false;
       _lastVerifyResult = null;
+      _policeMatches = [];
+      _isLoadingPolice = false;
     });
 
     if (controller.value.isInitialized && !controller.value.isStreamingImages) {
@@ -402,20 +424,28 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
     });
 
     try {
+      // 기존 실종 어르신 비교 — 이것만 기다린다
       final result = await _uploadFullImage(File(capturedImage.path)).timeout(
         const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.');
-        },
+        onTimeout: () => throw TimeoutException('얼굴 확인 응답 시간이 초과되었습니다.'),
       );
 
       if (!mounted) return;
 
-      // 확인이 끝나면 신고하기로 전환 — 비매치인 사람은 신고 화면에서 '직접 입력'으로 이어진다.
       setState(() {
         _guideText = result.message;
         _hasVerifyResult = true;
         _lastVerifyResult = result;
+        _isLoadingPolice = true;
+      });
+
+      // 경찰청 비교는 결과 표시 후 백그라운드에서 진행
+      _compareWithPolice(File(capturedImage.path)).then((policeMatches) {
+        if (!mounted) return;
+        setState(() {
+          _policeMatches = policeMatches;
+          _isLoadingPolice = false;
+        });
       });
     } on TimeoutException catch (e) {
       if (!mounted) return;
@@ -618,6 +648,66 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
         await controller.startImageStream(_processCameraImage);
       }
     } catch (_) {}
+  }
+
+  // ── 갤러리에서 사진 선택 ──────────────────────────────────────────
+  Future<void> _pickFromGallery() async {
+    if (_isUploading) return;
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
+
+    final controller = _controller;
+    if (controller != null && controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+
+    setState(() {
+      _capturedImage = picked;
+      _hasMatchedFace = false;
+      _hasVerifyResult = false;
+      _lastVerifyResult = null;
+      _policeMatches = [];
+      _isLoadingPolice = false;
+      _guideText = '사진이 선택되었습니다.';
+    });
+  }
+
+  // ── 경찰청 실종자 비교 ────────────────────────────────────────────
+  Future<List<PoliceMatchResult>> _compareWithPolice(File imageFile) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${AppConfig.ragApiBaseUrl}/api/face/verify-against-police'),
+      );
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'image',
+          await _compressForUpload(imageFile.path),
+          filename: 'face.jpg',
+        ),
+      );
+      final response = await request.send().timeout(const Duration(seconds: 30));
+      final body = await response.stream.bytesToString();
+      if (response.statusCode != 200) return [];
+
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final rawMatches = data['matches'];
+      if (rawMatches is! List) return [];
+
+      return rawMatches.map((item) {
+        final similarity = item['similarity'];
+        return PoliceMatchResult(
+          alertId: (item['alertId'] as num).toInt(),
+          similarity: similarity is num ? similarity.toDouble() : 0.0,
+          name: item['name']?.toString() ?? '이름 미상',
+          gender: item['gender']?.toString(),
+          ageNow: item['ageNow']?.toString(),
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // 업로드용 압축 — 카메라 원본(수 MB)을 그대로 올리면 전송이 수 초 이상 걸린다.
@@ -1015,38 +1105,59 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                               ),
                               const SizedBox(height: 12),
                               if (_capturedImage == null)
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 48,
-                                  child: FilledButton.icon(
-                                    onPressed: _isUploading
-                                        ? null
-                                        : _takePicture,
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: _kGreen,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    icon: _isUploading
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 48,
+                                        child: FilledButton.icon(
+                                          onPressed: _isUploading ? null : _takePicture,
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: _kGreen,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
                                             ),
-                                          )
-                                        : const Icon(Icons.camera_alt_outlined),
-                                    label: Text(
-                                      _isUploading ? '촬영 중' : '촬영하기',
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
+                                          ),
+                                          icon: _isUploading
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : const Icon(Icons.camera_alt_outlined),
+                                          label: Text(
+                                            _isUploading ? '촬영 중' : '촬영하기',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 10),
+                                    SizedBox(
+                                      height: 48,
+                                      width: 48,
+                                      child: OutlinedButton(
+                                        onPressed: _isUploading ? null : _pickFromGallery,
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                          foregroundColor: Colors.white,
+                                          side: const BorderSide(color: Colors.white54),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                        child: const Icon(Icons.photo_library_outlined, size: 22),
+                                      ),
+                                    ),
+                                  ],
                                 )
                               else
                                 Row(
@@ -1127,6 +1238,8 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                                     ),
                                   ],
                                 ),
+                              if (_hasVerifyResult && (_isLoadingPolice || _policeMatches.isNotEmpty))
+                                _buildPoliceMatchPanel(),
                             ],
                           ),
                         ),
@@ -1135,6 +1248,103 @@ class _FaceCheckCameraScreenState extends State<FaceCheckCameraScreen> {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildPoliceMatchPanel() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.6), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.local_police_outlined, color: Colors.orange, size: 15),
+              const SizedBox(width: 6),
+              const Text(
+                '경찰청 실종자 유사 인물',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (_isLoadingPolice) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 11,
+                  height: 11,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_isLoadingPolice && _policeMatches.isEmpty)
+            const Text('경찰청 DB 비교 중...', style: TextStyle(color: Colors.white54, fontSize: 12))
+          else
+          ..._policeMatches.map((match) {
+            final pct = (match.similarity * 100).toStringAsFixed(0);
+            final info = [
+              if (match.gender != null) match.gender!,
+              if (match.ageNow != null) '현재 ${match.ageNow}세',
+            ].join(' · ');
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$pct%',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          match.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (info.isNotEmpty)
+                          Text(
+                            info,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.65),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

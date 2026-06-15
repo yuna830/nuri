@@ -308,6 +308,26 @@
   font-weight: 800;
 }
 
+.tcm-delete-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #b0b0b0;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.tcm-message:hover .tcm-delete-btn {
+  opacity: 1;
+}
+
+.tcm-delete-btn:hover {
+  color: #e05555;
+}
+
 .tcm-message p {
   margin: 0;
   color: #1e2a1f;

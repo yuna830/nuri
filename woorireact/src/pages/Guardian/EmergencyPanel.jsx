@@ -93,6 +93,7 @@ function EmergencyPanel({
   selectedElder,
   displayedAlerts = [],
   policeAlerts,
+  policeFaceScores = {},
   routeHistory,
   isLoadingRoute = false,
   lastNormalLocation,
@@ -109,6 +110,8 @@ function EmergencyPanel({
   missingImagePreview,
   isSubmittingMissingReport,
   onCallAlert,
+  onReadAlert,
+  onOpenEmergencyReport,
   onCloseMissingReport,
   onMissingImageChange,
   onCreateMissingReport,
@@ -930,7 +933,11 @@ function EmergencyPanel({
                         </span>
                         <em>실종 일시: {formatPoliceOccurredDate(visiblePoliceAlert.occurredDate)}</em>
                         <em>{visiblePoliceAlert.occurredAddress || "실종 장소 정보 없음"}</em>
-
+                        {policeFaceScores[visiblePoliceAlert.id] != null && (
+                          <span className="police-face-score">
+                            얼굴 유사도 {Math.round(policeFaceScores[visiblePoliceAlert.id] * 100)}%
+                          </span>
+                        )}
                         <small>자료 출처: 경찰청</small>
                       </div>
                     </article>
@@ -1125,6 +1132,11 @@ function EmergencyPanel({
                         />
                       ) : (
                         <span className="police-search-photo-placeholder">사진 없음</span>
+                      )}
+                      {policeFaceScores[alert.id] != null && (
+                        <span className="police-search-face-score">
+                          {Math.round(policeFaceScores[alert.id] * 100)}%
+                        </span>
                       )}
                     </button>
                   );

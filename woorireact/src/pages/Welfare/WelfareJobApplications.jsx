@@ -55,6 +55,7 @@ function WelfareJobApplications() {
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
     const [summaryFilter, setSummaryFilter] = useState("all");
+    const [seniorFilter, setSeniorFilter] = useState("all");
 
     useEffect(() => {
         let ignore = false;
@@ -90,15 +91,28 @@ function WelfareJobApplications() {
         };
     }, []);
 
+    const seniors = useMemo(() => {
+        const seen = new Map();
+        applications.forEach((app) => {
+            if (app.seniorId && !seen.has(app.seniorId)) {
+                seen.set(app.seniorId, app.seniorName || `ID ${app.seniorId}`);
+            }
+        });
+        return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+    }, [applications]);
+
     const filteredApplications = useMemo(() => {
         const bySummary = getFilteredApplicationsBySummary(applications, summaryFilter);
+        const bySenior = seniorFilter === "all"
+            ? bySummary
+            : bySummary.filter((app) => String(app.seniorId) === String(seniorFilter));
         const keyword = searchKeyword.trim().toLowerCase();
 
         if (!keyword) {
-            return bySummary;
+            return bySenior;
         }
 
-        return bySummary.filter((application) =>
+        return bySenior.filter((application) =>
             [
                 application.seniorName,
                 application.seniorId,
@@ -110,7 +124,7 @@ function WelfareJobApplications() {
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(keyword))
         );
-    }, [applications, summaryFilter, searchKeyword]);
+    }, [applications, summaryFilter, seniorFilter, searchKeyword]);
 
     const handleStatusChange = async (applicationId, status) => {
         try {
@@ -142,12 +156,25 @@ function WelfareJobApplications() {
                     />
 
                     <div className="wja-search-row">
+                        {seniors.length > 1 && (
+                            <select
+                                className="wja-senior-select"
+                                value={seniorFilter}
+                                onChange={(event) => setSeniorFilter(event.target.value)}
+                            >
+                                <option value="all">전체 대상자</option>
+                                {seniors.map(({ id, name }) => (
+                                    <option key={id} value={id}>{name}</option>
+                                ))}
+                            </select>
+                        )}
+                        {seniors.length > 1 && <span className="wja-search-divider" />}
                         <Search size={16} />
                         <input
                             type="search"
                             value={searchKeyword}
                             onChange={(event) => setSearchKeyword(event.target.value)}
-                            placeholder="대상자, 공고명, 기관명 검색"
+                            placeholder="공고명, 기관명 검색"
                         />
                     </div>
 

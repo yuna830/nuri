@@ -237,7 +237,6 @@ function UserPanel({
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
-    setProfileImageLoaded(false);
   }, [selectedElderId]);
 
   useEffect(() => {
@@ -338,11 +337,16 @@ function UserPanel({
             >
               {profileImage ? (
                 <img
+                  key={profileImage}
                   src={profileImage}
                   alt={`${selectedElder.name} 프로필`}
                   fetchPriority="high"
                   className={profileImageLoaded ? "loaded" : ""}
                   onLoad={() => setProfileImageLoaded(true)}
+                  ref={(node) => {
+                    // 캐시/data URI는 onLoad 전에 이미 로드 완료될 수 있음
+                    if (node?.complete) setProfileImageLoaded(true);
+                  }}
                 />
               ) : (
                 <span>이미지</span>

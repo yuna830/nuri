@@ -1184,8 +1184,8 @@ function WelfareDashboard() {
                                     {agencyLinkTarget.seniorName} 대상자의 마지막 위치를 기준으로 가까운 기관을 조회했어요.
                                 </p>
                             </div>
-                            <button type="button" onClick={() => setAgencyLinkTarget(null)}>
-                                닫기
+                            <button type="button" onClick={() => setAgencyLinkTarget(null)} aria-label="닫기">
+                                ×
                             </button>
                         </div>
 
@@ -1236,12 +1236,14 @@ function WelfareDashboard() {
 
                         <div className="wd-agency-footer">
                             <button type="button" className="secondary" onClick={() => setAgencyLinkTarget(null)}>
-                                취소
+                                {agencyError ? "닫기" : "취소"}
                             </button>
-                            <button type="button" onClick={handleCompleteAgencyLink}>
-                                <CheckCircle size={16} />
-                                연계 완료
-                            </button>
+                            {!agencyError && !isAgencyLoading && (
+                                <button type="button" onClick={handleCompleteAgencyLink}>
+                                    <CheckCircle size={16} />
+                                    연계 완료
+                                </button>
+                            )}
                         </div>
                     </section>
                 </div>

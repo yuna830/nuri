@@ -29,7 +29,7 @@ function WelfareSeniorTable({ seniors, onSelectSenior }) {
                     {seniors.map((senior) => (
                         <tr
                             key={senior.id}
-                            className="wd-clickable-row"
+                            className={`wd-clickable-row${senior.alertStatus?.includes("SOS") ? " wd-row-sos" : ""}`}
                             onClick={() => {
                                 if (onSelectSenior) {
                                     onSelectSenior(senior);

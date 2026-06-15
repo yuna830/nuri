@@ -20,6 +20,7 @@ import KakaoMap from "../../components/KakaoMap";
 
 import { resolveUploadUrl } from "../../api/userPageApi.js";
 import { searchPlacesByKakao } from "../../api/kakaoLocalApi.js";
+import { loadSafeZones } from "../../utils/guardian/guardianSafeZone.js";
 import "../../css/welfare/WelfareSeniorDetail.css";
 
 const COUNSELING_RECORDS_STORAGE_KEY = "welfareCounselingRecords";
@@ -787,6 +788,9 @@ function WelfareSeniorDetail() {
     // const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
     // const [infoRequestStatusMessage, setInfoRequestStatusMessage] = useState("");
 
+    const [allSafeZones, setAllSafeZones] = useState([]);
+    const [selectedZoneIdx, setSelectedZoneIdx] = useState(0);
+
     const [agencyPlaces, setAgencyPlaces] = useState([]);
     const [isAgencyLoading, setIsAgencyLoading] = useState(false);
     const [agencyError, setAgencyError] = useState("");
@@ -921,6 +925,35 @@ function WelfareSeniorDetail() {
             ignore = true;
         };
     }, [id]);
+
+    useEffect(() => {
+        if (!senior?.id) return;
+
+        const elder = {
+            id: senior.id,
+            address: senior.region || senior.address || "",
+            center: {
+                lat: senior.safeZone?.centerLatitude ?? senior.lastGps?.latitude ?? null,
+                lng: senior.safeZone?.centerLongitude ?? senior.lastGps?.longitude ?? null,
+            },
+            radius: senior.safeZone?.radiusMeters || 500,
+        };
+
+        loadSafeZones(elder)
+            .then((zones) => { setAllSafeZones(zones); setSelectedZoneIdx(0); })
+            .catch(() => {
+                if (senior.safeZone) {
+                    setAllSafeZones([{
+                        id: "primary",
+                        name: senior.safeZone.placeName || "안심구역",
+                        address: senior.safeZone.address || "",
+                        centerLatitude: senior.safeZone.centerLatitude,
+                        centerLongitude: senior.safeZone.centerLongitude,
+                        radiusMeters: senior.safeZone.radiusMeters || 500,
+                    }]);
+                }
+            });
+    }, [senior?.id]);
 
     useEffect(() => {
         if (!senior?.id) return;
@@ -1609,37 +1642,78 @@ function WelfareSeniorDetail() {
         );
     };
 
-    const renderSafeZoneInfo = () => (
-        <section className="wsd-detail-section">
-            <h2 className="wsd-section-title">안심구역 관리</h2>
+    const renderSafeZoneInfo = () => {
+        const activeZone = allSafeZones[selectedZoneIdx] || allSafeZones[0] || null;
+        const mapCenter = activeZone
+            ? { lat: activeZone.centerLatitude, lng: activeZone.centerLongitude }
+            : safeZoneCenter;
+        const focusLocation = activeZone
+            ? { lat: activeZone.centerLatitude, lng: activeZone.centerLongitude }
+            : null;
+        const focusKey = activeZone
+            ? `zone-${selectedZoneIdx}-${activeZone.id ?? ""}`
+            : "";
 
-            <div className="wsd-safezone-layout">
-                <div className="wsd-safezone-map-card">
-                    <KakaoMap
-                        center={safeZoneCenter}
-                        safeZone={safeZoneForMap}
-                        currentLocation={currentLocationForMap}
-                        zoom={5}
-                        className="wsd-safezone-map"
-                        safeZoneLabel={`${safeZone.placeName || "안심구역"} 중심`}
-                        currentLabel="마지막 GPS"
-                        fallback={<div className="wsd-map-fallback">지도를 불러오지 못했습니다.</div>}
-                    />
-                </div>
+        return (
+            <section className="wsd-detail-section">
+                <h2 className="wsd-section-title">안심구역 관리</h2>
 
-                <div className="wsd-safezone-summary">
-                    {renderFields([
-                        { label: "현재 위치", value: detail.currentLocation },
-                        { label: "기준 장소명", value: safeZone.placeName },
-                        { label: "주소", value: safeZone.address },
-                        { label: "반경", value: `${safeZoneRadius}m` },
-                        { label: "위치 상태", value: senior.locationStatus },
-                        { label: "마지막 GPS", value: formatGps(senior.lastGps), wide: true },
-                    ])}
+                <div className="wsd-safezone-layout">
+                    <div className="wsd-safezone-map-card">
+                        <KakaoMap
+                            center={mapCenter}
+                            safeZones={allSafeZones.length > 0 ? allSafeZones : undefined}
+                            safeZone={activeZone}
+                            currentLocation={currentLocationForMap}
+                            zoom={5}
+                            autoFit={false}
+                            focusLocation={focusLocation}
+                            focusKey={focusKey}
+                            focusLevel={5}
+                            className="wsd-safezone-map"
+                            currentLabel="마지막 GPS"
+                            fallback={<div className="wsd-map-fallback">지도를 불러오지 못했습니다.</div>}
+                        />
+                    </div>
+
+                    <div className="wsd-safezone-summary">
+                        {renderFields([
+                            { label: "현재 위치", value: detail.currentLocation },
+                            { label: "위치 상태", value: senior.locationStatus },
+                            { label: "마지막 GPS", value: formatGps(senior.lastGps), wide: true },
+                        ])}
+
+                        {allSafeZones.length > 0 ? (
+                            <div className="wsd-safezone-zone-list">
+                                <h3 className="wsd-inner-panel-title">등록된 안심구역 ({allSafeZones.length}개)</h3>
+                                {allSafeZones.map((zone, index) => (
+                                    <button
+                                        type="button"
+                                        className={`wsd-safezone-zone-item${index === selectedZoneIdx ? " active" : ""}`}
+                                        key={zone.id ?? index}
+                                        onClick={() => setSelectedZoneIdx(index)}
+                                    >
+                                        <span>{index + 1}</span>
+                                        <div>
+                                            <strong>{zone.name || "안심구역"}</strong>
+                                            <p>{zone.address || "주소 미등록"}</p>
+                                            <small>반경 {zone.radiusMeters || 500}m</small>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            renderFields([
+                                { label: "기준 장소명", value: safeZone.placeName },
+                                { label: "주소", value: safeZone.address },
+                                { label: "반경", value: `${safeZoneRadius}m` },
+                            ])
+                        )}
+                    </div>
                 </div>
-            </div>
-        </section>
-    );
+            </section>
+        );
+    };
 
     const renderAgencyLinkInfo = () => (
         <section className="wsd-detail-section">

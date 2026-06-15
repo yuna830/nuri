@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     qdrant_collection: str = "welfare_documents"
 
     database_url: str
+    spring_upload_root: str = "C:/github/nuri/woorispring/uploads"
 
     model_config = SettingsConfigDict(
         env_file=".env",

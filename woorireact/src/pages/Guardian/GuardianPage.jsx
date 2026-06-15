@@ -7,6 +7,7 @@ import {
   createMissingReport,
   uploadImage,
   getPoliceMissingAlerts,
+  compareSeniorFaceToPolice,
   createCallRequestAlert,
   getSeniorProfile,
   getGuardianSeniors,
@@ -489,6 +490,7 @@ function GuardianPage() {
   const knownAlertIdsRef = useRef(new Set());
   const didLoadAlertsRef = useRef(false);
   const [reportingAlertId, setReportingAlertId] = useState(null);
+  const [sightingLocation, setSightingLocation] = useState(null);
   const [reportedAlertIds, setReportedAlertIds] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem("reportedAlertIds") || "[]");
@@ -518,6 +520,7 @@ function GuardianPage() {
   const [isSendingMedicineAlert, setIsSendingMedicineAlert] = useState(false);
 
   const [policeAlerts, setPoliceAlerts] = useState([]);
+  const [policeFaceScores, setPoliceFaceScores] = useState({});
   const [activityReport, setActivityReport] = useState({
     isLoading: false,
     trend: null,
@@ -970,6 +973,13 @@ function GuardianPage() {
         console.error("경찰청 실종경보 조회 실패:", error);
       });
   }, []);
+
+  useEffect(() => {
+    if (!activeElderId) return;
+    compareSeniorFaceToPolice(activeElderId)
+      .then((scores) => setPoliceFaceScores(scores))
+      .catch(() => setPoliceFaceScores({}));
+  }, [activeElderId]);
 
   useEffect(() => {
     if (!activeElderId) return;
@@ -1777,6 +1787,9 @@ function GuardianPage() {
     setReportingAlertId(alert?.id ?? null);
     setMissingFallbackImageUrl(alert?.imageUrl || "");
     setMissingImagePreview(alert?.imageUrl || "");
+    if (alert?.latitude && alert?.longitude) {
+      setSightingLocation({ lat: Number(alert.latitude), lng: Number(alert.longitude) });
+    }
     setIsMissingReportOpen(true);
   };
 
@@ -2188,12 +2201,14 @@ function GuardianPage() {
           formatShortAddress={formatShortAddress}
           onRefreshLocation={handleRefreshLocation}
           mapFocusVersion={mapFocusVersion}
+          sightingLocation={sightingLocation}
         />
 
         <EmergencyPanel
           selectedElder={selectedElder}
           displayedAlerts={displayedAlerts}
           policeAlerts={policeAlerts}
+          policeFaceScores={policeFaceScores}
           routeHistory={routeHistory}
           isLoadingRoute={isLoadingRoute}
           selectedRouteDate={selectedRouteDate}
@@ -2214,7 +2229,7 @@ function GuardianPage() {
           onCallAlert={handleCallAlert}
           onOpenEmergencyReport={handleOpenEmergencyReport}
           onOpenMissingReport={() => setIsMissingReportOpen(true)}
-          onCloseMissingReport={() => setIsMissingReportOpen(false)}
+          onCloseMissingReport={() => { setIsMissingReportOpen(false); setSightingLocation(null); }}
           onMissingImageChange={handleMissingImageChange}
           onCreateMissingReport={handleCreateMissingReport}
           isCallResultOpen={isCallResultOpen}
