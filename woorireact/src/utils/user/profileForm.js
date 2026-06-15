@@ -429,8 +429,8 @@ export const profileToForm = (profile = {}) => {
     seniorRelationToGuardian: senior.seniorRelationToGuardian ?? "",
     socialWorkerName: senior.socialWorkerName ?? profile.socialWorkerName ?? "",
     socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
-    disabilityGrade: senior.disabilityGrade ?? NONE,
-    disabilityType: senior.disabilityType ?? NONE,
+    disabilityGrade: senior.disabilityGrade || NONE,
+    disabilityType: senior.disabilityType || NONE,
     hasGuardian: senior.hasGuardian !== false, // null/true → true(있음)
     height: mergedHealthInfo.height ? String(mergedHealthInfo.height) : "",
     weight: mergedHealthInfo.weight ? String(mergedHealthInfo.weight) : "",
@@ -444,8 +444,8 @@ export const profileToForm = (profile = {}) => {
     housingType: mergedHealthInfo.housingType ?? "",
     careNeeds: splitCsv(mergedHealthInfo.careNeeds),
     welfareMemo: mergedHealthInfo.welfareMemo ?? "",
-    medicineCount: mergedHealthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE),
-    medications: syncMedicationsWithCount(medications, mergedHealthInfo.medicineCount ?? (medications.length ? `${medications.length}개` : NONE)),
+    medicineCount: mergedHealthInfo.medicineCount || (medications.length ? `${medications.length}개` : NONE),
+    medications,
     diabetes: mergedHealthInfo.diabetes ?? NONE,
     hypertension: mergedHealthInfo.hypertension ?? NONE,
     heart: mergedHealthInfo.heartDisease ?? mergedHealthInfo.heart ?? NONE,
@@ -483,7 +483,7 @@ export const normalizeForm = (form) => {
   const seniorRelationToGuardian =
     form.seniorRelationToGuardian ||
     inferSeniorRelationFromGuardian(guardianRelation, form.gender);
-  const medications = syncMedicationsWithCount(form.medications || [], form.medicineCount).filter((medicine) =>
+  const medications = (form.medications || []).filter((medicine) =>
     Object.entries(medicine).some(([key, value]) => key !== "ongoing" && String(value || "").trim())
   );
 

@@ -1,8 +1,8 @@
-import { POLICE_API_BASE, RAG_API_BASE, SPRING_API_BASE } from "../config/api.js";
+import { POLICE_API_BASE, SPRING_API_BASE, FACE_API_BASE } from "../config/api.js";
 
 const API_BASE_URL = SPRING_API_BASE;
 const POLICE_API_BASE_URL = POLICE_API_BASE;
-const FACE_API_BASE_URL = RAG_API_BASE;
+const FACE_API_BASE_URL = FACE_API_BASE;
 
 export function getPolicePhotoUrl(alertId) {
   if (!alertId) return "";
@@ -61,12 +61,6 @@ export function readAlert(alertId) {
   });
 }
 
-// export function createCallRequestAlert({ seniorId, latitude, longitude }) {
-//   return request(API_BASE_URL, "/api/alerts/call", {
-//     method: "POST",
-//     body: JSON.stringify({ seniorId, latitude, longitude }),
-//   });
-// }
 export function createCallRequestAlert({ seniorId, guardianId, message, latitude, longitude }) {
   return request(API_BASE_URL, "/api/alerts/call", {
     method: "POST",

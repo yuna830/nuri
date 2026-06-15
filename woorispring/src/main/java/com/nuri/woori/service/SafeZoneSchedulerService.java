@@ -83,7 +83,15 @@ public class SafeZoneSchedulerService {
                         zone.getCenterLatitude(), zone.getCenterLongitude())
                         <= zone.getRadiusMeters()
         );
-        if (insideAnyZone) return;
+        if (insideAnyZone) {
+            alertRepository
+                    .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(seniorId, "SAFE_ZONE_EXIT")
+                    .forEach(a -> {
+                        a.setIsRead(true);
+                        alertRepository.save(a);
+                    });
+            return;
+        }
 
         // 5. 쿨다운 — 이미 최근에 알림 보냈으면 스킵
         Alert latest = alertRepository

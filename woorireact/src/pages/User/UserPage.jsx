@@ -32,6 +32,7 @@ import { fetchJobList } from "../../utils/user/jobApi";
 import { canAccessJobs } from "../../utils/user/jobAccess.js";
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import {
+  calculateAge,
   getProfileSectionFromInfoRequest,
   inferGuardianRelationToSeniorLabel,
 } from "../../utils/user/profileForm.js";
@@ -2129,7 +2130,11 @@ export default function UserPage() {
                 복지사가 아래 항목의 정보 입력을 요청했습니다.
               </p>
               {(() => {
-                const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "");
+                const _senior = currentProfile?.senior ?? {};
+                const seniorAge = _senior.birthDate ? calculateAge(_senior.birthDate) : (Number(_senior.age) || null);
+                const isMinor = seniorAge !== null && seniorAge < 18;
+                const cats = getInfoAlertCategories(infoUpdateRequestAlert.message || "")
+                  .filter((cat) => !isMinor || cat !== "활동/일자리");
                 return cats.length > 0 ? (
                   <div className="up-info-request-category-grid">
                     {cats.map((cat) => (

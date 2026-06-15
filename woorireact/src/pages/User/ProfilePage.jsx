@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import ProfilePhotoPicker from "../../components/ProfilePhotoPicker.jsx";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import { readAlert, resolveUploadUrl, uploadProfileImage } from "../../api/userPageApi.js";
-import { notifyProfileUpdateComplete } from "../../api/welfareDashboardApi.js";
+import { notifyProfileUpdateComplete, requestSeniorInfoUpdate } from "../../api/welfareDashboardApi.js";
 import { SPRING_API_BASE } from "../../config/api.js";
 import { formatPhoneNumber } from "../../utils/common/phone.js";
 import { saveCurrentSenior } from "../../utils/common/session.js";
@@ -46,12 +46,12 @@ const SURGERY_YEARS = ["", ...Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_
 
 // 섹션별 요청 대상 필드 키 목록
 const SECTION_FIELD_KEYS = {
-  personal:  ["disabilityGrade", "disabilityType"],
-  body:      ["smoking", "drinking"],
-  chronic:   CHRONIC.map(({ key }) => key),
-  mobility:  ["walkingAid", "dementia", "vision", "hearing", "recentFall", "hasSurgery"],
-  welfare:   ["livingCostStatus", "householdType", "pensionStatus", "housingType"],
-  job:       ["maxHours", "maxDistance", "restNeed", "payType"],
+  personal: ["disabilityGrade", "disabilityType"],
+  body: ["smoking", "drinking"],
+  chronic: CHRONIC.map(({ key }) => key),
+  mobility: ["walkingAid", "dementia", "vision", "hearing", "recentFall", "hasSurgery"],
+  welfare: ["livingCostStatus", "householdType", "pensionStatus", "housingType"],
+  job: ["maxHours", "maxDistance", "restNeed", "payType"],
 };
 
 export default function ProfilePage() {
@@ -69,9 +69,15 @@ export default function ProfilePage() {
 
   const alertId = searchParams.get("alertId");
 
+  const isMinor = useMemo(() => {
+    const age = form.birthDate ? calculateAge(form.birthDate) : (Number(form.age) || null);
+    return age !== null && age < 18;
+  }, [form.birthDate, form.age]);
+
   // alertId가 있을 때, 현재 섹션에서 비어 있는 필드 키 집합
   const highlightKeys = useMemo(() => {
     if (!alertId || !isLoaded) return new Set();
+    if (isMinor && activeSection === "job") return new Set();
     const sectionKeys = SECTION_FIELD_KEYS[activeSection] ?? [];
     return new Set(
       sectionKeys.filter((key) => {
@@ -79,13 +85,14 @@ export default function ProfilePage() {
         return val === "" || val === null || val === undefined;
       })
     );
-  }, [alertId, isLoaded, form, activeSection]);
+  }, [alertId, isLoaded, form, activeSection, isMinor]);
 
   // alertId가 있을 때, 섹션별 비어 있는 필드 개수 맵 (사이드바 배지용)
   const sectionEmptyCount = useMemo(() => {
     if (!alertId || !isLoaded) return {};
     const map = {};
     for (const [section, keys] of Object.entries(SECTION_FIELD_KEYS)) {
+      if (isMinor && section === "job") continue;
       const count = keys.filter((key) => {
         const val = form[key];
         return val === "" || val === null || val === undefined;
@@ -93,13 +100,13 @@ export default function ProfilePage() {
       if (count > 0) map[section] = count;
     }
     return map;
-  }, [alertId, isLoaded, form]);
+  }, [alertId, isLoaded, form, isMinor]);
 
   useEffect(() => {
     const requestedSection = searchParams.get("section");
 
     if (SECTIONS.some((section) => section.id === requestedSection)) {
-       
+
       setActiveSection(requestedSection);
     }
   }, [searchParams]);
@@ -128,7 +135,7 @@ export default function ProfilePage() {
                 savedFormRef.current = freshForm;
                 setForm(freshForm);
               })
-              .catch(() => {});
+              .catch(() => { });
           }
           return;
         }
@@ -153,7 +160,7 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
 
   useEffect(() => {
@@ -312,13 +319,6 @@ export default function ProfilePage() {
         return;
       }
     }
-    if (form.hasSurgery === "있음") {
-      const hasName = (form.surgeries || []).some((s) => s.name && String(s.name).trim());
-      if (!hasName) {
-        alert("수술 이력이 '있음'으로 선택되어 있습니다.\n수술명을 입력해주세요.");
-        return;
-      }
-    }
     const alertId = searchParams.get("alertId");
     try {
       setSaving(true);
@@ -326,10 +326,20 @@ export default function ProfilePage() {
       const updatedProfile = await saveProfile(form);
       if (alertId) {
         const seniorId = updatedProfile?.senior?.id;
-        await readAlert(alertId).catch(() => {});
+        await readAlert(alertId).catch(() => { });
         if (seniorId) {
-          await notifyProfileUpdateComplete({ seniorId, alertId, filledBy: "SENIOR" }).catch(() => {});
+          await notifyProfileUpdateComplete({ seniorId, alertId, filledBy: "SENIOR" }).catch(() => { });
         }
+      }
+      // 수술 이력 "있음"인데 상세 미입력 → 보호자에게 수술 상세 입력 요청
+      const seniorId = updatedProfile?.senior?.id;
+      if (seniorId && form.hasSurgery === "있음") {
+        await requestSeniorInfoUpdate({
+          seniorId,
+          missingFields: ["수술 상세"],
+          toSenior: false,
+          toGuardian: true,
+        }).catch(() => { });
       }
       setSaveToast("saved");
       setTimeout(() => {
@@ -350,24 +360,24 @@ export default function ProfilePage() {
     const sectionKeys = SECTION_FIELD_KEYS[activeSection] ?? [];
     const emptyLabels = CHRONIC
       .concat([
-        { key: "disabilityGrade",  label: "장애 등급" },
-        { key: "disabilityType",   label: "장애 유형" },
-        { key: "smoking",          label: "흡연 여부" },
-        { key: "drinking",         label: "음주 여부" },
-        { key: "walkingAid",       label: "보행 보조기구" },
-        { key: "dementia",         label: "기억/판단 어려움" },
-        { key: "vision",           label: "시력" },
-        { key: "hearing",          label: "청력" },
-        { key: "recentFall",       label: "최근 낙상 경험" },
-        { key: "hasSurgery",       label: "수술 이력" },
+        { key: "disabilityGrade", label: "장애 등급" },
+        { key: "disabilityType", label: "장애 유형" },
+        { key: "smoking", label: "흡연 여부" },
+        { key: "drinking", label: "음주 여부" },
+        { key: "walkingAid", label: "보행 보조기구" },
+        { key: "dementia", label: "기억/판단 어려움" },
+        { key: "vision", label: "시력" },
+        { key: "hearing", label: "청력" },
+        { key: "recentFall", label: "최근 낙상 경험" },
+        { key: "hasSurgery", label: "수술 이력" },
         { key: "livingCostStatus", label: "생활비 상황" },
-        { key: "householdType",    label: "가구 형태" },
-        { key: "pensionStatus",    label: "연금 수급 상태" },
-        { key: "housingType",      label: "주거 형태" },
-        { key: "maxHours",         label: "최대 활동 시간" },
-        { key: "maxDistance",      label: "이동 가능 거리" },
-        { key: "restNeed",         label: "쉬는 시간" },
-        { key: "payType",          label: "희망 급여 형태" },
+        { key: "householdType", label: "가구 형태" },
+        { key: "pensionStatus", label: "연금 수급 상태" },
+        { key: "housingType", label: "주거 형태" },
+        { key: "maxHours", label: "최대 활동 시간" },
+        { key: "maxDistance", label: "이동 가능 거리" },
+        { key: "restNeed", label: "쉬는 시간" },
+        { key: "payType", label: "희망 급여 형태" },
       ])
       .filter(({ key }) => sectionKeys.includes(key) && highlightKeys.has(key))
       .map(({ label }) => label);
@@ -542,26 +552,7 @@ export default function ProfilePage() {
             <ChipField label="눈으로 보는 데 어려움" value={form.vision} options={VISION_LEVELS} highlight={highlightKeys.has("vision")} onSelect={(value) => set("vision", value)} />
             <ChipField label="귀로 듣는 데 어려움" value={form.hearing} options={HEARING_LEVELS} highlight={highlightKeys.has("hearing")} onSelect={(value) => set("hearing", value)} />
             <ChipField label="최근 1년 낙상 경험" value={form.recentFall} options={[NONE, "1회", "2~3회", "4회 이상"]} highlight={highlightKeys.has("recentFall")} onSelect={(value) => set("recentFall", value)} />
-            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} highlight={highlightKeys.has("hasSurgery")} onSelect={(value) => {
-              set("hasSurgery", value);
-              if (value === "있음" && (form.surgeries || []).length === 0) addSurgery();
-            }} />
-            {form.hasSurgery === "있음" && (
-              <>
-                {(form.surgeries || []).map((surgery, index) => (
-                  <div className="pr-medication-card" key={`surgery-${index}`}>
-                    <div className="pr-medication-head">
-                      <strong>수술 {index + 1}</strong>
-                      <button type="button" onClick={() => removeSurgery(index)}>삭제</button>
-                    </div>
-                    <InputField label="수술명" value={surgery.name} onChange={(value) => setSurgery(index, "name", value)} />
-                    <InputField label="수술 날짜" type="date" value={surgery.date} onChange={(value) => setSurgery(index, "date", value)} />
-                    <SelectField label="회복 여부" value={surgery.recovery} options={["", "모름", "회복중", "회복완료", "미회복"]} labels={{ "": "선택해주세요" }} onChange={(value) => setSurgery(index, "recovery", value)} />
-                  </div>
-                ))}
-                <button className="pr-add-line-btn" type="button" onClick={addSurgery}>+ 수술 이력 추가</button>
-              </>
-            )}
+            <ChipField label="수술 이력" value={form.hasSurgery} options={[NONE, "있음"]} highlight={highlightKeys.has("hasSurgery")} onSelect={(value) => set("hasSurgery", value)} />
             <TextareaField label="기타 건강 참고사항" value={form.otherDisease} onChange={(value) => set("otherDisease", value)} />
           </section>
         );

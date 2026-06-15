@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 import time
@@ -8,6 +9,7 @@ import numpy as np
 import requests
 from fastapi import FastAPI, File, Form, UploadFile
 from insightface.app import FaceAnalysis
+from pydantic import BaseModel
 
 
 MATCH_THRESHOLD = 0.62
@@ -21,6 +23,16 @@ SPRING_SERVER_URL = os.getenv("SPRING_SERVER_URL", "http://localhost:8080")
 KNOWN_FACE_DIR = os.getenv("KNOWN_FACE_DIR", "known_faces")
 
 app = FastAPI()
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
 face_app.prepare(ctx_id=-1, det_size=(640, 640))
@@ -377,9 +389,9 @@ def load_registered_embeddings():
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     global known_embeddings
-    known_embeddings = load_registered_embeddings()
+    known_embeddings = await asyncio.to_thread(load_registered_embeddings)
 
 
 @app.post("/api/face/reload")
@@ -496,12 +508,7 @@ async def verify_faces(
             })
             continue
 
-        os.makedirs("debug_uploads", exist_ok=True)
-        debug_path = os.path.join("debug_uploads", f"received_face_{index}.jpg")
-        cv2.imwrite(debug_path, image)
-        print(f"received face saved: {debug_path}")
-
-        detected_faces = face_app.get(image)
+        detected_faces = await asyncio.to_thread(face_app.get, image)
 
         if not detected_faces:
             results.append({
@@ -635,3 +642,55 @@ async def verify_faces(
         "matches": matches,
         "faces": results,
     }
+
+class ComparePoliceRequest(BaseModel):
+    seniorId: int
+
+
+@app.post("/api/face/compare-police")
+async def compare_police(body: ComparePoliceRequest):
+    """어르신 등록 사진과 경찰청 실종 신고 사진 비교 (보호자 앱용)."""
+    try:
+        resp = requests.get(
+            f"{SPRING_SERVER_URL}/api/seniors/{body.seniorId}/face-photos",
+            timeout=10,
+        )
+        resp.raise_for_status()
+        photos = resp.json()
+    except requests.RequestException:
+        return {"scores": {}}
+
+    if not photos:
+        return {"scores": {}}
+
+    senior_embeddings = []
+    for photo in photos[:4]:
+        url = resolve_spring_url(photo.get("imageUrl") or "")
+        if not url:
+            continue
+        image = await asyncio.to_thread(read_image_from_url, url)
+        if image is None:
+            continue
+        emb, _, _ = await asyncio.to_thread(
+            extract_largest_face_embedding, image, f"senior {body.seniorId}"
+        )
+        if emb is not None:
+            senior_embeddings.append(emb)
+
+    if not senior_embeddings:
+        return {"scores": {}}
+
+    avg_embedding = np.mean(senior_embeddings, axis=0)
+
+    scores = {}
+    for known in known_embeddings:
+        if known.get("source") != "MISSING_REPORT":
+            continue
+        mid = known.get("missing_report_id")
+        if mid is None:
+            continue
+        sim = float(cosine_similarity(avg_embedding, known["embedding"]))
+        if mid not in scores or sim > scores[mid]:
+            scores[mid] = round(sim, 4)
+
+    return {"scores": scores}

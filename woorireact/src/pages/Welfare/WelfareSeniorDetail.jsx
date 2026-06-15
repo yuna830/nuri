@@ -196,11 +196,11 @@ const buildDecisionSummary = (status, reasons = [], source) => {
         .slice(0, 2)
         .map((reason) => reason.label)
         .join(", ");
-    const prefix = source === "ML" ? `ML 모델이 ${normalized}로 예측했습니다.` : `${normalized}로 판정되었습니다.`;
+    const prefix = source === "ML" ? `건강 판정 모델이 ${normalized}로 예측했습니다.` : `${normalized}로 판정되었습니다.`;
 
     if (normalized === "양호") {
         return source === "ML"
-            ? "ML 모델이 양호로 예측했습니다. 주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않았습니다."
+            ? "건강 판정 모델이 양호로 예측했습니다. 주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않았습니다."
             : "주의 또는 위험 설명 조건에 해당하는 주요 조건이 확인되지 않아 양호로 판정되었습니다.";
     }
 
@@ -413,7 +413,7 @@ const getReadableCaseSupportText = (status, caseValidation = null) => {
     }
 
     if (caseValidation?.agreedWithModel) {
-        return `상위 유사 사례 ${totalCount}건 중 ${agreeingCount}건이 ML 예측(${mlStatus})과 같았습니다.`;
+        return `상위 유사 사례 ${totalCount}건 중 ${agreeingCount}건이 건강 판정 모델 예측(${mlStatus})과 같았습니다.`;
     }
 
     if (caseStatus && caseStatus !== finalStatus) {
@@ -746,14 +746,14 @@ const buildReadableCaseValidationMessage = (status, healthInfo = {}, medications
     const basisText = buildReadableHealthSummary(normalized, healthInfo, medications, caseValidation);
 
     if (caseValidation?.decision === "ADJUSTED_BY_SIMILAR_CASES") {
-        return `${basisText} 처음 ML 예측과 유사 사례가 달라서, 더 가까운 사례 쪽을 참고해 최종 판정을 ${normalized}로 조정했습니다.`;
+        return `${basisText} 처음 건강 판정 모델 예측과 유사 사례가 달라서, 더 가까운 사례 쪽을 참고해 최종 판정을 ${normalized}로 조정했습니다.`;
     }
 
     if (caseValidation?.decision === "REVIEW_REQUIRED" || caseValidation?.decision === "CONFIRMED_LOW_SUPPORT") {
         return `${basisText} ${countText} 다만 사례가 완전히 일치한다고 보기는 어려워 담당자가 한 번 더 확인하면 좋습니다.`;
     }
 
-    return `${basisText} ${countText} 그래서 ML 판정을 그대로 유지했습니다.`;
+    return `${basisText} ${countText} 그래서 건강 판정 모델 판정을 그대로 유지했습니다.`;
 };
 
 const getHealthTone = (status) => {
@@ -980,7 +980,7 @@ function WelfareSeniorDetail() {
             .catch((error) => {
                 console.error("건강 판정 정보 로딩 실패:", error);
                 if (!ignore) {
-                    setHealthEvaluationError("최신 ML 판정을 아직 불러오지 못해 저장된 건강 정보 기준으로 임시 표시하고 있습니다.");
+                    setHealthEvaluationError("최신 건강 판정 모델 판정을 아직 불러오지 못해 저장된 건강 정보 기준으로 임시 표시하고 있습니다.");
                 }
             })
             .finally(() => {
@@ -1504,7 +1504,7 @@ function WelfareSeniorDetail() {
                             <span>판정 요약</span>
                             <strong>건강 판정 불러오는 중</strong>
                         </div>
-                        <p>최신 ML 판정을 불러오는 중입니다. 완료되면 현재 입력 건강 정보 기준의 판정과 근거를 표시합니다.</p>
+                        <p>최신 건강 판정 모델 판정을 불러오는 중입니다. 완료되면 현재 입력 건강 정보 기준의 판정과 근거를 표시합니다.</p>
                     </div>
                 </section>
             );
@@ -1554,7 +1554,7 @@ function WelfareSeniorDetail() {
                     <p>{evaluationSummary}</p>
                     <small>{gradeBasis}</small>
                     {isHealthEvaluationLoading && (
-                        <small>최신 ML 판정을 불러오는 중입니다. 화면은 저장된 건강 정보로 먼저 표시합니다.</small>
+                        <small>최신 건강 판정 모델 판정을 불러오는 중입니다. 화면은 저장된 건강 정보로 먼저 표시합니다.</small>
                     )}
                     {!isHealthEvaluationLoading && healthEvaluationError && (
                         <small>{healthEvaluationError}</small>
