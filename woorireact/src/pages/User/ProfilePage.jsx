@@ -38,6 +38,7 @@ import {
   profileToForm,
   syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
+import { canAccessJobs, getJobAccessAge, MIN_JOB_ACCESS_AGE } from "../../utils/user/jobAccess.js";
 import "../../css/user/ProfilePage.css";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -62,7 +63,9 @@ export default function ProfilePage() {
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const isDirty = useRef(false);
+  const savedFormRef = useRef(defaultForm);
 
   const alertId = searchParams.get("alertId");
 
@@ -116,7 +119,9 @@ export default function ProfilePage() {
         // 캐시가 있으면 즉시 렌더링 후 백그라운드에서 갱신
         if (savedCurrentSenior) {
           const cachedProfile = JSON.parse(savedCurrentSenior);
-          setForm(profileToForm(cachedProfile));
+          const cachedForm = profileToForm(cachedProfile);
+          savedFormRef.current = cachedForm;
+          setForm(cachedForm);
           setIsLoaded(true);
 
           const seniorId = cachedProfile?.senior?.id;
@@ -126,7 +131,9 @@ export default function ProfilePage() {
               .then((freshProfile) => {
                 if (!freshProfile || isDirty.current) return;
                 saveCurrentSenior(freshProfile);
-                setForm(profileToForm(freshProfile));
+                const freshForm = profileToForm(freshProfile);
+                savedFormRef.current = freshForm;
+                setForm(freshForm);
               })
               .catch(() => { });
           }
@@ -139,7 +146,9 @@ export default function ProfilePage() {
         const latestProfile = profiles[profiles.length - 1];
         if (!latestProfile) return;
         saveCurrentSenior(latestProfile);
-        setForm(profileToForm(latestProfile));
+        const latestForm = profileToForm(latestProfile);
+        savedFormRef.current = latestForm;
+        setForm(latestForm);
         setIsLoaded(true);
       } catch (error) {
         console.error("프로필 정보 조회 실패:", error);
@@ -153,6 +162,22 @@ export default function ProfilePage() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      if (!isDirty.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    isDirty.current = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
+  }, [form, isLoaded]);
 
   const set = (key, value) => { isDirty.current = true; setForm((prev) => ({ ...prev, [key]: value })); };
 
@@ -196,7 +221,28 @@ export default function ProfilePage() {
     }));
   };
 
+  const handleReset = () => {
+    isDirty.current = true;
+    setForm(defaultForm);
+  };
+
+  const handleLogoClick = () => {
+    if (!isDirty.current) {
+      navigate("/user");
+      return;
+    }
+    setShowLeaveConfirm(true);
+  };
+
+  const handleDiscardAndLeave = () => {
+    isDirty.current = false;
+    setShowLeaveConfirm(false);
+    navigate("/user");
+  };
+
   const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
+  const jobAccessAge = getJobAccessAge(form);
+  const isJobSectionAllowed = canAccessJobs(form);
 
   const saveProfile = async (nextForm) => {
     const savedCurrentSenior = sessionStorage.getItem("currentSenior");
@@ -238,8 +284,10 @@ export default function ProfilePage() {
     }
     const updatedProfile = await response.json();
     saveCurrentSenior(updatedProfile);
+    const savedForm = profileToForm(updatedProfile);
+    savedFormRef.current = savedForm;
     isDirty.current = false;
-    setForm(profileToForm(updatedProfile));
+    setForm(savedForm);
     return updatedProfile;
   };
 
@@ -540,6 +588,23 @@ export default function ProfilePage() {
       }
 
       case "job":
+        if (!isJobSectionAllowed) {
+          return (
+            <section className="pr-section pr-age-gate-section">
+              <div className="pr-age-gate-card">
+                <div className="pr-age-gate-icon">🔒</div>
+                <div className="pr-age-gate-title">이용 연령 제한</div>
+                <div className="pr-age-gate-desc">
+                  일자리 정보는 <strong>만 {MIN_JOB_ACCESS_AGE}세 이상(생일 기준)</strong>부터<br />이용할 수 있어요.
+                </div>
+                {jobAccessAge !== null && (
+                  <div className="pr-age-gate-current">현재 만 {jobAccessAge}세</div>
+                )}
+              </div>
+            </section>
+          );
+        }
+
         return (
           <section className="pr-section">
             <div className="pr-section-title">활동 및 일자리 조건</div>
@@ -565,24 +630,36 @@ export default function ProfilePage() {
 
   return (
     <div className="pr-root">
-      <UserCommonHeader />
+      <UserCommonHeader onLogoClick={handleLogoClick} />
 
       <div className="pr-layout">
         <aside>
           <div className="pr-sidenav">
-            {SECTIONS.map((section) => (
-              <button key={section.id} className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""}`} type="button" onClick={() => setActiveSection(section.id)}>
-                {section.label}
-                {sectionEmptyCount[section.id] > 0 && (
-                  <span className="pr-sidenav-badge" aria-label={`${sectionEmptyCount[section.id]}개 입력 필요`}>
-                    {sectionEmptyCount[section.id]}
-                  </span>
-                )}
-              </button>
-            ))}
+            {SECTIONS.map((section) => {
+              const isLockedJobSection = section.id === "job" && !isJobSectionAllowed;
+
+              return (
+                <button
+                  key={section.id}
+                  className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""} ${isLockedJobSection ? "locked" : ""}`}
+                  type="button"
+                  onClick={() => setActiveSection(section.id)}
+                >
+                  {section.label}
+                  {isLockedJobSection && (
+                    <span className="pr-sidenav-lock" aria-label="이용 연령 제한">🔒</span>
+                  )}
+                  {sectionEmptyCount[section.id] > 0 && (
+                    <span className="pr-sidenav-badge" aria-label={`${sectionEmptyCount[section.id]}개 입력 필요`}>
+                      {sectionEmptyCount[section.id]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <div className="pr-side-actions">
-            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)} disabled={saving}>
+            <button className="pr-reset-btn" type="button" onClick={handleReset} disabled={saving}>
               초기화
             </button>
             <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving || !isLoaded}>
@@ -612,6 +689,34 @@ export default function ProfilePage() {
               {saveToast === "saving" ? "변경한 정보를 반영하고 있어요." : "내 정보가 정상적으로 반영되었어요."}
             </p>
           </div>
+        </div>
+      )}
+
+      {showLeaveConfirm && (
+        <div
+          className="pr-leave-backdrop"
+          role="presentation"
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <section
+            className="pr-leave-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pr-leave-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pr-leave-icon" aria-hidden="true">!</div>
+            <h2 id="pr-leave-title">저장하지 않고 나가시겠어요?</h2>
+            <p>지금 나가면 수정한 내용이 저장되지 않아요.</p>
+            <div className="pr-leave-actions">
+              <button type="button" className="pr-leave-stay" onClick={() => setShowLeaveConfirm(false)}>
+                계속 수정하기
+              </button>
+              <button type="button" className="pr-leave-discard" onClick={handleDiscardAndLeave}>
+                저장하지 않고 나가기
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

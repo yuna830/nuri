@@ -192,6 +192,19 @@
   border-left: 3px solid #86a788;
 }
 
+.pr-sidenav-item.locked {
+  color: #7a9a7c;
+}
+
+.pr-sidenav-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 .pr-section {
   background: #ffffff;
   border-radius: 18px;
@@ -209,6 +222,59 @@
   margin-bottom: 1.4rem;
   padding-bottom: 0.8rem;
   border-bottom: 2px solid #b8d4ba;
+}
+
+.pr-age-gate-section {
+  min-height: min(430px, calc(100vh - 180px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.pr-age-gate-card {
+  background: #fff;
+  border: 1.5px solid #d4e8d6;
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(134, 167, 136, 0.12);
+}
+
+.pr-age-gate-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.pr-age-gate-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #1e2a1f;
+  margin-bottom: 0.75rem;
+}
+
+.pr-age-gate-desc {
+  font-size: 0.95rem;
+  color: #7a9a7c;
+  line-height: 1.75;
+  margin-bottom: 1.2rem;
+}
+
+.pr-age-gate-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  border-radius: 999px;
+  padding: 0 1.35rem;
+  background: #eef6ef;
+  color: #48694b;
+  font-size: 0.95rem;
+  font-weight: 900;
 }
 
 .pr-photo-field {
@@ -596,6 +662,91 @@
   line-height: 1.6;
 }
 
+.pr-leave-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 42, 31, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.pr-leave-dialog {
+  width: min(420px, 100%);
+  border: 1px solid #d4e8d6;
+  border-radius: 24px;
+  padding: 2rem 1.6rem 1.5rem;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(30, 42, 31, 0.2);
+  text-align: center;
+}
+
+.pr-leave-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: #fff3d9;
+  color: #b77616;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.pr-leave-dialog h2 {
+  margin: 0 0 0.55rem;
+  color: #1e2a1f;
+  font-size: 1.3rem;
+  font-weight: 900;
+}
+
+.pr-leave-dialog p {
+  margin: 0 0 1.5rem;
+  color: #6f7f70;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.pr-leave-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 0.65rem;
+}
+
+.pr-leave-actions button {
+  min-height: 48px;
+  border-radius: 12px;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pr-leave-stay {
+  border: 1px solid #cfe1d0;
+  background: #fff;
+  color: #5f7d61;
+}
+
+.pr-leave-discard {
+  border: 1px solid #d86464;
+  background: #d86464;
+  color: #fff;
+}
+
+.pr-leave-stay:hover {
+  background: #f4f8f4;
+}
+
+.pr-leave-discard:hover {
+  background: #c55353;
+}
+
 @keyframes pr-spin {
   to {
     transform: rotate(360deg);
@@ -614,6 +765,10 @@
 
   .pr-layout aside {
     position: static;
+  }
+
+  .pr-leave-actions {
+    grid-template-columns: 1fr;
   }
 }
 

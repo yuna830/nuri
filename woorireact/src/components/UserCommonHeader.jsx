@@ -239,7 +239,7 @@ const toTelHref = (phone = "") => {
   return digits ? `tel:${digits}` : "";
 };
 
-export function UserCommonHeader({ showSos = true, onSosClick }) {
+export function UserCommonHeader({ showSos = true, onSosClick, onLogoClick }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -546,6 +546,7 @@ export function UserCommonHeader({ showSos = true, onSosClick }) {
     <>
       <CommonHeader
         homePath="/user"
+        onLogoClick={onLogoClick}
         rightText={formatKoreanDate()}
         actions={
           <>

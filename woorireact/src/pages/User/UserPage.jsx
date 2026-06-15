@@ -29,6 +29,7 @@ import {
   sendCheckInReply,
 } from "../../api/userPageApi.js";
 import { fetchJobList } from "../../utils/user/jobApi";
+import { canAccessJobs } from "../../utils/user/jobAccess.js";
 import { getInfoAlertCategories } from "../../utils/welfare/welfareSummaryStats";
 import {
   calculateAge,
@@ -1661,8 +1662,7 @@ export default function UserPage() {
                         const saved = sessionStorage.getItem("currentSenior");
                         if (saved) {
                           const parsed = JSON.parse(saved);
-                          const age = Number(parsed?.senior?.age ?? parsed?.age ?? 0);
-                          if (!age || age >= 20) {
+                          if (canAccessJobs(parsed)) {
                             const hi = parsed?.healthInfo ?? {};
                             if (!hi.maxHours && !hi.maxDistance) { setShowJobModal(true); return; }
                           }

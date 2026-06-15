@@ -765,14 +765,17 @@
   margin-bottom: 1.2rem;
 }
 
-.jp-age-gate-badge {
-  display: inline-block;
+.jp-age-gate-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  border-radius: 999px;
+  padding: 0 1.35rem;
   background: #eef6ef;
-  color: #5f7d61;
-  border-radius: 99px;
-  padding: 0.4rem 1.2rem;
-  font-size: 0.88rem;
-  font-weight: 700;
+  color: #48694b;
+  font-size: 0.95rem;
+  font-weight: 900;
 }
 
 /* 반응형 */

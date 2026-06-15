@@ -33,6 +33,7 @@ import {
   normalizeForm,
   syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
+import { MIN_JOB_ACCESS_AGE } from "../../utils/user/jobAccess.js";
 import "../../css/common/SignUp.css";
 import { saveCurrentSenior } from "../../utils/common/session.js";
 
@@ -59,6 +60,7 @@ export default function SignUp() {
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
   const derivedAge = useMemo(() => calculateAge(form.birthDate), [form.birthDate]);
+  const isJobSectionAllowed = derivedAge === null || derivedAge >= MIN_JOB_ACCESS_AGE;
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -471,22 +473,42 @@ export default function SignUp() {
 
         {step === 6 && (
           <section className="su-section">
-            <SectionTitle step={step} onSkip={handleSkipJobSection} skipDisabled={saving || uploadingPhoto}>활동 및 일자리 조건</SectionTitle>
-            <div className="su-row">
-              <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "상관없음", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
-              <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "상관없음", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음" }} onChange={(value) => set("maxDistance", value)} required />
-            </div>
-            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
-            <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
-            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
-            <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
-            <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
-            <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
-            <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />
-            <div className="su-field">
-              <label className="su-label">기타 희망사항</label>
-              <textarea className="su-input su-textarea" value={form.memo} onChange={(event) => set("memo", event.target.value)} rows={4} />
-            </div>
+            {isJobSectionAllowed ? (
+              <>
+                <SectionTitle step={step} onSkip={handleSkipJobSection} skipDisabled={saving || uploadingPhoto}>활동 및 일자리 조건</SectionTitle>
+                <div className="su-row">
+                  <SelectField label="하루 최대 활동 가능 시간" value={form.maxHours} options={["", "상관없음", "2", "4", "6", "8"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} onChange={(value) => set("maxHours", value)} required />
+                  <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "상관없음", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} optionLabels={{ "": "선택해주세요", "상관없음": "상관없음" }} onChange={(value) => set("maxDistance", value)} required />
+                </div>
+                <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+                <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} onChange={(value) => set("restNeed", value)} />
+                <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
+                <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} onSelect={(value) => set("payType", value)} />
+                <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
+                <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
+                <MultiChipField label="희망 근무 형태" values={form.hopeCondition} options={JOB_CONDITIONS} onToggle={(value) => toggleArr("hopeCondition", value)} />
+                <div className="su-field">
+                  <label className="su-label">기타 희망사항</label>
+                  <textarea className="su-input su-textarea" value={form.memo} onChange={(event) => set("memo", event.target.value)} rows={4} />
+                </div>
+              </>
+            ) : (
+              <>
+                <SectionTitle step={step}>활동 및 일자리 조건</SectionTitle>
+                <div className="su-age-gate-wrap">
+                  <div className="su-age-gate-content">
+                    <div className="su-age-gate-icon">🔒</div>
+                    <div className="su-age-gate-title">이용 연령 제한</div>
+                    <div className="su-age-gate-desc">
+                      일자리 정보는 <strong>만 {MIN_JOB_ACCESS_AGE}세 이상(생일 기준)</strong>부터<br />이용할 수 있어요.
+                    </div>
+                    {derivedAge !== null && (
+                      <div className="su-age-gate-current">현재 만 {derivedAge}세</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         )}
 
