@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/senior_session_storage.dart';
+import '../../core/widgets/job_age_gate.dart';
 import '../../core/utils/phone_formatter.dart';
 import '../shell/app_shell.dart';
 
@@ -50,40 +51,134 @@ const _chronicDiseases = [
 
 const _chronicLevels = [_none, '약이나 식단으로 관리 중', '최근 조절이 어렵거나 도움이 필요함'];
 const _disabilityGrades = [_none, '1급', '2급', '3급', '4급', '5급', '6급'];
-const _disabilityTypes = [_none, '지체장애', '시각장애', '청각장애', '언어장애', '지적장애', '정신장애', '기타'];
+const _disabilityTypes = [
+  _none,
+  '지체장애',
+  '시각장애',
+  '청각장애',
+  '언어장애',
+  '지적장애',
+  '정신장애',
+  '기타'
+];
 const _medicineCounts = [_none, '1~2개', '3~5개', '6개 이상'];
 const _visionLevels = [_none, '글씨가 조금 흐림', '큰 글씨만 보임', '거의 보이지 않음'];
 const _hearingLevels = [_none, '작은 소리가 잘 안 들림', '큰 소리로 말해야 들림', '거의 들리지 않음'];
 const _restNeeds = [
-  _none, '30분마다 5분', '1시간마다 5분', '1시간마다 10분',
-  '2시간마다 10분', '2시간마다 15분', '3시간마다 15분', '필요할 때 짧게 쉬기',
+  _none,
+  '30분마다 5분',
+  '1시간마다 5분',
+  '1시간마다 10분',
+  '2시간마다 10분',
+  '2시간마다 15분',
+  '3시간마다 15분',
+  '필요할 때 짧게 쉬기',
 ];
-const _avoidEnvironments = ['상관없음', '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'];
+const _avoidEnvironments = [
+  '상관없음',
+  '소음 많은 곳',
+  '먼지 많은 곳',
+  '덥거나 추운 곳',
+  '미끄러운 바닥',
+  '사람 많은 곳',
+  '혼자 하는 작업'
+];
 const _livingCostStatuses = [
-  _none, '잘 모르겠어요', '수입이 거의 없어요', '기초연금 정도만 받아요',
-  '가족에게 일부 도움을 받아요', '연금이나 월급 수입이 있어요',
+  _none,
+  '잘 모르겠어요',
+  '수입이 거의 없어요',
+  '기초연금 정도만 받아요',
+  '가족에게 일부 도움을 받아요',
+  '연금이나 월급 수입이 있어요',
   '생계비/의료비/주거비 지원을 받고 있어요',
 ];
 const _householdTypesList = [
-  _none, '잘 모르겠어요', '혼자 살아요', '배우자와 살아요',
-  '자녀/가족과 살아요', '시설이나 요양원에 있어요', '기타',
+  _none,
+  '잘 모르겠어요',
+  '혼자 살아요',
+  '배우자와 살아요',
+  '자녀/가족과 살아요',
+  '시설이나 요양원에 있어요',
+  '기타',
 ];
 const _pensionStatuses = [
-  _none, '잘 모르겠어요', '기초연금을 받고 있어요', '국민연금을 받고 있어요',
-  '기초연금과 국민연금을 모두 받고 있어요', '신청했지만 기다리는 중이에요', '신청한 적 없어요',
+  _none,
+  '잘 모르겠어요',
+  '기초연금을 받고 있어요',
+  '국민연금을 받고 있어요',
+  '기초연금과 국민연금을 모두 받고 있어요',
+  '신청했지만 기다리는 중이에요',
+  '신청한 적 없어요',
 ];
-const _housingTypesList = [_none, '잘 모르겠어요', '자가', '전세', '월세', '공공임대', '시설이나 요양원', '기타'];
+const _housingTypesList = [
+  _none,
+  '잘 모르겠어요',
+  '자가',
+  '전세',
+  '월세',
+  '공공임대',
+  '시설이나 요양원',
+  '기타'
+];
 const _currentBenefitsList = [
-  '잘 모르겠어요', '받고 있는 지원이 없어요', '기초연금', '생계비/의료비/주거비 지원',
-  '장기요양 서비스', '장애 관련 지원', '노인 일자리', '노인맞춤돌봄서비스', '응급안전안심서비스',
+  '잘 모르겠어요',
+  '받고 있는 지원이 없어요',
+  '기초연금',
+  '생계비/의료비/주거비 지원',
+  '장기요양 서비스',
+  '장애 관련 지원',
+  '노인 일자리',
+  '노인맞춤돌봄서비스',
+  '응급안전안심서비스',
 ];
 const _careNeedsList = [
-  '잘 모르겠어요', '특별히 없어요', '식사 준비', '청소/빨래',
-  '목욕/위생', '병원 동행', '외출/장보기', '약 챙기기', '안부 확인',
+  '잘 모르겠어요',
+  '특별히 없어요',
+  '식사 준비',
+  '청소/빨래',
+  '목욕/위생',
+  '병원 동행',
+  '외출/장보기',
+  '약 챙기기',
+  '안부 확인',
 ];
-const _workTypesList = ['상관없음', '서류 작업', '컴퓨터 입력', '전화 상담', '청소', '정리/분류', '포장/조립', '배달', '요리/식품', '안전/경비', '돌봄/보조', '기타'];
-const _jobTypesList = ['상관없음', '사무/행정', '경비/안전', '청소/미화', '배달/운반', '요리/식음', '판매/서비스', '제조/생산', '농업/원예', '돌봄/복지', '기타'];
-const _jobConditionsList = ['상관없음', '단기/계절', '상시', '파트타임', '전일제', '재택/원격', '야외 활동', '실내 활동'];
+const _workTypesList = [
+  '상관없음',
+  '서류 작업',
+  '컴퓨터 입력',
+  '전화 상담',
+  '청소',
+  '정리/분류',
+  '포장/조립',
+  '배달',
+  '요리/식품',
+  '안전/경비',
+  '돌봄/보조',
+  '기타'
+];
+const _jobTypesList = [
+  '상관없음',
+  '사무/행정',
+  '경비/안전',
+  '청소/미화',
+  '배달/운반',
+  '요리/식음',
+  '판매/서비스',
+  '제조/생산',
+  '농업/원예',
+  '돌봄/복지',
+  '기타'
+];
+const _jobConditionsList = [
+  '상관없음',
+  '단기/계절',
+  '상시',
+  '파트타임',
+  '전일제',
+  '재택/원격',
+  '야외 활동',
+  '실내 활동'
+];
 const _daysList = ['월', '화', '수', '목', '금', '토', '일'];
 
 // ── 헬퍼 함수 ─────────────────────────────────────────────────────────────────
@@ -94,15 +189,25 @@ Map<String, dynamic>? _calcBmi(String h, String w) {
   if (height == null || weight == null || height <= 0) return null;
   final bmi = weight / ((height / 100) * (height / 100));
   final bmiStr = bmi.toStringAsFixed(1);
-  String status; Color color; String guide;
+  String status;
+  Color color;
+  String guide;
   if (bmi < 18.5) {
-    status = '저체중'; color = const Color(0xFF4C8ED9); guide = '영양 섭취를 늘려보세요.';
+    status = '저체중';
+    color = const Color(0xFF4C8ED9);
+    guide = '영양 섭취를 늘려보세요.';
   } else if (bmi < 23) {
-    status = '정상'; color = const Color(0xFF86A788); guide = '적정 체중을 유지하고 있어요.';
+    status = '정상';
+    color = const Color(0xFF86A788);
+    guide = '적정 체중을 유지하고 있어요.';
   } else if (bmi < 25) {
-    status = '과체중'; color = const Color(0xFFE07B00); guide = '식단 관리를 권장해요.';
+    status = '과체중';
+    color = const Color(0xFFE07B00);
+    guide = '식단 관리를 권장해요.';
   } else {
-    status = '비만'; color = const Color(0xFFD94E4E); guide = '전문가와 상담해보세요.';
+    status = '비만';
+    color = const Color(0xFFD94E4E);
+    guide = '전문가와 상담해보세요.';
   }
   return {'bmi': bmiStr, 'status': status, 'color': color, 'guide': guide};
 }
@@ -113,7 +218,8 @@ int? _calcAge(String birthDate) {
     final birth = DateTime.parse(birthDate);
     final now = DateTime.now();
     int age = now.year - birth.year;
-    if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) age--;
+    if (now.month < birth.month ||
+        (now.month == birth.month && now.day < birth.day)) age--;
     return age;
   } catch (_) {
     return null;
@@ -162,9 +268,15 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   // ── 3: 건강 상태 ──
   // 서버 SeniorCreateRequest 필드명과 일치: heart/joint/kidney/lung/liver (단축형)
   final Map<String, String> _chronic = {
-    'diabetes': '', 'hypertension': '', 'heart': '',
-    'joint': '', 'stroke': '', 'kidney': '',
-    'lung': '', 'liver': '', 'cancer': '',
+    'diabetes': '',
+    'hypertension': '',
+    'heart': '',
+    'joint': '',
+    'stroke': '',
+    'kidney': '',
+    'lung': '',
+    'liver': '',
+    'cancer': '',
   };
 
   // ── 4: 거동/인지/감각 ──
@@ -200,8 +312,17 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   @override
   void dispose() {
     for (final c in [
-      _nameCtrl, _phoneCtrl, _cityCtrl, _districtCtrl, _dongCtrl, _detailCtrl,
-      _heightCtrl, _weightCtrl, _allergiesCtrl, _welfareMemoCtrl, _memoCtrl,
+      _nameCtrl,
+      _phoneCtrl,
+      _cityCtrl,
+      _districtCtrl,
+      _dongCtrl,
+      _detailCtrl,
+      _heightCtrl,
+      _weightCtrl,
+      _allergiesCtrl,
+      _welfareMemoCtrl,
+      _memoCtrl,
     ]) {
       c.dispose();
     }
@@ -312,13 +433,22 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
     setState(() {
       _medicineCount = count;
       int target = 0;
-      if (count == '1~2개') { target = 2; }
-      else if (count == '3~5개') { target = 3; }
-      else if (count == '6개 이상') { target = 6; }
+      if (count == '1~2개') {
+        target = 2;
+      } else if (count == '3~5개') {
+        target = 3;
+      } else if (count == '6개 이상') {
+        target = 6;
+      }
       while (_medications.length < target) {
         _medications.add({
-          'name': '', 'startDate': '', 'endDate': '',
-          'ongoing': false, 'interval': '', 'dailyCount': '', 'alertEnabled': false,
+          'name': '',
+          'startDate': '',
+          'endDate': '',
+          'ongoing': false,
+          'interval': '',
+          'dailyCount': '',
+          'alertEnabled': false,
         });
       }
       while (_medications.length > target) {
@@ -330,8 +460,10 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   Future<void> _submit() async {
     setState(() => _saving = true);
     final region = [
-      _cityCtrl.text.trim(), _districtCtrl.text.trim(),
-      _dongCtrl.text.trim(), _detailCtrl.text.trim(),
+      _cityCtrl.text.trim(),
+      _districtCtrl.text.trim(),
+      _dongCtrl.text.trim(),
+      _detailCtrl.text.trim(),
     ].where((s) => s.isNotEmpty).join(' ');
 
     final age = _calcAge(_birthDate);
@@ -410,7 +542,10 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
               : '회원가입에 실패했습니다. 다시 시도해주세요.'),
           backgroundColor: const Color(0xFFD94E4E),
         ));
-        setState(() { _step = 0; _saving = false; });
+        setState(() {
+          _step = 0;
+          _saving = false;
+        });
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -419,6 +554,10 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final jobAge = _calcAge(_birthDate);
+    final jobStepLocked =
+        _step == _steps.length - 1 && !canAccessJobsByAge(jobAge);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -442,8 +581,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           child: LinearProgressIndicator(
             value: (_step + 1) / _steps.length,
             backgroundColor: const Color(0xFFE8F5E9),
-            valueColor:
-                const AlwaysStoppedAnimation<Color>(Color(0xFF86A788)),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF86A788)),
             minHeight: 6,
           ),
         ),
@@ -458,7 +596,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: _SuStepTitle(_steps[_step])),
-                  if (_step == _steps.length - 1)
+                  if (_step == _steps.length - 1 && !jobStepLocked)
                     GestureDetector(
                       onTap: _saving ? null : _skip,
                       child: Container(
@@ -597,8 +735,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       GestureDetector(
         onTap: _pickBirthDate,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
               color: const Color(0xFFF7F5E8),
               borderRadius: BorderRadius.circular(10)),
@@ -615,8 +752,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
                     fontSize: 15),
               ),
             ),
-            const Icon(Icons.calendar_month_outlined,
-                color: Color(0xFF86A788)),
+            const Icon(Icons.calendar_month_outlined, color: Color(0xFF86A788)),
           ]),
         ),
       ),
@@ -673,29 +809,27 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       const SizedBox(height: 16),
       Row(children: [
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('장애 등급'),
-                _SuDropdown(
-                  value: _disabilityGrade,
-                  items: _disabilityGrades,
-                  onChanged: (v) => setState(() => _disabilityGrade = v),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('장애 등급'),
+            _SuDropdown(
+              value: _disabilityGrade,
+              items: _disabilityGrades,
+              onChanged: (v) => setState(() => _disabilityGrade = v),
+            ),
+          ]),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('장애 유형'),
-                _SuDropdown(
-                  value: _disabilityType,
-                  items: _disabilityTypes,
-                  onChanged: (v) => setState(() => _disabilityType = v),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('장애 유형'),
+            _SuDropdown(
+              value: _disabilityType,
+              items: _disabilityTypes,
+              onChanged: (v) => setState(() => _disabilityType = v),
+            ),
+          ]),
         ),
       ]),
       const SizedBox(height: 8),
@@ -743,29 +877,27 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       const SizedBox(height: 16),
       Row(children: [
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('키(cm) *'),
-                _SuTextField(
-                    controller: _heightCtrl,
-                    hint: '예: 165',
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setState(() {})),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('키(cm) *'),
+            _SuTextField(
+                controller: _heightCtrl,
+                hint: '예: 165',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {})),
+          ]),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('몸무게(kg) *'),
-                _SuTextField(
-                    controller: _weightCtrl,
-                    hint: '예: 60',
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setState(() {})),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('몸무게(kg) *'),
+            _SuTextField(
+                controller: _weightCtrl,
+                hint: '예: 60',
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {})),
+          ]),
         ),
       ]),
       if (bmi != null) ...[
@@ -802,8 +934,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
             Expanded(
               flex: 2,
               child: Text(bmi['guide'] as String,
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFF6D766A))),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF6D766A))),
             ),
           ]),
         ),
@@ -822,8 +954,7 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           onSelect: (v) => setState(() => _drinking = v)),
       const SizedBox(height: 16),
       const _SuLabel('알레르기 정보'),
-      _SuTextField(
-          controller: _allergiesCtrl, hint: '예: 땅콩, 우유 / 없으면 없음'),
+      _SuTextField(controller: _allergiesCtrl, hint: '예: 땅콩, 우유 / 없으면 없음'),
     ]);
   }
 
@@ -850,10 +981,14 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       if (_medicineCount.isNotEmpty && _medicineCount != _none)
         OutlinedButton.icon(
           onPressed: () => setState(() => _medications.add({
-            'name': '', 'startDate': '', 'endDate': '',
-            'ongoing': false, 'interval': '', 'dailyCount': '',
-            'alertEnabled': false,
-          })),
+                'name': '',
+                'startDate': '',
+                'endDate': '',
+                'ongoing': false,
+                'interval': '',
+                'dailyCount': '',
+                'alertEnabled': false,
+              })),
           icon: const Icon(Icons.add),
           label: const Text('복용 약 추가'),
           style: OutlinedButton.styleFrom(
@@ -870,23 +1005,30 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
       const _SuHint('어려운 의학 단계 대신 일상에서 판단하기 쉬운 기준으로 선택해주세요.'),
       const SizedBox(height: 8),
       Builder(builder: (context) {
-        final allNone = _chronicDiseases.every((d) => _chronic[d['key']!] == _none);
+        final allNone =
+            _chronicDiseases.every((d) => _chronic[d['key']!] == _none);
         return Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () => setState(() {
               if (allNone) {
-                for (final d in _chronicDiseases) { _chronic[d['key']!] = ''; }
+                for (final d in _chronicDiseases) {
+                  _chronic[d['key']!] = '';
+                }
               } else {
-                for (final d in _chronicDiseases) { _chronic[d['key']!] = _none; }
+                for (final d in _chronicDiseases) {
+                  _chronic[d['key']!] = _none;
+                }
               }
             }),
             style: allNone
                 ? TextButton.styleFrom(
                     backgroundColor: const Color(0xFF86a788),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(99)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   )
                 : null,
             child: const Text('전체 없음'),
@@ -898,16 +1040,15 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
         final label = d['label']!;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SuLabel(label),
-                _ChipSelector(
-                  value: _chronic[key] ?? '',
-                  options: _chronicLevels,
-                  onSelect: (v) => setState(() => _chronic[key] = v),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _SuLabel(label),
+            _ChipSelector(
+              value: _chronic[key] ?? '',
+              options: _chronicLevels,
+              onSelect: (v) => setState(() => _chronic[key] = v),
+            ),
+          ]),
         );
       }),
     ]);
@@ -951,24 +1092,30 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           value: _hasSurgery,
           options: const [_none, '있음'],
           onSelect: (v) => setState(() {
-            _hasSurgery = v;
-            if (v == '있음' && _surgeries.isEmpty) _surgeries.add({'name': '', 'year': ''});
-          })),
+                _hasSurgery = v;
+                if (v == '있음' && _surgeries.isEmpty)
+                  _surgeries.add({'name': '', 'year': ''});
+              })),
       if (_hasSurgery == '있음') ...[
         const SizedBox(height: 12),
         Row(children: [
-          const Expanded(child: Text('수술 이력 목록', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+          const Expanded(
+              child: Text('수술 이력 목록',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
           TextButton.icon(
-            onPressed: () => setState(() => _surgeries.add({'name': '', 'year': ''})),
+            onPressed: () =>
+                setState(() => _surgeries.add({'name': '', 'year': ''})),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('추가'),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
           ),
         ]),
         if (_surgeries.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('추가 버튼을 눌러 수술 이력을 입력해주세요', style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
+            child: Text('추가 버튼을 눌러 수술 이력을 입력해주세요',
+                style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
           )
         else
           ...List.generate(_surgeries.length, (i) {
@@ -987,7 +1134,8 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
   // ── Step 5: 복지 정보 ─────────────────────────────────────────────────────
   Widget _buildStep5() {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const _SuHint('복지 제도 추천과 상담에 필요한 정보입니다.\n잘 모르는 항목은 나중에 보호자나 복지사가 도와드릴 수 있어요.'),
+      const _SuHint(
+          '복지 제도 추천과 상담에 필요한 정보입니다.\n잘 모르는 항목은 나중에 보호자나 복지사가 도와드릴 수 있어요.'),
       const SizedBox(height: 16),
       const _SuLabel('생활비 상황'),
       _ChipSelector(
@@ -1006,12 +1154,12 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           values: _currentBenefits,
           options: _currentBenefitsList,
           onToggle: (v) => setState(() {
-            if (_currentBenefits.contains(v)) {
-              _currentBenefits.remove(v);
-            } else {
-              _currentBenefits.add(v);
-            }
-          })),
+                if (_currentBenefits.contains(v)) {
+                  _currentBenefits.remove(v);
+                } else {
+                  _currentBenefits.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('연금 수급 상태'),
       _ChipSelector(
@@ -1030,12 +1178,12 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           values: _careNeeds,
           options: _careNeedsList,
           onToggle: (v) => setState(() {
-            if (_careNeeds.contains(v)) {
-              _careNeeds.remove(v);
-            } else {
-              _careNeeds.add(v);
-            }
-          })),
+                if (_careNeeds.contains(v)) {
+                  _careNeeds.remove(v);
+                } else {
+                  _careNeeds.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('그 밖에 참고사항'),
       TextField(
@@ -1048,47 +1196,52 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
 
   // ── Step 6: 활동/일자리 ───────────────────────────────────────────────────
   Widget _buildStep6() {
+    final age = _calcAge(_birthDate);
+    if (!canAccessJobsByAge(age)) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 360),
+        child: JobAgeGate(age: age, card: false),
+      );
+    }
+
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('하루 최대 활동 시간'),
-                _SuDropdown(
-                  value: _maxHours.isEmpty ? _none : _maxHours,
-                  items: const [_none, '2', '4', '6', '8'],
-                  labels: const {
-                    _none: '선택',
-                    '2': '2시간 이내',
-                    '4': '4시간 이내',
-                    '6': '6시간 이내',
-                    '8': '8시간 이내',
-                  },
-                  onChanged: (v) =>
-                      setState(() => _maxHours = v == _none ? '' : v),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('하루 최대 활동 시간'),
+            _SuDropdown(
+              value: _maxHours.isEmpty ? _none : _maxHours,
+              items: const [_none, '2', '4', '6', '8'],
+              labels: const {
+                _none: '선택',
+                '2': '2시간 이내',
+                '4': '4시간 이내',
+                '6': '6시간 이내',
+                '8': '8시간 이내',
+              },
+              onChanged: (v) => setState(() => _maxHours = v == _none ? '' : v),
+            ),
+          ]),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SuLabel('이동 가능 거리'),
-                _SuDropdown(
-                  value: _maxDistance.isEmpty ? _none : _maxDistance,
-                  items: const [
-                    _none,
-                    '도보 10분 이내',
-                    '도보 30분 이내',
-                    '대중교통 30분 이내',
-                    '대중교통 1시간 이내'
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _maxDistance = v == _none ? '' : v),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const _SuLabel('이동 가능 거리'),
+            _SuDropdown(
+              value: _maxDistance.isEmpty ? _none : _maxDistance,
+              items: const [
+                _none,
+                '도보 10분 이내',
+                '도보 30분 이내',
+                '대중교통 30분 이내',
+                '대중교통 1시간 이내'
+              ],
+              onChanged: (v) =>
+                  setState(() => _maxDistance = v == _none ? '' : v),
+            ),
+          ]),
         ),
       ]),
       const SizedBox(height: 16),
@@ -1097,12 +1250,12 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           values: _disabledWork,
           options: _workTypesList,
           onToggle: (v) => setState(() {
-            if (_disabledWork.contains(v)) {
-              _disabledWork.remove(v);
-            } else {
-              _disabledWork.add(v);
-            }
-          })),
+                if (_disabledWork.contains(v)) {
+                  _disabledWork.remove(v);
+                } else {
+                  _disabledWork.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('쉬는 시간이 얼마나 필요하세요?'),
       _ChipSelector(
@@ -1115,12 +1268,12 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           values: _avoidEnvironment,
           options: _avoidEnvironments,
           onToggle: (v) => setState(() {
-            if (_avoidEnvironment.contains(v)) {
-              _avoidEnvironment.remove(v);
-            } else {
-              _avoidEnvironment.add(v);
-            }
-          })),
+                if (_avoidEnvironment.contains(v)) {
+                  _avoidEnvironment.remove(v);
+                } else {
+                  _avoidEnvironment.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('희망 급여 형태'),
       _ChipSelector(
@@ -1133,36 +1286,36 @@ class _SeniorSignUpScreenState extends State<SeniorSignUpScreen> {
           values: _hopeDays,
           options: _daysList,
           onToggle: (v) => setState(() {
-            if (_hopeDays.contains(v)) {
-              _hopeDays.remove(v);
-            } else {
-              _hopeDays.add(v);
-            }
-          })),
+                if (_hopeDays.contains(v)) {
+                  _hopeDays.remove(v);
+                } else {
+                  _hopeDays.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('희망 직종 (복수 선택)'),
       _MultiChipSelector(
           values: _hopeJobType,
           options: _jobTypesList,
           onToggle: (v) => setState(() {
-            if (_hopeJobType.contains(v)) {
-              _hopeJobType.remove(v);
-            } else {
-              _hopeJobType.add(v);
-            }
-          })),
+                if (_hopeJobType.contains(v)) {
+                  _hopeJobType.remove(v);
+                } else {
+                  _hopeJobType.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('희망 근무 형태 (복수 선택)'),
       _MultiChipSelector(
           values: _hopeCondition,
           options: _jobConditionsList,
           onToggle: (v) => setState(() {
-            if (_hopeCondition.contains(v)) {
-              _hopeCondition.remove(v);
-            } else {
-              _hopeCondition.add(v);
-            }
-          })),
+                if (_hopeCondition.contains(v)) {
+                  _hopeCondition.remove(v);
+                } else {
+                  _hopeCondition.add(v);
+                }
+              })),
       const SizedBox(height: 16),
       const _SuLabel('기타 희망사항'),
       TextField(
@@ -1182,9 +1335,7 @@ class _SuStepTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF1F2A20)));
+          fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1F2A20)));
 }
 
 class _SuLabel extends StatelessWidget {
@@ -1255,10 +1406,12 @@ class _SuDropdown extends StatelessWidget {
       items: items
           .map((item) => DropdownMenuItem(
               value: item,
-              child: Text(labels[item] ?? item,
-                  overflow: TextOverflow.ellipsis)))
+              child:
+                  Text(labels[item] ?? item, overflow: TextOverflow.ellipsis)))
           .toList(),
-      onChanged: (v) { if (v != null) onChanged(v); });
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      });
 }
 
 class _ChipSelector extends StatelessWidget {
@@ -1276,12 +1429,10 @@ class _ChipSelector extends StatelessWidget {
         return GestureDetector(
           onTap: () => onSelect(selected ? '' : opt),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: selected
-                  ? const Color(0xFF86A788)
-                  : const Color(0xFFF7F5E8),
+              color:
+                  selected ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                   color: selected
@@ -1292,9 +1443,7 @@ class _ChipSelector extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: selected
-                        ? Colors.white
-                        : const Color(0xFF6D766A))),
+                    color: selected ? Colors.white : const Color(0xFF6D766A))),
           ),
         );
       }).toList());
@@ -1315,12 +1464,10 @@ class _MultiChipSelector extends StatelessWidget {
         return GestureDetector(
           onTap: () => onToggle(opt),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: selected
-                  ? const Color(0xFF86A788)
-                  : const Color(0xFFF7F5E8),
+              color:
+                  selected ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                   color: selected
@@ -1331,9 +1478,7 @@ class _MultiChipSelector extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: selected
-                        ? Colors.white
-                        : const Color(0xFF6D766A))),
+                    color: selected ? Colors.white : const Color(0xFF6D766A))),
           ),
         );
       }).toList());
@@ -1364,8 +1509,10 @@ class _MedicationCardState extends State<_MedicationCard> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: '${widget.medicine['name'] ?? ''}');
-    _intervalCtrl = TextEditingController(text: '${widget.medicine['interval'] ?? ''}');
-    _dailyCtrl = TextEditingController(text: '${widget.medicine['dailyCount'] ?? ''}');
+    _intervalCtrl =
+        TextEditingController(text: '${widget.medicine['interval'] ?? ''}');
+    _dailyCtrl =
+        TextEditingController(text: '${widget.medicine['dailyCount'] ?? ''}');
   }
 
   @override
@@ -1408,9 +1555,8 @@ class _MedicationCardState extends State<_MedicationCard> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             decoration: BoxDecoration(
-              color: enabled
-                  ? const Color(0xFFF7F5E8)
-                  : const Color(0xFFEEEEEE),
+              color:
+                  enabled ? const Color(0xFFF7F5E8) : const Color(0xFFEEEEEE),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(children: [
@@ -1453,13 +1599,13 @@ class _MedicationCardState extends State<_MedicationCard> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('복용 약 ${widget.index + 1}',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w900, fontSize: 15)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
           const Spacer(),
           GestureDetector(
               onTap: widget.onRemove,
-              child: const Icon(Icons.close,
-                  size: 18, color: Color(0xFFD94E4E))),
+              child:
+                  const Icon(Icons.close, size: 18, color: Color(0xFFD94E4E))),
         ]),
         const SizedBox(height: 10),
         const _SuLabel('약 이름'),
@@ -1481,37 +1627,34 @@ class _MedicationCardState extends State<_MedicationCard> {
             activeColor: const Color(0xFF86A788),
           ),
           const Flexible(
-            child: Text('계속 복용 중이라 종료일이 없어요',
-                style: TextStyle(fontSize: 13)),
+            child: Text('계속 복용 중이라 종료일이 없어요', style: TextStyle(fontSize: 13)),
           ),
         ]),
         Row(children: [
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SuLabel('복용 간격(시간)'),
-                  TextField(
-                    controller: _intervalCtrl,
-                    decoration: _inputDecoration(hint: '예: 8'),
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) => widget.onChanged('interval', v),
-                  ),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const _SuLabel('복용 간격(시간)'),
+              TextField(
+                controller: _intervalCtrl,
+                decoration: _inputDecoration(hint: '예: 8'),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => widget.onChanged('interval', v),
+              ),
+            ]),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SuLabel('하루 복용 횟수'),
-                  TextField(
-                    controller: _dailyCtrl,
-                    decoration: _inputDecoration(hint: '예: 2'),
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) => widget.onChanged('dailyCount', v),
-                  ),
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const _SuLabel('하루 복용 횟수'),
+              TextField(
+                controller: _dailyCtrl,
+                decoration: _inputDecoration(hint: '예: 2'),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => widget.onChanged('dailyCount', v),
+              ),
+            ]),
           ),
         ]),
         Row(children: [
@@ -1521,8 +1664,7 @@ class _MedicationCardState extends State<_MedicationCard> {
             activeColor: const Color(0xFF86A788),
           ),
           const Flexible(
-            child: Text('이 약 복용 시간에 알림 받기',
-                style: TextStyle(fontSize: 13)),
+            child: Text('이 약 복용 시간에 알림 받기', style: TextStyle(fontSize: 13)),
           ),
         ]),
       ]),
@@ -1532,18 +1674,19 @@ class _MedicationCardState extends State<_MedicationCard> {
 
 InputDecoration _inputDecoration({required String hint}) => InputDecoration(
     hintText: hint,
-    hintStyle:
-        const TextStyle(color: Color(0xFFCECECE), fontSize: 14),
+    hintStyle: const TextStyle(color: Color(0xFFCECECE), fontSize: 14),
     filled: true,
     fillColor: const Color(0xFFF7F5E8),
-    contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none));
+        borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none));
 
 class _SuSurgeryCard extends StatefulWidget {
-  const _SuSurgeryCard({required this.index, required this.surgery, required this.onRemove, required this.onChanged});
+  const _SuSurgeryCard(
+      {required this.index,
+      required this.surgery,
+      required this.onRemove,
+      required this.onChanged});
   final int index;
   final Map<String, dynamic> surgery;
   final VoidCallback onRemove;
@@ -1564,7 +1707,9 @@ class _SuSurgeryCardState extends State<_SuSurgeryCard> {
   void initState() {
     super.initState();
     _name = TextEditingController(text: '${widget.surgery['name'] ?? ''}');
-    final raw = widget.surgery['date']?.toString() ?? widget.surgery['year']?.toString() ?? '';
+    final raw = widget.surgery['date']?.toString() ??
+        widget.surgery['year']?.toString() ??
+        '';
     if (raw.length >= 10) {
       _selectedDate = DateTime.tryParse(raw);
     }
@@ -1587,7 +1732,8 @@ class _SuSurgeryCardState extends State<_SuSurgeryCard> {
       locale: const Locale('ko'),
     );
     if (picked != null) {
-      final formatted = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      final formatted =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       setState(() => _selectedDate = picked);
       widget.surgery['date'] = formatted;
       widget.onChanged();
@@ -1610,7 +1756,10 @@ class _SuSurgeryCardState extends State<_SuSurgeryCard> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('수술 ${widget.index + 1}',
-              style: const TextStyle(color: Color(0xFF1F2A20), fontSize: 14, fontWeight: FontWeight.w900)),
+              style: const TextStyle(
+                  color: Color(0xFF1F2A20),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900)),
           const Spacer(),
           GestureDetector(
             onTap: widget.onRemove,
@@ -1618,15 +1767,26 @@ class _SuSurgeryCardState extends State<_SuSurgeryCard> {
           ),
         ]),
         const SizedBox(height: 10),
-        const Text('수술명', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const Text('수술명',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3a5a3c))),
         const SizedBox(height: 4),
         TextField(
           controller: _name,
           decoration: _inputDecoration(hint: '예: 무릎 인공관절 수술'),
-          onChanged: (v) { widget.surgery['name'] = v; widget.onChanged(); },
+          onChanged: (v) {
+            widget.surgery['name'] = v;
+            widget.onChanged();
+          },
         ),
         const SizedBox(height: 10),
-        const Text('수술 날짜', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const Text('수술 날짜',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3a5a3c))),
         const SizedBox(height: 4),
         GestureDetector(
           onTap: _pickDate,
@@ -1638,19 +1798,31 @@ class _SuSurgeryCardState extends State<_SuSurgeryCard> {
               border: Border.all(color: const Color(0xFFD4E8D6)),
             ),
             child: Row(children: [
-              Expanded(child: Text(dateText,
-                  style: TextStyle(color: _selectedDate != null ? const Color(0xFF1F2A20) : const Color(0xFF9E9E9E), fontSize: 14))),
-              const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF86A788)),
+              Expanded(
+                  child: Text(dateText,
+                      style: TextStyle(
+                          color: _selectedDate != null
+                              ? const Color(0xFF1F2A20)
+                              : const Color(0xFF9E9E9E),
+                          fontSize: 14))),
+              const Icon(Icons.calendar_month_outlined,
+                  size: 18, color: Color(0xFF86A788)),
             ]),
           ),
         ),
         const SizedBox(height: 10),
-        const Text('회복 여부', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF3a5a3c))),
+        const Text('회복 여부',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3a5a3c))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           value: _recovery,
           hint: const Text('선택해주세요'),
-          items: _recoveryOptions.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          items: _recoveryOptions
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+              .toList(),
           onChanged: (v) {
             setState(() => _recovery = v);
             widget.surgery['recovery'] = v ?? '';

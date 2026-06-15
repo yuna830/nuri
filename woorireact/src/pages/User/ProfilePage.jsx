@@ -38,6 +38,7 @@ import {
   profileToForm,
   syncMedicationsWithCount,
 } from "../../utils/user/profileForm.js";
+import { canAccessJobs, getJobAccessAge, MIN_JOB_ACCESS_AGE } from "../../utils/user/jobAccess.js";
 import "../../css/user/ProfilePage.css";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -233,6 +234,8 @@ export default function ProfilePage() {
   };
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
+  const jobAccessAge = getJobAccessAge(form);
+  const isJobSectionAllowed = canAccessJobs(form);
 
   const saveProfile = async (nextForm) => {
     const savedCurrentSenior = sessionStorage.getItem("currentSenior");
@@ -594,6 +597,23 @@ export default function ProfilePage() {
       }
 
       case "job":
+        if (!isJobSectionAllowed) {
+          return (
+            <section className="pr-section pr-age-gate-section">
+              <div className="pr-age-gate-card">
+                <div className="pr-age-gate-icon">🔒</div>
+                <div className="pr-age-gate-title">이용 연령 제한</div>
+                <div className="pr-age-gate-desc">
+                  일자리 정보는 <strong>만 {MIN_JOB_ACCESS_AGE}세 이상(생일 기준)</strong>부터<br />이용할 수 있어요.
+                </div>
+                {jobAccessAge !== null && (
+                  <div className="pr-age-gate-current">현재 만 {jobAccessAge}세</div>
+                )}
+              </div>
+            </section>
+          );
+        }
+
         return (
           <section className="pr-section">
             <div className="pr-section-title">활동 및 일자리 조건</div>
@@ -624,16 +644,28 @@ export default function ProfilePage() {
       <div className="pr-layout">
         <aside>
           <div className="pr-sidenav">
-            {SECTIONS.map((section) => (
-              <button key={section.id} className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""}`} type="button" onClick={() => setActiveSection(section.id)}>
-                {section.label}
-                {sectionEmptyCount[section.id] > 0 && (
-                  <span className="pr-sidenav-badge" aria-label={`${sectionEmptyCount[section.id]}개 입력 필요`}>
-                    {sectionEmptyCount[section.id]}
-                  </span>
-                )}
-              </button>
-            ))}
+            {SECTIONS.map((section) => {
+              const isLockedJobSection = section.id === "job" && !isJobSectionAllowed;
+
+              return (
+                <button
+                  key={section.id}
+                  className={`pr-sidenav-item ${activeSection === section.id ? "active" : ""} ${isLockedJobSection ? "locked" : ""}`}
+                  type="button"
+                  onClick={() => setActiveSection(section.id)}
+                >
+                  {section.label}
+                  {isLockedJobSection && (
+                    <span className="pr-sidenav-lock" aria-label="이용 연령 제한">🔒</span>
+                  )}
+                  {sectionEmptyCount[section.id] > 0 && (
+                    <span className="pr-sidenav-badge" aria-label={`${sectionEmptyCount[section.id]}개 입력 필요`}>
+                      {sectionEmptyCount[section.id]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <div className="pr-side-actions">
             <button className="pr-reset-btn" type="button" onClick={handleReset} disabled={saving}>

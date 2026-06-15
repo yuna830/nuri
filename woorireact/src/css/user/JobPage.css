@@ -765,28 +765,17 @@
   margin-bottom: 1.2rem;
 }
 
-.jp-age-gate-home {
-  display: inline-block;
-  border: 0;
-  border-radius: 99px;
-  padding: 0.65rem 1.6rem;
-  background: #86a788;
-  color: #fff;
-  font-family: "Noto Sans KR", sans-serif;
+.jp-age-gate-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  border-radius: 999px;
+  padding: 0 1.35rem;
+  background: #eef6ef;
+  color: #48694b;
   font-size: 0.95rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
-}
-
-.jp-age-gate-home:hover {
-  background: #6f9272;
-  transform: translateY(-1px);
-}
-
-.jp-age-gate-home:focus-visible {
-  outline: 3px solid rgba(134, 167, 136, 0.35);
-  outline-offset: 3px;
+  font-weight: 900;
 }
 
 /* 반응형 */

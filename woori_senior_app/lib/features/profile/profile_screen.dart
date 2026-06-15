@@ -10,6 +10,7 @@ import '../../core/api/senior_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/location/background_location_service.dart';
 import '../../core/storage/senior_session_storage.dart';
+import '../../core/widgets/job_age_gate.dart';
 import '../auth/login_screen.dart';
 
 const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
@@ -45,119 +46,217 @@ const _chronicLevels = [_none, '약이나 식단으로 관리 중', '최근 조�
 
 const _disabilityGrades = [_none, '1급', '2급', '3급', '4급', '5급', '6급'];
 const _disabilityTypes = [
-  _none, '지체장애', '시각장애', '청각장애', '언어장애', '지적장애', '정신장애', '기타'
+  _none,
+  '지체장애',
+  '시각장애',
+  '청각장애',
+  '언어장애',
+  '지적장애',
+  '정신장애',
+  '기타'
 ];
 const _medicineCounts = [_none, '1~2개', '3~5개', '6개 이상'];
-const _visionLevels = [
-  _none, '글씨가 조금 흐림', '큰 글씨만 보임', '거의 보이지 않음'
-];
-const _hearingLevels = [
-  _none, '작은 소리가 잘 안 들림', '큰 소리로 말해야 들림', '거의 들리지 않음'
-];
+const _visionLevels = [_none, '글씨가 조금 흐림', '큰 글씨만 보임', '거의 보이지 않음'];
+const _hearingLevels = [_none, '작은 소리가 잘 안 들림', '큰 소리로 말해야 들림', '거의 들리지 않음'];
 const _restNeeds = [
-  _none, '30분마다 5분', '1시간마다 5분', '1시간마다 10분',
-  '2시간마다 10분', '2시간마다 15분', '3시간마다 15분', '필요할 때 짧게 쉬기',
+  _none,
+  '30분마다 5분',
+  '1시간마다 5분',
+  '1시간마다 10분',
+  '2시간마다 10분',
+  '2시간마다 15분',
+  '3시간마다 15분',
+  '필요할 때 짧게 쉬기',
 ];
 const _avoidEnvironments = [
-  '상관없음', '소음 많은 곳', '먼지 많은 곳', '덥거나 추운 곳', '미끄러운 바닥', '사람 많은 곳', '혼자 하는 작업'
+  '상관없음',
+  '소음 많은 곳',
+  '먼지 많은 곳',
+  '덥거나 추운 곳',
+  '미끄러운 바닥',
+  '사람 많은 곳',
+  '혼자 하는 작업'
 ];
 // 웹앱 LIVING_COST_STATUSES 와 동일
 const _livingCostStatuses = [
-  _none, '잘 모르겠어요', '수입이 거의 없어요', '기초연금 정도만 받아요',
-  '가족에게 일부 도움을 받아요', '연금이나 월급 수입이 있어요',
+  _none,
+  '잘 모르겠어요',
+  '수입이 거의 없어요',
+  '기초연금 정도만 받아요',
+  '가족에게 일부 도움을 받아요',
+  '연금이나 월급 수입이 있어요',
   '생계비/의료비/주거비 지원을 받고 있어요',
 ];
 // 웹앱 HOUSEHOLD_TYPES 와 동일
 const _householdTypes = [
-  _none, '잘 모르겠어요', '혼자 살아요', '배우자와 살아요',
-  '자녀/가족과 살아요', '시설이나 요양원에 있어요', '기타',
+  _none,
+  '잘 모르겠어요',
+  '혼자 살아요',
+  '배우자와 살아요',
+  '자녀/가족과 살아요',
+  '시설이나 요양원에 있어요',
+  '기타',
 ];
 // 웹앱 PENSION_STATUSES 와 동일
 const _pensionStatuses = [
-  _none, '잘 모르겠어요', '기초연금을 받고 있어요', '국민연금을 받고 있어요',
-  '기초연금과 국민연금을 모두 받고 있어요', '신청했지만 기다리는 중이에요', '신청한 적 없어요',
+  _none,
+  '잘 모르겠어요',
+  '기초연금을 받고 있어요',
+  '국민연금을 받고 있어요',
+  '기초연금과 국민연금을 모두 받고 있어요',
+  '신청했지만 기다리는 중이에요',
+  '신청한 적 없어요',
 ];
 // 웹앱 HOUSING_TYPES 와 동일
 const _housingTypes = [
-  _none, '잘 모르겠어요', '자가', '전세', '월세', '공공임대', '시설이나 요양원', '기타',
+  _none,
+  '잘 모르겠어요',
+  '자가',
+  '전세',
+  '월세',
+  '공공임대',
+  '시설이나 요양원',
+  '기타',
 ];
 // 웹앱 CURRENT_BENEFITS 와 동일
 const _currentBenefits = [
-  '잘 모르겠어요', '받고 있는 지원이 없어요', '기초연금', '생계비/의료비/주거비 지원',
-  '장기요양 서비스', '장애 관련 지원', '노인 일자리', '노인맞춤돌봄서비스', '응급안전안심서비스',
+  '잘 모르겠어요',
+  '받고 있는 지원이 없어요',
+  '기초연금',
+  '생계비/의료비/주거비 지원',
+  '장기요양 서비스',
+  '장애 관련 지원',
+  '노인 일자리',
+  '노인맞춤돌봄서비스',
+  '응급안전안심서비스',
 ];
 // 웹앱 CARE_NEEDS 와 동일
 const _careNeeds = [
-  '잘 모르겠어요', '특별히 없어요', '식사 준비', '청소/빨래',
-  '목욕/위생', '병원 동행', '외출/장보기', '약 챙기기', '안부 확인',
+  '잘 모르겠어요',
+  '특별히 없어요',
+  '식사 준비',
+  '청소/빨래',
+  '목욕/위생',
+  '병원 동행',
+  '외출/장보기',
+  '약 챙기기',
+  '안부 확인',
 ];
 const _days = ['월', '화', '수', '목', '금', '토', '일'];
 const _jobTypes = [
-  '상관없음', '경비/청소', '급식/조리 보조', '사무 보조', '돌봄 보조',
-  '작업/수공예', '판매/안내', '환경 정비',
+  '상관없음',
+  '경비/청소',
+  '급식/조리 보조',
+  '사무 보조',
+  '돌봄 보조',
+  '작업/수공예',
+  '판매/안내',
+  '환경 정비',
 ];
 const _jobConditions = [
-  '상관없음', '실내 근무 선호', '안전 근무', '오후 근무', '주 3일 이하', '단기 가능', '앉아서 근무'
+  '상관없음',
+  '실내 근무 선호',
+  '안전 근무',
+  '오후 근무',
+  '주 3일 이하',
+  '단기 가능',
+  '앉아서 근무'
 ];
 const _workTypes = [
-  '상관없음', '장시간 서있기', '실외 작업', '야간 근무', '무거운 물건 운반',
-  '컴퓨터 작업', '계단 이동', '반복 작업', '고객 응대',
+  '상관없음',
+  '장시간 서있기',
+  '실외 작업',
+  '야간 근무',
+  '무거운 물건 운반',
+  '컴퓨터 작업',
+  '계단 이동',
+  '반복 작업',
+  '고객 응대',
 ];
 const _yesNo = [_none, '예', '아니오'];
 const _payTypes = ['상관없음', '시급', '월급', '일당'];
 const _maxHoursOptions = [
-  _none, '상관없음', '1시간', '2시간', '3시간', '4시간', '5시간', '6시간', '8시간'
+  _none,
+  '상관없음',
+  '1시간',
+  '2시간',
+  '3시간',
+  '4시간',
+  '5시간',
+  '6시간',
+  '8시간'
 ];
 const _maxDistanceOptions = [
-  _none, '도보 10분 이내', '도보 20분 이내', '버스 1정거장', '버스 3정거장 이내', '상관없음'
+  _none,
+  '도보 10분 이내',
+  '도보 20분 이내',
+  '버스 1정거장',
+  '버스 3정거장 이내',
+  '상관없음'
 ];
 
 typedef _FieldCheck = ({String label, bool Function(_ProfileForm) isEmpty});
 
 List<_FieldCheck> _sectionFieldChecks(int i) {
   switch (i) {
-    case 0: return [
-      (label: '장애 등급', isEmpty: (f) => f.disabilityGrade == _none),
-      (label: '장애 유형', isEmpty: (f) => f.disabilityType == _none),
-    ];
-    case 1: return [
-      (label: '흡연 여부', isEmpty: (f) => f.smoking == _none),
-      (label: '음주 여부', isEmpty: (f) => f.drinking == _none),
-    ];
-    case 2: return [
-      (label: '복용 약품 수', isEmpty: (f) => f.medicineCount == _none),
-    ];
+    case 0:
+      return [
+        (label: '장애 등급', isEmpty: (f) => f.disabilityGrade == _none),
+        (label: '장애 유형', isEmpty: (f) => f.disabilityType == _none),
+      ];
+    case 1:
+      return [
+        (label: '흡연 여부', isEmpty: (f) => f.smoking == _none),
+        (label: '음주 여부', isEmpty: (f) => f.drinking == _none),
+      ];
+    case 2:
+      return [
+        (label: '복용 약품 수', isEmpty: (f) => f.medicineCount == _none),
+      ];
     case 3:
       return _chronicDiseases.map((d) {
         final key = d['key']!;
-        return (label: d['label']!, isEmpty: (_ProfileForm f) => f.chronic[key] == _none);
+        return (
+          label: d['label']!,
+          isEmpty: (_ProfileForm f) => f.chronic[key] == _none
+        );
       }).toList();
-    case 4: return [
-      (label: '보행 보조기 사용', isEmpty: (f) => f.walkingAid == _none),
-      (label: '치매', isEmpty: (f) => f.dementia == _none),
-      (label: '시력', isEmpty: (f) => f.vision == _none),
-      (label: '청력', isEmpty: (f) => f.hearing == _none),
-      (label: '최근 낙상 경험', isEmpty: (f) => f.recentFall == _none),
-      (label: '수술 이력', isEmpty: (f) => f.hasSurgery == _none),
-    ];
-    case 5: return [
-      (label: '생활비 상황', isEmpty: (f) => f.livingCostStatus == _none),
-      (label: '가구 형태', isEmpty: (f) => f.householdType == _none),
-      (label: '연금 수급 상태', isEmpty: (f) => f.pensionStatus == _none),
-      (label: '주거 형태', isEmpty: (f) => f.housingType == _none),
-    ];
-    case 6: return [
-      (label: '최대 근무 시간', isEmpty: (f) => f.maxHours == _none),
-      (label: '통근 가능 거리', isEmpty: (f) => f.maxDistance == _none),
-      (label: '휴식 필요', isEmpty: (f) => f.restNeeds == _none),
-      (label: '선호 급여 형태', isEmpty: (f) => f.payType == _none),
-    ];
-    default: return [];
+    case 4:
+      return [
+        (label: '보행 보조기 사용', isEmpty: (f) => f.walkingAid == _none),
+        (label: '치매', isEmpty: (f) => f.dementia == _none),
+        (label: '시력', isEmpty: (f) => f.vision == _none),
+        (label: '청력', isEmpty: (f) => f.hearing == _none),
+        (label: '최근 낙상 경험', isEmpty: (f) => f.recentFall == _none),
+        (label: '수술 이력', isEmpty: (f) => f.hasSurgery == _none),
+      ];
+    case 5:
+      return [
+        (label: '생활비 상황', isEmpty: (f) => f.livingCostStatus == _none),
+        (label: '가구 형태', isEmpty: (f) => f.householdType == _none),
+        (label: '연금 수급 상태', isEmpty: (f) => f.pensionStatus == _none),
+        (label: '주거 형태', isEmpty: (f) => f.housingType == _none),
+      ];
+    case 6:
+      return [
+        (label: '최대 근무 시간', isEmpty: (f) => f.maxHours == _none),
+        (label: '통근 가능 거리', isEmpty: (f) => f.maxDistance == _none),
+        (label: '휴식 필요', isEmpty: (f) => f.restNeeds == _none),
+        (label: '선호 급여 형태', isEmpty: (f) => f.payType == _none),
+      ];
+    default:
+      return [];
   }
 }
 
 const _sections = [
-  '인적사항', '신체정보', '복약정보', '만성질환', '거동/인지', '복지정보', '활동 및 일자리',
+  '인적사항',
+  '신체정보',
+  '복약정보',
+  '만성질환',
+  '거동/인지',
+  '복지정보',
+  '활동 및 일자리',
 ];
 
 // ─── Form data model ─────────────────────────────────────────────────────────
@@ -252,13 +351,21 @@ List<Map<String, dynamic>> _parseSurgeries(dynamic raw) {
   if (source is String) {
     final trimmed = source.trim();
     if (trimmed.isEmpty || trimmed == '[]') return [];
-    try { source = jsonDecode(trimmed); } catch (_) { return []; }
+    try {
+      source = jsonDecode(trimmed);
+    } catch (_) {
+      return [];
+    }
   }
   if (source is! List) return [];
-  return source.whereType<Map>().map((m) => {
-    'name': '${m['name'] ?? ''}',
-    'year': '${m['year'] ?? ''}',
-  }).where((s) => (s['name'] as String).isNotEmpty).toList();
+  return source
+      .whereType<Map>()
+      .map((m) => {
+            'name': '${m['name'] ?? ''}',
+            'year': '${m['year'] ?? ''}',
+          })
+      .where((s) => (s['name'] as String).isNotEmpty)
+      .toList();
 }
 
 List<Map<String, String>> _parseMedications(dynamic raw) {
@@ -312,7 +419,7 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   // ── 신체정보 (HealthInfo 엔티티) ─────────────────
   form.height = '${h['height'] ?? ''}';
   form.weight = '${h['weight'] ?? ''}';
-  form.smoking  = _orNone(h['smoking']);
+  form.smoking = _orNone(h['smoking']);
   form.drinking = _orNone(h['drinking']);
   form.allergies = '${h['allergies'] ?? ''}';
 
@@ -327,56 +434,57 @@ _ProfileForm _apiToForm(Map<String, dynamic> raw) {
   // ── 만성질환 (HealthInfo 필드명: heartDisease, jointDisease …) ──
   // Spring DB 컬럼명 → Flutter form 키 매핑
   final chronicMap = <String, String>{
-    'diabetes':    'diabetes',
-    'hypertension':'hypertension',
-    'heart':       'heartDisease',   // Spring: heartDisease
-    'joint':       'jointDisease',
-    'stroke':      'stroke',
-    'kidney':      'kidneyDisease',
-    'lung':        'lungDisease',
-    'liver':       'liverDisease',
-    'cancer':      'cancer',
+    'diabetes': 'diabetes',
+    'hypertension': 'hypertension',
+    'heart': 'heartDisease', // Spring: heartDisease
+    'joint': 'jointDisease',
+    'stroke': 'stroke',
+    'kidney': 'kidneyDisease',
+    'lung': 'lungDisease',
+    'liver': 'liverDisease',
+    'cancer': 'cancer',
   };
   for (final d in _chronicDiseases) {
     final formKey = d['key']!;
-    final dbKey  = chronicMap[formKey] ?? formKey;
+    final dbKey = chronicMap[formKey] ?? formKey;
     form.chronic[formKey] = _orNone(h[dbKey]);
   }
 
   // ── 거동/인지 ─────────────────────────────────────
-  form.walkingAid   = _orNone(h['walkingAid']);
-  form.dementia     = _orNone(h['dementia']);
-  form.vision       = _orNone(h['vision']);
-  form.hearing      = _orNone(h['hearing']);
-  form.recentFall   = _orNone(h['recentFall']);
-  form.hasSurgery   = _orNone(h['hasSurgery']);
+  form.walkingAid = _orNone(h['walkingAid']);
+  form.dementia = _orNone(h['dementia']);
+  form.vision = _orNone(h['vision']);
+  form.hearing = _orNone(h['hearing']);
+  form.recentFall = _orNone(h['recentFall']);
+  form.hasSurgery = _orNone(h['hasSurgery']);
   form.surgeryDetail = '${h['surgeryDetail'] ?? ''}';
   form.surgeries = _parseSurgeries(h['surgeriesJson'] ?? h['surgeries']);
-  form.otherDisease  = '${h['otherDisease'] ?? ''}';
+  form.otherDisease = '${h['otherDisease'] ?? ''}';
 
   // ── 활동조건 (Spring: restNeed / avoidEnvironment — 단수) ──
-  form.maxHours        = _orNone(h['maxHours']);
-  form.maxDistance     = _orNone(h['maxDistance']);
-  form.disabledWork    = _parseList(h['disabledWork']);
-  form.restNeeds       = _orNone(h['restNeed']);       // Spring: restNeed
-  form.avoidEnvironments = _parseList(h['avoidEnvironment']); // Spring: avoidEnvironment
+  form.maxHours = _orNone(h['maxHours']);
+  form.maxDistance = _orNone(h['maxDistance']);
+  form.disabledWork = _parseList(h['disabledWork']);
+  form.restNeeds = _orNone(h['restNeed']); // Spring: restNeed
+  form.avoidEnvironments =
+      _parseList(h['avoidEnvironment']); // Spring: avoidEnvironment
 
   // ── 복지정보 ─────────────────────────────────────
-  form.incomeLevel       = _orNone(h['incomeLevel']);
-  form.livingCostStatus  = _orNone(h['livingCostStatus']);
-  form.householdType     = _orNone(h['householdType']);
-  form.pensionStatus     = _orNone(h['pensionStatus']);
-  form.housingType       = _orNone(h['housingType']);
-  form.currentBenefits   = _parseList(h['currentBenefits']);
-  form.careNeeds         = _parseList(h['careNeeds']);
-  form.welfareMemo       = '${h['welfareMemo'] ?? ''}';
+  form.incomeLevel = _orNone(h['incomeLevel']);
+  form.livingCostStatus = _orNone(h['livingCostStatus']);
+  form.householdType = _orNone(h['householdType']);
+  form.pensionStatus = _orNone(h['pensionStatus']);
+  form.housingType = _orNone(h['housingType']);
+  form.currentBenefits = _parseList(h['currentBenefits']);
+  form.careNeeds = _parseList(h['careNeeds']);
+  form.welfareMemo = '${h['welfareMemo'] ?? ''}';
 
   // ── 일자리 (JobPreference 엔티티, memo 필드 사용) ──
-  form.payType     = _orNone(j['payType']);
-  form.hopeDays    = _parseList(j['hopeDays']);
+  form.payType = _orNone(j['payType']);
+  form.hopeDays = _parseList(j['hopeDays']);
   form.hopeJobType = _parseList(j['hopeJobType']);
   form.hopeCondition = _parseList(j['hopeCondition']);
-  form.jobMemo     = '${j['memo'] ?? ''}';  // Spring: memo (not jobMemo)
+  form.jobMemo = '${j['memo'] ?? ''}'; // Spring: memo (not jobMemo)
 
   return form;
 }
@@ -478,13 +586,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _dirty = false; // 사용자가 폼을 수정한 경우 백그라운드 갱신 차단
   String? _error;
 
+  int? get _jobAccessAge => calculateJobAccessAge(_form.birthDate);
+  bool get _canAccessJobs => canAccessJobsByAge(_jobAccessAge);
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
       length: _sections.length,
       vsync: this,
-      initialIndex: widget.initialSectionIndex?.clamp(0, _sections.length - 1) ?? 0,
+      initialIndex:
+          widget.initialSectionIndex?.clamp(0, _sections.length - 1) ?? 0,
     );
     _load();
   }
@@ -499,10 +611,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
+        title:
+            const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w900)),
         content: const Text('로그아웃 하시겠어요?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('로그아웃', style: TextStyle(color: Colors.red)),
@@ -524,7 +639,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _load() async {
-    setState(() { _error = null; });
+    setState(() {
+      _error = null;
+    });
 
     // 캐시 먼저 렌더링 → 즉시 화면 표시
     final cached = await SeniorSessionStorage.getProfile(widget.seniorId);
@@ -546,7 +663,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     // 캐시 없으면 서버에서 로드
     try {
-      setState(() { _loading = true; });
+      setState(() {
+        _loading = true;
+      });
       final raw = await _api.fetchProfile(widget.seniorId);
       if (!mounted) return;
       await SeniorSessionStorage.saveProfile(widget.seniorId, raw);
@@ -567,23 +686,27 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      final updated = await _api.updateProfile(widget.seniorId, _formToApi(_form));
+      final updated =
+          await _api.updateProfile(widget.seniorId, _formToApi(_form));
       // 저장 성공 시 캐시 갱신
       await SeniorSessionStorage.saveProfile(widget.seniorId, updated);
       // 수정 요청 알림이 있었으면 읽음 처리 + 복지사 완료 알림
       if (widget.pendingAlertId != null) {
         await _api.readAlert(widget.pendingAlertId!);
-        await _api.notifyProfileUpdateComplete(widget.seniorId, widget.pendingAlertId!);
+        await _api.notifyProfileUpdateComplete(
+            widget.seniorId, widget.pendingAlertId!);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장되었습니다'), backgroundColor: Color(0xFF86A788)),
+        const SnackBar(
+            content: Text('저장되었습니다'), backgroundColor: Color(0xFF86A788)),
       );
       widget.onSaved?.call();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장에 실패했습니다'), backgroundColor: Color(0xFFD94E4E)),
+        const SnackBar(
+            content: Text('저장에 실패했습니다'), backgroundColor: Color(0xFFD94E4E)),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -595,6 +718,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       for (int i = 0; i < _sections.length; i++) {
+        if (i == 6 && !_canAccessJobs) continue;
         if (_sectionFieldChecks(i).any((c) => c.isEmpty(_form))) {
           _tabController.animateTo(i);
           break;
@@ -637,21 +761,32 @@ class _ProfileScreenState extends State<ProfileScreen>
                 labelColor: const Color(0xFF86A788),
                 unselectedLabelColor: const Color(0xFF6D766A),
                 indicatorColor: const Color(0xFF86A788),
-                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                labelStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                 tabAlignment: TabAlignment.start,
                 tabs: _sections.asMap().entries.map((e) {
-                  final count = widget.pendingAlertId != null
-                      ? _sectionFieldChecks(e.key).where((c) => c.isEmpty(_form)).length
-                      : 0;
+                  final count = e.key == 6 && !_canAccessJobs
+                      ? 0
+                      : widget.pendingAlertId != null
+                          ? _sectionFieldChecks(e.key)
+                              .where((c) => c.isEmpty(_form))
+                              .length
+                          : 0;
                   return Tab(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(e.value),
+                        if (e.key == 6 && !_canAccessJobs) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.lock_rounded,
+                              size: 15, color: Color(0xFF86A788)),
+                        ],
                         if (count > 0) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: const Color(0xFFD94E4E),
                               borderRadius: BorderRadius.circular(10),
@@ -670,7 +805,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF86A788)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF86A788)))
           : _error != null
               ? _ErrorView(message: _error!, onRetry: _load)
               : TabBarView(
@@ -678,18 +814,59 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     _PersonalSection(
                       form: _form,
-                      onChanged: () => setState(() { _dirty = true; }),
+                      onChanged: () => setState(() {
+                        _dirty = true;
+                      }),
                       missingLabels: _missingLabels(0),
                     ),
-                    _BodySection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(1)),
-                    _MedicationSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(2)),
-                    _ChronicSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(3)),
-                    _MobilitySection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(4)),
-                    _WelfareSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(5)),
-                    _JobSection(form: _form, onChanged: () => setState(() { _dirty = true; }), missingLabels: _missingLabels(6)),
+                    _BodySection(
+                        form: _form,
+                        onChanged: () => setState(() {
+                              _dirty = true;
+                            }),
+                        missingLabels: _missingLabels(1)),
+                    _MedicationSection(
+                        form: _form,
+                        onChanged: () => setState(() {
+                              _dirty = true;
+                            }),
+                        missingLabels: _missingLabels(2)),
+                    _ChronicSection(
+                        form: _form,
+                        onChanged: () => setState(() {
+                              _dirty = true;
+                            }),
+                        missingLabels: _missingLabels(3)),
+                    _MobilitySection(
+                        form: _form,
+                        onChanged: () => setState(() {
+                              _dirty = true;
+                            }),
+                        missingLabels: _missingLabels(4)),
+                    _WelfareSection(
+                        form: _form,
+                        onChanged: () => setState(() {
+                              _dirty = true;
+                            }),
+                        missingLabels: _missingLabels(5)),
+                    _canAccessJobs
+                        ? _JobSection(
+                            form: _form,
+                            onChanged: () => setState(() {
+                                  _dirty = true;
+                                }),
+                            missingLabels: _missingLabels(6))
+                        : _SectionScroll(children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                  minHeight:
+                                      MediaQuery.of(context).size.height *
+                                          0.45),
+                              child: JobAgeGate(age: _jobAccessAge),
+                            ),
+                          ]),
                   ],
                 ),
-
       persistentFooterButtons: [
         SizedBox(
           width: double.infinity,
@@ -744,7 +921,8 @@ class _PersonalSectionState extends State<_PersonalSection> {
 
   Future<void> _pickAndUploadPhoto() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked == null) return;
 
     setState(() => _uploadingPhoto = true);
@@ -752,7 +930,8 @@ class _PersonalSectionState extends State<_PersonalSection> {
       final uri = Uri.parse('$apiBaseUrl/api/uploads/profile');
       final request = http.MultipartRequest('POST', uri)
         ..files.add(await http.MultipartFile.fromPath('image', picked.path));
-      final streamed = await request.send().timeout(const Duration(seconds: 15));
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 15));
       final body = await streamed.stream.bytesToString();
       if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
         final data = jsonDecode(body) as Map<String, dynamic>;
@@ -918,10 +1097,13 @@ class _PersonalSectionState extends State<_PersonalSection> {
         ),
       ),
       const _FieldLabel('이름'),
-      _FormField(controller: _name, hint: '예: 김나리', onChanged: (v) {
-        widget.form.name = v;
-        widget.onChanged();
-      }),
+      _FormField(
+          controller: _name,
+          hint: '예: 김나리',
+          onChanged: (v) {
+            widget.form.name = v;
+            widget.onChanged();
+          }),
       const _FieldLabel('전화번호'),
       _FormField(
         controller: _phone,
@@ -937,7 +1119,8 @@ class _PersonalSectionState extends State<_PersonalSection> {
         controller: _birthDate,
         readOnly: true,
         onTap: _pickDate,
-        decoration: _deco(hint: '예: 1950-01-01', suffix: Icons.calendar_month_outlined),
+        decoration:
+            _deco(hint: '예: 1950-01-01', suffix: Icons.calendar_month_outlined),
       ),
       const _FieldLabel('성별'),
       Row(children: [
@@ -1005,7 +1188,8 @@ class _PersonalSectionState extends State<_PersonalSection> {
                             color: Color(0xFF1F2A20))),
                     SizedBox(height: 2),
                     Text('보호자가 없는 경우 꺼주세요.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF7A8A7C))),
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF7A8A7C))),
                   ],
                 ),
               ),
@@ -1172,21 +1356,22 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 13),
               ),
             ),
-            if (!_disableKakaoMap) SizedBox(
-              height: 1,
-              child: Opacity(
-                opacity: 0,
-                child: kakao.KakaoMap(
-                  center: kakao.LatLng(37.5665, 126.9780),
-                  currentLevel: 3,
-                  onMapCreated: (controller) {
-                    _mapController = controller;
-                    if (!mounted) return;
-                    setState(() => _mapReady = true);
-                  },
+            if (!_disableKakaoMap)
+              SizedBox(
+                height: 1,
+                child: Opacity(
+                  opacity: 0,
+                  child: kakao.KakaoMap(
+                    center: kakao.LatLng(37.5665, 126.9780),
+                    currentLevel: 3,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      if (!mounted) return;
+                      setState(() => _mapReady = true);
+                    },
+                  ),
                 ),
               ),
-            ),
             if (_message != null) ...[
               const SizedBox(height: 16),
               Text(
@@ -1251,7 +1436,10 @@ class _AddressSearchSheetState extends State<_AddressSearchSheet> {
 }
 
 class _BodySection extends StatefulWidget {
-  const _BodySection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _BodySection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
@@ -1328,11 +1516,14 @@ class _BodySectionState extends State<_BodySection> {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
-          const Icon(Icons.monitor_weight_outlined, color: Color(0xFF86A788), size: 20),
+          const Icon(Icons.monitor_weight_outlined,
+              color: Color(0xFF86A788), size: 20),
           const SizedBox(width: 8),
           Text('BMI: ${_bmi()}',
               style: const TextStyle(
-                  color: Color(0xFF1F2A20), fontWeight: FontWeight.w800, fontSize: 15)),
+                  color: Color(0xFF1F2A20),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15)),
         ]),
       ),
       const _FieldLabel('흡연'),
@@ -1352,10 +1543,13 @@ class _BodySectionState extends State<_BodySection> {
             widget.onChanged();
           }),
       const _FieldLabel('알레르기'),
-      _FormField(controller: _allergies, hint: '예: 땅콩, 복숭아', onChanged: (v) {
-        widget.form.allergies = v;
-        widget.onChanged();
-      }),
+      _FormField(
+          controller: _allergies,
+          hint: '예: 땅콩, 복숭아',
+          onChanged: (v) {
+            widget.form.allergies = v;
+            widget.onChanged();
+          }),
     ]);
   }
 }
@@ -1363,7 +1557,10 @@ class _BodySectionState extends State<_BodySection> {
 // ─── 복약정보 ─────────────────────────────────────────────────────────────────
 
 class _MedicationSection extends StatefulWidget {
-  const _MedicationSection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _MedicationSection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
@@ -1530,7 +1727,9 @@ class _MedicationRowState extends State<_MedicationRow> {
         Row(children: [
           Text('복용 약 ${widget.index + 1}',
               style: const TextStyle(
-                  color: Color(0xFF1F2A20), fontSize: 15, fontWeight: FontWeight.w900)),
+                  color: Color(0xFF1F2A20),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900)),
           const Spacer(),
           GestureDetector(
             onTap: widget.onRemove,
@@ -1565,7 +1764,11 @@ class _MedicationRowState extends State<_MedicationRow> {
 // ─── 수술 이력 행 ─────────────────────────────────────────────────────────────
 
 class _SurgeryRow extends StatefulWidget {
-  const _SurgeryRow({required this.index, required this.surgery, required this.onRemove, required this.onChanged});
+  const _SurgeryRow(
+      {required this.index,
+      required this.surgery,
+      required this.onRemove,
+      required this.onChanged});
   final int index;
   final Map<String, dynamic> surgery;
   final VoidCallback onRemove;
@@ -1586,7 +1789,9 @@ class _SurgeryRowState extends State<_SurgeryRow> {
   void initState() {
     super.initState();
     _name = TextEditingController(text: '${widget.surgery['name'] ?? ''}');
-    final raw = widget.surgery['date']?.toString() ?? widget.surgery['year']?.toString() ?? '';
+    final raw = widget.surgery['date']?.toString() ??
+        widget.surgery['year']?.toString() ??
+        '';
     if (raw.length >= 10) {
       _selectedDate = DateTime.tryParse(raw);
     }
@@ -1609,7 +1814,8 @@ class _SurgeryRowState extends State<_SurgeryRow> {
       locale: const Locale('ko'),
     );
     if (picked != null) {
-      final formatted = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      final formatted =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       setState(() => _selectedDate = picked);
       widget.surgery['date'] = formatted;
       widget.onChanged();
@@ -1632,7 +1838,10 @@ class _SurgeryRowState extends State<_SurgeryRow> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('수술 ${widget.index + 1}',
-              style: const TextStyle(color: Color(0xFF1F2A20), fontSize: 15, fontWeight: FontWeight.w900)),
+              style: const TextStyle(
+                  color: Color(0xFF1F2A20),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900)),
           const Spacer(),
           GestureDetector(
             onTap: widget.onRemove,
@@ -1644,7 +1853,10 @@ class _SurgeryRowState extends State<_SurgeryRow> {
         TextField(
           controller: _name,
           decoration: _deco(hint: '예: 무릎 인공관절 수술'),
-          onChanged: (v) { widget.surgery['name'] = v; widget.onChanged(); },
+          onChanged: (v) {
+            widget.surgery['name'] = v;
+            widget.onChanged();
+          },
         ),
         const SizedBox(height: 10),
         const _FieldLabel('수술 날짜'),
@@ -1658,9 +1870,15 @@ class _SurgeryRowState extends State<_SurgeryRow> {
               border: Border.all(color: const Color(0xFFD4E8D6)),
             ),
             child: Row(children: [
-              Expanded(child: Text(dateText,
-                  style: TextStyle(color: _selectedDate != null ? const Color(0xFF1F2A20) : const Color(0xFF9E9E9E), fontSize: 14))),
-              const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF86A788)),
+              Expanded(
+                  child: Text(dateText,
+                      style: TextStyle(
+                          color: _selectedDate != null
+                              ? const Color(0xFF1F2A20)
+                              : const Color(0xFF9E9E9E),
+                          fontSize: 14))),
+              const Icon(Icons.calendar_month_outlined,
+                  size: 18, color: Color(0xFF86A788)),
             ]),
           ),
         ),
@@ -1669,7 +1887,9 @@ class _SurgeryRowState extends State<_SurgeryRow> {
         DropdownButtonFormField<String>(
           value: _recovery,
           hint: const Text('선택해주세요'),
-          items: _recoveryOptions.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          items: _recoveryOptions
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+              .toList(),
           onChanged: (v) {
             setState(() => _recovery = v);
             widget.surgery['recovery'] = v ?? '';
@@ -1686,14 +1906,18 @@ class _SurgeryRowState extends State<_SurgeryRow> {
 // ─── 만성질환 ─────────────────────────────────────────────────────────────────
 
 class _ChronicSection extends StatelessWidget {
-  const _ChronicSection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _ChronicSection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
 
   @override
   Widget build(BuildContext context) {
-    final allNone = _chronicDiseases.every((d) => form.chronic[d['key']!] == _none);
+    final allNone =
+        _chronicDiseases.every((d) => form.chronic[d['key']!] == _none);
     return _SectionScroll(
       missingLabels: missingLabels,
       children: [
@@ -1702,9 +1926,13 @@ class _ChronicSection extends StatelessWidget {
           child: TextButton(
             onPressed: () {
               if (allNone) {
-                for (final d in _chronicDiseases) { form.chronic[d['key']!] = ''; }
+                for (final d in _chronicDiseases) {
+                  form.chronic[d['key']!] = '';
+                }
               } else {
-                for (final d in _chronicDiseases) { form.chronic[d['key']!] = _none; }
+                for (final d in _chronicDiseases) {
+                  form.chronic[d['key']!] = _none;
+                }
               }
               onChanged();
             },
@@ -1712,8 +1940,10 @@ class _ChronicSection extends StatelessWidget {
                 ? TextButton.styleFrom(
                     backgroundColor: const Color(0xFF86a788),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(99)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   )
                 : null,
             child: const Text('전체 없음'),
@@ -1722,17 +1952,19 @@ class _ChronicSection extends StatelessWidget {
         ..._chronicDiseases.map((d) {
           final key = d['key']!;
           final label = d['label']!;
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _FieldLabel(label),
-            _Dropdown(
-              value: form.chronic[key] ?? _none,
-              items: _chronicLevels,
-              onChanged: (v) {
-                form.chronic[key] = v;
-                onChanged();
-              },
-            ),
-          ]);
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FieldLabel(label),
+                _Dropdown(
+                  value: form.chronic[key] ?? _none,
+                  items: _chronicLevels,
+                  onChanged: (v) {
+                    form.chronic[key] = v;
+                    onChanged();
+                  },
+                ),
+              ]);
         }),
       ],
     );
@@ -1742,7 +1974,10 @@ class _ChronicSection extends StatelessWidget {
 // ─── 거동/인지 ────────────────────────────────────────────────────────────────
 
 class _MobilitySection extends StatefulWidget {
-  const _MobilitySection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _MobilitySection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
@@ -1832,18 +2067,25 @@ class _MobilitySectionState extends State<_MobilitySection> {
           }),
       if (widget.form.hasSurgery == '예') ...[
         Row(children: [
-          const Expanded(child: Text('수술 이력 목록', style: TextStyle(color: Color(0xFF111827), fontSize: 15, fontWeight: FontWeight.w700))),
+          const Expanded(
+              child: Text('수술 이력 목록',
+                  style: TextStyle(
+                      color: Color(0xFF111827),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700))),
           TextButton.icon(
             onPressed: _addSurgery,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('추가'),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
+            style:
+                TextButton.styleFrom(foregroundColor: const Color(0xFF86A788)),
           ),
         ]),
         if (widget.form.surgeries.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('아래 추가 버튼을 눌러 수술 이력을 입력해주세요', style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
+            child: Text('아래 추가 버튼을 눌러 수술 이력을 입력해주세요',
+                style: TextStyle(color: Color(0xFF6D766A), fontSize: 13)),
           )
         else
           ...widget.form.surgeries.asMap().entries.map((entry) {
@@ -1853,7 +2095,10 @@ class _MobilitySectionState extends State<_MobilitySection> {
               index: i,
               surgery: s,
               onRemove: () => _removeSurgery(i),
-              onChanged: () { widget.onChanged(); setState(() {}); },
+              onChanged: () {
+                widget.onChanged();
+                setState(() {});
+              },
             );
           }),
       ],
@@ -1874,7 +2119,10 @@ class _MobilitySectionState extends State<_MobilitySection> {
 // ─── 복지정보 ─────────────────────────────────────────────────────────────────
 
 class _WelfareSection extends StatefulWidget {
-  const _WelfareSection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _WelfareSection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
@@ -1966,7 +2214,10 @@ class _WelfareSectionState extends State<_WelfareSection> {
 // ─── 일자리 ───────────────────────────────────────────────────────────────────
 
 class _JobSection extends StatefulWidget {
-  const _JobSection({required this.form, required this.onChanged, this.missingLabels = const []});
+  const _JobSection(
+      {required this.form,
+      required this.onChanged,
+      this.missingLabels = const []});
   final _ProfileForm form;
   final VoidCallback onChanged;
   final List<String> missingLabels;
@@ -2097,7 +2348,8 @@ class _MissingFieldsBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.edit_note_outlined, color: Color(0xFFB8860B), size: 20),
+          const Icon(Icons.edit_note_outlined,
+              color: Color(0xFFB8860B), size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -2141,7 +2393,8 @@ class _SectionScroll extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: _withSpacing([
-          if (missingLabels.isNotEmpty) _MissingFieldsBanner(labels: missingLabels),
+          if (missingLabels.isNotEmpty)
+            _MissingFieldsBanner(labels: missingLabels),
           ...children,
         ]),
       ),
@@ -2254,8 +2507,7 @@ class _ToggleButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           backgroundColor:
               selected ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
-          foregroundColor:
-              selected ? Colors.white : const Color(0xFF1F2A20),
+          foregroundColor: selected ? Colors.white : const Color(0xFF1F2A20),
           side: BorderSide(
             color: selected ? const Color(0xFF86A788) : const Color(0xFFF7F5E8),
           ),
@@ -2301,15 +2553,18 @@ class _ChipGroup extends StatelessWidget {
           selectedColor: const Color(0xFF86A788).withValues(alpha: 0.2),
           checkmarkColor: const Color(0xFF86A788),
           labelStyle: TextStyle(
-            color: isSelected ? const Color(0xFF2D5A2E) : const Color(0xFF1F2A20),
+            color:
+                isSelected ? const Color(0xFF2D5A2E) : const Color(0xFF1F2A20),
             fontWeight: FontWeight.w700,
             fontSize: 13,
           ),
           side: BorderSide(
-            color: isSelected ? const Color(0xFF86A788) : const Color(0xFFD1D5DB),
+            color:
+                isSelected ? const Color(0xFF86A788) : const Color(0xFFD1D5DB),
           ),
           backgroundColor: const Color(0xFFF7F5E8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         );
       }).toList(),
     );
@@ -2332,7 +2587,8 @@ class _ErrorView extends StatelessWidget {
         const SizedBox(height: 16),
         FilledButton(
           onPressed: onRetry,
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF86A788)),
+          style:
+              FilledButton.styleFrom(backgroundColor: const Color(0xFF86A788)),
           child: const Text('다시 시도'),
         ),
       ]),

@@ -192,6 +192,19 @@
   border-left: 3px solid #86a788;
 }
 
+.pr-sidenav-item.locked {
+  color: #7a9a7c;
+}
+
+.pr-sidenav-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 .pr-section {
   background: #ffffff;
   border-radius: 18px;
@@ -209,6 +222,59 @@
   margin-bottom: 1.4rem;
   padding-bottom: 0.8rem;
   border-bottom: 2px solid #b8d4ba;
+}
+
+.pr-age-gate-section {
+  min-height: min(430px, calc(100vh - 180px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.pr-age-gate-card {
+  background: #fff;
+  border: 1.5px solid #d4e8d6;
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(134, 167, 136, 0.12);
+}
+
+.pr-age-gate-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.pr-age-gate-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #1e2a1f;
+  margin-bottom: 0.75rem;
+}
+
+.pr-age-gate-desc {
+  font-size: 0.95rem;
+  color: #7a9a7c;
+  line-height: 1.75;
+  margin-bottom: 1.2rem;
+}
+
+.pr-age-gate-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  border-radius: 999px;
+  padding: 0 1.35rem;
+  background: #eef6ef;
+  color: #48694b;
+  font-size: 0.95rem;
+  font-weight: 900;
 }
 
 .pr-photo-field {

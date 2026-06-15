@@ -161,6 +161,52 @@
   margin-bottom: 1.2rem;
 }
 
+.su-age-gate-wrap {
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem 0 1.6rem;
+}
+
+.su-age-gate-content {
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+}
+
+.su-age-gate-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.su-age-gate-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #1e2a1f;
+  margin-bottom: 0.75rem;
+}
+
+.su-age-gate-desc {
+  font-size: 0.95rem;
+  color: #7a9a7c;
+  line-height: 1.75;
+  margin-bottom: 1.2rem;
+}
+
+.su-age-gate-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  border-radius: 999px;
+  padding: 0 1.35rem;
+  background: #eef6ef;
+  color: #48694b;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
 .su-section-title {
   font-size: 1rem;
   font-weight: 700;
