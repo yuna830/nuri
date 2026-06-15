@@ -10,6 +10,7 @@ const READ_STATUSES = new Set(["확인됨", "읽음", "확인함", "조치완료
 function CommonHeader({
   logoText = "우리 woori",
   homePath = "/",
+  onLogoClick,
   afterLogo,
   rightText,
   actions,
@@ -282,7 +283,13 @@ function CommonHeader({
             <button
               className="common-app-logo"
               type="button"
-              onClick={() => navigate(homePath)}
+              onClick={() => {
+                if (onLogoClick) {
+                  onLogoClick();
+                  return;
+                }
+                navigate(homePath);
+              }}
             >
               {logoText}
             </button>

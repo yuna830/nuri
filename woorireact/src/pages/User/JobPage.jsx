@@ -1,4 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { UserCommonHeader } from "../../components/UserCommonHeader.jsx";
 import {
   EMPL_COLOR,
@@ -71,6 +72,7 @@ const getStoredSeniorIds = () => {
 const getCurrentSeniorId = () => getStoredSeniorIds()[0] || null;
 
 export default function JobPage() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -537,9 +539,13 @@ export default function JobPage() {
               <div className="jp-age-gate-desc">
                 일자리 정보는 <strong>만 18세 이상(생일 기준)</strong>부터<br />이용할 수 있어요.
               </div>
-              {profileAge !== null && (
-                <div className="jp-age-gate-badge">현재 만 {profileAge}세</div>
-              )}
+              <button
+                className="jp-age-gate-home"
+                type="button"
+                onClick={() => navigate("/user")}
+              >
+                홈으로
+              </button>
             </div>
           </main>
         ) : (

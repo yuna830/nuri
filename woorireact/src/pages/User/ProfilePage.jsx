@@ -62,7 +62,9 @@ export default function ProfilePage() {
   const [saveToast, setSaveToast] = useState(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const isDirty = useRef(false);
+  const savedFormRef = useRef(defaultForm);
 
   const alertId = searchParams.get("alertId");
 
@@ -109,7 +111,9 @@ export default function ProfilePage() {
         // 캐시가 있으면 즉시 렌더링 후 백그라운드에서 갱신
         if (savedCurrentSenior) {
           const cachedProfile = JSON.parse(savedCurrentSenior);
-          setForm(profileToForm(cachedProfile));
+          const cachedForm = profileToForm(cachedProfile);
+          savedFormRef.current = cachedForm;
+          setForm(cachedForm);
           setIsLoaded(true);
 
           const seniorId = cachedProfile?.senior?.id;
@@ -119,7 +123,9 @@ export default function ProfilePage() {
               .then((freshProfile) => {
                 if (!freshProfile || isDirty.current) return;
                 saveCurrentSenior(freshProfile);
-                setForm(profileToForm(freshProfile));
+                const freshForm = profileToForm(freshProfile);
+                savedFormRef.current = freshForm;
+                setForm(freshForm);
               })
               .catch(() => {});
           }
@@ -132,7 +138,9 @@ export default function ProfilePage() {
         const latestProfile = profiles[profiles.length - 1];
         if (!latestProfile) return;
         saveCurrentSenior(latestProfile);
-        setForm(profileToForm(latestProfile));
+        const latestForm = profileToForm(latestProfile);
+        savedFormRef.current = latestForm;
+        setForm(latestForm);
         setIsLoaded(true);
       } catch (error) {
         console.error("프로필 정보 조회 실패:", error);
@@ -146,6 +154,22 @@ export default function ProfilePage() {
   useEffect(() => {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      if (!isDirty.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    isDirty.current = JSON.stringify(form) !== JSON.stringify(savedFormRef.current);
+  }, [form, isLoaded]);
 
   const set = (key, value) => { isDirty.current = true; setForm((prev) => ({ ...prev, [key]: value })); };
 
@@ -187,6 +211,25 @@ export default function ProfilePage() {
       medicineCount: value,
       medications: syncMedicationsWithCount(prev.medications, value),
     }));
+  };
+
+  const handleReset = () => {
+    isDirty.current = true;
+    setForm(defaultForm);
+  };
+
+  const handleLogoClick = () => {
+    if (!isDirty.current) {
+      navigate("/user");
+      return;
+    }
+    setShowLeaveConfirm(true);
+  };
+
+  const handleDiscardAndLeave = () => {
+    isDirty.current = false;
+    setShowLeaveConfirm(false);
+    navigate("/user");
   };
 
   const bmi = useMemo(() => calcBMI(form.height, form.weight, form.gender), [form.height, form.weight, form.gender]);
@@ -231,8 +274,10 @@ export default function ProfilePage() {
     }
     const updatedProfile = await response.json();
     saveCurrentSenior(updatedProfile);
+    const savedForm = profileToForm(updatedProfile);
+    savedFormRef.current = savedForm;
     isDirty.current = false;
-    setForm(profileToForm(updatedProfile));
+    setForm(savedForm);
     return updatedProfile;
   };
 
@@ -574,7 +619,7 @@ export default function ProfilePage() {
 
   return (
     <div className="pr-root">
-      <UserCommonHeader />
+      <UserCommonHeader onLogoClick={handleLogoClick} />
 
       <div className="pr-layout">
         <aside>
@@ -591,7 +636,7 @@ export default function ProfilePage() {
             ))}
           </div>
           <div className="pr-side-actions">
-            <button className="pr-reset-btn" type="button" onClick={() => setForm(defaultForm)} disabled={saving}>
+            <button className="pr-reset-btn" type="button" onClick={handleReset} disabled={saving}>
               초기화
             </button>
             <button className="pr-save-btn" type="button" onClick={handleSave} disabled={saving || !isLoaded}>
@@ -621,6 +666,34 @@ export default function ProfilePage() {
               {saveToast === "saving" ? "변경한 정보를 반영하고 있어요." : "내 정보가 정상적으로 반영되었어요."}
             </p>
           </div>
+        </div>
+      )}
+
+      {showLeaveConfirm && (
+        <div
+          className="pr-leave-backdrop"
+          role="presentation"
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <section
+            className="pr-leave-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pr-leave-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pr-leave-icon" aria-hidden="true">!</div>
+            <h2 id="pr-leave-title">저장하지 않고 나가시겠어요?</h2>
+            <p>지금 나가면 수정한 내용이 저장되지 않아요.</p>
+            <div className="pr-leave-actions">
+              <button type="button" className="pr-leave-stay" onClick={() => setShowLeaveConfirm(false)}>
+                계속 수정하기
+              </button>
+              <button type="button" className="pr-leave-discard" onClick={handleDiscardAndLeave}>
+                저장하지 않고 나가기
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

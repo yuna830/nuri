@@ -596,6 +596,91 @@
   line-height: 1.6;
 }
 
+.pr-leave-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 42, 31, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.pr-leave-dialog {
+  width: min(420px, 100%);
+  border: 1px solid #d4e8d6;
+  border-radius: 24px;
+  padding: 2rem 1.6rem 1.5rem;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(30, 42, 31, 0.2);
+  text-align: center;
+}
+
+.pr-leave-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: #fff3d9;
+  color: #b77616;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.pr-leave-dialog h2 {
+  margin: 0 0 0.55rem;
+  color: #1e2a1f;
+  font-size: 1.3rem;
+  font-weight: 900;
+}
+
+.pr-leave-dialog p {
+  margin: 0 0 1.5rem;
+  color: #6f7f70;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.pr-leave-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 0.65rem;
+}
+
+.pr-leave-actions button {
+  min-height: 48px;
+  border-radius: 12px;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pr-leave-stay {
+  border: 1px solid #cfe1d0;
+  background: #fff;
+  color: #5f7d61;
+}
+
+.pr-leave-discard {
+  border: 1px solid #d86464;
+  background: #d86464;
+  color: #fff;
+}
+
+.pr-leave-stay:hover {
+  background: #f4f8f4;
+}
+
+.pr-leave-discard:hover {
+  background: #c55353;
+}
+
 @keyframes pr-spin {
   to {
     transform: rotate(360deg);
@@ -614,6 +699,10 @@
 
   .pr-layout aside {
     position: static;
+  }
+
+  .pr-leave-actions {
+    grid-template-columns: 1fr;
   }
 }
 
