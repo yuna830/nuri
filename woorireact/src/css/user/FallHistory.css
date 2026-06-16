@@ -151,7 +151,7 @@
 .fh-video {
   display: block;
   height: clamp(420px, 48vw, 560px);
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
