@@ -216,7 +216,7 @@ public class SeniorController {
         return guardianSeniorRepository.findByGuardianId(guardianId)
                 .stream()
                 .map(link -> seniorRepository.findById(link.getSeniorId())
-                        .map(senior -> toProfileResponse(senior, link.getRelation())))
+                        .map(senior -> toProfileResponse(senior, link.getRelation(), link.getGuardianRelationToSenior())))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
                 .toList();
@@ -951,6 +951,10 @@ public class SeniorController {
     }
 
     private SeniorProfileResponse toProfileResponse(Senior senior, String relation) {
+        return toProfileResponse(senior, relation, "");
+    }
+
+    private SeniorProfileResponse toProfileResponse(Senior senior, String relation, String guardianRelationToSenior) {
         HealthInfo healthInfo = healthInfoRepository
                 .findTopBySeniorIdOrderByCreatedAtDesc(senior.getId())
                 .orElse(null);
@@ -977,7 +981,7 @@ public class SeniorController {
                 null,
                 "",
                 "",
-                "",
+                guardianRelationToSenior == null ? "" : guardianRelationToSenior,
                 safeZone,
                 latestLocation,
                 welfareWorker == null ? null : welfareWorker.getId(),

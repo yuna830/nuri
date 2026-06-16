@@ -78,7 +78,7 @@ const saveLocalCareTeamMap = (profiles, guardian) => {
 
       nextMap[String(senior.id)] = {
         guardianName: guardian.name || "",
-        guardianRelation: profile?.relation || senior.guardianRelation || "",
+        guardianRelation: senior?.seniorRelationToGuardian || profile?.relation || "",
         socialWorkerName: profile?.socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || "",
       };
     });

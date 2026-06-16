@@ -67,7 +67,7 @@ export const mapSeniorProfileToElder = (profile) => {
     disabilityType: senior.disabilityType || "",
     id: senior.id,
     name: senior.name || "이름 없음",
-    relation: profile.relation || senior.guardianRelation || "보호 대상자",
+    relation: profile.guardianRelationToSenior || senior.guardianRelation || "보호 대상자",
     seniorRelationToGuardian: senior.seniorRelationToGuardian || "",
     guardianName: senior.guardianName || profile.guardianName || "",
     socialWorkerName: senior.socialWorkerName || profile.socialWorkerName || "",
