@@ -170,6 +170,8 @@ export const getMissingSeniorInfoFields = (senior) => {
         { key: "householdType", label: "가구 유형" },
         { key: "pensionStatus", label: "연금 현황" },
         { key: "housingType", label: "주거 유형" },
+        { key: "currentBenefits", label: "현재 복지 혜택" },
+        { key: "careNeeds", label: "도움이 필요한 일" },
     ];
     for (const { key, label } of welfareFields) {
         if (checkField(senior[key], !senior.hasWelfareInfo)) fields.push(label);
@@ -178,11 +180,8 @@ export const getMissingSeniorInfoFields = (senior) => {
     // ── 활동 조건 / 일자리 (만 18세 미만은 제외) ────────────────────────
     const seniorAge = Number(senior.age) || null;
     const isMinor = seniorAge !== null && seniorAge < 18;
-    if (!isMinor) {
-        if (checkField(senior.maxHours, false)) fields.push("최대 근무 시간");
-        if (checkField(senior.maxDistance, false)) fields.push("이동 가능 거리");
-        if (checkField(senior.restNeed, false)) fields.push("휴식 필요");
-        if (checkField(senior.payType, false)) fields.push("희망 급여 유형");
+    if (!isMinor && !senior.hasJobPreferenceInfo) {
+        fields.push("활동/일자리 조건");
     }
 
     return fields;

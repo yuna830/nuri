@@ -859,26 +859,43 @@ public class SeniorController {
                 latestLocation == null ? null : latestLocation.getLongitude(),
                 latestLocation == null ? null : latestLocation.getReceivedAt(),
                 hasGuardian,
-                senior.getDisabilityGrade() != null || senior.getDisabilityType() != null,
+                // hasDisabilityInfo: 둘 다 입력돼야 true
+                senior.getDisabilityGrade() != null && senior.getDisabilityType() != null,
+
+                // hasBodyInfo: 흡연·음주 둘 다 입력돼야 true
                 healthInfo != null
-                        && (healthInfo.getSmoking() != null || healthInfo.getDrinking() != null),
+                        && healthInfo.getSmoking() != null && healthInfo.getDrinking() != null,
+
+                // hasHealthInfo: 주요 만성질환 9개 + 거동/인지 6개 모두 입력돼야 true
                 healthInfo != null
-                        && (healthInfo.getDiabetes() != null || healthInfo.getHypertension() != null
-                        || healthInfo.getHeartDisease() != null || healthInfo.getJointDisease() != null
-                        || healthInfo.getStroke() != null || healthInfo.getKidneyDisease() != null
-                        || healthInfo.getLungDisease() != null || healthInfo.getLiverDisease() != null
-                        || healthInfo.getCancer() != null || healthInfo.getWalkingAid() != null
-                        || healthInfo.getDementia() != null || healthInfo.getVision() != null
-                        || healthInfo.getHearing() != null
-                        || healthInfo.getRecentFall() != null || healthInfo.getHasSurgery() != null),
+                        && healthInfo.getDiabetes() != null && healthInfo.getHypertension() != null
+                        && healthInfo.getHeartDisease() != null && healthInfo.getJointDisease() != null
+                        && healthInfo.getStroke() != null && healthInfo.getKidneyDisease() != null
+                        && healthInfo.getLungDisease() != null && healthInfo.getLiverDisease() != null
+                        && healthInfo.getCancer() != null && healthInfo.getWalkingAid() != null
+                        && healthInfo.getDementia() != null && healthInfo.getVision() != null
+                        && healthInfo.getHearing() != null && healthInfo.getRecentFall() != null
+                        && healthInfo.getHasSurgery() != null,
+
+                // hasMedicationInfo: 그대로
                 healthInfo != null && healthInfo.getMedicineCount() != null,
+
+                // hasWelfareInfo: 복지 6개 모두 입력돼야 true
                 healthInfo != null
-                        && (healthInfo.getLivingCostStatus() != null || healthInfo.getHouseholdType() != null
-                        || healthInfo.getPensionStatus() != null || healthInfo.getHousingType() != null),
+                        && healthInfo.getLivingCostStatus() != null && healthInfo.getHouseholdType() != null
+                        && healthInfo.getPensionStatus() != null && healthInfo.getHousingType() != null
+                        && healthInfo.getCurrentBenefits() != null && healthInfo.getCareNeeds() != null,
                 senior.getGuardianName(),
                 senior.getGuardianPhone(),
                 healthInfo == null ? null : healthInfo.getHasSurgery(),
-                healthInfo == null ? null : healthInfo.getSurgeriesJson());
+                healthInfo == null ? null : healthInfo.getSurgeriesJson(),
+                // hasJobPreferenceInfo: 활동/일자리 선택형 필드 전부 입력돼야 true
+                healthInfo != null && healthInfo.getMaxHours() != null
+                        && healthInfo.getMaxDistance() != null && healthInfo.getDisabledWork() != null
+                        && healthInfo.getRestNeed() != null && healthInfo.getAvoidEnvironment() != null
+                        && jobPreference != null && jobPreference.getPayType() != null
+                        && jobPreference.getHopeDays() != null && jobPreference.getHopeJobType() != null
+                        && jobPreference.getHopeCondition() != null);
     }
 
     public record WelfareSeniorListResponse(
@@ -912,7 +929,8 @@ public class SeniorController {
             String guardianName,
             String guardianPhone,
             String hasSurgery,
-            String surgeriesJson) {
+            String surgeriesJson,
+            Boolean hasJobPreferenceInfo) {
     }
 
     public record SeniorWelfareWorkerRequest(

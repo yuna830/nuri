@@ -103,6 +103,7 @@ export const mapWelfareSenior = (item) => ({
     hasHealthInfo: item.hasHealthInfo === true,
     hasMedicationInfo: item.hasMedicationInfo === true,
     hasWelfareInfo: item.hasWelfareInfo === true,
+    hasJobPreferenceInfo: item.hasJobPreferenceInfo === true,
 
     healthInfo: item.healthInfo,
     healthStatus: item.healthStatus || "양호",
