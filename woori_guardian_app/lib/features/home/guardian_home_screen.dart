@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import '../face/face_check_camera_screen.dart';
 import '../../core/api/guardian_api.dart';
 import '../../core/config/app_config.dart';
 import '../../core/models/alert.dart';
+import '../../core/models/safe_zone.dart';
 import '../../core/models/senior.dart';
 import '../../core/storage/consent_storage.dart';
 import '../../core/storage/guardian_session_storage.dart';
@@ -53,6 +55,21 @@ abstract final class _C {
   /// 위험(신고) 빨강
   static const danger = AppColors.red;
   static const dangerBg = AppColors.redBg;
+}
+
+double _distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+  const earthRadius = 6378137.0;
+  final dLat = (lat2 - lat1) * math.pi / 180.0;
+  final dLng = (lng2 - lng1) * math.pi / 180.0;
+  final rLat1 = lat1 * math.pi / 180.0;
+  final rLat2 = lat2 * math.pi / 180.0;
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(rLat1) *
+          math.cos(rLat2) *
+          math.sin(dLng / 2) *
+          math.sin(dLng / 2);
+  return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 }
 
 // GuardianHomeScreen — 탭 셸
@@ -282,6 +299,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen> {
             initialDetectionLat: _detectionLat,
             initialDetectionLng: _detectionLng,
             initialDetectionMessage: _detectionMessage,
+            onGoReport: _navigateToReportTab,
           ),
           ReportScreen(
             key: ValueKey(_reportSenior?.id),
@@ -352,7 +370,7 @@ class _HomeTabState extends State<_HomeTab> {
   String? _errorMessage;
   List<Senior> _seniors = [];
   int _staleHours = LocationFreshnessStorage.defaultStaleHours;
-  Set<int> _exitedSeniorIds = {};
+  Map<int, List<SafeZone>> _safeZonesMap = {};
 
   @override
   void initState() {
@@ -379,18 +397,24 @@ class _HomeTabState extends State<_HomeTab> {
       ]);
       final staleHours = results[0] as int;
       final seniors = results[1] as List<Senior>;
-      final alerts = results[2] as List<AlertModel>;
 
-      final exitedIds = alerts
-          .where((a) => a.type == 'SAFE_ZONE_EXIT' && !a.isRead && a.seniorId != null)
-          .map((a) => a.seniorId!)
-          .toSet();
+      // 안전구역을 모든 시니어에 대해 병렬 로드
+      final safeZoneEntries = await Future.wait(
+        seniors.map((s) async {
+          try {
+            final zones = await _api.fetchSafeZones(s.id);
+            return MapEntry(s.id, zones);
+          } catch (_) {
+            return MapEntry(s.id, <SafeZone>[]);
+          }
+        }),
+      );
 
       if (mounted)
         setState(() {
           _seniors = seniors;
           _staleHours = staleHours;
-          _exitedSeniorIds = exitedIds;
+          _safeZonesMap = Map.fromEntries(safeZoneEntries);
           _isLoading = false;
         });
     } catch (e) {
@@ -472,7 +496,24 @@ class _HomeTabState extends State<_HomeTab> {
             _SeniorCard(
               senior: _seniors[i],
               staleHours: _staleHours,
-              isOutsideZone: _exitedSeniorIds.contains(_seniors[i].id),
+              isOutsideZone: () {
+                final senior = _seniors[i];
+                final lat = senior.lastLat;
+                final lng = senior.lastLng;
+                if (lat == null || lng == null) return false;
+                final zones = _safeZonesMap[senior.id] ?? [];
+                if (zones.isEmpty) return false;
+                return !zones.any(
+                  (zone) =>
+                      _distanceMeters(
+                        lat,
+                        lng,
+                        zone.centerLatitude,
+                        zone.centerLongitude,
+                      ) <=
+                      zone.radiusMeters,
+                );
+              }(),
               onViewLocation: widget.onViewLocation,
               onReport: () => widget.onReport(_seniors[i]),
               onOpenDetail: () {
@@ -618,10 +659,12 @@ class _SeniorCard extends StatelessWidget {
         onTap: onOpenDetail,
         child: Container(
           decoration: BoxDecoration(
-            color: isOutsideZone ? const Color(0xFFFFF5F5) : Colors.white,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isOutsideZone ? const Color(0xFFD32F2F) : const Color(0xFFE0E8E0),
+              color: isOutsideZone
+                  ? const Color(0xFFD32F2F)
+                  : const Color(0xFFE0E8E0),
               width: isOutsideZone ? 1.5 : 1,
             ),
             boxShadow: [
@@ -660,9 +703,10 @@ class _SeniorCard extends StatelessWidget {
                     _StatusBadge(
                       status: isOutsideZone
                           ? '안전구역 이탈'
-                          : (senior.status == '안전' && senior.isLocationStale(staleHours)
-                              ? '확인 필요'
-                              : senior.status),
+                          : (senior.status == '안전' &&
+                                    senior.isLocationStale(staleHours)
+                                ? '확인 필요'
+                                : senior.status),
                     ),
                   ],
                 ),
@@ -750,7 +794,7 @@ class _SeniorCard extends StatelessWidget {
                         child: FilledButton.icon(
                           onPressed: () => onViewLocation(senior.id),
                           style: FilledButton.styleFrom(
-                            backgroundColor: _C.green,
+                            backgroundColor: isOutsideZone ? _C.danger : _C.green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),

@@ -485,7 +485,7 @@ export default function UserPage() {
   const [currentProfile, setCurrentProfile] = useState(initialProfile);
   const [careTeam, setCareTeam] = useState({
     guardianName: initialProfile?.guardian?.name || initialProfile?.guardianName || initialSenior?.guardianName || initialLocalCareTeam?.guardianName || "",
-    guardianRelation: initialProfile?.guardianRelationToSenior || initialProfile?.relation || initialSenior?.guardianRelation || initialLocalCareTeam?.guardianRelation || "",
+    guardianRelation: initialProfile?.seniorRelationToGuardian || initialSenior?.seniorRelationToGuardian || initialProfile?.relation || initialLocalCareTeam?.guardianRelation || "",
     guardianPhone: initialProfile?.guardian?.phone || initialSenior?.guardianPhone || initialLocalCareTeam?.guardianPhone || "",
     socialWorkerName: initialProfile?.socialWorker?.name || initialProfile?.socialWorkerName || initialSenior?.socialWorkerName || initialLocalCareTeam?.socialWorkerName || "",
     socialWorkerPhone: initialProfile?.socialWorker?.phone || initialProfile?.socialWorkerPhone || initialSenior?.socialWorkerPhone || initialLocalCareTeam?.socialWorkerPhone || "",
@@ -952,7 +952,7 @@ export default function UserPage() {
 
       setChanged(setCareTeam, {
         guardianName: guardian?.name || profile?.guardianName || senior.guardianName || localCareTeam?.guardianName || "",
-        guardianRelation: profile?.guardianRelationToSenior || guardian?.guardianRelationToSenior || profile?.relation || guardian?.relation || senior.guardianRelation || localCareTeam?.guardianRelation || "",
+        guardianRelation: profile?.seniorRelationToGuardian || senior?.seniorRelationToGuardian || profile?.relation || localCareTeam?.guardianRelation || "",
         guardianPhone: guardian?.phone || profile?.guardianPhone || senior.guardianPhone || localCareTeam?.guardianPhone || "",
         socialWorkerName: socialWorker?.name || profile?.socialWorkerName || senior.socialWorkerName || localCareTeam?.socialWorkerName || "",
         socialWorkerPhone: socialWorker?.phone || profile?.socialWorkerPhone || senior.socialWorkerPhone || localCareTeam?.socialWorkerPhone || "",
@@ -1464,7 +1464,7 @@ export default function UserPage() {
       setCareTeam((prev) => ({
         ...prev,
         guardianName: foundGuardian.name || "",
-        guardianRelation: guardianRelationToSenior || seniorRelationToGuardian,
+        guardianRelation: seniorRelationToGuardian,
         guardianPhone: foundGuardian.phone || "",
       }));
       setGuardianEditOpen(false);

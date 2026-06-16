@@ -17,10 +17,10 @@ const _disableKakaoMap = bool.fromEnvironment('DISABLE_KAKAO_MAP');
 // ── 색상 ─────────────────────────────────────────────────────────────────
 const _kGreen = AppColors.green;
 const _kRed = AppColors.red;
+const _kRedBg = AppColors.redBg;
 const _kSafe = AppColors.safe;
 const _kSafeBg = AppColors.safeBg;
 const _kWarn = AppColors.warn;
-const _kWarnBg = AppColors.warnBg;
 const _kNeutral = AppColors.neutral;
 const _kNeutralBg = AppColors.neutralBg;
 const _kTextMain = AppColors.textMain;
@@ -221,6 +221,7 @@ class LocationTabScreen extends StatefulWidget {
   final double? initialDetectionLat;
   final double? initialDetectionLng;
   final String? initialDetectionMessage;
+  final void Function(Senior)? onGoReport;
 
   const LocationTabScreen({
     super.key,
@@ -228,6 +229,7 @@ class LocationTabScreen extends StatefulWidget {
     this.initialDetectionLat,
     this.initialDetectionLng,
     this.initialDetectionMessage,
+    this.onGoReport,
   });
 
   @override
@@ -239,10 +241,12 @@ class _MarkerPopup {
   final String title;
   final String description;
   final Color color;
+  final bool isSighting;
   const _MarkerPopup({
     required this.title,
     required this.description,
     required this.color,
+    this.isSighting = false,
   });
 }
 
@@ -253,7 +257,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
 
   kakao.KakaoMapController? _mapController;
   kakao.Poi? _seniorPoi;
-  kakao.Poi? _detectionPoi;
+  List<kakao.Poi> _detectionPois = [];
   final List<kakao.Polygon> _zonePolygons = [];
 
   List<Senior> _seniors = [];
@@ -295,17 +299,25 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   void initState() {
     super.initState();
     _loadSeniors();
+
+    // 테스트용 — 확인 후 삭제
+    _detectionLat = 37.4873;
+    _detectionLng = 127.0145;
+    _detectionMessage = '카메라 감지 테스트';
+    _detectionTime = '2026-06-15 16:00';
   }
 
   @override
   void didUpdateWidget(LocationTabScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final seniorChanged = widget.initialSeniorId != oldWidget.initialSeniorId &&
+    final seniorChanged =
+        widget.initialSeniorId != oldWidget.initialSeniorId &&
         widget.initialSeniorId != null &&
         _seniors.isNotEmpty;
 
-    final detectionChanged = widget.initialDetectionLat != oldWidget.initialDetectionLat &&
+    final detectionChanged =
+        widget.initialDetectionLat != oldWidget.initialDetectionLat &&
         widget.initialDetectionLat != null;
 
     if (seniorChanged || detectionChanged) {
@@ -409,7 +421,9 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
     await _syncMapOverlays();
 
     // 알림에서 발견 위치로 온 경우 그 위치로 지도 중심 이동
-    if (_detectionLat != null && _detectionLng != null && widget.initialDetectionLat != null) {
+    if (_detectionLat != null &&
+        _detectionLng != null &&
+        widget.initialDetectionLat != null) {
       await _moveMap(_detectionLat!, _detectionLng!);
     }
   }
@@ -624,26 +638,29 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
   }
 
   Future<void> _clearMapOverlays() async {
-    for (final entry in [
-      (_seniorPoi, 'senior'),
-      (_detectionPoi, 'detection'),
-    ]) {
-      final poi = entry.$1;
-      final label = entry.$2;
-      if (poi != null) {
-        try {
-          await poi.remove();
-        } on PlatformException catch (e) {
-          debugPrint(
-            '[KAKAO] $label poi remove ignored: ${e.message ?? e.code}',
-          );
-        } catch (e) {
-          debugPrint('[KAKAO] $label poi remove ignored: $e');
-        }
+    if (_seniorPoi != null) {
+      try {
+        await _seniorPoi!.remove();
+      } on PlatformException catch (e) {
+        debugPrint('[KAKAO] senior poi remove ignored: ${e.message ?? e.code}');
+      } catch (e) {
+        debugPrint('[KAKAO] senior poi remove ignored: $e');
+      }
+      _seniorPoi = null;
+    }
+
+    for (final poi in _detectionPois) {
+      try {
+        await poi.remove();
+      } on PlatformException catch (e) {
+        debugPrint(
+          '[KAKAO] detection poi remove ignored: ${e.message ?? e.code}',
+        );
+      } catch (e) {
+        debugPrint('[KAKAO] detection poi remove ignored: $e');
       }
     }
-    _seniorPoi = null;
-    _detectionPoi = null;
+    _detectionPois = [];
 
     final polygons = List<kakao.Polygon>.from(_zonePolygons);
     _zonePolygons.clear();
@@ -713,10 +730,11 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
         context: context,
       );
 
-      _detectionPoi = await controller.labelLayer.addPoi(
+      final poi = await controller.labelLayer.addPoi(
         kakao.LatLng(_detectionLat!, _detectionLng!),
         style: kakao.PoiStyle(icon: icon, anchor: const kakao.KPoint(0.5, 1.0)),
       );
+      _detectionPois.add(poi);
     }
 
     // 안전구역 원 표시
@@ -768,6 +786,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
           title: '발견 위치',
           description: desc.isNotEmpty ? desc : '카메라 감지 위치',
           color: const Color(0xFFE53935),
+          isSighting: true,
         );
       }
     }
@@ -778,7 +797,7 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
       if (dLat < thresholdDeg && dLng < thresholdDeg) {
         popup = _MarkerPopup(
           title: '마지막 위치',
-          description: '${_selectedSenior?.name ?? '노인'}님의 마지막 위치\n$_time',
+          description: '${_selectedSenior?.name ?? '보호대상자'}님의 마지막 위치\n$_time',
           color: const Color(0xFF4A90E2),
         );
       }
@@ -833,16 +852,80 @@ class _LocationTabScreenState extends State<LocationTabScreen> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Color(0xFF999999),
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => setState(() => _activePopup = null),
-                ),
+                popup.isSighting
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () async {
+                              for (final poi in _detectionPois) {
+                                try {
+                                  await poi.remove();
+                                } catch (_) {}
+                              }
+                              setState(() {
+                                _activePopup = null;
+                                _detectionLat = null;
+                                _detectionLng = null;
+                                _detectionMessage = null;
+                                _detectionTime = null;
+                                _detectionPois = [];
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF4CAF50),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              '발견했어요',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() => _activePopup = null);
+                              if (_selectedSenior != null) {
+                                widget.onGoReport?.call(_selectedSenior!);
+                              }
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFE53935),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              '긴급 신고',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Color(0xFF999999),
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => setState(() => _activePopup = null),
+                      ),
               ],
             ),
           ),
@@ -1809,7 +1892,7 @@ class _SheetContent extends StatelessWidget {
       badgeText: '이탈',
       description: '안전 구역 이탈',
       icon: Icons.shield_outlined,
-      color: _kWarn,
+      color: _kRed,
     );
   }
 
@@ -2362,8 +2445,8 @@ class _StatusBadge extends StatelessWidget {
     final isSafe = status == '안전';
     final isNeutral = status == '미설정' || status == '확인 중';
 
-    final color = isSafe ? _kSafe : (isNeutral ? _kNeutral : _kWarn);
-    final bgColor = isSafe ? _kSafeBg : (isNeutral ? _kNeutralBg : _kWarnBg);
+    final color = isSafe ? _kSafe : (isNeutral ? _kNeutral : _kRed);
+    final bgColor = isSafe ? _kSafeBg : (isNeutral ? _kNeutralBg : _kRedBg);
 
     return Container(
       height: 26,

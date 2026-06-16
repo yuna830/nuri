@@ -84,6 +84,7 @@ public class SafeZoneSchedulerService {
                         <= zone.getRadiusMeters()
         );
         if (insideAnyZone) {
+            // 복귀 시 미읽음 이탈 알림 자동 읽음 처리
             alertRepository
                     .findBySeniorIdAndTypeAndIsReadFalseOrderByCreatedAtDesc(seniorId, "SAFE_ZONE_EXIT")
                     .forEach(a -> {
