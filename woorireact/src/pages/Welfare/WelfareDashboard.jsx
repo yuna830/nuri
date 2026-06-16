@@ -6,6 +6,7 @@ import {
     fetchWelfareAlerts,
     fetchAllWelfareSeniors,
     fetchWelfareSeniorHealthEvaluations,
+    fetchWelfareSeniorDetail,
     requestSeniorInfoUpdate,
     searchSeniorExact,
     assignWelfareSenior,
@@ -314,7 +315,13 @@ function WelfareDashboard() {
 
     const filteredSeniors = useMemo(() => {
         const keywordTokens = getKeywordTokens(searchKeyword);
-        const sourceSeniors = summaryFilter === "all" ? seniors : notificationSeniors;
+        const sourceSeniors = (summaryFilter === "all" || summaryFilter === "missingInfo") ? seniors : notificationSeniors;
+
+        if (summaryFilter === "missingInfo") {
+            seniors.forEach((s) => {
+                console.log(`[missingInfo] ${s.name}(${s.id}) hasHealthInfo=${s.hasHealthInfo} hasWelfareInfo=${s.hasWelfareInfo} hasJobPreferenceInfo=${s.hasJobPreferenceInfo} hasDisabilityInfo=${s.hasDisabilityInfo} missing=${JSON.stringify(getMissingSeniorInfoFields(s))}`);
+            });
+        }
 
         return sourceSeniors.filter((senior) => {
             const isMatchedByFilters = FILTER_GROUPS.every((group) =>
@@ -376,7 +383,7 @@ function WelfareDashboard() {
     );
 
     const seniorSummaryCounts = {
-        ...getSeniorSummaryCounts(notificationSeniors.length > 0 ? notificationSeniors : seniors),
+        ...getSeniorSummaryCounts(seniors),
         totalSeniors: seniors.length,
     };
 
@@ -966,13 +973,70 @@ function WelfareDashboard() {
         );
     };
 
-    const handleSelectSenior = (senior) => {
+    const handleSelectSenior = async (senior) => {
         if (summaryFilter === "missingInfo") {
-            setInfoRequestTarget(senior);
             setInfoRequestTargets({
                 toSenior: true,
                 toGuardian: Boolean(senior.hasGuardian),
             });
+
+            // 상세 API로 실제 개별 필드 값 가져와서 정확한 미입력 항목 계산
+            try {
+                const detail = await fetchWelfareSeniorDetail(senior.id);
+                const hi = detail?.healthInfo ?? {};
+                const jp = detail?.jobPreference ?? {};
+                const s = detail?.senior ?? {};
+                const detailedSenior = {
+                    ...senior,
+                    // 개별 건강 필드 (실제 DB 값)
+                    smoking: hi.smoking,
+                    drinking: hi.drinking,
+                    medicineCount: hi.medicineCount,
+                    diabetes: hi.diabetes,
+                    hypertension: hi.hypertension,
+                    heart: hi.heartDisease,
+                    joint: hi.jointDisease,
+                    stroke: hi.stroke,
+                    kidney: hi.kidneyDisease,
+                    lung: hi.lungDisease ?? hi.respiratoryDisease,
+                    liver: hi.liverDisease,
+                    cancer: hi.cancer,
+                    walkingAid: hi.walkingAid,
+                    dementia: hi.dementia,
+                    vision: hi.vision,
+                    hearing: hi.hearing,
+                    recentFall: hi.recentFall,
+                    hasSurgery: hi.hasSurgery,
+                    surgeriesJson: hi.surgeriesJson,
+                    livingCostStatus: hi.livingCostStatus,
+                    householdType: hi.householdType,
+                    pensionStatus: hi.pensionStatus,
+                    housingType: hi.housingType,
+                    currentBenefits: hi.currentBenefits,
+                    careNeeds: hi.careNeeds,
+                    maxHours: hi.maxHours,
+                    maxDistance: hi.maxDistance,
+                    restNeed: hi.restNeed,
+                    disabledWork: hi.disabledWork,
+                    avoidEnvironment: hi.avoidEnvironment,
+                    payType: jp.payType,
+                    hopeDays: jp.hopeDays,
+                    hopeJobType: jp.hopeJobType,
+                    hopeCondition: jp.hopeCondition,
+                    disabilityGrade: s.disabilityGrade,
+                    disabilityType: s.disabilityType,
+                    hasJobPreferenceInfo: Boolean(
+                        jp.payType != null && jp.hopeDays != null &&
+                        jp.hopeJobType != null && jp.hopeCondition != null &&
+                        hi.maxHours != null && hi.maxDistance != null &&
+                        hi.restNeed != null
+                    ),
+                };
+                setInfoRequestTarget(detailedSenior);
+            } catch {
+                // 상세 조회 실패 시 기존 list 데이터로 폴백
+                setInfoRequestTarget(senior);
+            }
             return;
         }
 
