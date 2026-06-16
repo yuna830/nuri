@@ -51,7 +51,7 @@ const KOREAN_NUMBER_VALUES = {
 const KOREAN_TIME_NUMBER_PATTERN =
   "열하나|열한|열두|열둘|다섯|여섯|일곱|여덟|아홉|하나|둘|셋|넷|한|두|세|네|삼십|사십|오십|이십|십|열";
 export const TIME_EXPRESSION_PATTERN_SOURCE =
-  `(오전|오후|아침|저녁|밤|새벽|낮|점심)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분?)?\\s*(?:에)?`;
+  `(오전|오후|아침|저녁|밤|새벽|낮|점심)?\\s*(\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*시(?:\\s*(반|(?:\\d{1,2}|${KOREAN_TIME_NUMBER_PATTERN})\\s*분))?\\s*(?:에)?`;
 
 /*  문자 정규화  */
 export function normalizeScheduleText(text) {
@@ -100,7 +100,8 @@ export function parseTimeExpression(text) {
   const [, rawMeridiem, rawHour, rawMinute] = match;
   const meridiem = normalizeMeridiem(rawMeridiem);
   let hour = parseKoreanTimeNumber(rawHour);
-  const minute = rawMinute === "반" ? 30 : parseKoreanTimeNumber(rawMinute || 0);
+  const normalizedMinute = String(rawMinute || "").replace(/\s*분$/, "");
+  const minute = normalizedMinute === "반" ? 30 : parseKoreanTimeNumber(normalizedMinute || 0);
 
   if (meridiem === "오후" && hour < 12) hour += 12;
   if (meridiem === "오전" && hour === 12) hour = 0;

@@ -235,6 +235,24 @@ export const inferSeniorRelationFromGuardian = (guardianRelation = "", seniorGen
   return "";
 };
 
+// 어르신이 보호자를 부르는 호칭 → 보호자가 어르신을 부르는 호칭으로 역추론
+// 예: 어르신이 보호자를 "딸"이라 부름 → 보호자는 어르신을 "엄마"라 부름
+export const inferGuardianRelationFromSeniorCall = (seniorRelationToGuardian = "", seniorGender = "") => {
+  const relation = (seniorRelationToGuardian || "").trim();
+  const gender = String(seniorGender || "").trim().toLowerCase();
+  const isFemale = ["여성", "여자", "f", "female"].includes(gender);
+  const isMale = ["남성", "남자", "m", "male"].includes(gender);
+  const byGender = (f, m, n) => (isFemale ? f : isMale ? m : n);
+
+  if (/(아들|딸|자녀)/.test(relation)) return byGender("엄마", "아빠", "부모");
+  if (/(손자|손녀|손주)/.test(relation)) return byGender("할머니", "할아버지", "조부모");
+  if (/조카/.test(relation)) return byGender("고모", "삼촌", "친척");
+  if (/(배우자|남편|아내)/.test(relation)) return "배우자";
+  if (/(형|오빠|남동생|언니|누나|여동생|형제|자매)/.test(relation)) return byGender("자매", "형제", "형제자매");
+
+  return "";
+};
+
 export const buildRegion = ({ city = "", district = "", dong = "", detailAddress = "" }) =>
   [city, district, dong, detailAddress].map((part) => part.trim()).filter(Boolean).join(" ");
 
@@ -429,13 +447,13 @@ export const profileToForm = (profile = {}) => {
     seniorRelationToGuardian: senior.seniorRelationToGuardian ?? "",
     socialWorkerName: senior.socialWorkerName ?? profile.socialWorkerName ?? "",
     socialWorkerPhone: senior.socialWorkerPhone ?? profile.socialWorkerPhone ?? "",
-    disabilityGrade: senior.disabilityGrade || NONE,
-    disabilityType: senior.disabilityType || NONE,
+    disabilityGrade: senior.disabilityGrade ?? "",
+    disabilityType: senior.disabilityType ?? "",
     hasGuardian: senior.hasGuardian !== false, // null/true → true(있음)
     height: mergedHealthInfo.height ? String(mergedHealthInfo.height) : "",
     weight: mergedHealthInfo.weight ? String(mergedHealthInfo.weight) : "",
-    smoking: mergedHealthInfo.smoking ?? NONE,
-    drinking: mergedHealthInfo.drinking ?? NONE,
+    smoking: mergedHealthInfo.smoking ?? "",
+    drinking: mergedHealthInfo.drinking ?? "",
     allergies: mergedHealthInfo.allergies ?? "",
     livingCostStatus: mergedHealthInfo.livingCostStatus ?? "",
     householdType: mergedHealthInfo.householdType ?? "",
@@ -444,30 +462,30 @@ export const profileToForm = (profile = {}) => {
     housingType: mergedHealthInfo.housingType ?? "",
     careNeeds: splitCsv(mergedHealthInfo.careNeeds),
     welfareMemo: mergedHealthInfo.welfareMemo ?? "",
-    medicineCount: mergedHealthInfo.medicineCount || (medications.length ? `${medications.length}개` : NONE),
+    medicineCount: mergedHealthInfo.medicineCount || (medications.length ? `${medications.length}개` : ""),
     medications,
-    diabetes: mergedHealthInfo.diabetes ?? NONE,
-    hypertension: mergedHealthInfo.hypertension ?? NONE,
-    heart: mergedHealthInfo.heartDisease ?? mergedHealthInfo.heart ?? NONE,
-    joint: mergedHealthInfo.jointDisease ?? mergedHealthInfo.joint ?? NONE,
-    stroke: mergedHealthInfo.stroke ?? NONE,
-    kidney: mergedHealthInfo.kidneyDisease ?? mergedHealthInfo.kidney ?? NONE,
-    lung: mergedHealthInfo.lungDisease ?? mergedHealthInfo.respiratoryDisease ?? mergedHealthInfo.lung ?? NONE,
-    liver: mergedHealthInfo.liverDisease ?? mergedHealthInfo.liver ?? NONE,
-    cancer: mergedHealthInfo.cancer ?? NONE,
-    walkingAid: mergedHealthInfo.walkingAid ?? NONE,
-    dementia: mergedHealthInfo.dementia ?? NONE,
-    vision: mergedHealthInfo.vision ?? NONE,
-    hearing: mergedHealthInfo.hearing ?? NONE,
-    recentFall: mergedHealthInfo.recentFall ?? NONE,
-    hasSurgery: mergedHealthInfo.hasSurgery ?? NONE,
+    diabetes: mergedHealthInfo.diabetes ?? "",
+    hypertension: mergedHealthInfo.hypertension ?? "",
+    heart: mergedHealthInfo.heartDisease ?? mergedHealthInfo.heart ?? "",
+    joint: mergedHealthInfo.jointDisease ?? mergedHealthInfo.joint ?? "",
+    stroke: mergedHealthInfo.stroke ?? "",
+    kidney: mergedHealthInfo.kidneyDisease ?? mergedHealthInfo.kidney ?? "",
+    lung: mergedHealthInfo.lungDisease ?? mergedHealthInfo.respiratoryDisease ?? mergedHealthInfo.lung ?? "",
+    liver: mergedHealthInfo.liverDisease ?? mergedHealthInfo.liver ?? "",
+    cancer: mergedHealthInfo.cancer ?? "",
+    walkingAid: mergedHealthInfo.walkingAid ?? "",
+    dementia: mergedHealthInfo.dementia ?? "",
+    vision: mergedHealthInfo.vision ?? "",
+    hearing: mergedHealthInfo.hearing ?? "",
+    recentFall: mergedHealthInfo.recentFall ?? "",
+    hasSurgery: mergedHealthInfo.hasSurgery ?? "",
     surgeryDetail: mergedHealthInfo.surgeryDetail ?? "",
     surgeries,
     otherDisease: mergedHealthInfo.otherDisease ?? "",
     maxHours: mergedHealthInfo.maxHours ?? "",
     maxDistance: mergedHealthInfo.maxDistance ?? "",
     disabledWork: splitCsv(mergedHealthInfo.disabledWork),
-    restNeed: mergedHealthInfo.restNeed ?? NONE,
+    restNeed: mergedHealthInfo.restNeed ?? "",
     avoidEnvironment: splitCsv(mergedHealthInfo.avoidEnvironment),
     payType: mergedJobPreference.payType ?? "",
     hopeDays: splitCsv(mergedJobPreference.hopeDays),
@@ -476,6 +494,9 @@ export const profileToForm = (profile = {}) => {
     memo: mergedJobPreference.memo ?? "",
   };
 };
+
+// 빈 문자열(칩 선택 해제)을 null로 변환 — 백엔드 has...Info 플래그가 "" != null로 오작동하는 것 방지
+const n = (v) => (v === "" || v == null) ? null : v;
 
 export const normalizeForm = (form) => {
   const region = buildRegion(form) || form.region;
@@ -513,12 +534,36 @@ export const normalizeForm = (form) => {
     livingAlone: welfareRag.livingAlone ?? "",
     needsGuardianCheck: welfareRag.needsGuardianCheck ?? false,
     guardianCheckFields: (welfareRag.guardianCheckFields || []).join(","),
-    heartDisease: form.heart,
-    jointDisease: form.joint,
-    kidneyDisease: form.kidney,
-    lungDisease: form.lung,
-    respiratoryDisease: form.lung,
-    liverDisease: form.liver,
+    // 칩 선택 해제 시 "" → null 변환 (백엔드 has...Info 플래그 정확도 보장)
+    smoking: n(form.smoking),
+    drinking: n(form.drinking),
+    disabilityGrade: n(form.disabilityGrade),
+    disabilityType: n(form.disabilityType),
+    medicineCount: n(form.medicineCount),
+    diabetes: n(form.diabetes),
+    hypertension: n(form.hypertension),
+    heartDisease: n(form.heart),
+    jointDisease: n(form.joint),
+    stroke: n(form.stroke),
+    kidneyDisease: n(form.kidney),
+    lungDisease: n(form.lung),
+    respiratoryDisease: n(form.lung),
+    liverDisease: n(form.liver),
+    cancer: n(form.cancer),
+    walkingAid: n(form.walkingAid),
+    dementia: n(form.dementia),
+    vision: n(form.vision),
+    hearing: n(form.hearing),
+    recentFall: n(form.recentFall),
+    hasSurgery: n(form.hasSurgery),
+    livingCostStatus: n(form.livingCostStatus),
+    householdType: n(form.householdType),
+    pensionStatus: n(form.pensionStatus),
+    housingType: n(form.housingType),
+    maxHours: n(form.maxHours),
+    maxDistance: n(form.maxDistance),
+    restNeed: n(form.restNeed),
+    payType: n(form.payType),
   };
 };
 
