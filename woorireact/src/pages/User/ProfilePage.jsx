@@ -51,7 +51,7 @@ const SECTION_FIELD_KEYS = {
   chronic: CHRONIC.map(({ key }) => key),
   mobility: ["walkingAid", "dementia", "vision", "hearing", "recentFall", "hasSurgery"],
   welfare: ["livingCostStatus", "householdType", "pensionStatus", "housingType"],
-  job: ["maxHours", "maxDistance", "restNeed", "payType"],
+  job: ["maxHours", "maxDistance", "disabledWork", "restNeed", "avoidEnvironment", "payType"],
 };
 
 export default function ProfilePage() {
@@ -75,16 +75,14 @@ export default function ProfilePage() {
   }, [form.birthDate, form.age]);
 
   // alertId가 있을 때, 현재 섹션에서 비어 있는 필드 키 집합
+  const isEmptyField = (val) =>
+    val === "" || val === null || val === undefined || (Array.isArray(val) && val.length === 0);
+
   const highlightKeys = useMemo(() => {
     if (!alertId || !isLoaded) return new Set();
     if (isMinor && activeSection === "job") return new Set();
     const sectionKeys = SECTION_FIELD_KEYS[activeSection] ?? [];
-    return new Set(
-      sectionKeys.filter((key) => {
-        const val = form[key];
-        return val === "" || val === null || val === undefined;
-      })
-    );
+    return new Set(sectionKeys.filter((key) => isEmptyField(form[key])));
   }, [alertId, isLoaded, form, activeSection, isMinor]);
 
   // alertId가 있을 때, 섹션별 비어 있는 필드 개수 맵 (사이드바 배지용)
@@ -93,10 +91,7 @@ export default function ProfilePage() {
     const map = {};
     for (const [section, keys] of Object.entries(SECTION_FIELD_KEYS)) {
       if (isMinor && section === "job") continue;
-      const count = keys.filter((key) => {
-        const val = form[key];
-        return val === "" || val === null || val === undefined;
-      }).length;
+      const count = keys.filter((key) => isEmptyField(form[key])).length;
       if (count > 0) map[section] = count;
     }
     return map;
@@ -376,7 +371,9 @@ export default function ProfilePage() {
         { key: "housingType", label: "주거 형태" },
         { key: "maxHours", label: "최대 활동 시간" },
         { key: "maxDistance", label: "이동 가능 거리" },
+        { key: "disabledWork", label: "하기 어려운 작업" },
         { key: "restNeed", label: "쉬는 시간" },
+        { key: "avoidEnvironment", label: "피하고 싶은 작업 환경" },
         { key: "payType", label: "희망 급여 형태" },
       ])
       .filter(({ key }) => sectionKeys.includes(key) && highlightKeys.has(key))
@@ -612,9 +609,9 @@ export default function ProfilePage() {
               <SelectField label="하루 최대 활동 시간" value={form.maxHours} options={["", "상관없음", "2", "4", "6", "8"]} labels={{ "": "선택", "상관없음": "상관없음", 2: "2시간 이내", 4: "4시간 이내", 6: "6시간 이내", 8: "8시간 이내" }} highlight={highlightKeys.has("maxHours")} onChange={(value) => set("maxHours", value)} />
               <SelectField label="이동 가능 거리" value={form.maxDistance} options={["", "상관없음", "도보 10분 이내", "도보 30분 이내", "대중교통 30분 이내", "대중교통 1시간 이내"]} labels={{ "": "선택", "상관없음": "상관없음" }} highlight={highlightKeys.has("maxDistance")} onChange={(value) => set("maxDistance", value)} />
             </div>
-            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} onToggle={(value) => toggleArr("disabledWork", value)} />
+            <MultiChipField label="하기 어려운 작업" values={form.disabledWork} options={WORK_TYPES} highlight={highlightKeys.has("disabledWork")} onToggle={(value) => toggleArr("disabledWork", value)} />
             <SelectField label="쉬는 시간이 얼마나 필요하세요?" value={form.restNeed} options={REST_NEEDS} highlight={highlightKeys.has("restNeed")} onChange={(value) => set("restNeed", value)} />
-            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
+            <MultiChipField label="피하고 싶은 작업 환경" values={form.avoidEnvironment} options={AVOID_ENVIRONMENTS} highlight={highlightKeys.has("avoidEnvironment")} onToggle={(value) => toggleArr("avoidEnvironment", value)} />
             <ChipField label="희망 급여 형태" value={form.payType} options={["상관없음", "시급", "월급", "일당"]} highlight={highlightKeys.has("payType")} onSelect={(value) => set("payType", value)} />
             <MultiChipField label="희망 근무 요일" values={form.hopeDays} options={DAYS} onToggle={(value) => toggleArr("hopeDays", value)} />
             <MultiChipField label="희망 직종" values={form.hopeJobType} options={JOB_TYPES} onToggle={(value) => toggleArr("hopeJobType", value)} />
@@ -771,10 +768,13 @@ function ChipField({ label, value, options, onSelect, highlight = false }) {
   );
 }
 
-function MultiChipField({ label, values, options, onToggle }) {
+function MultiChipField({ label, values, options, onToggle, highlight = false }) {
   return (
     <div className="pr-field">
-      <label className="pr-label">{label}</label>
+      <label className="pr-label">
+        {label}
+        {highlight && <span className="pr-field-required-star" aria-hidden="true">*</span>}
+      </label>
       <div className="pr-chip-group">
         {options.map((option) => (
           <button key={option} className={`pr-chip ${(values || []).includes(option) ? "on" : ""}`} type="button" onClick={() => onToggle(option)}>{option}</button>

@@ -1,3 +1,5 @@
+import { inferGuardianRelationFromSeniorCall } from "../user/profileForm";
+
 export const DEFAULT_CENTER = {
   lat: 37.4979,
   lng: 127.0276,
@@ -67,7 +69,9 @@ export const mapSeniorProfileToElder = (profile) => {
     disabilityType: senior.disabilityType || "",
     id: senior.id,
     name: senior.name || "이름 없음",
-    relation: profile.guardianRelationToSenior || senior.guardianRelation || "보호 대상자",
+    relation: profile.guardianRelationToSenior ||
+      inferGuardianRelationFromSeniorCall(profile.relation, senior.gender) ||
+      "보호 대상자",
     seniorRelationToGuardian: senior.seniorRelationToGuardian || "",
     guardianName: senior.guardianName || profile.guardianName || "",
     socialWorkerName: senior.socialWorkerName || profile.socialWorkerName || "",
