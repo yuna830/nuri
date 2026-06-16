@@ -113,11 +113,6 @@ class _LocationScreenState extends State<LocationScreen>
         Timer.periodic(const Duration(seconds: 30), (_) => _getLocationSilent());
     _safeZoneTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _loadSafeZones());
-    widget.onRegisterAction?.call(
-      action: _getLocation,
-      icon: Icons.refresh,
-      tooltip: '새로고침',
-    );
   }
 
   @override
