@@ -78,14 +78,32 @@ export async function createCareResponse({ text, schedules, history = [], profil
       return await answerGeneralFoodRecommendation(text, profileContext);
     }
 
+    const isFoodFollowUpQuestion = isFoodSafetyQuestion(text) || isFoodNutritionQuestion(text);
+    const productNameFromQuestion = isFoodFollowUpQuestion
+      ? extractProductNameFromFoodQuestion(text)
+      : "";
     let latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
-    if (isFoodSafetyQuestion(text) && !latestFoodAnalysisMemory) {
+    const latestFoodAnalysisSource = extractFoodMemorySection(latestFoodAnalysisMemory, "Analysis source:");
+
+    if (
+      productNameFromQuestion &&
+      latestFoodAnalysisSource !== "image_classification" &&
+      !isSameFoodName(productNameFromQuestion, getVisibleFoodName(latestFoodAnalysisMemory))
+    ) {
+      latestFoodAnalysisMemory = await getFoodMemoryFromProductQuestion(text);
+      if (!latestFoodAnalysisMemory) {
+        return buildNamedFoodLookupFallback(productNameFromQuestion);
+      }
+    } else if (isFoodFollowUpQuestion && !latestFoodAnalysisMemory) {
       latestFoodAnalysisMemory = await getFoodMemoryFromProductQuestion(text);
     }
 
-    if (isFoodSafetyQuestion(text) && !latestFoodAnalysisMemory) {
+    if (isFoodFollowUpQuestion && !latestFoodAnalysisMemory) {
       return "어떤 음식인지 알 수 없어요. 음식 사진을 보내거나 음식 이름을 함께 말씀해 주세요.";
     }
+
+    const foodNutritionAnswer = answerFoodNutritionQuestion(text, latestFoodAnalysisMemory, profileContext);
+    if (foodNutritionAnswer) return foodNutritionAnswer;
 
     const foodSafetyAnswer = answerFoodSafetyQuestion(text, latestFoodAnalysisMemory, profileContext, history);
     if (foodSafetyAnswer) return foodSafetyAnswer;
@@ -168,6 +186,39 @@ Rules for follow-up answers about this food:
 - If the user asks whether an allergen is included and OCR is uncertain, say it was not clearly found and recommend checking the ingredients label.
 - Do not use Markdown bold markers like **text** because this chat view displays them as plain text.
 `.trim();
+}
+
+function answerFoodNutritionQuestion(text, memory, profileContext) {
+  if (!memory || !isFoodNutritionQuestion(text)) return "";
+
+  const productName = getVisibleFoodName(memory);
+  const nutrients = parseFoodMemoryJson(memory, "Nutrients JSON:");
+  const warnings = parseFoodMemoryJson(memory, "Warnings JSON:");
+  const nutrientLines = formatNutrientLines(nutrients);
+  const cautionLines = formatNutritionWarningLines(warnings);
+  const diseaseCaution = getFoodDiseaseCaution(profileContext, productName)
+    .map((line) => line.replace(/^- /, ""));
+
+  if (nutrientLines.length === 0) {
+    return compactFoodAnswer([
+      "정확한 영양성분 수치는 사진만으로는 확인하기 어려워요.",
+      "제품 포장지의 영양정보 표를 가까이 찍어주시면 칼로리, 나트륨, 당류 같은 항목을 더 정확히 알려드릴게요.",
+    ]);
+  }
+
+  return compactFoodAnswer([
+    `${productName || "제품"} 제품을 식약처에서 조회했어요. 영양성분을 표로 보여드릴게요.`,
+    "",
+    `제품명: ${productName || "확인 필요"}`,
+    "",
+    "영양성분",
+    ...nutrientLines,
+    "",
+    "주의사항",
+    ...(cautionLines.length > 0 || diseaseCaution.length > 0
+      ? [...cautionLines, ...diseaseCaution.map((line) => `- ${line}`)]
+      : ["- 특별히 높게 표시된 항목은 없어요."]),
+  ]);
 }
 
 function answerFoodIngredientQuestion(text, memory) {
@@ -341,7 +392,7 @@ function getFoodNameIntro(memory, history) {
   if (alreadyMentioned) return "";
 
   if (analysisSource === "product_name_query") {
-    return `${productName} 제품을 식약처 DB에서 조회했어요.`;
+    return `${productName} 제품을 식약처에서 조회했어요.`;
   }
 
   return `${productName}${getDirectionParticle(productName)} 보여요.`;
@@ -380,7 +431,7 @@ function getNutrientCaution(memory) {
     const warnings = JSON.parse(warningsText);
     const reasons = warnings
       .filter((warning) => warning?.level !== "보통" && warning?.reason)
-      .map((warning) => `- 식약처 DB 수치: ${warning.reason}`);
+      .map((warning) => `- 식약처 수치: ${warning.reason}`);
 
     if (reasons.length > 0) {
       return [
@@ -395,25 +446,79 @@ function getNutrientCaution(memory) {
   return [];
 }
 
+function parseFoodMemoryJson(memory, label) {
+  const text = extractFoodMemorySection(memory, label);
+  if (!text || text === "unknown") return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function formatNutrientLines(nutrients) {
+  if (!nutrients || typeof nutrients !== "object" || Array.isArray(nutrients)) return [];
+
+  const rows = [
+    ["calories_kcal", "칼로리", "kcal"],
+    ["sodium_mg", "나트륨", "mg"],
+    ["carbohydrate_g", "탄수화물", "g"],
+    ["sugar_g", "당류", "g"],
+    ["fat_g", "지방", "g"],
+    ["saturated_fat_g", "포화지방", "g"],
+    ["trans_fat_g", "트랜스지방", "g"],
+    ["cholesterol_mg", "콜레스테롤", "mg"],
+    ["protein_g", "단백질", "g"],
+  ];
+
+  return rows
+    .map(([key, label, unit]) => {
+      const value = nutrients[key];
+      if (value === null || value === undefined || value === "") return "";
+      return `- ${label}: ${value}${unit}`;
+    })
+    .filter(Boolean);
+}
+
+function formatNutritionWarningLines(warnings) {
+  if (!Array.isArray(warnings)) return [];
+
+  return warnings
+    .filter((warning) => warning?.level && warning.level !== "보통" && warning?.reason)
+    .map((warning) => `- ${warning.reason}`);
+}
+
 async function getFoodMemoryFromProductQuestion(text) {
   const productName = extractProductNameFromFoodQuestion(text);
   if (!productName) return "";
 
   try {
-    const response = await fetch(`${FOOD_API_URL}/analyze-text`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: "",
-        product_name: productName,
-      }),
-    });
+    let result = null;
+    let matchedProduct = "";
 
-    if (!response.ok) return "";
+    for (const query of getFoodProductQueryCandidates(productName)) {
+      const response = await fetch(`${FOOD_API_URL}/analyze-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: "",
+          product_name: query,
+        }),
+      });
 
-    const result = await response.json();
-    const matchedProduct = result?.mfds?.matched_item?.DESC_KOR;
-    if (!matchedProduct) return "";
+      if (!response.ok) continue;
+
+      const candidateResult = await response.json();
+      const candidateMatchedProduct = candidateResult?.mfds?.matched_item?.DESC_KOR;
+      if (candidateMatchedProduct) {
+        result = candidateResult;
+        matchedProduct = candidateMatchedProduct;
+        break;
+      }
+    }
+
+    if (!result || !matchedProduct) return "";
 
     return [
       "[FOOD_ANALYSIS_MEMORY]",
@@ -439,13 +544,48 @@ async function getFoodMemoryFromProductQuestion(text) {
 function extractProductNameFromFoodQuestion(text) {
   const name = String(text || "")
     .replace(/\s+/g, " ")
-    .replace(/(먹어도|먹어봐도|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
+    .replace(/머거/g, "먹어")
+    .replace(/먹거/g, "먹어")
+    .replace(/먹어두/g, "먹어도")
+    .replace(/먹어도대/g, "먹어도돼")
+    .replace(/먹어도되/g, "먹어도돼")
+    .replace(/드셔두/g, "드셔도")
+    .replace(/섭취해두/g, "섭취해도")
+    .replace(/^(응|네|예|그래|좋아|ㅇㅇ|어)\s+/i, "")
+    .replace(/(먹어도\s*(?:돼|되|대)?|먹어봐도|먹어두|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
+    .replace(/(영양\s*성분|영양|성분|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|콜레스테롤)[^?!.]*/gi, "")
     .replace(/[?!.~'"]/g, "")
     .trim()
-    .replace(/(?:은|는|이|가|을|를)$/u, "")
+    .replace(/(?:은|는|이|가|을|를|도|좀|조금|같이|함께|먹어|돼|되냐|괜찮아|어때|어떠냐|알려줘|알려주라)$/u, "")
     .trim();
 
+  if (/^(이거|이것|그거|그것|저거|저것|이 음식|그 음식)$/u.test(name)) return "";
   return name.length >= 2 ? name : "";
+}
+
+function isSameFoodName(left, right) {
+  const normalizedLeft = normalizeFoodName(left);
+  const normalizedRight = normalizeFoodName(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+
+  return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
+}
+
+function buildNamedFoodLookupFallback(productName) {
+  return [
+    `${productName} 제품을 식약처에서 조회했어요.`,
+    "",
+    "정확한 영양성분 수치는 찾지 못했어요.",
+    "제품 포장지의 영양정보 표를 가까이 찍어주시면 칼로리, 나트륨, 당류 같은 항목을 표로 알려드릴게요.",
+  ].join("\n");
+}
+
+function getFoodProductQueryCandidates(productName) {
+  const rawName = String(productName || "").trim();
+  const compactName = rawName.replace(/\s+/g, "");
+  const withoutParentheses = rawName.replace(/\([^)]*\)/g, "").replace(/\[[^\]]*\]/g, "").trim();
+
+  return [...new Set([rawName, compactName, withoutParentheses].filter((name) => name.length >= 2))];
 }
 
 function getFoodSpecificCaution(productName) {
@@ -562,6 +702,15 @@ function isFoodSafetyQuestion(text) {
     .replace(/섭취해두/g, "섭취해도");
 
   return /(먹어도|먹어봐도|드셔도|섭취해도|먹으면|먹을수있)/.test(normalized);
+}
+
+function isFoodNutritionQuestion(text) {
+  const normalized = String(text || "").replace(/\s/g, "");
+
+  return (
+    /(영양성분|영양정보|성분표|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|트랜스지방|콜레스테롤)/.test(normalized) &&
+    /(어때|어떠|알려|뭐야|얼마|많아|높아|괜찮|분석|봐줘|확인)/.test(normalized)
+  );
 }
 
 function isGeneralFoodRecommendationQuestion(text) {

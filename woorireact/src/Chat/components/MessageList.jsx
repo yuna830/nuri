@@ -54,7 +54,11 @@ function getDateKey(value) {
 
 function parseFoodAnalysis(content) {
   const normalizedContent = String(content || "").replace(/^\d+번째 사진\s*\n/, "");
-  if (!normalizedContent.startsWith("성분표 분석이 끝났어요.")) return null;
+  const isMfdsLookup = /^.+ 제품을 식약처에서 조회했어요\./.test(normalizedContent);
+  const isFoodAnalysisMessage =
+    normalizedContent.startsWith("성분표 분석이 끝났어요.") ||
+    isMfdsLookup;
+  if (!isFoodAnalysisMessage) return null;
 
   const lines = normalizedContent.split("\n").map((line) => line.trim());
   const nutrientsStart = lines.indexOf("영양성분");
@@ -92,13 +96,20 @@ function parseFoodAnalysis(content) {
     });
   }
 
-  return { product, nutrients, warnings, notices };
+  return {
+    title: isMfdsLookup ? "식약처 조회 결과" : "성분표 분석 결과",
+    source: isMfdsLookup ? "출처: 식약처 식품영양성분 정보" : "",
+    product,
+    nutrients,
+    warnings,
+    notices,
+  };
 }
 
 function FoodAnalysisMessage({ analysis }) {
   return (
     <div className="food-analysis-card">
-      <strong className="food-analysis-title">성분표 분석 결과</strong>
+      <strong className="food-analysis-title">{analysis.title}</strong>
       <p className="food-analysis-product">제품명: {analysis.product || "인식하지 못함"}</p>
 
       <table className="food-nutrient-table">
@@ -126,6 +137,8 @@ function FoodAnalysisMessage({ analysis }) {
           {analysis.warnings.map((warning) => <p key={warning}>{warning.slice(2)}</p>)}
         </div>
       )}
+
+      {analysis.source && <p className="food-analysis-source">{analysis.source}</p>}
     </div>
   );
 }
