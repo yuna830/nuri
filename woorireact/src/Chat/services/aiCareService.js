@@ -83,9 +83,11 @@ export async function createCareResponse({ text, schedules, history = [], profil
       ? extractProductNameFromFoodQuestion(text)
       : "";
     let latestFoodAnalysisMemory = getLatestFoodAnalysisMemory(history);
+    const latestFoodAnalysisSource = extractFoodMemorySection(latestFoodAnalysisMemory, "Analysis source:");
 
     if (
       productNameFromQuestion &&
+      latestFoodAnalysisSource !== "image_classification" &&
       !isSameFoodName(productNameFromQuestion, getVisibleFoodName(latestFoodAnalysisMemory))
     ) {
       latestFoodAnalysisMemory = await getFoodMemoryFromProductQuestion(text);
@@ -542,8 +544,15 @@ async function getFoodMemoryFromProductQuestion(text) {
 function extractProductNameFromFoodQuestion(text) {
   const name = String(text || "")
     .replace(/\s+/g, " ")
+    .replace(/머거/g, "먹어")
+    .replace(/먹거/g, "먹어")
+    .replace(/먹어두/g, "먹어도")
+    .replace(/먹어도대/g, "먹어도돼")
+    .replace(/먹어도되/g, "먹어도돼")
+    .replace(/드셔두/g, "드셔도")
+    .replace(/섭취해두/g, "섭취해도")
     .replace(/^(응|네|예|그래|좋아|ㅇㅇ|어)\s+/i, "")
-    .replace(/(먹어도|먹어봐도|먹어두|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
+    .replace(/(먹어도\s*(?:돼|되|대)?|먹어봐도|먹어두|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
     .replace(/(영양\s*성분|영양|성분|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|콜레스테롤)[^?!.]*/gi, "")
     .replace(/[?!.~'"]/g, "")
     .trim()
