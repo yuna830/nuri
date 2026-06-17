@@ -238,6 +238,7 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
   List<Map<String, dynamic>> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _hasLoadedOnce = false;
   Timer? _pollTimer;
 
   @override
@@ -270,8 +271,9 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
     super.dispose();
   }
 
-  Future<void> _load({bool markRead = false}) async {
+  Future<void> _load({bool markRead = false, bool forceScroll = false}) async {
     try {
+      final shouldScroll = forceScroll || !_hasLoadedOnce || _isNearBottom();
       final viewerParam = markRead ? '&viewerRole=SENIOR' : '';
       final res = await http.get(Uri.parse(
           '$apiBaseUrl/api/chat/senior/${widget.seniorId}'
@@ -281,10 +283,14 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
         final list = jsonDecode(utf8.decode(res.bodyBytes));
         if (list is List) {
           setState(() {
-            _messages = list.whereType<Map<String, dynamic>>().toList();
+            _messages = list
+                .whereType<Map<String, dynamic>>()
+                .where((m) => !(m['message']?.toString() ?? '').contains('[WOORI_HIDDEN_MESSAGE]'))
+                .toList();
             _loading = false;
+            _hasLoadedOnce = true;
           });
-          _scrollToBottom();
+          if (shouldScroll) _scrollToBottom();
           if (markRead) widget.onRead();
         }
       }
@@ -315,7 +321,7 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
           if (attachName != null) 'attachmentName': attachName,
         }),
       );
-      await _load(markRead: true);
+      await _load(markRead: true, forceScroll: true);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -384,6 +390,12 @@ class _HumanChatRoomState extends State<_HumanChatRoom> {
         );
       }
     });
+  }
+
+  bool _isNearBottom() {
+    if (!_scrollCtrl.hasClients) return true;
+    final position = _scrollCtrl.position;
+    return position.maxScrollExtent - position.pixels <= 120;
   }
 
   @override
@@ -662,7 +674,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
             );
           }).toList();
           setState(() => _history.addAll(msgs));
-          _scrollToBottom();
+          _scrollToBottom(force: true);
           return;
         }
       }
@@ -973,7 +985,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
       _pendingOcrContext = null;
       _sending = true;
     });
-    _scrollToBottom();
+    _scrollToBottom(force: true);
 
     // 일자리 관련 질문이면 Gemini 대신 액션 카드 바로 반환
     if (_isJobRelated(q) && sentImageBase64 == null) {
@@ -992,7 +1004,7 @@ class _AiChatRoomState extends State<_AiChatRoom> {
           _history.add(_AiMsg(role: 'assistant', text: answer));
           _sending = false;
         });
-        _scrollToBottom();
+        _scrollToBottom(force: true);
       }
       return;
     }
@@ -1058,7 +1070,9 @@ class _AiChatRoomState extends State<_AiChatRoom> {
                 ?.toString()
                 .trim() ??
             '답변을 가져오지 못했습니다.';
+        final shouldScroll = _isNearBottom();
         setState(() => _history.add(_AiMsg(role: 'assistant', text: answer)));
+        _scrollToBottom(force: shouldScroll);
         _saveMessage('ASSISTANT', answer);
         _speak(answer);
       } else {
@@ -1080,9 +1094,10 @@ class _AiChatRoomState extends State<_AiChatRoom> {
     }
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
+        if (!force && !_isNearBottom()) return;
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
@@ -1090,6 +1105,12 @@ class _AiChatRoomState extends State<_AiChatRoom> {
         );
       }
     });
+  }
+
+  bool _isNearBottom() {
+    if (!_scrollCtrl.hasClients) return true;
+    final position = _scrollCtrl.position;
+    return position.maxScrollExtent - position.pixels <= 120;
   }
 
   @override
@@ -1502,11 +1523,12 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          Column(
-            crossAxisAlignment: isMine
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
               if (!isMine)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 3),
@@ -1565,7 +1587,8 @@ class _MessageBubble extends StatelessWidget {
                       style: const TextStyle(
                           color: Color(0xFFD1D5DB), fontSize: 10)),
                 ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1591,6 +1614,8 @@ class _AttachmentBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fullUrl = url.startsWith('http') ? url : '$apiBaseUrl$url';
+    final maxWidth = MediaQuery.of(context).size.width * 0.65;
+    final imageWidth = maxWidth > 200 ? 200.0 : maxWidth;
 
     if (_isImage) {
       if (url.startsWith('data:')) {
@@ -1600,9 +1625,9 @@ class _AttachmentBubble extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: Image.memory(
             base64Decode(base64Str),
-            width: 200,
+            width: imageWidth,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _fileTile(),
+            errorBuilder: (_, __, ___) => _fileTile(context),
           ),
         );
       }
@@ -1610,17 +1635,20 @@ class _AttachmentBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Image.network(
           fullUrl,
-          width: 200,
+          width: imageWidth,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fileTile(),
+          errorBuilder: (_, __, ___) => _fileTile(context),
         ),
       );
     }
-    return _fileTile();
+    return _fileTile(context);
   }
 
-  Widget _fileTile() {
+  Widget _fileTile(BuildContext context) {
+    final maxWidth = MediaQuery.of(context).size.width * 0.65;
+    final maxTextWidth = maxWidth - 46;
     return Container(
+      constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isMine
@@ -1633,7 +1661,8 @@ class _AttachmentBubble extends StatelessWidget {
             size: 16,
             color: isMine ? Colors.white : const Color(0xFF86A788)),
         const SizedBox(width: 6),
-        Flexible(
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxTextWidth),
           child: Text(
             name.isNotEmpty ? name : '첨부파일',
             style: TextStyle(

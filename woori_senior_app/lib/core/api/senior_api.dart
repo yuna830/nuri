@@ -307,11 +307,13 @@ class SeniorApi {
 
   /// 일자리 신청 상태 변경
   Future<Map<String, dynamic>> updateJobApplicationStatus(
-      int applicationId, String status) async {
+      int applicationId, String status, {String? applicationType}) async {
+    final body = <String, dynamic>{'status': status};
+    if (applicationType != null) body['applicationType'] = applicationType;
     final response = await http.patch(
       Uri.parse('$apiBaseUrl/api/job-interests/$applicationId/status'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'status': status}),
+      body: jsonEncode(body),
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {

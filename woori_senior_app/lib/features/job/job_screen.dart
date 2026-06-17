@@ -179,11 +179,6 @@ class _JobScreenState extends State<JobScreen> {
     _loadAll();
     _appTimer =
         Timer.periodic(const Duration(seconds: 30), (_) => _loadApplications());
-    widget.onRegisterAction?.call(
-      action: _showApplications,
-      icon: Icons.list_alt_outlined,
-      tooltip: '신청 내역',
-    );
   }
 
   @override
@@ -330,7 +325,7 @@ class _JobScreenState extends State<JobScreen> {
   int get _interestCount => _applications
       .where((a) =>
           (a['applicationType'] == 'INTEREST' || a['status'] == '관심 있음') &&
-          !['관심 삭제', '삭제', '취소'].contains(a['status']))
+          !['관심 삭제', '삭제', '취소', '검토 대기'].contains(a['status']))
       .length;
 
   int get _appliedCount => _applications
@@ -338,30 +333,38 @@ class _JobScreenState extends State<JobScreen> {
       .length;
 
   void _showInterestJobs() {
-    final interested = _applications
-        .where((a) =>
-            (a['applicationType'] == 'INTEREST' || a['status'] == '관심 있음') &&
-            !['관심 삭제', '삭제', '취소'].contains(a['status']))
-        .toList();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _InterestSheet(
-        applications: interested,
-        onDelete: (id) async {
-          await _api.updateJobApplicationStatus(id, '관심 삭제');
-          await _loadApplications();
-        },
-        onApply: (id) async {
-          await _api.updateJobApplicationStatus(id, '검토 대기');
-          await _loadApplications();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('신청했어요.'), backgroundColor: Color(0xFF86A788)),
-            );
-          }
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final interested = _applications
+              .where((a) =>
+                  (a['applicationType'] == 'INTEREST' ||
+                      a['status'] == '관심 있음') &&
+                  !['관심 삭제', '삭제', '취소', '검토 대기'].contains(a['status']))
+              .toList();
+          return _InterestSheet(
+            applications: interested,
+            onDelete: (id) async {
+              await _api.updateJobApplicationStatus(id, '관심 삭제');
+              await _loadApplications();
+              if (mounted) setSheetState(() {});
+            },
+            onApply: (id) async {
+              await _api.updateJobApplicationStatus(id, '검토 대기', applicationType: 'ONLINE');
+              await _loadApplications();
+              if (mounted) setSheetState(() {});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('신청했어요.'),
+                      backgroundColor: Color(0xFF86A788)),
+                );
+              }
+            },
+          );
         },
       ),
     );
