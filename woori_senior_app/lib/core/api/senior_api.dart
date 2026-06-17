@@ -323,7 +323,7 @@ class SeniorApi {
     return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
-  static const _timeout = Duration(seconds: 10);
+  static const _timeout = Duration(seconds: 25);
 
   Future<Map<String, dynamic>> _getJson(String path) async {
     final url = '$apiBaseUrl$path';

@@ -10,7 +10,26 @@ import {
 } from "../../utils/user/weatherAdvice";
 import { reverseGeocode } from "../../api/userPageApi.js";
 
-const SERVICE_KEY = import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "";
+const decodeRepeatedly = (value) => {
+  let current = value;
+
+  for (let index = 0; index < 3; index += 1) {
+    try {
+      const decoded = decodeURIComponent(current);
+      if (decoded === current) break;
+      current = decoded;
+    } catch {
+      break;
+    }
+  }
+
+  return current;
+};
+
+const SERVICE_KEY = (() => {
+  const rawKey = (import.meta.env.VITE_PUBLIC_DATA_SERVICE_KEY || "").trim();
+  return rawKey ? encodeURIComponent(decodeRepeatedly(rawKey)) : "";
+})();
 
 const toGrid = (lat, lon) => {
   const RE = 6371.00877, GRID = 5.0, SLAT1 = 30.0, SLAT2 = 60.0;
