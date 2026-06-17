@@ -104,7 +104,14 @@ function WelfareDashboard() {
 
     const [seniors, setSeniors] = useState([]);
     const [notificationSeniors, setNotificationSeniors] = useState([]);
-    const [isLoadingSeniors, setIsLoadingSeniors] = useState(true);
+    const [isLoadingSeniors, setIsLoadingSeniors] = useState(() => {
+        const workerId = (() => {
+            try {
+                return JSON.parse(sessionStorage.getItem("currentWelfareWorker") || "null")?.id;
+            } catch { return null; }
+        })();
+        return !workerId || !sessionStorage.getItem(`welfareSeniorsAll_${workerId}`);
+    });
     const [seniorLoadError, setSeniorLoadError] = useState("");
     const [dbWelfareAlerts, setDbWelfareAlerts] = useState([]);
     const [dismissedNotifications, setDismissedNotifications] = useState([]);
@@ -174,17 +181,22 @@ function WelfareDashboard() {
 
         const loadSeniors = async () => {
             try {
-                setIsLoadingSeniors(true);
                 setSeniorLoadError("");
 
-                const data = await fetchAllWelfareSeniors({
-                    welfareWorkerId: currentWorker.id,
-                });
+                const cacheKey = `welfareSeniorsAll_${currentWorker.id}`;
+                const cached = sessionStorage.getItem(cacheKey);
+
+                // 새 대상자 추가 시엔 캐시 무시하고 항상 새로 불러옴
+                if (cached && seniorReloadKey === 0) {
+                    setSeniors(JSON.parse(cached));
+                } else {
+                    setIsLoadingSeniors(true);
+                }
+
+                const data = await fetchAllWelfareSeniors({ welfareWorkerId: currentWorker.id });
                 const nextSeniors = Array.isArray(data) ? data.map(mapWelfareSenior) : [];
                 let seniorsWithMlHealthStatus = nextSeniors;
 
-                // 목록과 상세 화면이 서로 다른 판정을 보여주지 않도록,
-                // 표도 상세와 같은 ML 판정 API 결과를 받은 뒤 렌더링한다.
                 const seniorIds = nextSeniors.map((senior) => senior.id).filter(Boolean);
                 if (seniorIds.length > 0) {
                     try {
@@ -212,6 +224,7 @@ function WelfareDashboard() {
 
                 if (!ignore) {
                     setSeniors(seniorsWithMlHealthStatus);
+                    sessionStorage.setItem(cacheKey, JSON.stringify(seniorsWithMlHealthStatus));
                 }
             } catch (error) {
                 console.error("대상자 데이터 로딩 실패:", error);

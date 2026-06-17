@@ -1961,18 +1961,14 @@
   gap: 10px;
 }
 
-.guardian-welfare-modal-compose textarea {
-  width: 100%;
-  min-height: 74px;
-  max-height: 150px;
-  resize: vertical;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 11px 12px;
-  color: var(--text-main);
-  font: inherit;
+.guardian-welfare-modal-compose input {
+  flex: 1;
+  height: 46px;          
+  padding: 0 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
   font-size: 14px;
-  line-height: 1.5;
+  box-sizing: border-box;
 }
 
 .guardian-welfare-modal-compose textarea:focus {

@@ -419,9 +419,13 @@ function GuardianWelfarePanel({ selectedElder, onOpenChat }) {
               )}
 
               <div className="guardian-welfare-modal-compose">
-                <textarea
+                <input
+                  type="text"
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !isLoading) handleAsk();
+                  }}
                   placeholder={`${selectedElder?.name || "보호 대상자"}님이 받을 수 있는 복지 제도를 알려줘`}
                 />
 

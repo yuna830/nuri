@@ -94,8 +94,8 @@ class RagService:
             self._value(profile, "longTermCareGrade"),
             self._value(profile, "jobRequestStatus"),
             self._value(profile, "welfareMemo"),
-            self._join_list(profile.get("diseases")),
             self._join_list(profile.get("currentBenefits")),
+            # diseases는 focus 없을 때만 추가 (아래 else 블록에서 처리)
         ]
 
         for job in profile.get("jobApplications") or []:
@@ -121,45 +121,33 @@ class RagService:
 
         age = self._to_int(profile.get("age"))
         profile_text = " ".join(str(value) for value in keywords if value)
+        focus = self._detect_question_focus(question)
 
-        if age >= 65:
-            keywords.extend([
-                "노인 복지",
-                "기초연금",
-                "노인맞춤돌봄서비스",
-                "노인일자리",
-                "장기요양보험",
-                "응급안전안심서비스",
-                "방문건강관리",
-            ])
+        if focus == "health":
+            if "당뇨" in question:
+                keywords.extend([
+                    "방문건강관리",
+                    "의료급여",
+                    "재난적의료비지원",
+                ])
+            if "관절" in question:
+                keywords.extend([
+                    "노인 무릎 인공관절 수술 지원",
+                    "방문건강관리",
+                ])
+            if "치매" in question:
+                keywords.extend([
+                    "치매안심센터",
+                    "장기요양",
+                    "방문건강관리",
+                ])
+            if "고혈압" in question:
+                keywords.extend([
+                    "방문건강관리",
+                    "의료급여",
+                ])
 
-        if "독거" in profile_text or "혼자" in profile_text or self._value(profile, "livingAlone") in ("예", "true", "True", "1"):
-            keywords.extend([
-                "독거노인",
-                "돌봄",
-                "안부 확인",
-                "응급안전",
-                "방문 지원",
-                "노인맞춤돌봄서비스",
-            ])
-
-        if "치매" in profile_text:
-            keywords.extend([
-                "치매안심센터",
-                "장기요양",
-                "방문건강관리",
-                "노인맞춤돌봄서비스",
-            ])
-
-        if "당뇨" in profile_text or "관절" in profile_text or "질환" in profile_text:
-            keywords.extend([
-                "방문건강관리",
-                "의료급여",
-                "재난적의료비지원",
-                "노인 무릎 인공관절 수술 지원",
-            ])
-
-        if "없음" in profile_text or "저소득" in profile_text or "기초생활" in profile_text or "수급" in profile_text:
+        elif focus == "income":
             keywords.extend([
                 "기초생활보장",
                 "생계급여",
@@ -169,14 +157,18 @@ class RagService:
                 "기초연금",
             ])
 
-        if "장애" in profile_text:
+        elif focus == "care":
             keywords.extend([
-                "장애인연금",
-                "장애수당",
-                "장애인활동지원",
+                "노인맞춤돌봄서비스",
+                "독거노인",
+                "돌봄",
+                "안부 확인",
+                "응급안전안심서비스",
+                "방문 지원",
+                "장기요양보험",
             ])
 
-        if "일자리" in question or "취업" in question or "근무" in question:
+        elif focus == "job":
             keywords.extend([
                 "노인일자리",
                 "공공근로",
@@ -185,7 +177,98 @@ class RagService:
                 "일자리 신청",
             ])
 
+        elif focus == "disability":
+            keywords.extend([
+                "장애인연금",
+                "장애수당",
+                "장애인활동지원",
+            ])
+
+        else:
+            # 초점 없을 때만 diseases 전체 포함
+            keywords.append(self._join_list(profile.get("diseases")))
+
+            if age >= 65:
+                keywords.extend([
+                    "노인 복지",
+                    "기초연금",
+                    "노인맞춤돌봄서비스",
+                    "노인일자리",
+                    "장기요양보험",
+                    "응급안전안심서비스",
+                    "방문건강관리",
+                ])
+
+            if "독거" in profile_text or "혼자" in profile_text or self._value(profile, "livingAlone") in ("예", "true", "True", "1"):
+                keywords.extend([
+                    "독거노인",
+                    "돌봄",
+                    "안부 확인",
+                    "응급안전",
+                    "방문 지원",
+                    "노인맞춤돌봄서비스",
+                ])
+
+            if "치매" in profile_text:
+                keywords.extend([
+                    "치매안심센터",
+                    "장기요양",
+                    "방문건강관리",
+                    "노인맞춤돌봄서비스",
+                ])
+
+            if "당뇨" in profile_text or "관절" in profile_text or "질환" in profile_text:
+                keywords.extend([
+                    "방문건강관리",
+                    "의료급여",
+                    "재난적의료비지원",
+                    "노인 무릎 인공관절 수술 지원",
+                ])
+
+            if "없음" in profile_text or "저소득" in profile_text or "기초생활" in profile_text or "수급" in profile_text:
+                keywords.extend([
+                    "기초생활보장",
+                    "생계급여",
+                    "의료급여",
+                    "주거급여",
+                    "차상위",
+                    "기초연금",
+                ])
+
+            if "장애" in profile_text:
+                keywords.extend([
+                    "장애인연금",
+                    "장애수당",
+                    "장애인활동지원",
+                ])
+
+            if "일자리" in question or "취업" in question or "근무" in question:
+                keywords.extend([
+                    "노인일자리",
+                    "공공근로",
+                    "취업지원",
+                    "사회활동 지원",
+                    "일자리 신청",
+                ])
+
         return " ".join(str(value) for value in keywords if value)
+    
+    
+
+    _FOCUS_MAP = {
+        "health": ["당뇨", "고혈압", "암", "관절", "뇌졸중", "신장", "간", "폐", "심장", "치매", "건강", "질환", "의료", "치료", "병원"],
+        "income": ["소득", "생계", "기초생활", "수급", "기초연금", "연금", "급여", "저소득", "차상위"],
+        "care":   ["돌봄", "독거", "요양", "장기요양", "방문", "안전", "안심"],
+        "job":    ["일자리", "취업", "근무", "공공근로"],
+        "disability": ["장애"],
+    }
+
+    def _detect_question_focus(self, question: str) -> str | None:
+        normalized = question.replace(" ", "")
+        for focus, keywords in self._FOCUS_MAP.items():
+            if any(kw in normalized for kw in keywords):
+                return focus
+        return None
 
     def _value(self, profile: dict, key: str) -> str:
         value = profile.get(key)

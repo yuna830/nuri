@@ -1215,6 +1215,7 @@ function GuardianPage() {
       setGuardian(next);
       if (profileForm.relation.trim() && activeElderId) {
         await updateGuardianSeniorRelation(guardianId, activeElderId, profileForm.relation.trim()).catch(() => { });
+        await reloadGuardianSeniors();
       }
       setIsProfileOpen(false);
       gToast.success("프로필이 저장됐습니다.");

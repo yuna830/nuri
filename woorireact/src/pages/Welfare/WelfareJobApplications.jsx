@@ -62,13 +62,24 @@ function WelfareJobApplications() {
 
         const loadApplications = async (silent = false) => {
             try {
-                if (!silent) setIsLoading(true);
                 setLoadError("");
+                const workerId = getCurrentWelfareWorkerId();
+                const cacheKey = `welfareJobApplications_${workerId}`;
 
-                const data = await fetchWelfareJobApplications(getCurrentWelfareWorkerId());
+                if (!silent) {
+                    const cached = sessionStorage.getItem(cacheKey);
+                    if (cached) {
+                        setApplications(JSON.parse(cached));
+                    } else {
+                        setIsLoading(true);
+                    }
+                }
+
+                const data = await fetchWelfareJobApplications(workerId);
 
                 if (!ignore) {
                     setApplications(data);
+                    sessionStorage.setItem(cacheKey, JSON.stringify(data));
                 }
             } catch {
                 if (!ignore) {
@@ -149,10 +160,10 @@ function WelfareJobApplications() {
 
                 <main className="wja-main">
                     <WelfareSummaryCards
-                    mode="jobs"
-                    counts={getJobApplicationSummaryCounts(applications)}
-                    activeKey={summaryFilter}
-                    onFilter={(key) => setSummaryFilter(key)}
+                        mode="jobs"
+                        counts={getJobApplicationSummaryCounts(applications)}
+                        activeKey={summaryFilter}
+                        onFilter={(key) => setSummaryFilter(key)}
                     />
 
                     <div className="wja-search-row">

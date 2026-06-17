@@ -31,7 +31,10 @@ function WelfareJobPostings() {
     const [activeCategory, setActiveCategory] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [hideClosedJobs, setHideClosedJobs] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(() => {
+        const workerId = getCurrentWelfareWorkerId();
+        return !workerId || !sessionStorage.getItem(`welfareJobApplications_${workerId}`);
+    });
     const [loadError, setLoadError] = useState("");
     const [loadedPage, setLoadedPage] = useState(0);
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -168,7 +171,7 @@ function WelfareJobPostings() {
 
     useEffect(() => {
         localStorage.setItem("woori-jobs-last-visited", Date.now().toString());
-         
+
         loadUntilEnough({
             startPage: 1,
             targetCount: PAGE_SIZE,
@@ -177,7 +180,7 @@ function WelfareJobPostings() {
     }, []);
 
     useEffect(() => {
-         
+
         setVisibleCount(PAGE_SIZE);
     }, [activeCategory, searchKeyword, hideClosedJobs]);
 
@@ -197,7 +200,7 @@ function WelfareJobPostings() {
             return;
         }
 
-         
+
         loadUntilEnough({
             startPage: loadedPage + 1,
             targetCount: PAGE_SIZE,
@@ -235,6 +238,13 @@ function WelfareJobPostings() {
 
         if (welfareSeniors.length > 0) return;
 
+        const cacheKey = `welfareSeniorsAll_${currentWorker?.id}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+            setWelfareSeniors(JSON.parse(cached));
+            return;
+        }
+
         try {
             const data = await fetchWelfareSeniors({
                 page: 0,
@@ -243,6 +253,7 @@ function WelfareJobPostings() {
             });
             const list = Array.isArray(data) ? data : data.content || [];
             setWelfareSeniors(list);
+            sessionStorage.setItem(cacheKey, JSON.stringify(list));
         } catch {
             alert("대상자 목록을 불러오지 못했습니다.");
         }
@@ -303,24 +314,24 @@ function WelfareJobPostings() {
             <WelfareCommonHeader rightText={`노인일자리 공고 | 전체 ${totalCount.toLocaleString()}건`} />
 
             <div className="wj-content">
-            <div className="wj-layout wj-layout-with-main-sidebar">
-                <WelfareSidebar active="jobs">
-                    <div className="wj-sidebar-category-box wj-sidebar-category-under-nav">
-                        <strong className="wj-sidebar-title">직종 분류</strong>
-                        {JOB_CATEGORY_FILTERS.map((category) => (
-                            <button
-                                type="button"
-                                key={category.label}
-                                className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
-                                onClick={() => setActiveCategory(category.value)}
-                            >
-                                {category.label}
-                            </button>
-                        ))}
-                    </div>
-                </WelfareSidebar>
+                <div className="wj-layout wj-layout-with-main-sidebar">
+                    <WelfareSidebar active="jobs">
+                        <div className="wj-sidebar-category-box wj-sidebar-category-under-nav">
+                            <strong className="wj-sidebar-title">직종 분류</strong>
+                            {JOB_CATEGORY_FILTERS.map((category) => (
+                                <button
+                                    type="button"
+                                    key={category.label}
+                                    className={`wj-sidebar-item${activeCategory === category.value ? " wj-sidebar-item-active" : ""}`}
+                                    onClick={() => setActiveCategory(category.value)}
+                                >
+                                    {category.label}
+                                </button>
+                            ))}
+                        </div>
+                    </WelfareSidebar>
 
-                <div className="wj-main-area">
+                    <div className="wj-main-area">
                         <div className="wj-search-row">
                             <Search size={16} className="wj-search-icon" />
 
@@ -346,92 +357,92 @@ function WelfareJobPostings() {
                         </div>
 
                         <div className="wj-cards-scroll">
-                        {isLoading && jobs.length === 0 && (
-                            <p className="wj-empty-text">일자리 공고를 불러오는 중입니다.</p>
-                        )}
+                            {isLoading && jobs.length === 0 && (
+                                <p className="wj-empty-text">일자리 공고를 불러오는 중입니다.</p>
+                            )}
 
-                        {!isLoading && loadError && (
-                            <p className="wj-empty-text">{loadError}</p>
-                        )}
+                            {!isLoading && loadError && (
+                                <p className="wj-empty-text">{loadError}</p>
+                            )}
 
-                        {!isLoading && !loadError && filteredJobs.length === 0 && !hasMoreSource && (
-                            <p className="wj-empty-text">검색 결과가 없습니다.</p>
-                        )}
+                            {!isLoading && !loadError && filteredJobs.length === 0 && !hasMoreSource && (
+                                <p className="wj-empty-text">검색 결과가 없습니다.</p>
+                            )}
 
-                        <div className="wj-job-list">
-                            {visibleJobs.map((job) => {
-                                const jobCategory = categorizeJob(job);
-                                const employmentText =
-                                    EMPL_MAP[job.emplymShp] || job.emplymShpNm || "기타";
+                            <div className="wj-job-list">
+                                {visibleJobs.map((job) => {
+                                    const jobCategory = categorizeJob(job);
+                                    const employmentText =
+                                        EMPL_MAP[job.emplymShp] || job.emplymShpNm || "기타";
 
-                                return (
-                                    <article
-                                        key={job.jobId}
-                                        className="wj-job-card"
-                                        onClick={() => setSelectedJob(job)}
-                                    >
-                                        <div className="wj-job-card-accent" />
+                                    return (
+                                        <article
+                                            key={job.jobId}
+                                            className="wj-job-card"
+                                            onClick={() => setSelectedJob(job)}
+                                        >
+                                            <div className="wj-job-card-accent" />
 
-                                        <div className="wj-job-card-top">
-                                            <div>
-                                                <h2 className="wj-job-title">
-                                                    {job.recrtTitle || "공고명 미공개"}
-                                                </h2>
-                                                <p className="wj-organization">
-                                                    🏢 {job.oranNm || "기관명 미공개"}
-                                                </p>
+                                            <div className="wj-job-card-top">
+                                                <div>
+                                                    <h2 className="wj-job-title">
+                                                        {job.recrtTitle || "공고명 미공개"}
+                                                    </h2>
+                                                    <p className="wj-organization">
+                                                        🏢 {job.oranNm || "기관명 미공개"}
+                                                    </p>
+                                                </div>
+
+                                                <div className="wj-badge-row">
+                                                    <span className="wj-source-badge">
+                                                        {job.source === "seoul" ? "서울일자리" : "노인일자리"}
+                                                    </span>
+                                                    <span className="wj-job-type-badge">
+                                                        {jobCategory}
+                                                    </span>
+                                                    <span className="wj-employment-badge">
+                                                        {employmentText}
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            <div className="wj-badge-row">
-                                                <span className="wj-source-badge">
-                                                    {job.source === "seoul" ? "서울일자리" : "노인일자리"}
-                                                </span>
-                                                <span className="wj-job-type-badge">
-                                                    {jobCategory}
-                                                </span>
-                                                <span className="wj-employment-badge">
-                                                    {employmentText}
+                                            <div className="wj-job-meta">
+                                                {job.workPlcNm && (
+                                                    <span className="wj-meta-item">
+                                                        📍 {job.workPlcNm}
+                                                    </span>
+                                                )}
+
+                                                {job.jobclsNm && (
+                                                    <span className="wj-meta-item">
+                                                        📋 {job.jobclsNm}
+                                                    </span>
+                                                )}
+
+                                                {job.acptMthd && (
+                                                    <span className="wj-meta-item">
+                                                        📝 {job.acptMthd}
+                                                    </span>
+                                                )}
+
+                                                <span className="wj-meta-item">
+                                                    📅 {formatDate(job.frDd)} ~ {formatDate(job.toDd)}
                                                 </span>
                                             </div>
-                                        </div>
+                                        </article>
+                                    );
+                                })}
+                            </div>
 
-                                        <div className="wj-job-meta">
-                                            {job.workPlcNm && (
-                                                <span className="wj-meta-item">
-                                                    📍 {job.workPlcNm}
-                                                </span>
-                                            )}
-
-                                            {job.jobclsNm && (
-                                                <span className="wj-meta-item">
-                                                    📋 {job.jobclsNm}
-                                                </span>
-                                            )}
-
-                                            {job.acptMthd && (
-                                                <span className="wj-meta-item">
-                                                    📝 {job.acptMthd}
-                                                </span>
-                                            )}
-
-                                            <span className="wj-meta-item">
-                                                📅 {formatDate(job.frDd)} ~ {formatDate(job.toDd)}
-                                            </span>
-                                        </div>
-                                    </article>
-                                );
-                            })}
+                            {!isLoading && !loadError && hasMoreVisible && (
+                                <button type="button" className="wj-more-button" onClick={handleMore}>
+                                    {Math.min(PAGE_SIZE, Math.max(filteredJobs.length - visibleJobs.length, 0)) || PAGE_SIZE}건 더보기
+                                </button>
+                            )}
                         </div>
-
-                        {!isLoading && !loadError && hasMoreVisible && (
-                            <button type="button" className="wj-more-button" onClick={handleMore}>
-                                {Math.min(PAGE_SIZE, Math.max(filteredJobs.length - visibleJobs.length, 0)) || PAGE_SIZE}건 더보기
-                            </button>
-                        )}
-                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
             {selectedJob && (
                 <div
@@ -637,7 +648,7 @@ function WelfareJobPostings() {
                     </section>
                 </div>
             )}
-            
+
         </div>
     );
 }

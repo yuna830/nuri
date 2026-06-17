@@ -70,8 +70,10 @@ export const mapSeniorProfileToElder = (profile) => {
     id: senior.id,
     name: senior.name || "이름 없음",
     relation: profile.guardianRelationToSenior ||
-      inferGuardianRelationFromSeniorCall(profile.relation, senior.gender) ||
+      profile.relation ||
+      inferGuardianRelationFromSeniorCall(senior.seniorRelationToGuardian, senior.gender) ||
       "보호 대상자",
+      
     seniorRelationToGuardian: senior.seniorRelationToGuardian || "",
     guardianName: senior.guardianName || profile.guardianName || "",
     socialWorkerName: senior.socialWorkerName || profile.socialWorkerName || "",

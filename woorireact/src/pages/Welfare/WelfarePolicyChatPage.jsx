@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HelpCircle, Send } from "lucide-react";
 
 import WelfareCommonHeader from "../../components/welfare/WelfareCommonHeader.jsx";
@@ -36,6 +36,12 @@ function WelfarePolicyChatPage() {
 
     const selectedSenior = seniors.find((senior) => String(senior.id) === selectedSeniorId) || null;
 
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, isLoading]);
+
     useEffect(() => {
         const currentWorker = JSON.parse(
             sessionStorage.getItem("currentWelfareWorker") ||
@@ -51,9 +57,20 @@ function WelfarePolicyChatPage() {
             return;
         }
 
+        const cacheKey = `welfareSeniors_${workerId}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+            setSeniors(JSON.parse(cached));
+            setSeniorsLoading(false);
+        }
+
         fetchWelfareSeniors({ page: 0, size: 100, welfareWorkerId: workerId })
-            .then((data) => setSeniors(Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : []))
-            .catch(() => setSeniors([]))
+            .then((data) => {
+                const list = Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : [];
+                setSeniors(list);
+                sessionStorage.setItem(cacheKey, JSON.stringify(list));
+            })
+            .catch(() => { if (!cached) setSeniors([]); })
             .finally(() => setSeniorsLoading(false));
     }, []);
 
@@ -233,12 +250,20 @@ function WelfarePolicyChatPage() {
                                     ))}
                                 </article>
                             )}
+
+                            <div ref={messagesEndRef} />
                         </div>
 
                         <div className="wpc-input-row">
                             <textarea
                                 value={question}
                                 onChange={(event) => setQuestion(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && !event.shiftKey && !isLoading) {
+                                        event.preventDefault();
+                                        handleAsk();
+                                    }
+                                }}
                                 placeholder="예: 최순자 대상자가 받을 수 있는 복지제도 알려줘"
                             />
                             <button type="button" onClick={handleAsk} disabled={isLoading}>
