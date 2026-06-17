@@ -519,6 +519,14 @@
   color: #b92727;
 }
 
+.food-analysis-source {
+  margin: 10px 0 0;
+  color: #6f786d;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .food-safety-card {
   padding: 16px;
 }
