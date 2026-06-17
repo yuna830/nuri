@@ -6,6 +6,7 @@ import com.nuri.woori.entity.SightingReport;
 import com.nuri.woori.repository.AlertRepository;
 import com.nuri.woori.repository.MissingReportRepository;
 import com.nuri.woori.repository.SightingReportRepository;
+import com.nuri.woori.service.FcmPushService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,20 +19,23 @@ public class SightingReportController {
     private final SightingReportRepository sightingReportRepository;
     private final MissingReportRepository missingReportRepository;
     private final AlertRepository alertRepository;
+    private final FcmPushService fcmPushService;
 
     public SightingReportController(SightingReportRepository sightingReportRepository,
                                     MissingReportRepository missingReportRepository,
-                                    AlertRepository alertRepository) {
+                                    AlertRepository alertRepository,
+                                    FcmPushService fcmPushService) {
         this.sightingReportRepository = sightingReportRepository;
         this.missingReportRepository = missingReportRepository;
         this.alertRepository = alertRepository;
+        this.fcmPushService = fcmPushService;
     }
 
     @PostMapping
     public SightingReport createSightingReport(@RequestBody SightingReport sightingReport) {
-        if (sightingReport.getSimilarityScore() != null && sightingReport.getSimilarityScore() >= 80) {
+        if (sightingReport.getSimilarityScore() != null && sightingReport.getSimilarityScore() >= 0.62) {
             sightingReport.setStatus("MATCHED");
-        } else if (sightingReport.getSimilarityScore() != null && sightingReport.getSimilarityScore() >= 60) {
+        } else if (sightingReport.getSimilarityScore() != null && sightingReport.getSimilarityScore() >= 0.55) {
             sightingReport.setStatus("POSSIBLE");
         } else {
             sightingReport.setStatus("UNMATCHED");
@@ -66,5 +70,8 @@ public class SightingReportController {
         alert.setIsRead(false);
 
         alertRepository.save(alert);
+
+        fcmPushService.sendToUser("GUARDIAN", missingReport.getGuardianId(),
+                alert.getTitle(), alert.getMessage(), "MISSING_SIGHTING");
     }
 }

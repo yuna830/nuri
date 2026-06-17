@@ -103,12 +103,12 @@ const isWithinDays = (value, days) => {
 // - 정보 입력 요청: 7일
 // - 안부 확인·일반 알림: 3일
 const ALERT_RETENTION_DAYS = {
-  SOS:              7,
-  UNANSWERED_SOS:   7,
-  FALL_DETECTED:    7,
-  FALL_RISK:        7,
-  SAFE_ZONE_EXIT:   7,
-  SAFE_ZONE:        7,
+  SOS: 7,
+  UNANSWERED_SOS: 7,
+  FALL_DETECTED: 7,
+  FALL_RISK: 7,
+  SAFE_ZONE_EXIT: 7,
+  SAFE_ZONE: 7,
   INFO_UPDATE_REQUEST: 7,
 };
 const DEFAULT_RETENTION_DAYS = 3;
@@ -171,8 +171,8 @@ export const buildDisplayedAlerts = (apiAlerts, reportedAlertIds) => {
         status: isReported
           ? "신고 완료"
           : alert.isRead
-            ? isCandidateConfirm ? "확인 완료" : isSafeZone ? "만남 완료" : "확인됨"
-            : isCandidateConfirm ? "확인 필요" : "미확인",
+            ? isSafeZone ? "알림 확인" : isCandidateConfirm ? "확인 완료" : "확인됨"
+            : isSafeZone ? "확인 필요" : isCandidateConfirm ? "확인 필요" : "미확인",
         isSos: alert.type === "SOS",
         isSafeZone,
         isFall,

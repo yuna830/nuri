@@ -1,10 +1,12 @@
 package com.nuri.woori.service;
 
+import java.util.List;
 import java.util.Map;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
+import com.nuri.woori.entity.PushToken;
 import com.nuri.woori.repository.PushTokenRepository;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +40,12 @@ public class FcmPushService {
             return;
         }
 
-        pushTokenRepository.findByRoleAndUserId(role, userId).forEach(token -> {
+        List<PushToken> tokens = pushTokenRepository.findByRoleAndUserId(role, userId);
+        if (tokens.isEmpty()) {
+            System.err.println("[FCM] 토큰 없음 role=" + role + ", userId=" + userId);
+            return;
+        }
+        tokens.forEach(token -> {
             try {
                 Message.Builder builder = Message.builder()
                         .setToken(token.getToken())
@@ -56,9 +63,10 @@ public class FcmPushService {
                     });
                 }
 
-                FirebaseMessaging.getInstance().sendAsync(builder.build());
+                String messageId = FirebaseMessaging.getInstance().send(builder.build());
+                System.out.println("[FCM] 발송 성공 role=" + role + ", userId=" + userId + ", messageId=" + messageId);
             } catch (Exception e) {
-                System.err.println("[FCM] send failed role=" + role + ", userId=" + userId);
+                System.err.println("[FCM] 발송 실패 role=" + role + ", userId=" + userId);
                 e.printStackTrace();
             }
         });

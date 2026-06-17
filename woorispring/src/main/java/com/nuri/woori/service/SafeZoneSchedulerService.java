@@ -10,6 +10,8 @@ import com.nuri.woori.repository.GuardianSeniorRepository;
 import com.nuri.woori.repository.LocationStatusRepository;
 import com.nuri.woori.repository.SafeZonesRepository;
 import com.nuri.woori.repository.SeniorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,8 @@ import java.util.List;
 // TODO: 실시간성이 필요해지면 시니어 앱 ForegroundService로 교체 고려
 @Service
 public class SafeZoneSchedulerService {
+
+    private static final Logger log = LoggerFactory.getLogger(SafeZoneSchedulerService.class);
 
     // 마지막 위치 데이터가 이 시간보다 오래됐으면 기기가 꺼진 것으로 보고 체크 건너뜀
     private static final int STALE_MINUTES = 30;
@@ -55,7 +59,8 @@ public class SafeZoneSchedulerService {
         for (Senior senior : seniors) {
             try {
                 checkSenior(senior);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.error("[SafeZone] seniorId={} 처리 중 오류", senior.getId(), e);
             }
         }
     }
@@ -109,6 +114,9 @@ public class SafeZoneSchedulerService {
         String message = senior.getName() + "님이 설정된 안전구역 밖에 있습니다. 위치를 확인해 주세요.";
 
         List<GuardianSenior> links = guardianSeniorRepository.findBySeniorId(seniorId);
+        if (links.isEmpty()) {
+            log.warn("[SafeZone] seniorId={} 보호자 매핑 없음, FCM 발송 불가", seniorId);
+        }
         for (GuardianSenior link : links) {
             Alert alert = new Alert();
             alert.setSeniorId(seniorId);

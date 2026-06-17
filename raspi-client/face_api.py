@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 MATCH_THRESHOLD = 0.62
 CANDIDATE_THRESHOLD = 0.55
-FACE_ALERT_COOLDOWN_SECONDS = 60
+FACE_ALERT_COOLDOWN_SECONDS = 600
 KNOWN_FACE_QUALITY_MIN_SCORE = 0.45
 LIVE_FACE_QUALITY_MIN_SCORE = 0.45
 MIN_FACE_SIZE = 100
@@ -43,6 +43,90 @@ last_alert_time_by_senior_id = {}
 # 이미지 URL별 임베딩 캐시 — reload 때마다 전체 사진을 재임베딩하지 않도록 한다.
 # (재임베딩이 verify와 CPU를 경쟁하면 앱 쪽 타임아웃이 발생한다)
 embedding_cache_by_url = {}
+
+CLOTHING_COLOR_RATIO = 0.15
+
+# 의류 종류 키워드 → 색상에서 추정 가능한 HSV 범위
+# 색상이 이름에 내포된 것만 매핑 가능 (후드집업 등 색상 무관 종류는 매핑 불가)
+CLOTHING_TYPE_COLOR_MAP = {
+    # 청(데님) 계열
+    "청바지":  ([90,  60,  40], [130, 255, 200]),
+    "청재킷":  ([90,  60,  40], [130, 255, 200]),
+    "청치마":  ([90,  60,  40], [130, 255, 200]),
+    "청반바지": ([90,  60,  40], [130, 255, 200]),
+    "데님":    ([90,  60,  40], [130, 255, 200]),
+
+    # 군/작업복
+    "군복":    ([30,  40,  40], [80,  180, 150]),
+    "작업복":  ([30,  40,  40], [80,  180, 150]),
+    "카키":    ([30,  40,  40], [80,  180, 180]),
+    "올리브":  ([30,  40,  40], [80,  180, 180]),
+
+    # 형광/야광
+    "형광":    ([30, 180, 180], [80,  255, 255]),
+    "야광":    ([30, 180, 180], [80,  255, 255]),
+    "형광조끼": ([20, 180, 180], [40,  255, 255]),
+
+    # 등산/스포츠
+    "등산복":  ([0,  100, 100], [180, 255, 255]),  # 다양한 원색
+}
+
+CLOTHING_COLOR_MAP = {
+    "빨간":  ([0,   100, 100], [10,  255, 255]),
+    "빨강":  ([0,   100, 100], [10,  255, 255]),
+    "붉은":  ([0,   100, 100], [10,  255, 255]),
+    "파란":  ([100, 100, 100], [130, 255, 255]),
+    "파랑":  ([100, 100, 100], [130, 255, 255]),
+    "청색":  ([100, 100, 100], [130, 255, 255]),
+    "남색":  ([100, 150,  50], [130, 255, 150]),
+    "초록":  ([40,  100, 100], [80,  255, 255]),
+    "녹색":  ([40,  100, 100], [80,  255, 255]),
+    "흰":    ([0,   0,   200], [180,  30, 255]),
+    "흰색":  ([0,   0,   200], [180,  30, 255]),
+    "하얀":  ([0,   0,   200], [180,  30, 255]),
+    "검은":  ([0,   0,     0], [180, 255,  50]),
+    "검정":  ([0,   0,     0], [180, 255,  50]),
+    "노란":  ([20, 100,  100], [35,  255, 255]),
+    "노랑":  ([20, 100,  100], [35,  255, 255]),
+    "주황":  ([10, 100,  100], [20,  255, 255]),
+    "보라":  ([130, 100, 100], [160, 255, 255]),
+    "회색":  ([0,   0,    80], [180,  30, 200]),
+    "회":    ([0,   0,    80], [180,  30, 200]),
+    "갈색":  ([10,  60,   40], [25,  200, 180]),
+    "베이지": ([15,  20,  150], [30,   80, 255]),
+}
+
+
+def extract_body_region(image, bbox):
+    left, top, right, bottom = map(int, bbox)
+    face_h = max(bottom - top, 1)
+    h, w = image.shape[:2]
+    margin = face_h // 2
+    b_top = bottom
+    b_bottom = min(h, bottom + face_h * 3)
+    b_left = max(0, left - margin)
+    b_right = min(w, right + margin)
+    if b_bottom <= b_top or b_right <= b_left:
+        return None
+    return image[b_top:b_bottom, b_left:b_right]
+
+
+def clothing_matches(body_region, description: str) -> bool:
+    if body_region is None or body_region.size == 0 or not description:
+        return False
+    hsv = cv2.cvtColor(body_region, cv2.COLOR_BGR2HSV)
+    pixels = hsv.reshape(-1, 3)
+    total = len(pixels)
+    combined = {**CLOTHING_COLOR_MAP, **CLOTHING_TYPE_COLOR_MAP}
+    for keyword, (lower, upper) in combined.items():
+        if keyword not in description:
+            continue
+        mask = np.all(
+            (pixels >= np.array(lower)) & (pixels <= np.array(upper)), axis=1
+        )
+        if np.sum(mask) / total >= CLOTHING_COLOR_RATIO:
+            return True
+    return False
 
 
 def read_image(path: str):
@@ -415,7 +499,7 @@ def can_send_alert(senior_id: int):
     return True
 
 
-def post_camera_alert(senior_id: int, similarity: float):
+def post_camera_alert(senior_id: int, similarity: float, candidate_kind: str = "FACE_MATCH"):
     if senior_id is None:
         return
 
@@ -425,12 +509,13 @@ def post_camera_alert(senior_id: int, similarity: float):
             json={
                 "seniorId": senior_id,
                 "type": "AI_CANDIDATE_CONFIRM",
+                "candidateKind": candidate_kind,
                 "message": "유사한 사람이 감지되었습니다. 보호자 확인이 필요합니다.",
             },
             timeout=10,
         )
         response.raise_for_status()
-        print(f"spring candidate alert sent: seniorId={senior_id}, similarity={similarity:.3f}")
+        print(f"spring candidate alert sent: seniorId={senior_id}, similarity={similarity:.3f}, kind={candidate_kind}")
     except requests.RequestException as error:
         print(f"spring alert failed: {error}")
 
@@ -572,6 +657,15 @@ async def verify_faces(
             else:
                 match_status = "NO_MATCH"
                 matched = False
+                body_region = extract_body_region(image, face.bbox)
+                for known in known_embeddings:
+                    desc = known.get("description")
+                    if desc and clothing_matches(body_region, desc):
+                        match_status = "BODY_CANDIDATE"
+                        best_match = known
+                        matched = True
+                        final_matched = True
+                        break
 
             best_overall_similarity = max(best_overall_similarity, best_similarity)
 
@@ -594,10 +688,11 @@ async def verify_faces(
 
     matched_face = next((face for face in results if face.get("status") == "MATCH"), None)
     candidate_face = next((face for face in results if face.get("status") == "CANDIDATE"), None)
+    body_candidate_face = next((face for face in results if face.get("status") == "BODY_CANDIDATE"), None)
     best_candidate = max(results, key=lambda face: face.get("similarity", 0), default=None)
 
-    final_face = matched_face or candidate_face
-    final_status = "MATCH" if matched_face else "CANDIDATE" if candidate_face else "NO_MATCH"
+    final_face = matched_face or candidate_face or body_candidate_face
+    final_status = "MATCH" if matched_face else "CANDIDATE" if candidate_face else "BODY_CANDIDATE" if body_candidate_face else "NO_MATCH"
 
     # 실종자별 최고 유사도 결과 — 한 사진에 실종자가 여러 명 찍힌 경우를 위해
     # 매치/후보로 인식된 실종자를 전부 모은다.
@@ -624,8 +719,11 @@ async def verify_faces(
         )
     ]
 
-    if final_matched and matched_face and can_send_alert(matched_face.get("seniorId")):
-        post_camera_alert(matched_face.get("seniorId"), best_overall_similarity)
+    if final_matched:
+        if matched_face and can_send_alert(matched_face.get("seniorId")):
+            post_camera_alert(matched_face.get("seniorId"), best_overall_similarity, "FACE_MATCH")
+        elif not matched_face and body_candidate_face and can_send_alert(body_candidate_face.get("seniorId")):
+            post_camera_alert(body_candidate_face.get("seniorId"), 0.0, "BODY_CANDIDATE")
 
     return {
         "matched": final_status in ("MATCH", "CANDIDATE"),

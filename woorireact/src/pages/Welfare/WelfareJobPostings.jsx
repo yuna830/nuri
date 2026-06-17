@@ -32,7 +32,7 @@ function WelfareJobPostings() {
     const [searchKeyword, setSearchKeyword] = useState("");
     const [hideClosedJobs, setHideClosedJobs] = useState(true);
     const [isLoading, setIsLoading] = useState(() => {
-        const workerId = getCurrentWelfareWorkerId();
+        const workerId = currentWorker?.id ?? null;
         return !workerId || !sessionStorage.getItem(`welfareJobApplications_${workerId}`);
     });
     const [loadError, setLoadError] = useState("");
