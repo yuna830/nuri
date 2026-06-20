@@ -104,9 +104,15 @@ public class SafeZoneSchedulerService {
                 .findTopBySeniorIdAndTypeOrderByCreatedAtDesc(seniorId, "SAFE_ZONE_EXIT")
                 .orElse(null);
 
-        if (latest != null && latest.getCreatedAt() != null
-                && latest.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES))) {
-            return;
+        if (latest != null) {
+            // 보호자가 이미 확인(읽음)한 경우 — 어르신이 복귀할 때까지 재발송 안 함
+            if (Boolean.TRUE.equals(latest.getIsRead())) return;
+
+            // 아직 확인 안 했어도 쿨다운 안에 있으면 스킵
+            if (latest.getCreatedAt() != null
+                    && latest.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(COOLDOWN_MINUTES))) {
+                return;
+            }
         }
 
         // 6. 알림 생성 + 보호자 FCM 발송
@@ -129,7 +135,9 @@ public class SafeZoneSchedulerService {
             alert.setIsRead(false);
             alertRepository.save(alert);
 
-            fcmPushService.sendToUser("GUARDIAN", link.getGuardianId(), title, message, "SAFE_ZONE_EXIT");
+            // collapseKey: 같은 어르신의 이탈 알림은 기기 알림함에서 하나로 합쳐짐
+            fcmPushService.sendToUser("GUARDIAN", link.getGuardianId(), title, message, "SAFE_ZONE_EXIT",
+                    null, "SAFE_ZONE_EXIT_" + seniorId);
         }
     }
 

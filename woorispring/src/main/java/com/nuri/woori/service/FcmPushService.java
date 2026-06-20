@@ -3,6 +3,7 @@ package com.nuri.woori.service;
 import java.util.List;
 import java.util.Map;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
@@ -19,7 +20,11 @@ public class FcmPushService {
     }
 
     public void sendToUser(String role, Long userId, String title, String body, String type) {
-        sendToUser(role, userId, title, body, type, null);
+        sendToUser(role, userId, title, body, type, null, null);
+    }
+
+    public void sendToUser(String role, Long userId, String title, String body, String type, Map<String, String> data) {
+        sendToUser(role, userId, title, body, type, data, null);
     }
 
     public void sendToUser(
@@ -28,7 +33,8 @@ public class FcmPushService {
             String title,
             String body,
             String type,
-            Map<String, String> data
+            Map<String, String> data,
+            String collapseKey
     ) {
         if (userId == null) {
             System.err.println("[FCM] userId is null");
