@@ -62,7 +62,10 @@ Run > Edit Configurations > Environment variables
 - Oracle Cloud VM PostgreSQL (`168.107.27.186:5432`)
 - DB명: `woori` / 계정: `woori`
 - 스키마: `schema-update.sql` (서버 시작 시 자동 적용)
+  
 ## ML 모델
+```
 woorispring/ml/
 ├── health_status_model/ # 어르신 건강 상태 분류 (XGBoost, 양호/주의/위험)
 └── job_matching_model/ # 일자리 매칭 모델
+```
