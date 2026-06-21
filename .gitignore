@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 
 stt_server/
 /chat_server/
