@@ -49,12 +49,18 @@ iOS: ios/Runner/GoogleService-Info.plist
 두 파일 모두 .gitignore에 포함되어 있으므로 직접 추가해야 한다.
 
 실행 방법
+```
 flutter pub get
 flutter run
-카카오맵을 비활성화하고 실행하려면:
+```
 
+카카오맵을 비활성화하고 실행하려면:
+```
 flutter run --dart-define=DISABLE_KAKAO_MAP=true
+```
+
 프로젝트 구조
+```
 lib/
 ├── core/
 │   ├── api/          # API 호출 (guardian_api.dart)
@@ -75,3 +81,4 @@ lib/
     ├── report/       # 실종 신고
     ├── contact/      # 어르신 연락
     └── mypage/       # 마이페이지, 동의 관리
+```
