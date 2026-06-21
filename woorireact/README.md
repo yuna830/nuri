@@ -38,13 +38,14 @@ React + Vite 기반 웹 프론트엔드다. 어르신, 보호자, 복지사, 관
 cp .env.example .env.local
 ```
 
-실행 방법
+### 실행 방법
 ```
 npm install
 npm run dev
 ```
 
-라우트 구조
+### 라우트 구조
+```
 /              # 어르신 로그인
 /signup        # 어르신 회원가입
 /user          # 어르신 홈
@@ -63,3 +64,4 @@ npm run dev
 /welfare/policy-chat  # 복지정책 챗봇
 /admin/login   # 관리자 로그인
 /admin         # 관리자 대시보드
+```
