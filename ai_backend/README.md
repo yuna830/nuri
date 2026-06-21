@@ -33,47 +33,47 @@ ai_backend/
 
 .env.example 파일을 복사하여 .env 생성:
 
-\`\`\`bash
+```bash
 cp .env.example .env
-\`\`\`
+```
 
 필수 항목:
 
-\`\`\`
+```
 GEMINI_API_KEY=...
 GROQ_API_KEY=...
 QDRANT_URL=...
 QDRANT_API_KEY=...
 DATABASE_URL=postgresql+psycopg://...
 PUBLIC_WELFARE_SERVICE_KEY=...
-\`\`\`
+```
 
 ## 실행 방법
 
-\`\`\`bash
+```
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-\`\`\`
+```
 
 ## 초기 세팅 (최초 1회)
 
-\`\`\`bash
+```
 # Qdrant 컬렉션 생성
 POST /setup/qdrant
 
 # 페이로드 인덱스 생성
 POST /setup/qdrant/indexes
-\`\`\`
+```
 
 ## 복지정책 문서 임베딩
 
 woori-vault/복지정책/ 폴더의 마크다운 파일을 Qdrant에 업로드:
 
-\`\`\`bash
+```
 python embed_welfare_docs.py               # 전체 임베딩
 python embed_welfare_docs.py --file 파일명.md  # 특정 파일만
 python embed_welfare_docs.py --delete      # 기존 삭제 후 재임베딩
-\`\`\`
+```
 
 ## 주요 API
 
