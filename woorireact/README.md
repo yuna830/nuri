@@ -36,10 +36,9 @@ React + Vite 기반 웹 프론트엔드다. 어르신, 보호자, 복지사, 관
 
 ```bash
 cp .env.example .env.local
-```
 
-### 실행 방법
-```
+실행 방법
+
 npm install
 npm run dev
 ```
