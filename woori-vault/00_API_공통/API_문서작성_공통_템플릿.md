@@ -15,7 +15,7 @@ API별 문서는 이 구조를 기준으로 작성하되, 필요 없는 항목�
 
 ## Endpoint
 
-```text
+```
 GET https://example.api.go.kr/endpoint?serviceKey={SERVICE_KEY}
 요청 방식
 요청 파라미터
@@ -31,5 +31,4 @@ RAG 변환 여부
 예 / 아니오
 (변환 규칙: 04_RAG_변환규칙/ 참고)
 
-주의사항
----
+```
