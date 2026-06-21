@@ -15,7 +15,7 @@
 | PDF 파싱 | PyMuPDF |
 
 ## 디렉토리 구조
-
+```
 ai_backend/
 ├── app/
 │   ├── api/          # 라우터 (chat, upload, public-welfare, rag-documents)
@@ -28,6 +28,7 @@ ai_backend/
 │       └── ...
 ├── embed_welfare_docs.py  # woori-vault 복지정책 문서 일괄 임베딩 스크립트
 └── requirements.txt
+```
 
 ## 환경 변수 설정
 
