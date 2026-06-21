@@ -15,6 +15,7 @@
 | `woori-vault` | 복지정책 문서 및 API 설계 문서 | Obsidian Markdown |
 
 ## 시스템 구조
+```
 [Flutter 앱 / React 웹]
 ↓
 [Spring Boot :8080] ←→ [PostgreSQL (Oracle Cloud)]
@@ -23,6 +24,7 @@
 [face_api :8003] — 얼굴 인식 (InsightFace)
 ↑
 [raspi-client] — 카메라 → 얼굴 감지 → Spring 알림
+```
 
 ## 각 서비스 실행
 각 폴더의 README를 참고한다.
@@ -32,7 +34,7 @@
 - [woorireact/README.md](woorireact/README.md)
 - [woori_senior_app/README.md](woori_senior_app/README.md)
 - [woori_guardian_app/README.md](woori_guardian_app/README.md)
-- 
+  
 ## 포트 정리
 | 서비스 | 포트 |
 |---|---|
