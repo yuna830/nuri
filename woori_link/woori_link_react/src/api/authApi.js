@@ -10,3 +10,6 @@ export const login = (phone, password) =>
 
 export const logout = () =>
   baseApi.post('/auth/logout');
+
+export const registerWelfareWorker = (data) =>
+  baseApi.post('/auth/register/welfare-worker', data);

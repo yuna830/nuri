@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login } from '../api/authApi.js';
 import { saveUser } from '../utils/auth.js';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const registered = location.state?.registered;
   const [form, setForm] = useState({ phone: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,7 @@ export default function Login() {
         setError('보호자 계정으로만 로그인할 수 있습니다.');
         return;
       }
-      saveUser(data); // localStorage 대신 saveUser
+      saveUser(data);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || '로그인에 실패했습니다.');
@@ -38,6 +40,16 @@ export default function Login() {
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>WOORI LINK</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>보호자 서비스</div>
         </div>
+
+        {registered && (
+          <div style={{
+            background: 'var(--primary-light)', color: 'var(--primary-dark)',
+            borderRadius: 8, padding: '10px 12px', fontSize: 13, marginBottom: 16, textAlign: 'center',
+          }}>
+            회원가입이 완료되었습니다. 로그인해주세요.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
@@ -88,6 +100,11 @@ export default function Login() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
+          계정이 없으신가요?{' '}
+          <Link to="/register" style={{ color: 'var(--primary)', fontWeight: 600 }}>회원가입</Link>
+        </div>
       </div>
     </div>
   );

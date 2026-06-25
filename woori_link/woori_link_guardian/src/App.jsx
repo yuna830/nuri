@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import Home from './pages/guardian/Home.jsx';
 import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
 import { getUser, clearUser } from './utils/auth.js';
 import { logout } from './api/authApi.js';
 
@@ -58,6 +59,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/*" element={<PrivateLayout />} />
       </Routes>
     </BrowserRouter>

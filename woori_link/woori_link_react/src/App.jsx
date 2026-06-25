@@ -7,6 +7,7 @@ import RecallList from './pages/welfare/RecallList';
 import ActionList from './pages/welfare/ActionList';
 import Schedule from './pages/welfare/Schedule';
 import Login from './pages/Login';
+import Register from './pages/Register';
 
 import { logout } from './api/authApi.js';
 import { getUser, clearUser } from './utils/auth.js';
@@ -73,6 +74,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/*" element={<PrivateLayout />} />
       </Routes>
     </BrowserRouter>

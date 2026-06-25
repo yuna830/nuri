@@ -5,13 +5,17 @@ import com.nuri.woorilink.domain.auth.dto.LoginRequest;
 import com.nuri.woorilink.domain.auth.dto.LoginResponse;
 import com.nuri.woorilink.domain.auth.dto.RegisterRequest;
 import com.nuri.woorilink.domain.auth.entity.UserAccount;
+import com.nuri.woorilink.domain.auth.entity.UserAccount.Role;
 import com.nuri.woorilink.domain.auth.repository.UserAccountRepository;
+import com.nuri.woorilink.domain.guardian.entity.Guardian;
 import com.nuri.woorilink.domain.guardian.repository.GuardianRepository;
 import com.nuri.woorilink.domain.senior.repository.SeniorRepository;
+import com.nuri.woorilink.domain.welfare.entity.WelfareWorker;
 import com.nuri.woorilink.domain.welfare.repository.WelfareWorkerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -39,16 +43,50 @@ public class AuthService {
         return new LoginResponse(token, account.getRole().name(), account.getReferenceId(), name);
     }
 
-    public void register(RegisterRequest request) {
-        if (userAccountRepository.existsByPhone(request.getPhone())) {
+    @Transactional
+    public void registerWelfareWorker(RegisterRequest request) {
+        validateDuplicatePhone(request.getPhone());
+
+        WelfareWorker worker = welfareWorkerRepository.save(
+                WelfareWorker.builder()
+                        .name(request.getName())
+                        .phone(request.getPhone())
+                        .organization(request.getOrganization())
+                        .email(request.getEmail())
+                        .build()
+        );
+
+        saveAccount(request.getPhone(), request.getPassword(), Role.WELFARE_WORKER, worker.getId());
+    }
+
+    @Transactional
+    public void registerGuardian(RegisterRequest request) {
+        validateDuplicatePhone(request.getPhone());
+
+        Guardian guardian = guardianRepository.save(
+                Guardian.builder()
+                        .name(request.getName())
+                        .phone(request.getPhone())
+                        .relationship(request.getRelationship())
+                        .email(request.getEmail())
+                        .build()
+        );
+
+        saveAccount(request.getPhone(), request.getPassword(), Role.GUARDIAN, guardian.getId());
+    }
+
+    private void validateDuplicatePhone(String phone) {
+        if (userAccountRepository.existsByPhone(phone)) {
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
         }
+    }
 
+    private void saveAccount(String phone, String password, Role role, Long referenceId) {
         userAccountRepository.save(UserAccount.builder()
-                .phone(request.getPhone())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(request.getRole())
-                .referenceId(request.getReferenceId())
+                .phone(phone)
+                .password(passwordEncoder.encode(password))
+                .role(role)
+                .referenceId(referenceId)
                 .build());
     }
 
