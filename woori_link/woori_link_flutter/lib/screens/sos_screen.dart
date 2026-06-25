@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api/action_api.dart';
-import '../constants.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 class SosScreen extends StatefulWidget {
@@ -16,8 +16,9 @@ class _SosScreenState extends State<SosScreen> {
   Future<void> _sendSos(String type, String description) async {
     setState(() => _sending = true);
     try {
+      final seniorId = await AuthService.getUserId();
       await ActionApi.createAction({
-        'seniorId': kSeniorId,
+        'seniorId': seniorId,
         'actionType': 'SOS',
         'actionSubject': 'SENIOR',
         'description': description,

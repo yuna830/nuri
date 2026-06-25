@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/senior_api.dart';
 import '../api/risk_api.dart';
 import '../api/action_api.dart';
-import '../constants.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,10 +26,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _load() async {
     try {
+      final seniorId = await AuthService.getUserId();
+      if (seniorId == null) return;
       final results = await Future.wait([
-        SeniorApi.getSenior(kSeniorId),
-        RiskApi.getLatestRisk(kSeniorId).then((r) => r ?? {}),
-        ActionApi.getActionsBySenior(kSeniorId),
+        SeniorApi.getSenior(seniorId),
+        RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
+        ActionApi.getActionsBySenior(seniorId),
       ]);
       setState(() {
         _senior = results[0] as Map<String, dynamic>;

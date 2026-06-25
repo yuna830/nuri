@@ -5,8 +5,7 @@ import { getSeniors } from '../../api/seniorApi'
 import { getHighRisk, assessAll } from '../../api/riskApi'
 import { getPendingActions } from '../../api/actionApi'
 import { getRecalledProducts } from '../../api/recallApi'
-
-const WELFARE_WORKER_ID = 1
+import { getUserId } from '../../utils/auth'
 
 export default function Dashboard() {
   const navigate = useNavigate()

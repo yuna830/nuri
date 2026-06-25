@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api/senior_api.dart';
-import '../constants.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 class EnergyVoucherScreen extends StatefulWidget {
@@ -22,7 +22,9 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
 
   Future<void> _load() async {
     try {
-      final data = await SeniorApi.getSenior(kSeniorId);
+      final seniorId = await AuthService.getUserId();
+      if (seniorId == null) return;
+      final data = await SeniorApi.getSenior(seniorId);
       setState(() { _senior = data; _loading = false; });
     } catch (_) {
       setState(() => _loading = false);
@@ -30,7 +32,9 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
   }
 
   Future<void> _apply(String field) async {
-    await SeniorApi.updateSenior(kSeniorId, {field: true});
+    final seniorId = await AuthService.getUserId();
+    if (seniorId == null) return;
+    await SeniorApi.updateSenior(seniorId, {field: true});
     await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

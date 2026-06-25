@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../api/product_api.dart';
-import '../constants.dart';
+import '../services/auth_service.dart';
 import '../theme.dart';
 
 class RecallScreen extends StatefulWidget {
@@ -23,7 +23,9 @@ class _RecallScreenState extends State<RecallScreen> {
 
   Future<void> _load() async {
     try {
-      final data = await ProductApi.getProductsBySenior(kSeniorId);
+      final seniorId = await AuthService.getUserId();
+      if (seniorId == null) return;
+      final data = await ProductApi.getProductsBySenior(seniorId);
       setState(() { _products = data; _loading = false; });
     } catch (_) {
       setState(() => _loading = false);
@@ -55,8 +57,9 @@ class _RecallScreenState extends State<RecallScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameCtrl.text.isEmpty) return;
+              final seniorId = await AuthService.getUserId();
               await ProductApi.registerProduct({
-                'seniorId': kSeniorId,
+                'seniorId': seniorId,
                 'productName': nameCtrl.text,
                 'modelNumber': modelCtrl.text,
               });

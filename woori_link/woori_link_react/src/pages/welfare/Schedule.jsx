@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import '../../css/welfare/Schedule.css'
 import { getSchedulesByMonth, createSchedule, updateScheduleStatus, deleteSchedule } from '../../api/scheduleApi'
-
-const WELFARE_WORKER_ID = 1
+import { getUserId } from '../../utils/auth'
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 export default function Schedule() {
+  const welfareWorkerId = getUserId()
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
@@ -17,7 +17,7 @@ export default function Schedule() {
   useEffect(() => { load() }, [year, month])
 
   async function load() {
-    const r = await getSchedulesByMonth(WELFARE_WORKER_ID, year, month).catch(() => ({ data: [] }))
+    const r = await getSchedulesByMonth(welfareWorkerId, year, month).catch(() => ({ data: [] }))
     setSchedules(r.data)
   }
 
@@ -46,7 +46,7 @@ export default function Schedule() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await createSchedule({ welfareWorkerId: WELFARE_WORKER_ID, seniorId: Number(form.seniorId), visitDate: selected, visitTime: form.visitTime, purpose: form.purpose, note: form.note })
+    await createSchedule({ welfareWorkerId: welfareWorkerId, seniorId: Number(form.seniorId), visitDate: selected, visitTime: form.visitTime, purpose: form.purpose, note: form.note })
     await load()
     setShowModal(false)
     setForm({ seniorId: '', visitTime: '', purpose: '', note: '' })
