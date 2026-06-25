@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api/authApi.js';
+import { saveUser } from '../utils/auth.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,12 +19,7 @@ export default function Login() {
         setError('복지사 계정으로만 로그인할 수 있습니다.');
         return;
       }
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({
-        userId: data.userId,
-        name: data.name,
-        role: data.role,
-      }));
+      saveUser(data); // localStorage 대신 saveUser
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || '로그인에 실패했습니다.');

@@ -1,19 +1,20 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import Home from './pages/guardian/Home.jsx';
 import Login from './pages/Login.jsx';
-import { getUser } from './utils/auth.js';
+import { getUser, clearUser } from './utils/auth.js';
+import { logout } from './api/authApi.js';
 
 function PrivateLayout() {
   const navigate = useNavigate();
   const user = getUser();
 
-  if (!user || !localStorage.getItem('token')) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout();
+    clearUser();
     navigate('/login');
   };
 

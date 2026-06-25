@@ -8,21 +8,18 @@ import ActionList from './pages/welfare/ActionList';
 import Schedule from './pages/welfare/Schedule';
 import Login from './pages/Login';
 
-function getUser() {
-  try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
-}
+import { logout } from './api/authApi.js';
+import { getUser, clearUser } from './utils/auth.js';
 
 function PrivateLayout() {
   const navigate = useNavigate();
-  const user = getUser();
+  const user = getUser(); // sessionStorage
+  
+  if (!user) return <Navigate to="/login" replace />;
 
-  if (!user || !localStorage.getItem('token')) {
-    return <Navigate to="/login" replace />;
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await logout(); // 서버에서 쿠키 만료 처리
+    clearUser();
     navigate('/login');
   };
 
