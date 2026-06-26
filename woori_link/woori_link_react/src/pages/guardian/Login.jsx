@@ -153,66 +153,77 @@ export default function GuardianLogin() {
         </div>
 
         {showReset && (
-          <form className="guardian-reset-form" onSubmit={handleResetPassword}>
-            <div className="guardian-login-field">
-              <label htmlFor="resetName">이름</label>
-              <input
-                id="resetName"
-                type="text"
-                value={resetForm.name}
-                onChange={(e) => setResetForm({ ...resetForm, name: e.target.value })}
-                placeholder="이름을 입력하세요"
-                required
-              />
-            </div>
+          <div className="guardian-modal-backdrop" onClick={() => setShowReset(false)}>
+            <div className="guardian-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="guardian-modal-header">
+                <h2>비밀번호 찾기</h2>
+                <button type="button" onClick={() => setShowReset(false)}>
+                  ×
+                </button>
+              </div>
 
-            <div className="guardian-login-field">
-              <label htmlFor="resetPhone">전화번호</label>
-              <input
-                id="resetPhone"
-                type="tel"
-                value={resetForm.phone}
-                onChange={handleResetPhoneChange}
-                placeholder="010-0000-0000"
-                inputMode="numeric"
-                maxLength={13}
-                required
-              />
-            </div>
+              <form onSubmit={handleResetPassword}>
+                <div className="guardian-login-field">
+                  <label htmlFor="resetName">이름</label>
+                  <input
+                    id="resetName"
+                    type="text"
+                    value={resetForm.name}
+                    onChange={(e) => setResetForm({ ...resetForm, name: e.target.value })}
+                    placeholder="이름을 입력하세요"
+                    required
+                  />
+                </div>
 
-            <div className="guardian-login-field">
-              <label htmlFor="newPassword">새 비밀번호</label>
-              <input
-                id="newPassword"
-                type="password"
-                value={resetForm.newPassword}
-                onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
-                placeholder="새 비밀번호를 입력하세요"
-                required
-              />
-            </div>
+                <div className="guardian-login-field">
+                  <label htmlFor="resetPhone">전화번호</label>
+                  <input
+                    id="resetPhone"
+                    type="tel"
+                    value={resetForm.phone}
+                    onChange={handleResetPhoneChange}
+                    placeholder="010-0000-0000"
+                    inputMode="numeric"
+                    maxLength={13}
+                    required
+                  />
+                </div>
 
-            <div className="guardian-login-field">
-              <label htmlFor="newPasswordConfirm">새 비밀번호 확인</label>
-              <input
-                id="newPasswordConfirm"
-                type="password"
-                value={resetForm.newPasswordConfirm}
-                onChange={(e) => setResetForm({ ...resetForm, newPasswordConfirm: e.target.value })}
-                placeholder="새 비밀번호를 다시 입력하세요"
-                required
-              />
-            </div>
+                <div className="guardian-login-field">
+                  <label htmlFor="newPassword">새 비밀번호</label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    value={resetForm.newPassword}
+                    onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
+                    placeholder="새 비밀번호를 입력하세요"
+                    required
+                  />
+                </div>
 
-            <div className="guardian-reset-actions">
-              <button type="button" className="btn-secondary" onClick={() => setShowReset(false)}>
-                취소
-              </button>
-              <button type="submit" className="btn-primary">
-                재설정
-              </button>
+                <div className="guardian-login-field">
+                  <label htmlFor="newPasswordConfirm">새 비밀번호 확인</label>
+                  <input
+                    id="newPasswordConfirm"
+                    type="password"
+                    value={resetForm.newPasswordConfirm}
+                    onChange={(e) => setResetForm({ ...resetForm, newPasswordConfirm: e.target.value })}
+                    placeholder="새 비밀번호를 다시 입력하세요"
+                    required
+                  />
+                </div>
+
+                <div className="guardian-reset-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setShowReset(false)}>
+                    취소
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    재설정
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          </div>
         )}
       </section>
     </main>

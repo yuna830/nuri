@@ -43,6 +43,8 @@ public class SeniorService {
         if (req.getName() != null) senior.setName(req.getName());
         if (req.getAge() != null) senior.setAge(req.getAge());
         if (req.getAddress() != null) senior.setAddress(req.getAddress());
+        if (req.getLatitude() != null) senior.setLatitude(req.getLatitude());
+        if (req.getLongitude() != null) senior.setLongitude(req.getLongitude());
         if (req.getPhone() != null) senior.setPhone(req.getPhone());
         if (req.getIncomeLevel() != null) senior.setIncomeLevel(req.getIncomeLevel());
         if (req.getDisabilityGrade() != null) senior.setDisabilityGrade(req.getDisabilityGrade());
