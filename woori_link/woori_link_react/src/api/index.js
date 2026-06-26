@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8090/api',
+  baseURL: 'http://10.0.2.2:8090/api',
   withCredentials: true, // 쿠키 자동 첨부
 });
 
