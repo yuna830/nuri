@@ -554,6 +554,7 @@ function extractProductNameFromFoodQuestion(text) {
     .replace(/^(응|네|예|그래|좋아|ㅇㅇ|어)\s+/i, "")
     .replace(/(먹어도\s*(?:돼|되|대)?|먹어봐도|먹어두|드셔도|섭취해도|먹으면|먹을\s*수\s*있)[^?!.]*/gi, "")
     .replace(/(영양\s*성분|영양|성분|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|콜레스테롤)[^?!.]*/gi, "")
+    .replace(/(정보|조회|분석|확인|표\s*로?\s*(?:줘|보여줘)?|알려\s*줘?|보여\s*줘?)[^?!.]*/gi, "")
     .replace(/[?!.~'"]/g, "")
     .trim()
     .replace(/(?:은|는|이|가|을|를|도|좀|조금|같이|함께|먹어|돼|되냐|괜찮아|어때|어떠냐|알려줘|알려주라)$/u, "")
@@ -706,13 +707,15 @@ function isFoodSafetyQuestion(text) {
 
 function isFoodNutritionQuestion(text) {
   const normalized = String(text || "").replace(/\s/g, "");
+  const hasNutritionTerm =
+    /(영양성분|영양정보|성분표|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|트랜스지방|콜레스테롤)/.test(normalized);
+  const hasLookupAction =
+    /(어때|어떠|알려|뭐야|얼마|많아|높아|괜찮|분석|봐줘|확인|조회|보여|줘|표|정보)/.test(normalized);
+  const looksLikeNamedFoodInfo =
+    /[0-9A-Za-z가-힣]{2,}(?:정보|조회|분석)$/.test(normalized);
 
-  return (
-    /(영양성분|영양정보|성분표|칼로리|열량|나트륨|당류|당분|탄수화물|지방|단백질|포화지방|트랜스지방|콜레스테롤)/.test(normalized) &&
-    /(어때|어떠|알려|뭐야|얼마|많아|높아|괜찮|분석|봐줘|확인)/.test(normalized)
-  );
+  return hasNutritionTerm || looksLikeNamedFoodInfo;
 }
-
 function isGeneralFoodRecommendationQuestion(text) {
   const normalized = String(text || "").replace(/\s/g, "");
 
