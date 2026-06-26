@@ -9,7 +9,8 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401 || err.response?.status === 403) {
-      window.location.href = '/login';
+      const isGuardianPage = window.location.pathname.startsWith('/guardian');
+      window.location.href = isGuardianPage ? '/guardian/login' : '/welfare/login';
     }
     return Promise.reject(err);
   }

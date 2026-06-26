@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { registerGuardian } from '../api/authApi.js';
+import { Link, useNavigate } from 'react-router-dom';
+import { registerGuardian } from '../../api/guardianAuthApi.js';
 
 const INIT = { name: '', phone: '', password: '', passwordConfirm: '', relationship: '', email: '' };
 
@@ -15,7 +15,7 @@ const formatPhone = (value) => {
   return digits;
 };
 
-export default function Register() {
+export default function GuardianRegister() {
   const navigate = useNavigate();
   const [form, setForm] = useState(INIT);
   const [error, setError] = useState('');
@@ -23,7 +23,7 @@ export default function Register() {
 
   const set = (field) => (e) => {
     const value = field === 'phone' ? formatPhone(e.target.value) : e.target.value;
-    setForm((p) => ({ ...p, [field]: value }));
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -33,6 +33,7 @@ export default function Register() {
       setError('비밀번호가 일치하지 않습니다.');
       return;
     }
+
     setLoading(true);
     try {
       await registerGuardian({
@@ -42,7 +43,7 @@ export default function Register() {
         relationship: form.relationship,
         email: form.email,
       });
-      navigate('/login', { state: { registered: true } });
+      navigate('/guardian/login', { state: { registered: true } });
     } catch (err) {
       setError(err.response?.data?.message || '회원가입에 실패했습니다.');
     } finally {
@@ -51,15 +52,13 @@ export default function Register() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'var(--bg-page)', padding: '24px',
-    }}>
-      <div className="card" style={{ width: 420, padding: 36 }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>WOORI LINK</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>보호자 회원가입</div>
+    <div className="auth-page">
+      <div className="auth-card" style={{ width: 420 }}>
+        <div className="auth-logo">
+          <div className="auth-logo-title">WOORI LINK</div>
+          <div className="auth-logo-sub">보호자 회원가입</div>
         </div>
+
         <form onSubmit={handleSubmit}>
           {[
             { label: '이름 *', field: 'name', placeholder: '홍길동', required: true },
@@ -69,11 +68,10 @@ export default function Register() {
             { label: '어르신과의 관계', field: 'relationship', placeholder: '예) 아들, 딸, 배우자' },
             { label: '이메일', field: 'email', placeholder: 'example@email.com', type: 'email' },
           ].map(({ label, field, placeholder, required, type = 'text', inputMode, maxLength }) => (
-            <div key={field} style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-                {label}
-              </label>
+            <div key={field} className="auth-field">
+              <label className="auth-label">{label}</label>
               <input
+                className="auth-input"
                 type={type}
                 value={form[field]}
                 onChange={set(field)}
@@ -81,36 +79,19 @@ export default function Register() {
                 inputMode={inputMode}
                 maxLength={maxLength}
                 required={required}
-                style={{
-                  width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
-                  borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box',
-                }}
               />
             </div>
           ))}
 
-          {error && (
-            <div style={{
-              background: 'var(--danger-light)', color: 'var(--danger)',
-              borderRadius: 8, padding: '10px 12px', fontSize: 13, marginBottom: 16,
-            }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="auth-alert-error">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary"
-            style={{ width: '100%', padding: '12px', fontSize: 15, marginTop: 4 }}
-          >
+          <button type="submit" disabled={loading} className="btn-primary auth-submit">
             {loading ? '가입 중...' : '회원가입'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
-          이미 계정이 있으신가요?{' '}
-          <Link to="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>로그인</Link>
+        <div className="auth-footer">
+          이미 계정이 있으신가요? <Link to="/guardian/login">로그인</Link>
         </div>
       </div>
     </div>

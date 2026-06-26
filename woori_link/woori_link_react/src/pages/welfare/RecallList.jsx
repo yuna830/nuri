@@ -38,7 +38,7 @@ export default function RecallList() {
             <tbody>
               {products.map(p => (
                 <tr key={p.id}>
-                  <td style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }} onClick={() => navigate(`/seniors/${p.seniorId}`)}>{p.seniorId}</td>
+                  <td style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }} onClick={() => navigate(`/welfare/seniors/${p.seniorId}`)}>{p.seniorId}</td>
                   <td className="font-bold">{p.productName}</td>
                   <td>{p.manufacturer || '-'}</td>
                   <td>{p.modelNumber || '-'}</td>

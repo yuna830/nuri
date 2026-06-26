@@ -3,6 +3,7 @@ package com.nuri.woorilink.service;
 import com.nuri.woorilink.common.security.JwtTokenProvider;
 import com.nuri.woorilink.dto.GuardianLoginRequest;
 import com.nuri.woorilink.dto.GuardianRegisterRequest;
+import com.nuri.woorilink.dto.GuardianPasswordResetRequest;
 import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.entity.Guardian;
 import com.nuri.woorilink.repository.GuardianRepository;
@@ -60,6 +61,26 @@ public class GuardianAuthService {
                 .relationship(request.getRelationship())
                 .email(request.getEmail())
                 .build());
+    }
+
+    @Transactional
+    public void resetPassword(GuardianPasswordResetRequest request) {
+        String phone = normalizePhone(request.getPhone());
+
+        if (!StringUtils.hasText(request.getName())) {
+            throw new IllegalArgumentException("이름을 입력해주세요.");
+        }
+        if (!StringUtils.hasText(phone)) {
+            throw new IllegalArgumentException("전화번호를 입력해주세요.");
+        }
+        if (!StringUtils.hasText(request.getNewPassword())) {
+            throw new IllegalArgumentException("새 비밀번호를 입력해주세요.");
+        }
+
+        Guardian guardian = guardianRepository.findFirstByPhoneAndName(phone, request.getName())
+                .orElseThrow(() -> new IllegalArgumentException("일치하는 보호자 계정이 없습니다."));
+
+        guardian.setPassword(passwordEncoder.encode(request.getNewPassword()));
     }
 
     private String normalizePhone(String phone) {

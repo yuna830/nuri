@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { login } from '../api/authApi.js';
-import { saveUser } from '../utils/auth.js';
-import '../css/auth/Login.css';
+import { login } from '../../api/authApi.js';
+import { saveUser } from '../../utils/auth.js';
+import '../../css/welfare/Login.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export default function Login() {
         return;
       }
       saveUser(data);
-      navigate('/');
+      navigate('/welfare');
     } catch (err) {
       setError(err.response?.data?.message || '로그인에 실패했습니다.');
     } finally {
@@ -77,7 +77,7 @@ export default function Login() {
         </form>
 
         <div className="auth-footer">
-          계정이 없으신가요? <Link to="/register">회원가입</Link>
+          계정이 없으신가요? <Link to="/welfare/register">회원가입</Link>
         </div>
       </div>
     </div>

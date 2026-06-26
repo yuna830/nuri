@@ -45,19 +45,19 @@ export default function Dashboard() {
       </div>
 
       <div className="dashboard-stats">
-        <div className="stat-card" onClick={() => navigate('/seniors')}>
+        <div className="stat-card" onClick={() => navigate('/welfare/seniors')}>
           <div className="label">전체 대상자</div>
           <div className="value">{seniors.length}</div>
         </div>
-        <div className="stat-card danger" onClick={() => navigate('/seniors')}>
+        <div className="stat-card danger" onClick={() => navigate('/welfare/seniors')}>
           <div className="label">고위험군</div>
           <div className="value">{highRisk.length}</div>
         </div>
-        <div className="stat-card warning" onClick={() => navigate('/energy-voucher')}>
+        <div className="stat-card warning" onClick={() => navigate('/welfare/energy-voucher')}>
           <div className="label">에너지바우처 미신청</div>
           <div className="value">{voucherUnapplied.length}</div>
         </div>
-        <div className="stat-card danger" onClick={() => navigate('/recalled')}>
+        <div className="stat-card danger" onClick={() => navigate('/welfare/recalled')}>
           <div className="label">리콜 제품 보유</div>
           <div className="value">{recalled.length}</div>
         </div>
@@ -67,7 +67,7 @@ export default function Dashboard() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span className="card-title" style={{ margin: 0 }}>고위험 대상자</span>
-            <button className="btn-text" onClick={() => navigate('/seniors')}>전체 보기</button>
+            <button className="btn-text" onClick={() => navigate('/welfare/seniors')}>전체 보기</button>
           </div>
           {highRisk.length === 0 ? (
             <div className="empty-state">고위험 대상자가 없습니다</div>
@@ -78,7 +78,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {highRisk.slice(0, 5).map(r => (
-                  <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/seniors/${r.seniorId}`)}>
+                  <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/welfare/seniors/${r.seniorId}`)}>
                     <td className="font-bold">{r.seniorName}</td>
                     <td>{r.seniorAge}세</td>
                     <td><span className="badge badge-high">높음</span></td>
@@ -94,7 +94,7 @@ export default function Dashboard() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span className="card-title" style={{ margin: 0 }}>미처리 조치</span>
-            <button className="btn-text" onClick={() => navigate('/actions')}>전체 보기</button>
+            <button className="btn-text" onClick={() => navigate('/welfare/actions')}>전체 보기</button>
           </div>
           {pending.length === 0 ? (
             <div className="empty-state">미처리 조치가 없습니다</div>

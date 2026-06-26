@@ -7,5 +7,6 @@ import java.util.Optional;
 
 public interface GuardianRepository extends JpaRepository<Guardian, Long> {
     Optional<Guardian> findFirstByPhone(String phone);
+    Optional<Guardian> findFirstByPhoneAndName(String phone, String name);
     boolean existsByPhone(String phone);
 }
