@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/SeniorList.css'
 import { searchAddresses } from '../../api/addressApi'
-import { getSeniors, createSenior } from '../../api/seniorApi'
+import { getSeniorsByWelfareWorker, createSenior } from '../../api/seniorApi'
+import { getUserId } from '../../utils/auth'
 
-const INCOME_LABEL = { BASIC_LIVELIHOOD: '기초생활', NEAR_POVERTY: '차상위', LOWER_MIDDLE: '하위중간', MIDDLE: '중간', UPPER: '상위' }
+const INCOME_LABEL = { LIVELIHOOD: '생계급여', MEDICAL: '의료급여', HOUSING: '주거급여', EDUCATION: '교육급여', NONE: '해당없음' }
 const INIT_FORM = { name: '', age: '', address: '', latitude: null, longitude: null, phone: '', gender: '', incomeLevel: '', disabilityGrade: '', livingAlone: false, energyVoucherApplied: false, electricityDiscountApplied: false }
 
 const formatPhone = (value) => {
@@ -28,8 +29,28 @@ export default function SeniorList() {
   const [addressResults, setAddressResults] = useState([])
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState('')
+  const [listError, setListError] = useState('')
 
-  useEffect(() => { getSeniors().then(r => setSeniors(r.data)).catch(() => {}) }, [])
+  useEffect(() => {
+    loadSeniors()
+  }, [])
+
+  async function loadSeniors() {
+    const welfareWorkerId = getUserId()
+    if (!welfareWorkerId) {
+      setListError('로그인한 복지사 정보를 찾을 수 없습니다.')
+      return
+    }
+
+    try {
+      const r = await getSeniorsByWelfareWorker(welfareWorkerId)
+      setSeniors(r.data)
+      setListError('')
+    } catch (err) {
+      setListError(err.response?.data?.message || '대상자 목록을 불러오지 못했습니다.')
+      console.error(err.response?.status, err.response?.data)
+    }
+  }
 
   const filtered = seniors.filter(s => s.name?.includes(search) || s.address?.includes(search))
 
@@ -75,9 +96,19 @@ export default function SeniorList() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await createSenior({ ...form, age: Number(form.age), welfareWorkerId: 1 })
-    const r = await getSeniors()
-    setSeniors(r.data)
+
+    const welfareWorkerId = getUserId()
+
+    const payload = {
+      ...form,
+      age: form.age ? Number(form.age) : null,
+      incomeLevel: form.incomeLevel || null,
+      welfareWorkerId,
+    }
+
+    await createSenior(payload)
+    await loadSeniors()
+
     setShowModal(false)
     setForm(INIT_FORM)
     setAddressQuery('')
@@ -93,7 +124,9 @@ export default function SeniorList() {
           <input className="senior-search" placeholder="이름 또는 주소 검색" value={search} onChange={e => setSearch(e.target.value)} />
           <button className="btn-primary" onClick={() => setShowModal(true)}>+ 대상자 등록</button>
         </div>
-        {filtered.length === 0 ? (
+        {listError ? (
+          <div className="empty-state">{listError}</div>
+        ) : filtered.length === 0 ? (
           <div className="empty-state">대상자가 없습니다</div>
         ) : (
           <table className="data-table">

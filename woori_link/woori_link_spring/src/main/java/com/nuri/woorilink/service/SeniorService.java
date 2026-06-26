@@ -1,6 +1,6 @@
 package com.nuri.woorilink.service;
 
-import com.nuri.woorilink.dto.EnergyVoucherResult;
+import com.nuri.woorilink.dto.EnergyVoucherEvaluationResult;
 import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.repository.SeniorRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,8 +35,7 @@ public class SeniorService {
     }
 
     public List<Senior> getVoucherUnapplied() {
-        return seniorRepository
-                .findByEnergyVoucherEligibleTrueAndEnergyVoucherAppliedFalseOrEnergyVoucherEligibleTrueAndEnergyVoucherAppliedIsNull();
+        return seniorRepository.findEnergyVoucherUnappliedTargets();
     }
 
     @Transactional
@@ -56,8 +55,14 @@ public class SeniorService {
         if (req.getLatitude() != null) senior.setLatitude(req.getLatitude());
         if (req.getLongitude() != null) senior.setLongitude(req.getLongitude());
         if (req.getPhone() != null) senior.setPhone(normalizePhone(req.getPhone()));
+        if (req.getGender() != null) senior.setGender(req.getGender());
         if (req.getIncomeLevel() != null) senior.setIncomeLevel(req.getIncomeLevel());
         if (req.getDisabilityGrade() != null) senior.setDisabilityGrade(req.getDisabilityGrade());
+        if (req.getLongTermCare() != null) senior.setLongTermCare(req.getLongTermCare());
+        if (req.getLivingAlone() != null) senior.setLivingAlone(req.getLivingAlone());
+        if (req.getHouseholdType() != null) senior.setHouseholdType(req.getHouseholdType());
+        if (req.getGasType() != null) senior.setGasType(req.getGasType());
+        if (req.getHousingType() != null) senior.setHousingType(req.getHousingType());
 
         if (req.getEnergyVoucherApplied() != null) {
             senior.setEnergyVoucherApplied(req.getEnergyVoucherApplied());
@@ -69,12 +74,54 @@ public class SeniorService {
             senior.setGasDiscountApplied(req.getGasDiscountApplied());
         }
 
-        if (req.getPregnant() != null) senior.setPregnant(req.getPregnant());
-        if (req.getSevereDisease() != null) senior.setSevereDisease(req.getSevereDisease());
-        if (req.getRareDisease() != null) senior.setRareDisease(req.getRareDisease());
-        if (req.getSingleParentFamily() != null) senior.setSingleParentFamily(req.getSingleParentFamily());
-        if (req.getChildHeadedHousehold() != null) senior.setChildHeadedHousehold(req.getChildHeadedHousehold());
-        if (req.getMultiChildHousehold() != null) senior.setMultiChildHousehold(req.getMultiChildHousehold());
+        if (req.getLivelihoodBenefit() != null) senior.setLivelihoodBenefit(req.getLivelihoodBenefit());
+        if (req.getMedicalBenefit() != null) senior.setMedicalBenefit(req.getMedicalBenefit());
+        if (req.getHousingBenefit() != null) senior.setHousingBenefit(req.getHousingBenefit());
+        if (req.getEducationBenefit() != null) senior.setEducationBenefit(req.getEducationBenefit());
+
+        if (req.getElderlyHouseholdMember() != null) {
+            senior.setElderlyHouseholdMember(req.getElderlyHouseholdMember());
+        }
+        if (req.getInfantHouseholdMember() != null) {
+            senior.setInfantHouseholdMember(req.getInfantHouseholdMember());
+        }
+        if (req.getDisabledHouseholdMember() != null) {
+            senior.setDisabledHouseholdMember(req.getDisabledHouseholdMember());
+        }
+        if (req.getPregnantHouseholdMember() != null) {
+            senior.setPregnantHouseholdMember(req.getPregnantHouseholdMember());
+        }
+        if (req.getSevereDiseaseHouseholdMember() != null) {
+            senior.setSevereDiseaseHouseholdMember(req.getSevereDiseaseHouseholdMember());
+        }
+        if (req.getRareDiseaseHouseholdMember() != null) {
+            senior.setRareDiseaseHouseholdMember(req.getRareDiseaseHouseholdMember());
+        }
+        if (req.getIntractableDiseaseHouseholdMember() != null) {
+            senior.setIntractableDiseaseHouseholdMember(req.getIntractableDiseaseHouseholdMember());
+        }
+        if (req.getSingleParentFamily() != null) {
+            senior.setSingleParentFamily(req.getSingleParentFamily());
+        }
+        if (req.getChildHeadedHousehold() != null) {
+            senior.setChildHeadedHousehold(req.getChildHeadedHousehold());
+        }
+        if (req.getMultiChildHousehold() != null) {
+            senior.setMultiChildHousehold(req.getMultiChildHousehold());
+        }
+
+        if (req.getAllMembersInFacility() != null) {
+            senior.setAllMembersInFacility(req.getAllMembersInFacility());
+        }
+        if (req.getWinterFuelSupport() != null) {
+            senior.setWinterFuelSupport(req.getWinterFuelSupport());
+        }
+        if (req.getCoalCoupon() != null) {
+            senior.setCoalCoupon(req.getCoalCoupon());
+        }
+        if (req.getCoalEnergyVoucher() != null) {
+            senior.setCoalEnergyVoucher(req.getCoalEnergyVoucher());
+        }
 
         applyEnergyVoucherEligibility(senior);
         return seniorRepository.save(senior);
@@ -86,7 +133,7 @@ public class SeniorService {
     }
 
     private void applyEnergyVoucherEligibility(Senior senior) {
-        EnergyVoucherResult result = energyVoucherEligibilityService.evaluate(senior);
+        EnergyVoucherEvaluationResult result = energyVoucherEligibilityService.evaluate(senior);
         senior.setEnergyVoucherEligible(result.eligible());
         senior.setEnergyVoucherReason(result.reason());
     }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/Dashboard.css'
-import { getSeniors } from '../../api/seniorApi'
+import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
 import { getHighRisk, assessAll } from '../../api/riskApi'
 import { getPendingActions } from '../../api/actionApi'
 import { getRecalledProducts } from '../../api/recallApi'
@@ -16,7 +16,12 @@ export default function Dashboard() {
   const [assessing, setAssessing] = useState(false)
 
   useEffect(() => {
-    getSeniors().then(r => setSeniors(r.data)).catch(() => {})
+    const welfareWorkerId = getUserId()
+    if (welfareWorkerId) {
+      getSeniorsByWelfareWorker(welfareWorkerId).then(r => setSeniors(r.data)).catch(err => {
+        console.error(err.response?.status, err.response?.data)
+      })
+    }
     getHighRisk().then(r => setHighRisk(r.data)).catch(() => {})
     getPendingActions().then(r => setPending(r.data)).catch(() => {})
     getRecalledProducts().then(r => setRecalled(r.data)).catch(() => {})
