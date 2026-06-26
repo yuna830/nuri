@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -29,8 +30,17 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
 
     public LoginResponse login(LoginRequest request) {
-        UserAccount account = userAccountRepository.findByPhone(request.getPhone())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        UserAccount account;
+
+        if (StringUtils.hasText(request.getLoginId())) {
+            account = userAccountRepository.findByLoginId(request.getLoginId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 아이디입니다."));
+        } else if (StringUtils.hasText(request.getPhone())) {
+            account = userAccountRepository.findByPhone(request.getPhone())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        } else {
+            throw new IllegalArgumentException("아이디 또는 전화번호를 입력해주세요.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPassword())) {
             throw new IllegalArgumentException("비밀번호가 올바르지 않습니다.");
@@ -38,14 +48,21 @@ public class AuthService {
 
         String name = resolveName(account);
         String token = tokenProvider.generateToken(
-                account.getPhone(), account.getRole().name(), account.getReferenceId());
+                account.getLoginId() != null ? account.getLoginId() : account.getPhone(),
+                account.getRole().name(),
+                account.getReferenceId());
 
         return new LoginResponse(token, account.getRole().name(), account.getReferenceId(), name);
     }
 
     @Transactional
     public void registerWelfareWorker(RegisterRequest request) {
-        validateDuplicatePhone(request.getPhone());
+        if (!StringUtils.hasText(request.getLoginId())) {
+            throw new IllegalArgumentException("아이디를 입력해주세요.");
+        }
+        if (userAccountRepository.existsByLoginId(request.getLoginId())) {
+            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
+        }
 
         WelfareWorker worker = welfareWorkerRepository.save(
                 WelfareWorker.builder()
@@ -56,12 +73,23 @@ public class AuthService {
                         .build()
         );
 
-        saveAccount(request.getPhone(), request.getPassword(), Role.WELFARE_WORKER, worker.getId());
+        userAccountRepository.save(UserAccount.builder()
+                .loginId(request.getLoginId())
+                .phone(request.getPhone())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.WELFARE_WORKER)
+                .referenceId(worker.getId())
+                .build());
     }
 
     @Transactional
     public void registerGuardian(RegisterRequest request) {
-        validateDuplicatePhone(request.getPhone());
+        if (!StringUtils.hasText(request.getPhone())) {
+            throw new IllegalArgumentException("전화번호를 입력해주세요.");
+        }
+        if (userAccountRepository.existsByPhone(request.getPhone())) {
+            throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
+        }
 
         Guardian guardian = guardianRepository.save(
                 Guardian.builder()
@@ -72,22 +100,16 @@ public class AuthService {
                         .build()
         );
 
-        saveAccount(request.getPhone(), request.getPassword(), Role.GUARDIAN, guardian.getId());
-    }
-
-    private void validateDuplicatePhone(String phone) {
-        if (userAccountRepository.existsByPhone(phone)) {
-            throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
-        }
-    }
-
-    private void saveAccount(String phone, String password, Role role, Long referenceId) {
         userAccountRepository.save(UserAccount.builder()
-                .phone(phone)
-                .password(passwordEncoder.encode(password))
-                .role(role)
-                .referenceId(referenceId)
+                .phone(request.getPhone())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.GUARDIAN)
+                .referenceId(guardian.getId())
                 .build());
+    }
+
+    public boolean isLoginIdAvailable(String loginId) {
+        return !userAccountRepository.existsByLoginId(loginId);
     }
 
     private String resolveName(UserAccount account) {

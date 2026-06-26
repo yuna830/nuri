@@ -4,6 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class LoginRequest {
-    private String phone;
+    private String loginId;  // 복지사용
+    private String phone;    // 어르신/보호자용
     private String password;
 }

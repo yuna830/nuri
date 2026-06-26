@@ -12,4 +12,5 @@ public class PublicDataConfig {
     private String recallApiKey;
     private String weatherApiKey;
     private String energyEfficiencyApiKey;
+    private String welfareFacilityApiKey;
 }

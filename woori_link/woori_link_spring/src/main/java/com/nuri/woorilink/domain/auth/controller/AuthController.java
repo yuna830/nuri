@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -41,6 +43,14 @@ public class AuthController {
     public ResponseEntity<Void> registerGuardian(@RequestBody RegisterRequest request) {
         authService.registerGuardian(request);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/check-loginid")
+    public ResponseEntity<?> checkLoginId(@RequestParam String loginId) {
+        if (!authService.isLoginIdAvailable(loginId)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "이미 사용 중인 아이디입니다."));
+        }
+        return ResponseEntity.ok(Map.of("available", true));
     }
 
     private Cookie buildCookie(String name, String value, int maxAge) {
