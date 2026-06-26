@@ -26,12 +26,6 @@ XML
 https://www.safe182.go.kr/api/lcm/findChildList.do
 ```
 
-## Endpoint + 세부 경로
-
-```txt
-https://www.safe182.go.kr/api/lcm/findChildList.do
-```
-
 ## 관련 템플릿 URL
 
 ```txt
@@ -235,3 +229,7 @@ API 응답 필드는 비어 있을 수 있으므로 null 처리가 필요하다.
 이 API는 경찰청 실종자 검색 데이터를 조회하여 서비스 내 실종자 정보 제공에 활용하는 데이터 소스다.
 
 DB에는 실종자 식별에 필요한 주요 필드와 사진 저장 경로를 저장하고, RAG에는 실종자 원본 데이터가 아니라 API 구조, 필드 의미, 처리 흐름, 관리 규칙만 포함한다.
+
+## 문서 기준일
+
+2026-06-21
