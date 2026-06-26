@@ -4,13 +4,27 @@ import { registerGuardian } from '../api/authApi.js';
 
 const INIT = { name: '', phone: '', password: '', passwordConfirm: '', relationship: '', email: '' };
 
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length > 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length > 3) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return digits;
+};
+
 export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState(INIT);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const set = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }));
+  const set = (field) => (e) => {
+    const value = field === 'phone' ? formatPhone(e.target.value) : e.target.value;
+    setForm((p) => ({ ...p, [field]: value }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,12 +63,12 @@ export default function Register() {
         <form onSubmit={handleSubmit}>
           {[
             { label: '이름 *', field: 'name', placeholder: '홍길동', required: true },
-            { label: '전화번호 *', field: 'phone', placeholder: '010-0000-0000', required: true },
+            { label: '전화번호 *', field: 'phone', placeholder: '010-0000-0000', required: true, type: 'tel', inputMode: 'numeric', maxLength: 13 },
             { label: '비밀번호 *', field: 'password', placeholder: '8자 이상', required: true, type: 'password' },
             { label: '비밀번호 확인 *', field: 'passwordConfirm', placeholder: '비밀번호 재입력', required: true, type: 'password' },
             { label: '어르신과의 관계', field: 'relationship', placeholder: '예) 아들, 딸, 배우자' },
             { label: '이메일', field: 'email', placeholder: 'example@email.com', type: 'email' },
-          ].map(({ label, field, placeholder, required, type = 'text' }) => (
+          ].map(({ label, field, placeholder, required, type = 'text', inputMode, maxLength }) => (
             <div key={field} style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
                 {label}
@@ -64,6 +78,8 @@ export default function Register() {
                 value={form[field]}
                 onChange={set(field)}
                 placeholder={placeholder}
+                inputMode={inputMode}
+                maxLength={maxLength}
                 required={required}
                 style={{
                   width: '100%', padding: '10px 12px', border: '1px solid var(--border)',

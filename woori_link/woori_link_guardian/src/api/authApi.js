@@ -6,10 +6,10 @@ const baseApi = axios.create({
 });
 
 export const login = (phone, password) =>
-  baseApi.post('/auth/login', { phone, password });
+  baseApi.post('/guardian-auth/login', { phone, password });
 
 export const logout = () =>
-  baseApi.post('/auth/logout');
+  baseApi.post('/guardian-auth/logout');
 
 export const registerGuardian = (data) =>
-  baseApi.post('/auth/register/guardian', data);
+  baseApi.post('/guardian-auth/register', data);

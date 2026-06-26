@@ -6,16 +6,16 @@ const baseApi = axios.create({
 });
 
 export const login = (loginId, password) =>
-  baseApi.post('/auth/login', { loginId, password });
+  baseApi.post('/welfare-auth/login', { loginId, password });
 
 export const logout = () =>
-  baseApi.post('/auth/logout');
+  baseApi.post('/welfare-auth/logout');
 
 export const registerWelfareWorker = (data) =>
-  baseApi.post('/auth/register/welfare-worker', data);
+  baseApi.post('/welfare-auth/register', data);
 
 export const checkLoginIdAvailable = (loginId) =>
-  baseApi.get(`/auth/check-loginid?loginId=${encodeURIComponent(loginId)}`);
+  baseApi.get(`/welfare-auth/check-loginid?loginId=${encodeURIComponent(loginId)}`);
 
 export const searchFacilities = (name) =>
   baseApi.get(`/welfare-facilities/search?name=${encodeURIComponent(name)}`);

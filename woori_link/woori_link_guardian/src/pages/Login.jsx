@@ -3,6 +3,17 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login } from '../api/authApi.js';
 import { saveUser } from '../utils/auth.js';
 
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length > 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length > 3) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return digits;
+};
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -10,6 +21,10 @@ export default function Login() {
   const [form, setForm] = useState({ phone: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handlePhoneChange = (e) => {
+    setForm({ ...form, phone: formatPhone(e.target.value) });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,7 +52,7 @@ export default function Login() {
     }}>
       <div className="card" style={{ width: 360, padding: 36 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>WOORI LINK</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>WOORI</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>보호자 서비스</div>
         </div>
 
@@ -56,10 +71,12 @@ export default function Login() {
               전화번호
             </label>
             <input
-              type="text"
+              type="tel"
               value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              onChange={handlePhoneChange}
               placeholder="010-0000-0000"
+              inputMode="numeric"
+              maxLength={13}
               required
               style={{
                 width: '100%', padding: '10px 12px', border: '1px solid var(--border)',
