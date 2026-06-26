@@ -11,3 +11,6 @@
 
 .main-content { margin-left: 200px; flex: 1; padding: 28px; min-height: 100vh; }
 .page-title { font-size: 20px; font-weight: 800; color: var(--text-primary); margin-bottom: 20px; }
+.sidebar-footer { padding: 0 16px 20px; margin-top: auto; }
+.sidebar-user { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+.sidebar-logout { background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 8px; padding: 8px 12px; font-size: 12px; cursor: pointer; width: 100%; }

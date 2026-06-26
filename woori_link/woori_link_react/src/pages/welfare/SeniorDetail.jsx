@@ -46,7 +46,7 @@ export default function SeniorDetail() {
 
   return (
     <div>
-      <button className="back-btn" onClick={() => navigate('/seniors')}>← 목록으로</button>
+      <button className="back-btn" onClick={() => navigate('/welfare/seniors')}>← 목록으로</button>
       <h1 className="page-title">{senior.name}</h1>
 
       <div className="detail-grid">

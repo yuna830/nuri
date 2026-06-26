@@ -29,7 +29,8 @@ public class WelfareFacilityApiClient {
                     .queryParam("pageNo", 1)
                     .queryParam("numOfRows", 20)
                     .queryParam("facltNm", name)
-                    .build(true)
+                    .encode(StandardCharsets.UTF_8)
+                    .build()
                     .toUri();
 
             HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
@@ -37,6 +38,7 @@ public class WelfareFacilityApiClient {
 
             return parseXml(response.body());
         } catch (Exception e) {
+            e.printStackTrace();
             return List.of();
         }
     }
@@ -52,9 +54,9 @@ public class WelfareFacilityApiClient {
             Element item = (Element) items.item(i);
             Map<String, String> map = new LinkedHashMap<>();
             map.put("name", getText(item, "facltNm"));
-            map.put("type", getText(item, "facltClsfNm"));
-            map.put("address", getText(item, "rdnmadr"));
-            map.put("sigungu", getText(item, "sigunguNm"));
+            map.put("type", getText(item, "fcltKindNm"));
+            map.put("address", getText(item, "addr"));
+            map.put("sigungu", getText(item, "sggNm"));
             result.add(map);
         }
         return result;

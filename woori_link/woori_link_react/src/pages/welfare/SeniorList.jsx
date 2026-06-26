@@ -56,7 +56,7 @@ export default function SeniorList() {
                   <td>{s.energyVoucherApplied ? <span className="badge badge-completed">신청완료</span> : <span className="badge badge-pending">미신청</span>}</td>
                   <td>
                     <div className="action-cell">
-                      <button className="btn-sm primary" onClick={() => navigate(`/seniors/${s.id}`)}>상세</button>
+                      <button className="btn-sm primary" onClick={() => navigate(`/welfare/seniors/${s.id}`)}>상세</button>
                     </div>
                   </td>
                 </tr>

@@ -37,7 +37,12 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/welfare-facilities/**").permitAll()
+                .requestMatchers(
+                        "/api/welfare-auth/**",
+                        "/api/guardian-auth/**",
+                        "/api/senior-auth/**",
+                        "/api/welfare-facilities/**"
+                ).permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )
@@ -53,6 +58,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:5174",
+                "http://localhost:5175",
                 "http://10.0.2.2:5173"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

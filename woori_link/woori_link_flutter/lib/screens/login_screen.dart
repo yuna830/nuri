@@ -12,17 +12,23 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _pwCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
 
   Future<void> _login() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final data = await AuthApi.login(_phoneCtrl.text.trim(), _pwCtrl.text);
+      final data = await AuthApi.login(
+        _nameCtrl.text.trim(),
+        _phoneCtrl.text.trim(),
+      );
       if (data['role'] != 'SENIOR') {
-        setState(() => _error = '어르신(시니어) 계정으로만 로그인할 수 있습니다.');
+        setState(() => _error = '사용자 계정으로만 로그인할 수 있습니다.');
         return;
       }
       await AuthService.saveSession(data);
@@ -33,14 +39,16 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _phoneCtrl.dispose();
-    _pwCtrl.dispose();
     super.dispose();
   }
 
@@ -55,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                '우리 LINK',
+                'WOORI LINK',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -64,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                '어르신 돌봄 서비스',
+                '사용자 서비스',
                 style: TextStyle(fontSize: 14, color: kTextMuted),
               ),
               const SizedBox(height: 40),
@@ -74,10 +82,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('로그인',
-                          style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w800)),
+                      const Text(
+                        '로그인',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 20),
+                      TextField(
+                        controller: _nameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: '이름',
+                          hintText: '홍길동',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       TextField(
                         controller: _phoneCtrl,
                         keyboardType: TextInputType.phone,
@@ -85,19 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           labelText: '전화번호',
                           hintText: '010-0000-0000',
                           border: OutlineInputBorder(),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _pwCtrl,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: '비밀번호',
-                          border: OutlineInputBorder(),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                         ),
                         onSubmitted: (_) => _login(),
                       ),
@@ -109,9 +125,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: kDanger.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(_error!,
-                              style: const TextStyle(
-                                  color: kDanger, fontSize: 13)),
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(
+                              color: kDanger,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: 20),
@@ -124,7 +144,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Text('로그인'),
                         ),

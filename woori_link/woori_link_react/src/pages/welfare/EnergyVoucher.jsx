@@ -47,7 +47,7 @@ export default function EnergyVoucher() {
             <tbody>
               {list.map(s => (
                 <tr key={s.id}>
-                  <td className="font-bold" style={{ cursor: 'pointer' }} onClick={() => navigate(`/seniors/${s.id}`)}>{s.name}</td>
+                  <td className="font-bold" style={{ cursor: 'pointer' }} onClick={() => navigate(`/welfare/seniors/${s.id}`)}>{s.name}</td>
                   <td>{s.age}세</td>
                   <td>{s.address}</td>
                   <td>{INCOME_LABEL[s.incomeLevel] || '-'}</td>
