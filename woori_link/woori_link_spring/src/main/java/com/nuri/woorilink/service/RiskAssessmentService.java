@@ -97,10 +97,6 @@ public class RiskAssessmentService {
     }
 
     private boolean isEnergyVoucherEligible(Senior s) {
-        boolean lowIncome = s.getIncomeLevel() == Senior.IncomeLevel.BASIC_LIVELIHOOD
-                || s.getIncomeLevel() == Senior.IncomeLevel.NEAR_POVERTY;
-        boolean elderly = s.getAge() != null && s.getAge() >= 65;
-        boolean disabled = s.getDisabilityGrade() != null && !s.getDisabilityGrade().isBlank();
-        return lowIncome && (elderly || disabled);
+        return Boolean.TRUE.equals(s.getEnergyVoucherEligible());
     }
 }

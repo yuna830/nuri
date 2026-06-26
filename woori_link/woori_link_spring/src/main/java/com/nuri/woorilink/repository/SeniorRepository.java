@@ -12,5 +12,5 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
     boolean existsByPhone(String phone);
     List<Senior> findByGuardianId(Long guardianId);
     List<Senior> findByWelfareWorkerId(Long welfareWorkerId);
-    List<Senior> findByEnergyVoucherAppliedFalseOrEnergyVoucherAppliedIsNull();
+    List<Senior> findByEnergyVoucherEligibleTrueAndEnergyVoucherAppliedFalseOrEnergyVoucherEligibleTrueAndEnergyVoucherAppliedIsNull();
 }
