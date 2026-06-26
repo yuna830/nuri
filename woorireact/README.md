@@ -1,33 +1,66 @@
-# React + Vite
+# woorireact
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite 기반 웹 프론트엔드다. 어르신, 보호자, 복지사, 관리자 4개 역할을 하나의 앱에서 서빙한다.
 
-Currently, two official plugins are available:
+## 주요 기능
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| 역할 | 주요 화면 |
+|---|---|
+| 어르신 | 홈, 날씨, 낙상 이력, 위치, 일자리, 프로필, AI 챗봇 |
+| 보호자 | 담당 어르신 현황, 위치 확인, 긴급 알림 |
+| 복지사 | 대시보드, 어르신 상세, 일자리 관리, 복지정책 챗봇 |
+| 관리자 | 계정 관리, 어르신/보호자/복지사 목록 |
 
-## React Compiler
+## 기술 스택
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- React 19 / Vite
+- React Router v7
+- Bootstrap 5 + react-bootstrap
+- Axios
+- Kakao Map (JavaScript Key 방식)
+- Leaflet / react-leaflet
 
-Note: This will impact Vite dev & build performances.
+## 연동 서버
 
-## Expanding the ESLint configuration
+| 서버 | 기본 주소 | 용도 |
+|---|---|---|
+| Spring (woorispring) | `http://localhost:8080` | 메인 백엔드 API |
+| 낙상 감지 서버 | `http://127.0.0.1:8000` | 낙상 감지 API |
+| Chat/STT/TTS 서버 | `http://127.0.0.1:8002` | 음성 챗봇 API |
+| RAG API (ai_backend) | `http://localhost:8001` | AI 복지 챗봇 |
+| 얼굴 인식 서버 | `http://localhost:8003` | 얼굴 인식 API |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 환경 설정
 
-# 일단 --camera-index 0
+`.env.example`을 복사해 `.env.local`을 생성한다.
 
-cd C:\github\nuri\raspi-client
+```bash
+cp .env.example .env.local
 
-python laptop_client.py --senior-id 1 --center-lat 37.5665 --center-lng 126.9780 --known-face .\test_woon.jpg --camera-index 0
+실행 방법
 
+npm install
+npm run dev
+```
 
-# 만약 웹 캠이 먼저 잡히면 --camera-index 1, --camera-index 2
-
-python laptop_client.py --senior-id 1 --center-lat 37.5665 --center-lng 126.9780 --known-face .\test_woon.jpg --camera-index 1
-
-# 사진을 known_faces\kimnari 에 넣고 실험 
-
-python laptop_client.py --senior-id 1 --center-lat 37.5665 --center-lng 126.9780 --known-face-dir .\known_faces\kimnari --camera-index 0
+### 라우트 구조
+```
+/              # 어르신 로그인
+/signup        # 어르신 회원가입
+/user          # 어르신 홈
+/weather       # 날씨
+/fall-history  # 낙상 이력
+/location      # 위치
+/jobs          # 일자리
+/profile       # 프로필
+/chat          # AI 챗봇
+/glogin        # 보호자 로그인
+/gsignup       # 보호자 회원가입
+/guardian      # 보호자 홈
+/wlogin        # 복지사 로그인
+/wsignup       # 복지사 회원가입
+/welfare       # 복지사 대시보드
+/welfare/policy-chat  # 복지정책 챗봇
+/admin/login   # 관리자 로그인
+/admin         # 관리자 대시보드
+```
