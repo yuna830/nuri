@@ -85,7 +85,7 @@
   gap: 6px;
   margin-top: 24px;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .guardian-auth-link-row a,
@@ -94,8 +94,8 @@
   background: none;
   padding: 0;
   color: var(--primary);
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
 }
@@ -109,14 +109,50 @@
   color: var(--border);
 }
 
-.guardian-reset-form {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-}
-
 .guardian-reset-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.guardian-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.guardian-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+}
+
+.guardian-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.guardian-modal-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.guardian-modal-header button {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
 }

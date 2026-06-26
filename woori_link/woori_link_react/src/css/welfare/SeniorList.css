@@ -17,3 +17,18 @@
 .form-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+.address-search-row { display: flex; gap: 8px; }
+.address-search-row .form-input { flex: 1; }
+.address-search-btn { height: 42px; padding: 0 14px; white-space: nowrap; flex-shrink: 0; }
+.btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+.btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+.address-search-error { font-size: 12px; color: var(--danger); }
+.address-result-list { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; max-height: 180px; overflow-y: auto; }
+.address-result-item { display: block; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: #fff; text-align: left; cursor: pointer; }
+.address-result-item:last-child { border-bottom: 0; }
+.address-result-item:hover { background: var(--bg-page); }
+.address-result-item span { display: block; font-size: 13px; color: var(--text-primary); font-weight: 600; }
+.address-result-item small { display: block; margin-top: 3px; font-size: 12px; color: var(--text-muted); }
+.selected-address { font-size: 12px; color: var(--primary-dark); background: var(--primary-light); border-radius: 8px; padding: 8px 10px; }

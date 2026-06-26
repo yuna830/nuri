@@ -1,10 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/SeniorList.css'
+import { searchAddresses } from '../../api/addressApi'
 import { getSeniors, createSenior } from '../../api/seniorApi'
 
 const INCOME_LABEL = { BASIC_LIVELIHOOD: '기초생활', NEAR_POVERTY: '차상위', LOWER_MIDDLE: '하위중간', MIDDLE: '중간', UPPER: '상위' }
-const INIT_FORM = { name: '', age: '', address: '', phone: '', gender: '', incomeLevel: '', disabilityGrade: '', livingAlone: false, energyVoucherApplied: false, electricityDiscountApplied: false }
+const INIT_FORM = { name: '', age: '', address: '', latitude: null, longitude: null, phone: '', gender: '', incomeLevel: '', disabilityGrade: '', livingAlone: false, energyVoucherApplied: false, electricityDiscountApplied: false }
+
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length > 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+  }
+  if (digits.length > 3) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  }
+  return digits
+}
 
 export default function SeniorList() {
   const navigate = useNavigate()
@@ -12,6 +24,10 @@ export default function SeniorList() {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(INIT_FORM)
+  const [addressQuery, setAddressQuery] = useState('')
+  const [addressResults, setAddressResults] = useState([])
+  const [addressLoading, setAddressLoading] = useState(false)
+  const [addressError, setAddressError] = useState('')
 
   useEffect(() => { getSeniors().then(r => setSeniors(r.data)).catch(() => {}) }, [])
 
@@ -19,7 +35,42 @@ export default function SeniorList() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+    const nextValue = name === 'phone' ? formatPhone(value) : value
+    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : nextValue }))
+  }
+
+  async function handleAddressSearch() {
+    if (addressQuery.trim().length < 2) {
+      setAddressError('주소를 2글자 이상 입력해주세요.')
+      return
+    }
+
+    setAddressLoading(true)
+    setAddressError('')
+    try {
+      const { data } = await searchAddresses(addressQuery)
+      setAddressResults(data)
+      if (data.length === 0) {
+        setAddressError('검색 결과가 없습니다.')
+      }
+    } catch (err) {
+      setAddressResults([])
+      setAddressError(err.response?.data?.message || '주소 검색에 실패했습니다.')
+    } finally {
+      setAddressLoading(false)
+    }
+  }
+
+  function selectAddress(item) {
+    setForm(prev => ({
+      ...prev,
+      address: item.address,
+      latitude: item.latitude,
+      longitude: item.longitude,
+    }))
+    setAddressQuery(item.address)
+    setAddressResults([])
+    setAddressError('')
   }
 
   async function handleSubmit(e) {
@@ -29,6 +80,9 @@ export default function SeniorList() {
     setSeniors(r.data)
     setShowModal(false)
     setForm(INIT_FORM)
+    setAddressQuery('')
+    setAddressResults([])
+    setAddressError('')
   }
 
   return (
@@ -74,8 +128,53 @@ export default function SeniorList() {
               <div className="form-grid">
                 <div className="form-group"><label className="form-label">이름 *</label><input className="form-input" name="name" value={form.name} onChange={handleChange} required /></div>
                 <div className="form-group"><label className="form-label">나이</label><input className="form-input" name="age" type="number" value={form.age} onChange={handleChange} /></div>
-                <div className="form-group full"><label className="form-label">주소</label><input className="form-input" name="address" value={form.address} onChange={handleChange} /></div>
-                <div className="form-group"><label className="form-label">연락처</label><input className="form-input" name="phone" value={form.phone} onChange={handleChange} /></div>
+                <div className="form-group full">
+                  <label className="form-label">주소</label>
+                  <div className="address-search-row">
+                    <input
+                      className="form-input"
+                      value={addressQuery}
+                      onChange={e => {
+                        setAddressQuery(e.target.value)
+                        setForm(prev => ({ ...prev, address: '', latitude: null, longitude: null }))
+                      }}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddressSearch())}
+                      placeholder="도로명, 지번, 건물명까지 입력하세요"
+                    />
+                    <button type="button" className="btn-outline address-search-btn" onClick={handleAddressSearch} disabled={addressLoading}>
+                      {addressLoading ? '검색 중' : '주소 검색'}
+                    </button>
+                  </div>
+                  {addressError && <div className="address-search-error">{addressError}</div>}
+                  {addressResults.length > 0 && (
+                    <div className="address-result-list">
+                      {addressResults.map((item, index) => (
+                        <button type="button" className="address-result-item" key={`${item.address}-${index}`} onClick={() => selectAddress(item)}>
+                          <span>{item.address}</span>
+                          {item.jibunAddress && <small>지번: {item.jibunAddress}</small>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {form.address && (
+                    <div className="selected-address">
+                      선택 주소: {form.address}
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">연락처</label>
+                  <input
+                    className="form-input"
+                    name="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={13}
+                    placeholder="010-0000-0000"
+                    value={form.phone}
+                    onChange={handleChange}
+                  />
+                </div>
                 <div className="form-group"><label className="form-label">소득구분</label>
                   <select className="form-select" name="incomeLevel" value={form.incomeLevel} onChange={handleChange}>
                     <option value="">선택</option>

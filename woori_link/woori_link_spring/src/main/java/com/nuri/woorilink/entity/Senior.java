@@ -25,6 +25,8 @@ public class Senior {
 
     private Integer age;
     private String address;
+    private Double latitude;
+    private Double longitude;
 
     private String phone;
 
