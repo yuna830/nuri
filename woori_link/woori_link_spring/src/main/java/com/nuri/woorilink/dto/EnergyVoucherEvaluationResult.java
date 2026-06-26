@@ -1,6 +1,6 @@
 package com.nuri.woorilink.dto;
 
-public record EnergyVoucherResult(
+public record EnergyVoucherEvaluationResult(
         boolean eligible,
         String reason
 ) {

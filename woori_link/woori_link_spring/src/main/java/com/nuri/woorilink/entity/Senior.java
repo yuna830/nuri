@@ -10,7 +10,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "wl_seniors")
-@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Senior {
 
     @Id
@@ -27,9 +31,7 @@ public class Senior {
     private String address;
     private Double latitude;
     private Double longitude;
-
     private String phone;
-
     private String gender;
 
     @Enumerated(EnumType.STRING)
@@ -49,6 +51,34 @@ public class Senior {
     private Long guardianId;
     private Long welfareWorkerId;
 
+    // 에너지바우처 소득기준
+    private Boolean livelihoodBenefit;
+    private Boolean medicalBenefit;
+    private Boolean housingBenefit;
+    private Boolean educationBenefit;
+
+    // 에너지바우처 세대원 특성기준
+    private Boolean elderlyHouseholdMember;
+    private Boolean infantHouseholdMember;
+    private Boolean disabledHouseholdMember;
+    private Boolean pregnantHouseholdMember;
+    private Boolean severeDiseaseHouseholdMember;
+    private Boolean rareDiseaseHouseholdMember;
+    private Boolean intractableDiseaseHouseholdMember;
+    private Boolean singleParentFamily;
+    private Boolean childHeadedHousehold;
+    private Boolean multiChildHousehold;
+
+    // 지원 제외 / 중복지원
+    private Boolean allMembersInFacility;
+    private Boolean winterFuelSupport;
+    private Boolean coalCoupon;
+    private Boolean coalEnergyVoucher;
+
+    // 판정 결과
+    private Boolean energyVoucherEligible;
+    private String energyVoucherReason;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -62,14 +92,4 @@ public class Senior {
         EDUCATION,    // 교육급여
         NONE
     }
-
-    private Boolean energyVoucherEligible;
-    private String energyVoucherReason;
-
-    private Boolean severeDisease;
-    private Boolean rareDisease;
-    private Boolean pregnant;
-    private Boolean singleParentFamily;
-    private Boolean childHeadedHousehold;
-    private Boolean multiChildHousehold;
 }
