@@ -56,6 +56,20 @@ public class Senior {
     private LocalDateTime updatedAt;
 
     public enum IncomeLevel {
-        BASIC_LIVELIHOOD, NEAR_POVERTY, LOWER_MIDDLE, MIDDLE, UPPER
+        LIVELIHOOD,   // 생계급여
+        MEDICAL,      // 의료급여
+        HOUSING,      // 주거급여
+        EDUCATION,    // 교육급여
+        NONE
     }
+
+    private Boolean energyVoucherEligible;
+    private String energyVoucherReason;
+
+    private Boolean severeDisease;
+    private Boolean rareDisease;
+    private Boolean pregnant;
+    private Boolean singleParentFamily;
+    private Boolean childHeadedHousehold;
+    private Boolean multiChildHousehold;
 }
