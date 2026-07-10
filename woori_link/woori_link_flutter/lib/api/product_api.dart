@@ -9,7 +9,7 @@ class ProductApi {
       Uri.parse('$baseUrl/products/senior/$seniorId'),
       headers: await authHeaders(),
     );
-    if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
     return [];
   }
 
@@ -21,9 +21,11 @@ class ProductApi {
       body: jsonEncode(body),
     );
     if (res.statusCode == 200 || res.statusCode == 201) {
-      return jsonDecode(res.body);
+      return jsonDecode(utf8.decode(res.bodyBytes));
     }
-    throw Exception('제품 등록 실패');
+    throw Exception(
+      '제품 등록 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}',
+    );
   }
 
   static Future<void> deleteProduct(int productId) async {
@@ -34,9 +36,14 @@ class ProductApi {
   }
 
   static Future<void> refreshProducts() async {
-    await http.post(
+    final res = await http.post(
       Uri.parse('$baseUrl/products/refresh'),
       headers: await authHeaders(),
     );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(
+        '리콜 정보 새로고침 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}',
+      );
+    }
   }
 }
