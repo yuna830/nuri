@@ -15,12 +15,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    EnergyVoucherScreen(),
-    RecallScreen(),
-    SosScreen(),
-  ];
+  List<Widget> get _screens => [
+        HomeScreen(onTabSelected: (index) => setState(() => _currentIndex = index)),
+        const EnergyVoucherScreen(),
+        const RecallScreen(),
+        const SosScreen(),
+      ];
 
   @override
   Widget build(BuildContext context) {
