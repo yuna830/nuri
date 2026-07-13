@@ -4,9 +4,13 @@ import '../api/risk_api.dart';
 import '../api/action_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import 'chat_screen.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onTabSelected});
+
+  final ValueChanged<int>? onTabSelected;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -59,6 +63,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return '안전';
   }
 
+  Future<void> _logout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -79,6 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
               expandedHeight: 200,
               pinned: true,
               backgroundColor: kPrimary,
+              actions: [
+                IconButton(
+                  tooltip: '로그아웃',
+                  icon: const Icon(Icons.logout),
+                  onPressed: _logout,
+                ),
+              ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
                   decoration: const BoxDecoration(
@@ -263,10 +283,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisSpacing: 12,
                     childAspectRatio: 1.4,
                     children: [
-                      _serviceTile(context, Icons.bolt, '에너지바우처', kWarning, 1),
-                      _serviceTile(context, Icons.warning_amber, '리콜 확인', kDanger, 2),
-                      _serviceTile(context, Icons.chat_bubble_outline, '상담 챗봇', kPrimary, 3),
-                      _serviceTile(context, Icons.sos, 'SOS 신고', kDanger, 3),
+                      _serviceTile(context, Icons.bolt, '에너지바우처', kWarning, tabIndex: 1),
+                      _serviceTile(context, Icons.warning_amber, '리콜 확인', kDanger, tabIndex: 2),
+                      _serviceTile(context, Icons.chat_bubble_outline, '상담 챗봇', kPrimary),
+                      _serviceTile(context, Icons.sos, 'SOS 신고', kDanger, tabIndex: 3),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -302,10 +322,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _serviceTile(
-      BuildContext context, IconData icon, String label, Color color, int tab) {
+      BuildContext context, IconData icon, String label, Color color,
+      {int? tabIndex}) {
     return GestureDetector(
       onTap: () {
-        // BottomNavigationBar 탭 이동 — MainScreen에서 처리
+        if (tabIndex != null) {
+          widget.onTabSelected?.call(tabIndex);
+          return;
+        }
+        if (label == '상담 챗봇') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ChatScreen()),
+          );
+        }
       },
       child: Container(
         decoration: BoxDecoration(

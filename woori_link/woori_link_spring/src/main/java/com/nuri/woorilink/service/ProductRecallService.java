@@ -8,7 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -28,30 +31,61 @@ public class ProductRecallService {
 
     @Transactional
     public RegisteredProduct register(RegisteredProduct product) {
-        boolean recalled = recallApiClient.isRecalled(product.getProductName());
-        if (recalled) {
-            product.setRecallStatus(RegisteredProduct.RecallStatus.RECALLED);
-            product.setRecallReason(recallApiClient.getRecallDetail(product.getProductName()));
-        } else {
-            product.setRecallStatus(RegisteredProduct.RecallStatus.SAFE);
-        }
-        product.setLastCheckedAt(LocalDateTime.now());
+        applyRecallStatus(product);
         return productRepository.save(product);
     }
 
     @Transactional
     public void refreshAll() {
         productRepository.findAll().forEach(p -> {
-            boolean recalled = recallApiClient.isRecalled(p.getProductName());
-            p.setRecallStatus(recalled
-                    ? RegisteredProduct.RecallStatus.RECALLED
-                    : RegisteredProduct.RecallStatus.SAFE);
-            if (recalled) p.setRecallReason(recallApiClient.getRecallDetail(p.getProductName()));
-            p.setLastCheckedAt(LocalDateTime.now());
+            applyRecallStatus(p);
             productRepository.save(p);
         });
     }
 
     @Transactional
     public void delete(Long id) { productRepository.deleteById(id); }
+
+    private void applyRecallStatus(RegisteredProduct product) {
+        RecallLookup lookup = lookupRecall(product);
+        product.setRecallStatus(lookup.recalled()
+                ? RegisteredProduct.RecallStatus.RECALLED
+                : RegisteredProduct.RecallStatus.SAFE);
+        product.setRecallReason(lookup.recalled() ? lookup.detail() : null);
+        product.setLastCheckedAt(LocalDateTime.now());
+    }
+
+    private RecallLookup lookupRecall(RegisteredProduct product) {
+        for (String term : buildRecallSearchTerms(product)) {
+            if (recallApiClient.isRecalled(term)) {
+                String detail = recallApiClient.getRecallDetail(term);
+                String reason = detail != null && !detail.isBlank()
+                        ? detail
+                        : "제품안전정보센터 리콜 목록에서 조회되었습니다. 검색어: " + term;
+                return new RecallLookup(true, reason);
+            }
+        }
+        return new RecallLookup(false, null);
+    }
+
+    private List<String> buildRecallSearchTerms(RegisteredProduct product) {
+        Set<String> terms = new LinkedHashSet<>();
+        addIfNotBlank(terms, product.getModelNumber());
+        addIfNotBlank(terms, product.getProductName());
+
+        List<String> filtered = new ArrayList<>();
+        for (String term : terms) {
+            String normalized = term.trim();
+            if (normalized.length() >= 2) filtered.add(normalized);
+        }
+        return filtered;
+    }
+
+    private void addIfNotBlank(Set<String> terms, String value) {
+        if (value == null) return;
+        String normalized = value.trim();
+        if (!normalized.isBlank()) terms.add(normalized);
+    }
+
+    private record RecallLookup(boolean recalled, String detail) {}
 }
