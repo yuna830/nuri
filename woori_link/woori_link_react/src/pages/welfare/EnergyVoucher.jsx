@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/EnergyVoucher.css'
-import { getSeniors, updateSenior } from '../../api/seniorApi'
+import { getSeniorsByWelfareWorker, getVoucherUnapplied, updateSenior } from '../../api/seniorApi'
+import { getUserId } from '../../utils/auth'
 
-const INCOME_LABEL = { BASIC_LIVELIHOOD: '기초생활', NEAR_POVERTY: '차상위', LOWER_MIDDLE: '하위중간', MIDDLE: '중간', UPPER: '상위' }
+const INCOME_LABEL = { LIVELIHOOD: '생계급여', MEDICAL: '의료급여', HOUSING: '주거급여', EDUCATION: '교육급여', NONE: '해당없음' }
 
 export default function EnergyVoucher() {
   const navigate = useNavigate()
   const [tab, setTab] = useState('voucher')
   const [seniors, setSeniors] = useState([])
+  const [voucherTargets, setVoucherTargets] = useState([])
 
-  useEffect(() => { getSeniors().then(r => setSeniors(r.data)).catch(() => {}) }, [])
+  useEffect(() => {
+    const welfareWorkerId = getUserId()
+    if (welfareWorkerId) {
+      getSeniorsByWelfareWorker(welfareWorkerId).then(r => setSeniors(r.data)).catch(() => {})
+    }
+    getVoucherUnapplied().then(r => setVoucherTargets(r.data)).catch(() => {})
+  }, [])
 
-  const voucherList = seniors.filter(s => !s.energyVoucherApplied)
+  const voucherList = voucherTargets
   const electricList = seniors.filter(s => !s.electricityDiscountApplied)
 
   const list = tab === 'voucher' ? voucherList : electricList
@@ -22,6 +30,7 @@ export default function EnergyVoucher() {
   async function markApplied(s) {
     await updateSenior(s.id, { [field]: true })
     setSeniors(prev => prev.map(x => x.id === s.id ? { ...x, [field]: true } : x))
+    setVoucherTargets(prev => prev.filter(x => x.id !== s.id))
   }
 
   return (
@@ -47,7 +56,7 @@ export default function EnergyVoucher() {
             <tbody>
               {list.map(s => (
                 <tr key={s.id}>
-                  <td className="font-bold" style={{ cursor: 'pointer' }} onClick={() => navigate(`/seniors/${s.id}`)}>{s.name}</td>
+                  <td className="font-bold" style={{ cursor: 'pointer' }} onClick={() => navigate(`/welfare/seniors/${s.id}`)}>{s.name}</td>
                   <td>{s.age}세</td>
                   <td>{s.address}</td>
                   <td>{INCOME_LABEL[s.incomeLevel] || '-'}</td>

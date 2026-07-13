@@ -13,4 +13,5 @@ public class PublicDataConfig {
     private String weatherApiKey;
     private String energyEfficiencyApiKey;
     private String welfareFacilityApiKey;
+    private String kakaoRestApiKey;
 }

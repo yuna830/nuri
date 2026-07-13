@@ -1,0 +1,158 @@
+.guardian-login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+}
+
+.guardian-login-card {
+  width: 360px;
+  padding: 36px;
+}
+
+.guardian-login-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.guardian-login-header h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 0;
+}
+
+.guardian-login-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.guardian-login-field {
+  margin-bottom: 14px;
+}
+
+.guardian-login-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.guardian-login-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+
+.guardian-login-field input:focus {
+  border-color: var(--primary);
+}
+
+.guardian-login-alert {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.guardian-login-alert-success {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  text-align: center;
+}
+
+.guardian-login-alert-error {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.guardian-login-button {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.guardian-auth-link-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.guardian-auth-link-row a,
+.guardian-text-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.guardian-auth-link-row a:hover,
+.guardian-text-button:hover {
+  text-decoration: underline;
+}
+
+.guardian-divider {
+  color: var(--border);
+}
+
+.guardian-reset-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.guardian-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.guardian-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.2);
+}
+
+.guardian-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.guardian-modal-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.guardian-modal-header button {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}

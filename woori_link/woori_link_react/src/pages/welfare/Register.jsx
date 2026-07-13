@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { registerWelfareWorker, searchFacilities, checkLoginIdAvailable } from '../api/authApi.js';
-import '../css/auth/Register.css';
+import { registerWelfareWorker, searchFacilities, checkLoginIdAvailable } from '../../api/authApi.js';
+import '../../css/welfare/Register.css';
 
 const INIT = { loginId: '', name: '', phone: '', password: '', passwordConfirm: '', organization: '', email: '' };
 
@@ -85,7 +85,7 @@ export default function Register() {
         loginId: form.loginId, name: form.name, phone: form.phone,
         password: form.password, organization: form.organization, email: form.email,
       });
-      navigate('/login', { state: { registered: true } });
+      navigate('/welfare/login', { state: { registered: true } });
     } catch (err) {
       setError(err.response?.data?.message || '회원가입에 실패했습니다.');
     } finally {
@@ -198,7 +198,7 @@ export default function Register() {
         </form>
 
         <div className="auth-footer">
-          이미 계정이 있으신가요? <Link to="/login">로그인</Link>
+          이미 계정이 있으신가요? <Link to="/welfare/login">로그인</Link>
         </div>
       </div>
     </div>

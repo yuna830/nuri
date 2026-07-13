@@ -5,11 +5,14 @@ const baseApi = axios.create({
   withCredentials: true,
 });
 
-export const login = (phone, password) =>
+export const guardianLogin = (phone, password) =>
   baseApi.post('/guardian-auth/login', { phone, password });
 
-export const logout = () =>
+export const guardianLogout = () =>
   baseApi.post('/guardian-auth/logout');
 
 export const registerGuardian = (data) =>
   baseApi.post('/guardian-auth/register', data);
+
+export const resetGuardianPassword = (data) =>
+  baseApi.post('/guardian-auth/reset-password', data);
