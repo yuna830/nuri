@@ -18,6 +18,10 @@ public class RiskAssessmentDto {
     private Boolean weatherRisk;
     private Boolean recallRisk;
     private Boolean voucherUnapplied;
+    private Boolean fallRisk;
+    private Boolean sosRisk;
+    private Boolean checkInRisk;
+    private Boolean safetyZoneRisk;
     private String riskReason;
     private LocalDateTime assessedAt;
 }

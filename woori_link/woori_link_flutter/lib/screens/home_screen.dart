@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/senior_api.dart';
 import '../api/risk_api.dart';
 import '../api/action_api.dart';
+import '../api/care_monitoring_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import 'chat_screen.dart';
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _risk;
   List<dynamic> _actions = [];
   bool _loading = true;
+  Map<String, dynamic>? _pendingCheckIn;
 
   @override
   void initState() {
@@ -36,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SeniorApi.getSenior(seniorId),
         RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
         ActionApi.getActionsBySenior(seniorId),
+        CareMonitoringApi.getCheckIns(seniorId),
       ]);
       setState(() {
         _senior = results[0] as Map<String, dynamic>;
@@ -44,11 +47,21 @@ class _HomeScreenState extends State<HomeScreen> {
         _actions = (results[2] as List<dynamic>)
             .where((a) => a['status'] == 'PENDING' || a['status'] == 'IN_PROGRESS')
             .toList();
+        final checkIns = results[3] as List<dynamic>;
+        final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
+        _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
     } catch (_) {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _respondToCheckIn() async {
+    final checkIn = _pendingCheckIn;
+    if (checkIn == null) return;
+    await CareMonitoringApi.respondToCheckIn(checkIn['id'] as int, 'I am okay');
+    if (mounted) setState(() => _pendingCheckIn = null);
   }
 
   Color _riskColor(String? level) {
@@ -84,6 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final riskScore = _risk?['totalScore'] as int?;
 
     return Scaffold(
+      floatingActionButton: _pendingCheckIn == null ? null : FloatingActionButton.extended(
+        onPressed: _respondToCheckIn,
+        icon: const Icon(Icons.favorite),
+        label: const Text('안부 확인: 괜찮아요'),
+        backgroundColor: kPrimary,
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(

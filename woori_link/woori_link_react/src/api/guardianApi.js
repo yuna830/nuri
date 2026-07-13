@@ -17,3 +17,10 @@ export const getProductsBySenior = (seniorId) =>
 
 export const getActionsBySenior = (seniorId) =>
   api.get(`/actions/senior/${seniorId}`);
+
+export const getGuardianAlerts = () => api.get(`/care/guardians/${getUserId()}/alerts`);
+export const acknowledgeAlert = (alertId, resolved = false) =>
+  api.patch(`/care/alerts/${alertId}`, { resolved });
+export const getLatestLocation = (seniorId) => api.get(`/care/seniors/${seniorId}/locations/latest`);
+export const getSafetyZone = (seniorId) => api.get(`/care/seniors/${seniorId}/safety-zone`);
+export const getCheckIns = (seniorId) => api.get(`/care/seniors/${seniorId}/check-ins`);

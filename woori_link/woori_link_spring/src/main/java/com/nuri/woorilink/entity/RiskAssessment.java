@@ -24,6 +24,10 @@ public class RiskAssessment {
     private Boolean weatherRisk;
     private Boolean recallRisk;
     private Boolean voucherUnapplied;
+    private Boolean fallRisk;
+    private Boolean sosRisk;
+    private Boolean checkInRisk;
+    private Boolean safetyZoneRisk;
 
     @Column(length = 500)
     private String riskReason;

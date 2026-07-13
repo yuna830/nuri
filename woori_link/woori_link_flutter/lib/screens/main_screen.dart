@@ -3,7 +3,7 @@ import 'home_screen.dart';
 import 'energy_voucher_screen.dart';
 import 'recall_screen.dart';
 import 'sos_screen.dart';
-import '../theme.dart';
+import '../services/care_monitoring_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,6 +14,19 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  final _careMonitoring = CareMonitoringService();
+
+  @override
+  void initState() {
+    super.initState();
+    _careMonitoring.start();
+  }
+
+  @override
+  void dispose() {
+    _careMonitoring.dispose();
+    super.dispose();
+  }
 
   List<Widget> get _screens => [
         HomeScreen(onTabSelected: (index) => setState(() => _currentIndex = index)),
