@@ -21,4 +21,5 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
       and (s.energyVoucherApplied = false or s.energyVoucherApplied is null)
 """)
     List<Senior> findEnergyVoucherUnappliedTargets();
+    List<Senior> findByNameContainingAndPhone(String name, String phone);
 }

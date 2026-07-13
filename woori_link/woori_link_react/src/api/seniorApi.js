@@ -7,3 +7,9 @@ export const getVoucherUnapplied = () => api.get('/seniors/voucher-unapplied')
 export const createSenior = (data) => api.post('/seniors', data)
 export const updateSenior = (id, data) => api.patch(`/seniors/${id}`, data)
 export const deleteSenior = (id) => api.delete(`/seniors/${id}`)
+
+export const searchSeniors = (params) =>
+  api.get('/seniors/search', { params })
+
+export const assignWelfareWorker = (id, welfareWorkerId) =>
+  api.patch(`/seniors/${id}`, { welfareWorkerId })
