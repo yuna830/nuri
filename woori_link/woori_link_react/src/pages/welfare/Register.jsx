@@ -123,7 +123,7 @@ export default function Register() {
             <div className="form-row-inline">
               <input className="auth-input" type="text" value={form.loginId}
                 onChange={set('loginId')} placeholder="영문/숫자 조합" required />
-              <button type="button" className="btn-outline inline-btn" onClick={checkLoginId}>
+              <button type="button" className="register-btn-outline inline-btn" onClick={checkLoginId}>
                 중복확인
               </button>
             </div>
@@ -168,7 +168,7 @@ export default function Register() {
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleOrgSearch())}
                 placeholder="기관명 입력 (2글자 이상)"
               />
-              <button type="button" className="btn-outline inline-btn"
+              <button type="button" className="register-btn-outline inline-btn"
                 onClick={handleOrgSearch} disabled={orgLoading}>
                 {orgLoading ? '검색 중' : '검색'}
               </button>

@@ -26,7 +26,7 @@
   flex-shrink: 0;
 }
 
-.btn-outline {
+.register-btn-outline {
   background: #fff;
   border: 1.5px solid #86a788;
   color: #86a788;
@@ -37,12 +37,12 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.btn-outline:hover {
+.register-btn-outline:hover {
   background: #86a788;
   color: #fff;
 }
 
-.btn-outline:disabled {
+.register-btn-outline:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

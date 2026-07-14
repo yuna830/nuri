@@ -46,4 +46,10 @@ public class SeniorController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) { seniorService.delete(id); }
+
+    @GetMapping("/search")
+    public List<Senior> search(@RequestParam String name,
+                               @RequestParam String phone) {
+        return seniorService.search(name, phone);
+    }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login } from '../../api/authApi.js';
 import { saveUser } from '../../utils/auth.js';
@@ -9,23 +9,28 @@ export default function Login() {
   const location = useLocation();
   const registered = location.state?.registered;
   const [form, setForm] = useState({ loginId: '', password: '' });
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!registered) return;
+
+    alert('회원가입이 완료되었습니다. 로그인해주세요.');
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [registered, navigate, location.pathname]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
     try {
       const { data } = await login(form.loginId, form.password);
       if (data.role !== 'WELFARE_WORKER') {
-        setError('복지사 계정으로만 로그인할 수 있습니다.');
+        alert('복지사 계정으로만 로그인할 수 있습니다.');
         return;
       }
       saveUser(data);
       navigate('/welfare');
     } catch (err) {
-      setError(err.response?.data?.message || '로그인에 실패했습니다.');
+      alert(err.response?.data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setLoading(false);
     }
@@ -38,12 +43,6 @@ export default function Login() {
           <div className="auth-logo-title">WOORI</div>
           <div className="auth-logo-sub">복지사 관리 시스템</div>
         </div>
-
-        {registered && (
-          <div className="auth-alert-success">
-            회원가입이 완료되었습니다. 로그인해주세요.
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
@@ -68,8 +67,6 @@ export default function Login() {
               required
             />
           </div>
-
-          {error && <div className="auth-alert-error">{error}</div>}
 
           <button type="submit" disabled={loading} className="btn-primary auth-submit">
             {loading ? '로그인 중...' : '로그인'}

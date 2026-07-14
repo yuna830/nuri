@@ -122,9 +122,15 @@ public class SeniorService {
         if (req.getCoalEnergyVoucher() != null) {
             senior.setCoalEnergyVoucher(req.getCoalEnergyVoucher());
         }
-
+        if (req.getWelfareWorkerId() != null) {
+            senior.setWelfareWorkerId(req.getWelfareWorkerId());
+        }
         applyEnergyVoucherEligibility(senior);
         return seniorRepository.save(senior);
+    }
+
+    public List<Senior> search(String name, String phone) {
+        return seniorRepository.findByNameContainingAndPhone(name, normalizePhone(phone));
     }
 
     @Transactional
@@ -141,4 +147,5 @@ public class SeniorService {
     private String normalizePhone(String phone) {
         return phone == null ? null : phone.replaceAll("\\D", "");
     }
+
 }
