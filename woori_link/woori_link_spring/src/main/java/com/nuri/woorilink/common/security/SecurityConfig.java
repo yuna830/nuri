@@ -37,13 +37,14 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                        "/api/welfare-auth/**",
-                        "/api/guardian-auth/**",
-                        "/api/senior-auth/**",
-                        "/api/welfare-facilities/**",
-                        "/api/alerts/fall"
-                ).permitAll()
+                    .requestMatchers(
+                            "/api/welfare-auth/**",
+                            "/api/guardian-auth/**",
+                            "/api/senior-auth/**",
+                            "/api/welfare-facilities/**",
+                            "/api/alerts/fall",
+                            "/api/actions/**"
+                    ).permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )

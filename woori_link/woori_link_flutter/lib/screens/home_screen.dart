@@ -76,6 +76,34 @@ class _HomeScreenState extends State<HomeScreen> {
     return '안전';
   }
 
+  String _actionTitle(Map<String, dynamic> action) {
+    final productName = '${action['productName'] ?? ''}'.trim();
+    switch ('${action['actionType'] ?? ''}') {
+      case 'RECALL':
+        return productName.isEmpty ? '리콜 조치 요청' : '리콜 조치 요청 · $productName';
+      case 'VOUCHER':
+        return '에너지바우처 신청 지원';
+      case 'SOS':
+        return 'SOS 신고 조치';
+      case 'GAS_CHECK':
+        return '가스 안전 점검';
+      case 'ELECTRIC_CHECK':
+        return '전기 안전 점검';
+      case 'VISIT':
+        return '방문 조치';
+      default:
+        return '${action['description'] ?? action['actionType'] ?? '조치 요청'}';
+    }
+  }
+
+  String _actionStatusLabel(String? status) {
+    if (status == 'PENDING') return '미조치';
+    if (status == 'IN_PROGRESS') return '조치 진행 중';
+    if (status == 'COMPLETED') return '조치 완료';
+    if (status == 'CANCELLED') return '취소됨';
+    return '상태 확인 중';
+  }
+
   Future<void> _logout() async {
     await AuthService.logout();
     if (!mounted) return;
@@ -258,30 +286,59 @@ class _HomeScreenState extends State<HomeScreen> {
                                 style: const TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 12),
-                            ..._actions.map((a) => Padding(
+                            ..._actions.map((a) {
+                              final action = Map<String, dynamic>.from(a as Map);
+                              final title = _actionTitle(action);
+                              final status =
+                                  _actionStatusLabel(action['status'] as String?);
+                              final note = '${action['note'] ?? ''}'.trim();
+                              return Padding(
                                   padding:
                                       const EdgeInsets.only(bottom: 8),
                                   child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Container(
                                         width: 8,
                                         height: 8,
+                                        margin: const EdgeInsets.only(top: 5),
                                         decoration: const BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: kWarning),
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
-                                        child: Text(
-                                          a['description'] ??
-                                              a['actionType'] ??
-                                              '',
-                                          style: const TextStyle(fontSize: 13),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '$title · $status',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            if (note.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                note,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: kTextMuted,
+                                                  height: 1.35,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                )),
+                                );
+                            }),
                           ],
                         ),
                       ),

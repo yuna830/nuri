@@ -112,6 +112,9 @@ class _ChatScreenState extends State<ChatScreen> {
 - 사용자를 부를 때 "보호대상자"라고 하지 말고 "$userLabel"이라고 부른다.
 - 일반 답변은 1~3문장으로 짧고 확실하게 말한다.
 - 일정, 날짜, 시간, 날씨는 앱에서 먼저 처리하므로 추측하지 않는다.
+- 리콜 제품 확인을 물으면 외부 사이트보다 우리 앱 하단의 리콜 탭을 먼저 안내한다.
+- 리콜 탭에서는 제품 사진 OCR, 바코드/QR 스캔, 직접 입력으로 보유 제품을 등록하고 제품안전정보센터 리콜 데이터와 자동 매칭할 수 있다고 설명한다.
+- 리콜 대상이면 앱에서 리콜 조치 요청을 보낼 수 있고 보호자/복지사에게 미조치 대상으로 전달된다고 안내한다.
 - 모르면 지어내지 말고 다시 말해 달라고 한다.
 - 응급 상황이면 즉시 119 또는 보호자/복지사에게 연락하라고 안내한다.
 - 반말, 과한 농담, 외국어 섞어 쓰기는 하지 않는다.
@@ -256,6 +259,9 @@ $text
           _todaySchedules.where(_isRemainingTodaySchedule).map(_formatScheduleBrief).toList();
       if (briefs.isEmpty) return '남은 오늘 일정은 없어요.';
       return '남은 오늘 일정은 ${briefs.join(', ')}입니다.';
+    }
+    if (normalized.contains('리콜')) {
+      return '하단의 리콜 탭에서 보유 제품을 등록하면 제품안전정보센터 리콜 데이터와 자동으로 비교해 드려요. 제품 사진 OCR, 바코드/QR 스캔, 직접 입력으로 등록할 수 있고, 리콜 대상이면 리콜 조치 요청을 눌러 보호자와 복지사에게 미조치 대상으로 알릴 수 있어요.';
     }
     if (normalized.contains('119') ||
         normalized.contains('응급') ||

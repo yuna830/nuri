@@ -26,6 +26,7 @@ public class ActionRecord {
     private ActionSubject actionSubject;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "action_status", nullable = false)
     @Builder.Default
     private ActionStatus status = ActionStatus.PENDING;
 
