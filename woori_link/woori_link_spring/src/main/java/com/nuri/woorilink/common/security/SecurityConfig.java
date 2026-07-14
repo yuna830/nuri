@@ -41,7 +41,8 @@ public class SecurityConfig {
                         "/api/welfare-auth/**",
                         "/api/guardian-auth/**",
                         "/api/senior-auth/**",
-                        "/api/welfare-facilities/**"
+                        "/api/welfare-facilities/**",
+                        "/api/alerts/fall"
                 ).permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
