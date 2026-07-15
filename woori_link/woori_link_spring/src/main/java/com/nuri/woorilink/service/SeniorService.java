@@ -23,7 +23,8 @@ public class SeniorService {
 
     public Senior getById(Long id) {
         return seniorRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("어르신을 찾을 수 없습니다: " + id));
+                .orElseThrow(() ->
+                        new IllegalArgumentException("어르신을 찾을 수 없습니다: " + id));
     }
 
     public List<Senior> getByGuardian(Long guardianId) {
@@ -49,69 +50,149 @@ public class SeniorService {
     public Senior update(Long id, Senior req) {
         Senior senior = getById(id);
 
-        if (req.getName() != null) senior.setName(req.getName());
-        if (req.getAge() != null) senior.setAge(req.getAge());
-        if (req.getAddress() != null) senior.setAddress(req.getAddress());
-        if (req.getLatitude() != null) senior.setLatitude(req.getLatitude());
-        if (req.getLongitude() != null) senior.setLongitude(req.getLongitude());
-        if (req.getPhone() != null) senior.setPhone(normalizePhone(req.getPhone()));
-        if (req.getGender() != null) senior.setGender(req.getGender());
-        if (req.getIncomeLevel() != null) senior.setIncomeLevel(req.getIncomeLevel());
-        if (req.getDisabilityGrade() != null) senior.setDisabilityGrade(req.getDisabilityGrade());
-        if (req.getLongTermCare() != null) senior.setLongTermCare(req.getLongTermCare());
-        if (req.getLivingAlone() != null) senior.setLivingAlone(req.getLivingAlone());
-        if (req.getHouseholdType() != null) senior.setHouseholdType(req.getHouseholdType());
-        if (req.getGasType() != null) senior.setGasType(req.getGasType());
-        if (req.getHousingType() != null) senior.setHousingType(req.getHousingType());
+        if (req.getName() != null) {
+            senior.setName(req.getName());
+        }
+        if (req.getBirthDate() != null) {
+            senior.setBirthDate(req.getBirthDate());
+        }
+        if (req.getAddress() != null) {
+            senior.setAddress(req.getAddress());
+        }
+        if (req.getLatitude() != null) {
+            senior.setLatitude(req.getLatitude());
+        }
+        if (req.getLongitude() != null) {
+            senior.setLongitude(req.getLongitude());
+        }
+        if (req.getPhone() != null) {
+            senior.setPhone(normalizePhone(req.getPhone()));
+        }
+        if (req.getGender() != null) {
+            senior.setGender(req.getGender());
+        }
+        if (req.getIncomeLevel() != null) {
+            senior.setIncomeLevel(req.getIncomeLevel());
+        }
+        if (req.getDisabilityGrade() != null) {
+            senior.setDisabilityGrade(req.getDisabilityGrade());
+        }
+        if (req.getLongTermCare() != null) {
+            senior.setLongTermCare(req.getLongTermCare());
+        }
+        if (req.getLivingAlone() != null) {
+            senior.setLivingAlone(req.getLivingAlone());
+        }
+        if (req.getHouseholdType() != null) {
+            senior.setHouseholdType(req.getHouseholdType());
+        }
+        if (req.getGasType() != null) {
+            senior.setGasType(req.getGasType());
+        }
+        if (req.getHousingType() != null) {
+            senior.setHousingType(req.getHousingType());
+        }
 
         if (req.getEnergyVoucherApplied() != null) {
             senior.setEnergyVoucherApplied(req.getEnergyVoucherApplied());
         }
         if (req.getElectricityDiscountApplied() != null) {
-            senior.setElectricityDiscountApplied(req.getElectricityDiscountApplied());
+            senior.setElectricityDiscountApplied(
+                    req.getElectricityDiscountApplied()
+            );
         }
         if (req.getGasDiscountApplied() != null) {
             senior.setGasDiscountApplied(req.getGasDiscountApplied());
         }
+        if (req.getElectricityDiscountEligible() != null) {
+            senior.setElectricityDiscountEligible(req.getElectricityDiscountEligible());
+        }
+        if (req.getGasDiscountEligible() != null) {
+            senior.setGasDiscountEligible(req.getGasDiscountEligible());
+        }
+        if (req.getAiCheckStatus() != null) {
+            senior.setAiCheckStatus(req.getAiCheckStatus());
+        }
+        if (req.getAiConsecutiveNoResponse() != null) {
+            senior.setAiConsecutiveNoResponse(req.getAiConsecutiveNoResponse());
+        }
+        if (req.getAiCheckResolved() != null) {
+            senior.setAiCheckResolved(req.getAiCheckResolved());
+        }
+        if (req.getLocationStatus() != null) {
+            senior.setLocationStatus(req.getLocationStatus());
+        }
+        if (req.getUnresolvedGeofenceExit() != null) {
+            senior.setUnresolvedGeofenceExit(req.getUnresolvedGeofenceExit());
+        }
+        if (req.getLocationEventResolved() != null) {
+            senior.setLocationEventResolved(req.getLocationEventResolved());
+        }
 
-        if (req.getLivelihoodBenefit() != null) senior.setLivelihoodBenefit(req.getLivelihoodBenefit());
-        if (req.getMedicalBenefit() != null) senior.setMedicalBenefit(req.getMedicalBenefit());
-        if (req.getHousingBenefit() != null) senior.setHousingBenefit(req.getHousingBenefit());
-        if (req.getEducationBenefit() != null) senior.setEducationBenefit(req.getEducationBenefit());
+        if (req.getLivelihoodBenefit() != null) {
+            senior.setLivelihoodBenefit(req.getLivelihoodBenefit());
+        }
+        if (req.getMedicalBenefit() != null) {
+            senior.setMedicalBenefit(req.getMedicalBenefit());
+        }
+        if (req.getHousingBenefit() != null) {
+            senior.setHousingBenefit(req.getHousingBenefit());
+        }
+        if (req.getEducationBenefit() != null) {
+            senior.setEducationBenefit(req.getEducationBenefit());
+        }
 
         if (req.getElderlyHouseholdMember() != null) {
-            senior.setElderlyHouseholdMember(req.getElderlyHouseholdMember());
+            senior.setElderlyHouseholdMember(
+                    req.getElderlyHouseholdMember()
+            );
         }
         if (req.getInfantHouseholdMember() != null) {
-            senior.setInfantHouseholdMember(req.getInfantHouseholdMember());
+            senior.setInfantHouseholdMember(
+                    req.getInfantHouseholdMember()
+            );
         }
         if (req.getDisabledHouseholdMember() != null) {
-            senior.setDisabledHouseholdMember(req.getDisabledHouseholdMember());
+            senior.setDisabledHouseholdMember(
+                    req.getDisabledHouseholdMember()
+            );
         }
         if (req.getPregnantHouseholdMember() != null) {
-            senior.setPregnantHouseholdMember(req.getPregnantHouseholdMember());
+            senior.setPregnantHouseholdMember(
+                    req.getPregnantHouseholdMember()
+            );
         }
         if (req.getSevereDiseaseHouseholdMember() != null) {
-            senior.setSevereDiseaseHouseholdMember(req.getSevereDiseaseHouseholdMember());
+            senior.setSevereDiseaseHouseholdMember(
+                    req.getSevereDiseaseHouseholdMember()
+            );
         }
         if (req.getRareDiseaseHouseholdMember() != null) {
-            senior.setRareDiseaseHouseholdMember(req.getRareDiseaseHouseholdMember());
+            senior.setRareDiseaseHouseholdMember(
+                    req.getRareDiseaseHouseholdMember()
+            );
         }
         if (req.getIntractableDiseaseHouseholdMember() != null) {
-            senior.setIntractableDiseaseHouseholdMember(req.getIntractableDiseaseHouseholdMember());
+            senior.setIntractableDiseaseHouseholdMember(
+                    req.getIntractableDiseaseHouseholdMember()
+            );
         }
         if (req.getSingleParentFamily() != null) {
             senior.setSingleParentFamily(req.getSingleParentFamily());
         }
         if (req.getChildHeadedHousehold() != null) {
-            senior.setChildHeadedHousehold(req.getChildHeadedHousehold());
+            senior.setChildHeadedHousehold(
+                    req.getChildHeadedHousehold()
+            );
         }
         if (req.getMultiChildHousehold() != null) {
             senior.setMultiChildHousehold(req.getMultiChildHousehold());
         }
 
         if (req.getAllMembersInFacility() != null) {
-            senior.setAllMembersInFacility(req.getAllMembersInFacility());
+            senior.setAllMembersInFacility(
+                    req.getAllMembersInFacility()
+            );
         }
         if (req.getWinterFuelSupport() != null) {
             senior.setWinterFuelSupport(req.getWinterFuelSupport());
@@ -125,12 +206,16 @@ public class SeniorService {
         if (req.getWelfareWorkerId() != null) {
             senior.setWelfareWorkerId(req.getWelfareWorkerId());
         }
+
         applyEnergyVoucherEligibility(senior);
         return seniorRepository.save(senior);
     }
 
     public List<Senior> search(String name, String phone) {
-        return seniorRepository.findByNameContainingAndPhone(name, normalizePhone(phone));
+        return seniorRepository.findByNameContainingAndPhone(
+                name,
+                normalizePhone(phone)
+        );
     }
 
     @Transactional
@@ -139,7 +224,9 @@ public class SeniorService {
     }
 
     private void applyEnergyVoucherEligibility(Senior senior) {
-        EnergyVoucherEvaluationResult result = energyVoucherEligibilityService.evaluate(senior);
+        EnergyVoucherEvaluationResult result =
+                energyVoucherEligibilityService.evaluate(senior);
+
         senior.setEnergyVoucherEligible(result.eligible());
         senior.setEnergyVoucherReason(result.reason());
     }
@@ -147,5 +234,4 @@ public class SeniorService {
     private String normalizePhone(String phone) {
         return phone == null ? null : phone.replaceAll("\\D", "");
     }
-
 }

@@ -32,6 +32,14 @@ public class ProductRecallController {
     @PostMapping("/refresh")
     public void refreshAll() { productRecallService.refreshAll(); }
 
+    @PatchMapping("/{id}/current-use")
+    public RegisteredProduct updateCurrentUseStatus(
+            @PathVariable Long id,
+            @RequestParam RegisteredProduct.CurrentUseStatus status
+    ) {
+        return productRecallService.updateCurrentUseStatus(id, status);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) { productRecallService.delete(id); }

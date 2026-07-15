@@ -46,6 +46,17 @@ public class ProductRecallService {
     @Transactional
     public void delete(Long id) { productRepository.deleteById(id); }
 
+    @Transactional
+    public RegisteredProduct updateCurrentUseStatus(
+            Long id,
+            RegisteredProduct.CurrentUseStatus status
+    ) {
+        RegisteredProduct product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + id));
+        product.setCurrentUseStatus(status);
+        return productRepository.save(product);
+    }
+
     private void applyRecallStatus(RegisteredProduct product) {
         RecallLookup lookup = lookupRecall(product);
         product.setRecallStatus(lookup.recalled()

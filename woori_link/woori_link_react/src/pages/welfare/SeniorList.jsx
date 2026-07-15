@@ -9,6 +9,7 @@ import {
 import { getUserId } from '../../utils/auth'
 
 const INCOME_LABEL = { LIVELIHOOD: '생계급여', MEDICAL: '의료급여', HOUSING: '주거급여', EDUCATION: '교육급여', NONE: '해당없음' }
+const PAGE_SIZE = 7
 
 const formatPhone = (value) => {
   const digits = value.replace(/\D/g, '').slice(0, 11)
@@ -25,6 +26,8 @@ export default function SeniorList() {
   const navigate = useNavigate()
   const [seniors, setSeniors] = useState([])
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [sortOrder, setSortOrder] = useState('NAME_ASC')
   const [showModal, setShowModal] = useState(false)
   const [addressQuery, setAddressQuery] = useState('')
   const [addressResults, setAddressResults] = useState([])
@@ -35,6 +38,7 @@ export default function SeniorList() {
   const [searchResults, setSearchResults] = useState([])
   const [searchError, setSearchError] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     loadSeniors()
@@ -57,7 +61,32 @@ export default function SeniorList() {
     }
   }
 
-  const filtered = seniors.filter(s => s.name?.includes(search) || s.address?.includes(search))
+  const filtered = seniors
+    .filter(s => s.name?.includes(search) || s.address?.includes(search))
+    .sort((a, b) => {
+      if (sortOrder === 'NAME_ASC') return (a.name || '').localeCompare(b.name || '', 'ko')
+      if (sortOrder === 'NAME_DESC') return (b.name || '').localeCompare(a.name || '', 'ko')
+      if (sortOrder === 'AGE_ASC') return (a.age ?? Number.MAX_SAFE_INTEGER) - (b.age ?? Number.MAX_SAFE_INTEGER)
+      if (sortOrder === 'AGE_DESC') return (b.age ?? Number.MIN_SAFE_INTEGER) - (a.age ?? Number.MIN_SAFE_INTEGER)
+      return 0
+    })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedSeniors = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  function handleListSearch(e) {
+    e.preventDefault()
+    setSearch(searchInput.trim())
+    setCurrentPage(1)
+  }
 
   function handleSearchChange(e) {
     const { name, value } = e.target
@@ -123,7 +152,29 @@ export default function SeniorList() {
       <h1 className="page-title">대상자 목록</h1>
       <div className="card">
         <div className="senior-list-toolbar">
-          <input className="senior-search" placeholder="이름 또는 주소 검색" value={search} onChange={e => setSearch(e.target.value)} />
+          <form className="senior-list-search-form" onSubmit={handleListSearch}>
+            <input
+              className="senior-search"
+              placeholder="이름 또는 주소 입력"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+            />
+            <button type="submit" className="btn-primary senior-list-search-btn">검색</button>
+            <select
+              className="senior-sort-select"
+              value={sortOrder}
+              onChange={e => {
+                setSortOrder(e.target.value)
+                setCurrentPage(1)
+              }}
+              aria-label="대상자 정렬"
+            >
+              <option value="NAME_ASC">이름 내림차순</option>
+              <option value="NAME_DESC">이름 오름차순</option>
+              <option value="AGE_ASC">나이 오름차순</option>
+              <option value="AGE_DESC">나이 내림차순</option>
+            </select>
+          </form>
           <button className="btn-primary" onClick={() => setShowModal(true)}>+ 대상자 등록</button>
         </div>
         {listError ? (
@@ -131,27 +182,64 @@ export default function SeniorList() {
         ) : filtered.length === 0 ? (
           <div className="empty-state">대상자가 없습니다</div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th><th>관리</th></tr>
-            </thead>
-            <tbody>
-              {filtered.map(s => (
-                <tr key={s.id}>
-                  <td className="font-bold">{s.name}</td>
-                  <td>{s.age}세</td>
-                  <td>{s.address}</td>
-                  <td><span className="income-tag">{INCOME_LABEL[s.incomeLevel] || '-'}</span></td>
-                  <td>{s.energyVoucherApplied ? <span className="badge badge-completed">신청완료</span> : <span className="badge badge-pending">미신청</span>}</td>
-                  <td>
-                    <div className="action-cell">
-                      <button className="btn-sm primary" onClick={() => navigate(`/welfare/seniors/${s.id}`)}>상세</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <table className="data-table">
+              <thead>
+                <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th><th>관리</th></tr>
+              </thead>
+              <tbody>
+                {pagedSeniors.map(s => (
+                  <tr key={s.id}>
+                    <td className="font-bold">{s.name}</td>
+                    <td>{s.age}세</td>
+                    <td>{s.address}</td>
+                    <td><span className="income-tag">{INCOME_LABEL[s.incomeLevel] || '-'}</span></td>
+                    <td>{s.energyVoucherApplied ? <span className="badge badge-completed">신청완료</span> : <span className="badge badge-pending">미신청</span>}</td>
+                    <td>
+                      <div className="action-cell">
+                        <button className="btn-sm primary" onClick={() => navigate(`/welfare/seniors/${s.id}`)}>상세</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {totalPages > 1 && (
+              <div className="senior-pagination">
+                <button
+                  type="button"
+                  className="senior-page-btn senior-page-arrow"
+                  onClick={() => setCurrentPage(page => page - 1)}
+                  disabled={currentPage === 1}
+                  aria-label="이전 페이지"
+                >
+                  <span aria-hidden="true">‹</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, index) => index + 1).map(page => (
+                  <button
+                    type="button"
+                    key={page}
+                    className={`senior-page-btn ${currentPage === page ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className="senior-page-btn senior-page-arrow"
+                  onClick={() => setCurrentPage(page => page + 1)}
+                  disabled={currentPage === totalPages}
+                  aria-label="다음 페이지"
+                >
+                  <span aria-hidden="true">›</span>
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -176,17 +264,22 @@ export default function SeniorList() {
 
                 <div className="form-group">
                   <label className="form-label">전화번호 *</label>
-                  <input
-                    className="form-input"
-                    name="phone"
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={13}
-                    value={searchForm.phone}
-                    onChange={handleSearchChange}
-                    placeholder="010-0000-0000"
-                    required
-                  />
+                  <div className="senior-phone-search-row">
+                    <input
+                      className="form-input"
+                      name="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={13}
+                      value={searchForm.phone}
+                      onChange={handleSearchChange}
+                      placeholder="010-0000-0000"
+                      required
+                    />
+                    <button type="submit" className="btn-primary senior-search-btn" disabled={searchLoading}>
+                      {searchLoading ? '검색 중...' : '검색'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -194,14 +287,6 @@ export default function SeniorList() {
                 <div className="search-error">{searchError}</div>
               )}
 
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>
-                  취소
-                </button>
-                <button type="submit" className="btn-primary" disabled={searchLoading}>
-                  {searchLoading ? '검색 중...' : '검색'}
-                </button>
-              </div>
             </form>
 
             {searchResults.length > 0 && (
@@ -210,7 +295,7 @@ export default function SeniorList() {
                   <div className="senior-search-result" key={senior.id}>
                     <div>
                       <strong>{senior.name}</strong>
-                      <span>{senior.phone}</span>
+                      <span>{formatPhone(senior.phone || '')}</span>
                       <small>{senior.address || '주소 미입력'}</small>
                     </div>
 

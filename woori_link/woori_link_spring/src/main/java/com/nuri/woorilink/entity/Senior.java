@@ -1,12 +1,14 @@
 package com.nuri.woorilink.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 
 @Entity
 @Table(name = "wl_seniors")
@@ -24,10 +26,19 @@ public class Senior {
     @Column(nullable = false)
     private String name;
 
-    @JsonIgnore
-    private String password;
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
 
-    private Integer age;
+    @Transient
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public Integer getAge() {
+        if (birthDate == null) {
+            return null;
+        }
+
+        return Period.between(birthDate, LocalDate.now()).getYears();
+    }
+
     private String address;
     private Double latitude;
     private Double longitude;
@@ -47,6 +58,20 @@ public class Senior {
     private Boolean energyVoucherApplied;
     private Boolean electricityDiscountApplied;
     private Boolean gasDiscountApplied;
+    private Boolean electricityDiscountEligible;
+    private Boolean gasDiscountEligible;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private FeatureStatus aiCheckStatus = FeatureStatus.INACTIVE;
+    private Boolean aiConsecutiveNoResponse;
+    private Boolean aiCheckResolved;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private FeatureStatus locationStatus = FeatureStatus.INACTIVE;
+    private Boolean unresolvedGeofenceExit;
+    private Boolean locationEventResolved;
 
     private Long guardianId;
     private Long welfareWorkerId;
@@ -86,10 +111,14 @@ public class Senior {
     private LocalDateTime updatedAt;
 
     public enum IncomeLevel {
-        LIVELIHOOD,   // 생계급여
-        MEDICAL,      // 의료급여
-        HOUSING,      // 주거급여
-        EDUCATION,    // 교육급여
+        LIVELIHOOD,
+        MEDICAL,
+        HOUSING,
+        EDUCATION,
         NONE
+    }
+
+    public enum FeatureStatus {
+        INACTIVE, ACTIVE
     }
 }

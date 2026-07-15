@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -33,6 +34,10 @@ public class ActionRecord {
     private String note;
 
     private String productName;
+    private LocalDate dueDate;
+
+    @Builder.Default
+    private Boolean immediateRisk = false;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

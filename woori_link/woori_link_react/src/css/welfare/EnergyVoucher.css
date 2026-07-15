@@ -2,3 +2,152 @@
 .tab-btn { background: none; border: none; padding: 8px 18px; font-size: 13px; font-weight: 500; color: var(--text-muted); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
 .tab-btn.active { background: #fff; color: var(--primary); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 .info-banner { background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: var(--text-secondary); }
+
+.voucher-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 20px;
+}
+
+.voucher-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.voucher-page-btn:hover:not(:disabled),
+.voucher-page-btn.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+.voucher-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.voucher-page-arrow {
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.voucher-page-arrow span {
+    display: block;
+    transform: translateY(-3px);
+}
+
+.support-table th,
+.support-table td { vertical-align: middle; }
+.support-check-info { color: var(--text-secondary); font-size: 12px; }
+.support-possibility { color: var(--warning); font-weight: 700; font-size: 12px; }
+.support-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: var(--primary-light); color: var(--primary-dark); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.status-application_completed,
+.status-result_confirmed,
+.status-already_applied { background: #edf7ef; color: #3a7d44; }
+.status-not_eligible,
+.status-declined,
+.status-unreachable { background: var(--danger-light); color: var(--danger); }
+.support-manage-btn { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
+.support-table th:nth-child(5),
+.support-next-action { text-align: center; }
+
+.support-modal-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.42); }
+.support-modal { width: min(720px, 100%); max-height: 88vh; overflow-y: auto; padding: 26px; border-radius: 14px; background: #fff; }
+.support-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.support-modal-header h2 { margin: 0 0 5px; font-size: 20px; }
+.support-modal-header p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.support-modal-close { border: 0; background: none; color: var(--text-muted); font-size: 28px; line-height: 1; cursor: pointer; }
+.support-detail-section { padding: 15px 16px; margin-bottom: 18px; border: 1px solid var(--primary-border); border-radius: 10px; background: var(--primary-light); }
+.support-detail-section h3 { margin: 0 0 7px; font-size: 14px; }
+.support-detail-section p { margin: 0 0 6px; color: var(--text-secondary); font-size: 13px; }
+.support-detail-section small { color: var(--text-muted); }
+.support-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.support-form-grid label { display: flex; flex-direction: column; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.support-form-grid select,
+.support-form-grid input,
+.support-form-grid textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: #fff; color: var(--text-primary); font: inherit; box-sizing: border-box; }
+.support-note-field { grid-column: 1 / -1; }
+.support-note-field textarea { min-height: 100px; resize: vertical; }
+.support-history { margin-top: 20px; }
+.support-history h3 { margin: 0 0 10px; font-size: 14px; }
+.support-history-item { padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; margin-top: 8px; }
+.support-history-item > div { display: flex; justify-content: space-between; gap: 12px; }
+.support-history-item strong { font-size: 13px; }
+.support-history-item span,
+.support-history-item p,
+.support-history-item small { color: var(--text-muted); font-size: 12px; }
+.support-history-item p { margin: 6px 0 0; }
+.support-history-item small { display: block; margin-top: 5px; color: var(--text-secondary); }
+.support-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.support-modal-actions .btn-outline,
+.support-modal-actions .btn-primary { min-height: 40px; padding: 0 17px; }
+
+.support-check-info strong,
+.support-check-info small { display: block; }
+.support-check-info strong { margin-bottom: 3px; color: var(--text-secondary); font-size: 12px; }
+.support-check-info small { color: var(--text-muted); font-size: 11px; }
+.support-check-complete { color: var(--primary-dark); font-weight: 700; }
+.eligibility-high { color: #3a7d44; }
+.eligibility-low { color: var(--danger); }
+.support-verification-summary { margin: 10px 0; padding-top: 10px; border-top: 1px solid var(--primary-border); }
+.support-auto-eligibility { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.support-auto-eligibility strong { font-size: 12px; }
+.support-eligibility-reasons { margin: 7px 0 10px; padding-left: 19px; color: var(--text-secondary); font-size: 13px; }
+.support-eligibility-reasons li + li { margin-top: 3px; }
+.support-verification-summary > div { display: flex; gap: 10px; font-size: 12px; }
+.support-verification-summary > div + div { margin-top: 5px; }
+.support-verification-summary strong { flex-shrink: 0; color: var(--text-primary); }
+.support-verification-summary span { color: var(--text-secondary); }
+.support-check-label > span { display: flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 500; }
+.support-check-label input[type="checkbox"] { width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--primary); }
+@media (max-width: 760px) {
+    .support-form-grid { grid-template-columns: 1fr; }
+    .support-note-field { grid-column: auto; }
+}
+
+.support-table th,
+.support-table td { vertical-align: middle; }
+.support-check-info { color: var(--text-secondary); font-size: 12px; }
+.support-possibility { color: var(--warning); font-weight: 700; font-size: 12px; }
+.support-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: var(--primary-light); color: var(--primary-dark); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.status-application_completed,
+.status-result_confirmed,
+.status-already_applied { background: #edf7ef; color: #3a7d44; }
+.status-not_eligible,
+.status-declined,
+.status-unreachable { background: var(--danger-light); color: var(--danger); }
+.support-manage-btn { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
+
+.support-modal-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.42); }
+.support-modal { width: min(720px, 100%); max-height: 88vh; overflow-y: auto; padding: 26px; border-radius: 14px; background: #fff; }
+.support-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.support-modal-header h2 { margin: 0 0 5px; font-size: 20px; }
+.support-modal-header p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.support-modal-close { border: 0; background: none; color: var(--text-muted); font-size: 28px; line-height: 1; cursor: pointer; }
+.support-detail-section { padding: 15px 16px; margin-bottom: 18px; border: 1px solid var(--primary-border); border-radius: 10px; background: var(--primary-light); }
+.support-detail-section h3 { margin: 0 0 7px; font-size: 14px; }
+.support-detail-section p { margin: 0 0 6px; color: var(--text-secondary); font-size: 13px; }
+.support-detail-section small { color: var(--text-muted); }
+.support-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.support-form-grid label { display: flex; flex-direction: column; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.support-form-grid select,
+.support-form-grid input,
+.support-form-grid textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: #fff; color: var(--text-primary); font: inherit; box-sizing: border-box; }
+.support-note-field { grid-column: 1 / -1; }
+.support-note-field textarea { min-height: 100px; resize: vertical; }
+.support-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.support-modal-actions .btn-outline,
+.support-modal-actions .btn-primary { min-height: 40px; padding: 0 17px; }

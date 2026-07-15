@@ -38,8 +38,8 @@ function WelfareLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/welfare" end>대시보드</NavLink>
           <NavLink to="/welfare/seniors">대상자 목록</NavLink>
-          <NavLink to="/welfare/energy-voucher">에너지바우처 미신청</NavLink>
-          <NavLink to="/welfare/recalled">리콜 보유 대상</NavLink>
+          <NavLink to="/welfare/energy-voucher">에너지복지 신청 지원</NavLink>
+          <NavLink to="/welfare/recalled">리콜 제품 확인 대상</NavLink>
           <NavLink to="/welfare/actions">조치 관리</NavLink>
           <NavLink to="/welfare/schedule">방문 일정</NavLink>
         </nav>

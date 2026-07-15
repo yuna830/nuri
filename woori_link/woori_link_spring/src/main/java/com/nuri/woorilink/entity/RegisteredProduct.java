@@ -28,6 +28,10 @@ public class RegisteredProduct {
     @Builder.Default
     private RecallStatus recallStatus = RecallStatus.UNKNOWN;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private CurrentUseStatus currentUseStatus = CurrentUseStatus.UNKNOWN;
+
     @Column(length = 1000)
     private String recallReason;
 
@@ -41,5 +45,9 @@ public class RegisteredProduct {
 
     public enum RecallStatus {
         UNKNOWN, SAFE, RECALLED
+    }
+
+    public enum CurrentUseStatus {
+        UNKNOWN, IN_USE, NOT_IN_USE
     }
 }

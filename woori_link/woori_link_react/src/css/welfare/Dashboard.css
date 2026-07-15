@@ -13,3 +13,59 @@
 .risk-score-cell.medium { color: var(--warning); }
 .risk-score-cell.low { color: var(--primary); }
 .muted-text { color: var(--text-muted); font-size: 12px; }
+.priority-reason { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+.priority-status { color: var(--primary-dark); font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+.dashboard-scroll-area {
+    max-height: 310px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.dashboard-scroll-area .data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-page);
+}
+
+.risk-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--primary);
+    cursor: pointer;
+}
+
+.risk-refresh-btn:hover:not(:disabled) {
+    background: var(--primary-light);
+}
+
+.risk-refresh-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.risk-refresh-btn svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.risk-refresh-btn.loading svg {
+    animation: risk-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes risk-refresh-spin {
+    to { transform: rotate(360deg); }
+}

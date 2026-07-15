@@ -20,38 +20,60 @@ public class SeniorAuthService {
 
     public LoginResponse login(SeniorLoginRequest request) {
         String phone = normalizePhone(request.getPhone());
+
         if (!StringUtils.hasText(request.getName())) {
             throw new IllegalArgumentException("이름을 입력해주세요.");
         }
+
         if (!StringUtils.hasText(phone)) {
             throw new IllegalArgumentException("전화번호를 입력해주세요.");
         }
 
-        Senior senior = seniorRepository.findFirstByPhoneAndName(phone, request.getName())
-                .orElseThrow(() -> new IllegalArgumentException("일치하는 사용자 계정이 없습니다."));
+        Senior senior = seniorRepository
+                .findFirstByPhoneAndName(phone, request.getName())
+                .orElseThrow(() ->
+                        new IllegalArgumentException("일치하는 사용자 계정이 없습니다."));
 
-        String token = tokenProvider.generateToken(senior.getPhone(), "SENIOR", senior.getId());
-        return new LoginResponse(token, "SENIOR", senior.getId(), senior.getName());
+        String token = tokenProvider.generateToken(
+                senior.getPhone(),
+                "SENIOR",
+                senior.getId()
+        );
+
+        return new LoginResponse(
+                token,
+                "SENIOR",
+                senior.getId(),
+                senior.getName()
+        );
     }
 
     @Transactional
     public void register(SeniorRegisterRequest request) {
         String phone = normalizePhone(request.getPhone());
+
+        if (!StringUtils.hasText(request.getName())) {
+            throw new IllegalArgumentException("이름을 입력해주세요.");
+        }
+
         if (!StringUtils.hasText(phone)) {
             throw new IllegalArgumentException("전화번호를 입력해주세요.");
         }
+
         if (seniorRepository.existsByPhone(phone)) {
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
         }
 
-        seniorRepository.save(Senior.builder()
+        Senior senior = Senior.builder()
                 .name(request.getName())
                 .phone(phone)
-                .age(request.getAge())
+                .birthDate(request.getBirthDate())
                 .address(request.getAddress())
                 .gender(request.getGender())
                 .guardianId(request.getGuardianId())
-                .build());
+                .build();
+
+        seniorRepository.save(senior);
     }
 
     private String normalizePhone(String phone) {
