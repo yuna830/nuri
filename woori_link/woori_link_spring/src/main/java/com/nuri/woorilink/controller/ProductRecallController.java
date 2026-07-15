@@ -1,6 +1,7 @@
 package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.dto.ProductRecallResponse;
+import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.service.ProductRecallService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,12 @@ public class ProductRecallController {
             @RequestParam RegisteredProduct.CurrentUseStatus status
     ) {
         return productRecallService.updateCurrentUseStatus(id, status);
+    }
+
+    @PatchMapping("/{id}/workflow")
+    public RegisteredProduct updateWorkflow(@PathVariable Long id,
+                                            @RequestBody RecallWorkflowUpdateRequest request) {
+        return productRecallService.updateWorkflow(id, request);
     }
 
     @DeleteMapping("/{id}")

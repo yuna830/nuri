@@ -2,10 +2,14 @@ package com.nuri.woorilink.service;
 
 import com.nuri.woorilink.common.client.RecallApiClient;
 import com.nuri.woorilink.dto.ProductRecallResponse;
+import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
+import com.nuri.woorilink.entity.ActionRecord;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.repository.RegisteredProductRepository;
 import com.nuri.woorilink.repository.SeniorRepository;
+import com.nuri.woorilink.repository.ActionRecordRepository;
+import com.nuri.woorilink.repository.WelfareWorkerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +27,9 @@ public class ProductRecallService {
 
     private final RegisteredProductRepository productRepository;
     private final SeniorRepository seniorRepository;
+    private final ActionRecordRepository actionRecordRepository;
     private final RecallApiClient recallApiClient;
+    private final WelfareWorkerRepository welfareWorkerRepository;
 
     public List<RegisteredProduct> getBySenior(Long seniorId) {
         return productRepository.findBySeniorId(seniorId);
@@ -40,6 +46,11 @@ public class ProductRecallService {
         Senior senior = product.getSeniorId() == null
                 ? null
                 : seniorRepository.findById(product.getSeniorId()).orElse(null);
+        String stopGuidanceWorkerName = product.getStopGuidanceWorkerId() == null
+                ? null
+                : welfareWorkerRepository.findById(product.getStopGuidanceWorkerId())
+                .map(worker -> worker.getName())
+                .orElse(null);
 
         return new ProductRecallResponse(
                 product.getId(),
@@ -51,6 +62,21 @@ public class ProductRecallService {
                 product.getModelNumber(),
                 product.getRecallStatus(),
                 product.getCurrentUseStatus(),
+                product.getModelMatchStatus(),
+                product.getContactMethod(),
+                product.getStopGuidanceCompleted(),
+                product.getStopGuidanceCompletedAt(),
+                product.getStopGuidanceMethod(),
+                product.getStopGuidanceTarget(),
+                product.getStopGuidanceWorkerId(),
+                stopGuidanceWorkerName,
+                product.getStopGuidanceMemo(),
+                product.getGuardianContactStatus(),
+                product.getFollowUpType(),
+                product.getNextActionDate(),
+                product.getFollowUpProgressStatus(),
+                product.getNote(),
+                product.getFinalResult(),
                 product.getRecallReason(),
                 product.getLastCheckedAt(),
                 product.getCreatedAt(),
@@ -84,6 +110,43 @@ public class ProductRecallService {
                 .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + id));
         product.setCurrentUseStatus(status);
         return productRepository.save(product);
+    }
+
+    @Transactional
+    public RegisteredProduct updateWorkflow(Long id, RecallWorkflowUpdateRequest request) {
+        RegisteredProduct product = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + id));
+        if (request.getModelMatchStatus() != null) product.setModelMatchStatus(request.getModelMatchStatus());
+        if (request.getCurrentUseStatus() != null) product.setCurrentUseStatus(request.getCurrentUseStatus());
+        product.setContactMethod(request.getContactMethod());
+        if (request.getStopGuidanceCompleted() != null) product.setStopGuidanceCompleted(request.getStopGuidanceCompleted());
+        if (request.getStopGuidanceCompletedAt() != null) product.setStopGuidanceCompletedAt(request.getStopGuidanceCompletedAt());
+        if (request.getStopGuidanceMethod() != null) product.setStopGuidanceMethod(request.getStopGuidanceMethod());
+        if (request.getStopGuidanceTarget() != null) product.setStopGuidanceTarget(request.getStopGuidanceTarget());
+        if (request.getStopGuidanceWorkerId() != null) product.setStopGuidanceWorkerId(request.getStopGuidanceWorkerId());
+        if (request.getStopGuidanceMemo() != null) product.setStopGuidanceMemo(request.getStopGuidanceMemo());
+        if (request.getGuardianContactStatus() != null) product.setGuardianContactStatus(request.getGuardianContactStatus());
+        product.setFollowUpType(request.getFollowUpType());
+        product.setNextActionDate(request.getNextActionDate());
+        if (request.getFollowUpProgressStatus() != null) product.setFollowUpProgressStatus(request.getFollowUpProgressStatus());
+        product.setNote(request.getNote());
+        product.setFinalResult(request.getFinalResult());
+
+        RegisteredProduct saved = productRepository.save(product);
+        if (Boolean.TRUE.equals(request.getCreateAction()) && request.getWelfareWorkerId() != null) {
+            actionRecordRepository.save(ActionRecord.builder()
+                    .seniorId(product.getSeniorId())
+                    .welfareWorkerId(request.getWelfareWorkerId())
+                    .actionType(ActionRecord.ActionType.RECALL)
+                    .actionSubject(ActionRecord.ActionSubject.WELFARE_WORKER)
+                    .status(ActionRecord.ActionStatus.PENDING)
+                    .productName(product.getProductName())
+                    .dueDate(request.getNextActionDate())
+                    .note(request.getNote())
+                    .immediateRisk(product.getCurrentUseStatus() == RegisteredProduct.CurrentUseStatus.IN_USE)
+                    .build());
+        }
+        return saved;
     }
 
     private void applyRecallStatus(RegisteredProduct product) {

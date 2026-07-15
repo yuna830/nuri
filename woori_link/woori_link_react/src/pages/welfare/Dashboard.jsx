@@ -51,8 +51,8 @@ export default function Dashboard() {
   }, [])
 
   const energySupportCandidates = seniors.filter(s => {
-    const voucherCandidate = s.energyVoucherEligible && !s.energyVoucherApplied
-    const electricCandidate = !s.electricityDiscountApplied && (
+    const voucherCandidate = s.energyVoucherEligible && s.energyVoucherApplied === false
+    const electricCandidate = s.electricityDiscountApplied === false && (
       s.electricityDiscountEligible || s.livelihoodBenefit || s.medicalBenefit ||
       s.housingBenefit || s.educationBenefit || s.disabilityGrade
     )

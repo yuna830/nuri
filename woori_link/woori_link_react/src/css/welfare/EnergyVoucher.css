@@ -51,6 +51,8 @@
 
 .support-table th,
 .support-table td { vertical-align: middle; }
+.support-table th,
+.support-table td { text-align: center; }
 .support-check-info { color: var(--text-secondary); font-size: 12px; }
 .support-possibility { color: var(--warning); font-weight: 700; font-size: 12px; }
 .support-status { display: inline-block; padding: 4px 9px; border-radius: 999px; background: var(--primary-light); color: var(--primary-dark); font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -103,6 +105,8 @@
 .eligibility-high { color: #3a7d44; }
 .eligibility-low { color: var(--danger); }
 .support-verification-summary { margin: 10px 0; padding-top: 10px; border-top: 1px solid var(--primary-border); }
+.support-verification-summary > strong { display: block; margin-bottom: 5px; font-size: 12px; }
+.support-verification-summary ul { margin: 0; padding-left: 19px; color: var(--text-secondary); font-size: 12px; }
 .support-auto-eligibility { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .support-auto-eligibility strong { font-size: 12px; }
 .support-eligibility-reasons { margin: 7px 0 10px; padding-left: 19px; color: var(--text-secondary); font-size: 13px; }
@@ -113,6 +117,7 @@
 .support-verification-summary span { color: var(--text-secondary); }
 .support-check-label > span { display: flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 500; }
 .support-check-label input[type="checkbox"] { width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--primary); }
+.support-primary-field { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--primary-border); border-radius: 9px; background: rgba(238, 246, 237, .55); }
 @media (max-width: 760px) {
     .support-form-grid { grid-template-columns: 1fr; }
     .support-note-field { grid-column: auto; }

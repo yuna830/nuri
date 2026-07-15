@@ -18,7 +18,7 @@ public interface SeniorRepository extends JpaRepository<Senior, Long> {
     select s
     from Senior s
     where s.energyVoucherEligible = true
-      and (s.energyVoucherApplied = false or s.energyVoucherApplied is null)
+      and s.energyVoucherApplied = false
 """)
     List<Senior> findEnergyVoucherUnappliedTargets();
     List<Senior> findByNameContainingAndPhone(String name, String phone);

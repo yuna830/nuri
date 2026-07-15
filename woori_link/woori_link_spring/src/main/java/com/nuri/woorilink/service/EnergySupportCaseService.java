@@ -216,6 +216,7 @@ public class EnergySupportCaseService {
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.DOCUMENTS_PREPARING
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.APPLICATION_SUPPORTING
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.UNREACHABLE
+                || supportCase.getApplicationIntent() == EnergySupportCase.ApplicationIntent.DISCUSS_WITH_GUARDIAN
                 || supportCase.getApplicationIntent() == EnergySupportCase.ApplicationIntent.DECIDE_LATER;
         if (nextActionRequired && supportCase.getNextActionDate() == null) {
             throw new IllegalArgumentException("현재 지원 상태에서는 다음 조치일을 입력해야 합니다.");
@@ -224,13 +225,23 @@ public class EnergySupportCaseService {
                 && (supportCase.getNote() == null || supportCase.getNote().isBlank())) {
             throw new IllegalArgumentException("자격 미충족 사유를 메모에 입력해 주세요.");
         }
+        if (supportCase.getStatus() == EnergySupportCase.SupportStatus.APPLICATION_COMPLETED
+                && (supportCase.getNote() == null || supportCase.getNote().isBlank())) {
+            throw new IllegalArgumentException("신청 완료 내용을 메모에 입력해 주세요.");
+        }
+        if (supportCase.getStatus() == EnergySupportCase.SupportStatus.DECLINED
+                && (supportCase.getNote() == null || supportCase.getNote().isBlank())) {
+            throw new IllegalArgumentException("거절 또는 보류 사유를 메모에 입력해 주세요.");
+        }
 
         boolean completed = supportCase.getStatus() == EnergySupportCase.SupportStatus.APPLICATION_COMPLETED
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.RESULT_CONFIRMED
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.ALREADY_APPLIED
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.NOT_ELIGIBLE
                 || supportCase.getStatus() == EnergySupportCase.SupportStatus.DECLINED;
-        if (completed) supportCase.setNextActionDate(null);
+        if (completed && supportCase.getStatus() != EnergySupportCase.SupportStatus.ALREADY_APPLIED) {
+            supportCase.setNextActionDate(null);
+        }
     }
 
     private boolean hasIncomeInformation(Senior senior) {

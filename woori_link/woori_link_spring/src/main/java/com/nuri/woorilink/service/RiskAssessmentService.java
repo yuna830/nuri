@@ -212,24 +212,24 @@ public class RiskAssessmentService {
                 Boolean.TRUE.equals(
                         senior.getEnergyVoucherEligible()
                 )
-                        && !Boolean.TRUE.equals(
+                        && Boolean.FALSE.equals(
                         senior.getEnergyVoucherApplied()
                 );
 
         boolean discountUnapplied =
                 (
-                        Boolean.TRUE.equals(
-                                senior.getElectricityDiscountEligible()
-                        )
-                                && !Boolean.TRUE.equals(
+                                Boolean.TRUE.equals(
+                                        senior.getElectricityDiscountEligible()
+                                )
+                                && Boolean.FALSE.equals(
                                 senior.getElectricityDiscountApplied()
                         )
                 )
                         || (
-                        Boolean.TRUE.equals(
-                                senior.getGasDiscountEligible()
-                        )
-                                && !Boolean.TRUE.equals(
+                                Boolean.TRUE.equals(
+                                        senior.getGasDiscountEligible()
+                                )
+                                && Boolean.FALSE.equals(
                                 senior.getGasDiscountApplied()
                         )
                 );
@@ -714,6 +714,11 @@ public class RiskAssessmentService {
             RegisteredProduct product,
             List<ActionRecord> actions
     ) {
+        if (product.getFinalResult() != null
+                && product.getFinalResult() != RegisteredProduct.FinalResult.UNREACHABLE
+                && product.getFinalResult() != RegisteredProduct.FinalResult.DECLINED) {
+            return true;
+        }
         return actions.stream()
                 .anyMatch(action ->
                         action.getActionType()

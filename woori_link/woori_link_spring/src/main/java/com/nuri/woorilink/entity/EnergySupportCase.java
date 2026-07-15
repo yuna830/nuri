@@ -58,7 +58,7 @@ public class EnergySupportCase {
 
     public enum ExistingApplicationStatus { UNKNOWN, NOT_APPLIED, ALREADY_APPLIED }
 
-    public enum ApplicationIntent { UNKNOWN, WANTS_TO_APPLY, DOES_NOT_WANT, DECIDE_LATER }
+    public enum ApplicationIntent { UNKNOWN, WANTS_TO_APPLY, DOES_NOT_WANT, DISCUSS_WITH_GUARDIAN, DECIDE_LATER }
 
     public enum DeclineReason { SELF_DECLINED, FAMILY_DISCUSSION_REQUIRED, USING_OTHER_SUPPORT, OTHER }
 

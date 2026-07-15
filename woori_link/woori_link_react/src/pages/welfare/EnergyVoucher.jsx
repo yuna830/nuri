@@ -26,9 +26,11 @@ const STATUS_LABEL = {
   ON_HOLD: '확인 보류',
 }
 
-const STATUS_OPTIONS = Object.entries(STATUS_LABEL)
-const NEXT_ACTION_REQUIRED_STATUSES = ['CONTACT_SCHEDULED', 'CONSULTED', 'DOCUMENTS_PREPARING', 'APPLICATION_SUPPORTING', 'UNREACHABLE']
+const STATUS_OPTIONS = ['CONFIRMATION_NEEDED', 'CONTACT_SCHEDULED', 'CONSULTED', 'DOCUMENTS_PREPARING', 'APPLICATION_SUPPORTING', 'APPLICATION_COMPLETED', 'ALREADY_APPLIED', 'NOT_ELIGIBLE', 'DECLINED', 'UNREACHABLE']
+  .map(value => [value, STATUS_LABEL[value]])
+const NEXT_ACTION_REQUIRED_STATUSES = ['CONTACT_SCHEDULED', 'DOCUMENTS_PREPARING', 'APPLICATION_SUPPORTING', 'UNREACHABLE']
 const COMPLETED_STATUSES = ['APPLICATION_COMPLETED', 'RESULT_CONFIRMED', 'ALREADY_APPLIED', 'NOT_ELIGIBLE', 'DECLINED']
+const NEXT_ACTION_DISABLED_STATUSES = ['APPLICATION_COMPLETED', 'RESULT_CONFIRMED', 'NOT_ELIGIBLE', 'DECLINED']
 
 function getEligibilityLevel(item) {
   if (item.eligibilityLevel === 'HIGH' || item.eligibilityReason?.includes('신청 가능')) return 'HIGH'
@@ -39,6 +41,18 @@ function getEligibilityLevel(item) {
 function getEligibilityReasons(reason) {
   if (!reason) return []
   return reason.replace(/^신청 가능\s*:\s*/, '').split(/[,·]/).map(value => value.trim()).filter(Boolean)
+}
+
+function getSystemJudgment(item) {
+  const level = getEligibilityLevel(item)
+  if (level === 'HIGH') return '주요 조건 충족'
+  if (level === 'LOW') return '조건 미충족'
+  return '정보 추가 필요'
+}
+
+function getCurrentStage(item) {
+  if (!item.existingApplicationStatus || item.existingApplicationStatus === 'UNKNOWN') return '기존 신청 여부 확인'
+  return STATUS_LABEL[item.status] || '미확인'
 }
 
 export default function EnergyVoucher() {
@@ -95,7 +109,7 @@ export default function EnergyVoucher() {
 
   async function saveCase(e) {
     e.preventDefault()
-    const requiresNextAction = NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || form.applicationIntent === 'DECIDE_LATER'
+    const requiresNextAction = NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || ['DISCUSS_WITH_GUARDIAN', 'DECIDE_LATER'].includes(form.applicationIntent)
     if (requiresNextAction && !form.nextActionDate) {
       alert('현재 지원 상태에서는 다음 조치일을 입력해야 합니다.')
       return
@@ -106,6 +120,10 @@ export default function EnergyVoucher() {
     }
     if (form.status === 'NOT_ELIGIBLE' && !form.note.trim()) {
       alert('자격 미충족 사유를 메모에 입력해 주세요.')
+      return
+    }
+    if (['APPLICATION_COMPLETED', 'DECLINED'].includes(form.status) && !form.note.trim()) {
+      alert(form.status === 'APPLICATION_COMPLETED' ? '신청 완료 내용을 메모에 입력해 주세요.' : '거절 또는 보류 사유를 메모에 입력해 주세요.')
       return
     }
     setSaving(true)
@@ -131,7 +149,7 @@ export default function EnergyVoucher() {
       ...prev,
       existingApplicationStatus: value,
       status: value === 'ALREADY_APPLIED' ? 'ALREADY_APPLIED' : prev.status === 'ALREADY_APPLIED' ? 'CONFIRMATION_NEEDED' : prev.status,
-      nextActionDate: value === 'ALREADY_APPLIED' ? '' : prev.nextActionDate,
+      applicationIntent: value === 'NOT_APPLIED' ? prev.applicationIntent : 'UNKNOWN',
     }))
   }
 
@@ -149,9 +167,13 @@ export default function EnergyVoucher() {
     setForm(prev => ({
       ...prev,
       status: value,
-      nextActionDate: COMPLETED_STATUSES.includes(value) ? '' : prev.nextActionDate,
+      nextActionDate: NEXT_ACTION_DISABLED_STATUSES.includes(value) ? '' : prev.nextActionDate,
     }))
   }
+
+  const showFollowUpFields = form.existingApplicationStatus !== 'NOT_APPLIED'
+    || ['WANTS_TO_APPLY', 'DISCUSS_WITH_GUARDIAN', 'DECIDE_LATER'].includes(form.applicationIntent)
+  const showNoteField = showFollowUpFields || form.applicationIntent === 'DOES_NOT_WANT'
 
   return (
     <div>
@@ -177,31 +199,20 @@ export default function EnergyVoucher() {
           <>
             <table className="data-table support-table">
               <thead>
-                <tr><th>이름</th><th>신청 가능성</th><th>확인 필요 정보</th><th>지원 상태</th><th>다음 조치일</th><th>관리</th></tr>
+                <tr><th>이름</th><th>시스템 판단</th><th>현재 단계</th><th>다음 조치일</th><th>관리</th></tr>
               </thead>
               <tbody>
                 {pagedList.map(item => {
-                  const missing = item.missingInformation || []
                   const eligibilityLevel = getEligibilityLevel(item)
                   return (
                     <tr key={item.seniorId}>
                       <td className="font-bold">{item.seniorName}</td>
                       <td>
                         <span className={`support-possibility eligibility-${eligibilityLevel.toLowerCase()}`}>
-                          {ELIGIBILITY_LABEL[eligibilityLevel]}
+                          {getSystemJudgment(item)}
                         </span>
                       </td>
-                      <td className="support-check-info">
-                        {missing.length === 0 ? (
-                          <span className="support-check-complete">확인 완료</span>
-                        ) : (
-                          <>
-                            <strong>확인 필요 {missing.length}개</strong>
-                            <small>{missing.join(' · ')}</small>
-                          </>
-                        )}
-                      </td>
-                      <td><span className={`support-status status-${item.status?.toLowerCase()}`}>{STATUS_LABEL[item.status] || '미확인'}</span></td>
+                      <td><span className={`support-status status-${item.status?.toLowerCase()}`}>{getCurrentStage(item)}</span></td>
                       <td className="support-next-action">{item.nextActionDate || '-'}</td>
                       <td><button className="btn-primary support-manage-btn" onClick={() => openCase(item)}>지원 관리</button></td>
                     </tr>
@@ -235,25 +246,27 @@ export default function EnergyVoucher() {
             </div>
 
             <section className="support-detail-section">
-              <h3>신청 가능성 판단 근거</h3>
+              <h3>시스템 판단</h3>
               <div className="support-auto-eligibility">
-                <strong>자격 조건</strong>
+                <strong>신청 가능성 판단</strong>
                 <span className={`support-possibility eligibility-${getEligibilityLevel(selected).toLowerCase()}`}>
-                  {getEligibilityLevel(selected) === 'HIGH' ? '주요 조건 충족' : ELIGIBILITY_LABEL[getEligibilityLevel(selected)]}
+                  {getSystemJudgment(selected)}
                 </span>
               </div>
               <ul className="support-eligibility-reasons">
                 {getEligibilityReasons(selected.eligibilityReason).map(reason => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="support-verification-summary">
-                <div><strong>지원 필요 여부</strong><span>{selected.missingInformation?.includes('기존 신청 여부') ? '기존 신청 여부 확인 필요' : '확인됨'}</span></div>
-                <div><strong>추가 확인 필요</strong><span>{selected.missingInformation?.length ? selected.missingInformation.join(' · ') : '없음'}</span></div>
+                <strong>최종 확인 필요</strong>
+                <ul>
+                  {(selected.missingInformation?.length ? selected.missingInformation : ['없음']).map(value => <li key={value}>{value}</li>)}
+                </ul>
               </div>
-              <small>등록된 정보를 기준으로 산정한 신청 가능성입니다. 실제 자격과 기존 신청 여부는 행정복지센터 등 담당 기관을 통해 최종 확인해야 합니다.</small>
+              <small>등록 정보를 기준으로 판단한 결과이며, 최종 자격과 신청 여부는 담당 기관을 통해 확인해야 합니다.</small>
             </section>
 
             <div className="support-form-grid">
-              <label>
+              <label className="support-primary-field">
                 기존 신청 여부
                 <select value={form.existingApplicationStatus} onChange={e => changeExistingApplicationStatus(e.target.value)}>
                   <option value="UNKNOWN">미확인</option>
@@ -261,28 +274,29 @@ export default function EnergyVoucher() {
                   <option value="ALREADY_APPLIED">이미 신청함</option>
                 </select>
               </label>
-              <label>
+              {form.existingApplicationStatus === 'NOT_APPLIED' && <label>
                 신청 의사
                 <select value={form.applicationIntent} onChange={e => changeApplicationIntent(e.target.value)}>
                   <option value="UNKNOWN">미확인</option>
                   <option value="WANTS_TO_APPLY">신청 희망</option>
                   <option value="DOES_NOT_WANT">신청하지 않음</option>
+                  <option value="DISCUSS_WITH_GUARDIAN">보호자와 상의</option>
                   <option value="DECIDE_LATER">추후 결정</option>
                 </select>
-              </label>
-              <label>
+              </label>}
+              {form.existingApplicationStatus === 'NOT_APPLIED' && form.applicationIntent === 'WANTS_TO_APPLY' && <label>
                 지원 상태
                 <select value={form.status} onChange={e => changeStatus(e.target.value)}>
                   {STATUS_OPTIONS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
                 </select>
-              </label>
-              <label>
+              </label>}
+              {showFollowUpFields && <label>
                 상담 방법
                 <select value={form.contactMethod} onChange={e => setForm(prev => ({ ...prev, contactMethod: e.target.value }))}>
                   <option value="">선택</option><option value="전화">전화</option><option value="방문">방문</option><option value="대면 상담">대면 상담</option><option value="보호자 연락">보호자 연락</option><option value="문자">문자</option><option value="기타">기타</option>
                 </select>
-              </label>
-              {form.applicationIntent === 'DOES_NOT_WANT' && (
+              </label>}
+              {form.existingApplicationStatus === 'NOT_APPLIED' && form.applicationIntent === 'DOES_NOT_WANT' && (
                 <label>
                   신청하지 않는 사유 *
                   <select value={form.declineReason} onChange={e => setForm(prev => ({ ...prev, declineReason: e.target.value }))} required>
@@ -294,14 +308,14 @@ export default function EnergyVoucher() {
                   </select>
                 </label>
               )}
-              <label>
-                다음 조치일 {(NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || form.applicationIntent === 'DECIDE_LATER') && '*'}
-                <input type="date" value={form.nextActionDate} onChange={e => setForm(prev => ({ ...prev, nextActionDate: e.target.value }))} required={NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || form.applicationIntent === 'DECIDE_LATER'} disabled={COMPLETED_STATUSES.includes(form.status)} />
-              </label>
-              <label className="support-note-field">
-                상담 및 담당자 메모 {form.status === 'NOT_ELIGIBLE' && '*'}
-                <textarea value={form.note} onChange={e => setForm(prev => ({ ...prev, note: e.target.value }))} placeholder={form.status === 'NOT_ELIGIBLE' ? '자격 미충족 사유를 입력하세요' : '확인 내용, 신청 의사, 준비 서류 등을 기록하세요'} required={form.status === 'NOT_ELIGIBLE'} />
-              </label>
+              {showFollowUpFields && <label>
+                {form.existingApplicationStatus === 'UNKNOWN' ? '다음 확인일' : '다음 조치일'} {(NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || ['DISCUSS_WITH_GUARDIAN', 'DECIDE_LATER'].includes(form.applicationIntent)) && '*'}
+                <input type="date" value={form.nextActionDate} onChange={e => setForm(prev => ({ ...prev, nextActionDate: e.target.value }))} required={NEXT_ACTION_REQUIRED_STATUSES.includes(form.status) || ['DISCUSS_WITH_GUARDIAN', 'DECIDE_LATER'].includes(form.applicationIntent)} disabled={NEXT_ACTION_DISABLED_STATUSES.includes(form.status)} />
+              </label>}
+              {showNoteField && <label className="support-note-field">
+                상담 및 담당자 메모 {['NOT_ELIGIBLE', 'APPLICATION_COMPLETED', 'DECLINED'].includes(form.status) && '*'}
+                <textarea value={form.note} onChange={e => setForm(prev => ({ ...prev, note: e.target.value }))} placeholder={form.status === 'NOT_ELIGIBLE' ? '자격 미충족 사유를 입력하세요' : form.status === 'APPLICATION_COMPLETED' ? '신청일 또는 완료 내용을 입력하세요' : '확인 내용, 신청 의사, 준비 서류 등을 기록하세요'} required={['NOT_ELIGIBLE', 'APPLICATION_COMPLETED', 'DECLINED'].includes(form.status)} />
+              </label>}
             </div>
 
             {selected.history?.length > 0 && (
