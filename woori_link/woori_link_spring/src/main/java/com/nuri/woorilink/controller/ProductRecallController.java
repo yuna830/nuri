@@ -1,5 +1,6 @@
 package com.nuri.woorilink.controller;
 
+import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.service.ProductRecallService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class ProductRecallController {
     }
 
     @GetMapping("/recalled")
-    public List<RegisteredProduct> getRecalled() { return productRecallService.getRecalled(); }
+    public List<ProductRecallResponse> getRecalled() { return productRecallService.getRecalled(); }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

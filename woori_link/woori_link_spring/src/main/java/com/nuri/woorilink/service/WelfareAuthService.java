@@ -3,6 +3,8 @@ package com.nuri.woorilink.service;
 import com.nuri.woorilink.common.security.JwtTokenProvider;
 import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.dto.WelfareLoginRequest;
+import com.nuri.woorilink.dto.WelfareLoginIdFindRequest;
+import com.nuri.woorilink.dto.WelfarePasswordResetRequest;
 import com.nuri.woorilink.dto.WelfareWorkerRegisterRequest;
 import com.nuri.woorilink.entity.WelfareWorker;
 import com.nuri.woorilink.repository.WelfareWorkerRepository;
@@ -63,6 +65,34 @@ public class WelfareAuthService {
 
     public boolean isLoginIdAvailable(String loginId) {
         return !welfareWorkerRepository.existsByLoginId(loginId);
+    }
+
+    public String findLoginId(WelfareLoginIdFindRequest request) {
+        String phone = normalizePhone(request.getPhone());
+        if (!StringUtils.hasText(request.getName()) || !StringUtils.hasText(phone)) {
+            throw new IllegalArgumentException("이름과 전화번호를 입력해주세요.");
+        }
+
+        return welfareWorkerRepository.findFirstByNameAndPhone(request.getName(), phone)
+                .map(WelfareWorker::getLoginId)
+                .orElseThrow(() -> new IllegalArgumentException("일치하는 복지사 계정이 없습니다."));
+    }
+
+    @Transactional
+    public void resetPassword(WelfarePasswordResetRequest request) {
+        String phone = normalizePhone(request.getPhone());
+        if (!StringUtils.hasText(request.getLoginId()) || !StringUtils.hasText(request.getName())
+                || !StringUtils.hasText(phone) || !StringUtils.hasText(request.getNewPassword())) {
+            throw new IllegalArgumentException("모든 항목을 입력해주세요.");
+        }
+        if (request.getNewPassword().length() < 8) {
+            throw new IllegalArgumentException("새 비밀번호는 8자 이상이어야 합니다.");
+        }
+
+        WelfareWorker worker = welfareWorkerRepository
+                .findFirstByLoginIdAndNameAndPhone(request.getLoginId(), request.getName(), phone)
+                .orElseThrow(() -> new IllegalArgumentException("일치하는 복지사 계정이 없습니다."));
+        worker.setPassword(passwordEncoder.encode(request.getNewPassword()));
     }
 
     private String normalizePhone(String phone) {

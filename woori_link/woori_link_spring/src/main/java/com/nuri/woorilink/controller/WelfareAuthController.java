@@ -2,6 +2,8 @@ package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.dto.WelfareLoginRequest;
+import com.nuri.woorilink.dto.WelfareLoginIdFindRequest;
+import com.nuri.woorilink.dto.WelfarePasswordResetRequest;
 import com.nuri.woorilink.dto.WelfareWorkerRegisterRequest;
 import com.nuri.woorilink.service.WelfareAuthService;
 import jakarta.servlet.http.Cookie;
@@ -45,6 +47,17 @@ public class WelfareAuthController {
             return ResponseEntity.badRequest().body(Map.of("message", "이미 사용 중인 아이디입니다."));
         }
         return ResponseEntity.ok(Map.of("available", true));
+    }
+
+    @PostMapping("/find-loginid")
+    public ResponseEntity<?> findLoginId(@RequestBody WelfareLoginIdFindRequest request) {
+        return ResponseEntity.ok(Map.of("loginId", welfareAuthService.findLoginId(request)));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody WelfarePasswordResetRequest request) {
+        welfareAuthService.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 
     private Cookie buildCookie(String name, String value, int maxAge) {

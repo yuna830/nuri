@@ -183,7 +183,7 @@ export default function SeniorList() {
           <div className="empty-state">대상자가 없습니다</div>
         ) : (
           <>
-            <table className="data-table">
+            <table className="data-table senior-list-table">
               <thead>
                 <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th><th>관리</th></tr>
               </thead>

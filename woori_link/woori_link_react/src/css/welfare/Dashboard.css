@@ -29,6 +29,39 @@
     background: var(--bg-page);
 }
 
+.dashboard-scroll-area .data-table th,
+.dashboard-scroll-area .data-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.pending-actions-table {
+    table-layout: fixed;
+}
+
+.pending-actions-table th:nth-child(1),
+.pending-actions-table td:nth-child(1) {
+    width: 22%;
+}
+
+.pending-actions-table th:nth-child(2),
+.pending-actions-table td:nth-child(2) {
+    width: 20%;
+    min-width: 96px;
+    white-space: nowrap;
+}
+
+.pending-actions-table th:nth-child(3),
+.pending-actions-table td:nth-child(3) {
+    width: 58%;
+}
+
+.memo-summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .risk-refresh-btn {
     display: inline-flex;
     align-items: center;

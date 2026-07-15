@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/Dashboard.css'
+
+const summarizeMemo = (memo) => {
+  if (!memo) return '-'
+  const text = memo.trim()
+  const sentenceEnd = text.search(/[.!?](?:\s|$)/)
+  if (sentenceEnd >= 0) {
+    const firstSentence = text.slice(0, sentenceEnd + 1)
+    return firstSentence.length < text.length ? `${firstSentence}…` : firstSentence
+  }
+  return text.length > 50 ? `${text.slice(0, 50)}…` : text
+}
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
 import { getHighRisk, assessAll } from '../../api/riskApi'
-import { getPendingActions } from '../../api/actionApi'
+import { getActionsByWelfareWorker } from '../../api/actionApi'
 import { getRecalledProducts } from '../../api/recallApi'
 import { getUserId } from '../../utils/auth'
 
@@ -31,9 +42,11 @@ export default function Dashboard() {
       getSeniorsByWelfareWorker(welfareWorkerId).then(r => setSeniors(r.data)).catch(err => {
         console.error(err.response?.status, err.response?.data)
       })
+      getActionsByWelfareWorker(welfareWorkerId)
+        .then(r => setPending(r.data.filter(action => action.status === 'PENDING')))
+        .catch(() => {})
     }
     getHighRisk().then(r => setHighRisk(r.data)).catch(() => {})
-    getPendingActions().then(r => setPending(r.data)).catch(() => {})
     getRecalledProducts().then(r => setRecalled(r.data)).catch(() => {})
   }, [])
 
@@ -65,6 +78,10 @@ export default function Dashboard() {
   function getCurrentStatus(seniorId) {
     const action = pending.find(item => item.seniorId === seniorId)
     return action ? (ACTION_STATUS_LABEL[action.actionType] || '조치 예정') : '확인 필요'
+  }
+
+  function getSeniorName(seniorId) {
+    return seniors.find(senior => senior.id === seniorId)?.name || '미확인'
   }
 
   return (
@@ -140,16 +157,16 @@ export default function Dashboard() {
             <div className="empty-state">미처리 조치가 없습니다</div>
           ) : (
             <div className="dashboard-scroll-area">
-              <table className="data-table">
+              <table className="data-table pending-actions-table">
                 <thead>
-                  <tr><th>유형</th><th>어르신ID</th><th>메모</th></tr>
+                  <tr><th>유형</th><th>어르신</th><th>메모</th></tr>
                 </thead>
                 <tbody>
                   {pending.map(a => (
                     <tr key={a.id}>
                       <td><span className="badge badge-pending">{a.actionType}</span></td>
-                      <td>{a.seniorId}</td>
-                      <td className="muted-text">{a.note || '-'}</td>
+                      <td className="font-bold">{getSeniorName(a.seniorId)}</td>
+                      <td className="muted-text memo-summary" title={a.note || ''}>{summarizeMemo(a.note)}</td>
                     </tr>
                   ))}
                 </tbody>

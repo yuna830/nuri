@@ -1,8 +1,11 @@
 package com.nuri.woorilink.service;
 
 import com.nuri.woorilink.common.client.RecallApiClient;
+import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.entity.RegisteredProduct;
+import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.repository.RegisteredProductRepository;
+import com.nuri.woorilink.repository.SeniorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +22,40 @@ import java.util.Set;
 public class ProductRecallService {
 
     private final RegisteredProductRepository productRepository;
+    private final SeniorRepository seniorRepository;
     private final RecallApiClient recallApiClient;
 
     public List<RegisteredProduct> getBySenior(Long seniorId) {
         return productRepository.findBySeniorId(seniorId);
     }
 
-    public List<RegisteredProduct> getRecalled() {
-        return productRepository.findByRecallStatus(RegisteredProduct.RecallStatus.RECALLED);
+    public List<ProductRecallResponse> getRecalled() {
+        return productRepository.findByRecallStatus(RegisteredProduct.RecallStatus.RECALLED)
+                .stream()
+                .map(this::toRecallResponse)
+                .toList();
+    }
+
+    private ProductRecallResponse toRecallResponse(RegisteredProduct product) {
+        Senior senior = product.getSeniorId() == null
+                ? null
+                : seniorRepository.findById(product.getSeniorId()).orElse(null);
+
+        return new ProductRecallResponse(
+                product.getId(),
+                product.getSeniorId(),
+                senior == null ? null : senior.getName(),
+                senior == null ? null : senior.getAge(),
+                product.getProductName(),
+                product.getManufacturer(),
+                product.getModelNumber(),
+                product.getRecallStatus(),
+                product.getCurrentUseStatus(),
+                product.getRecallReason(),
+                product.getLastCheckedAt(),
+                product.getCreatedAt(),
+                product.getUpdatedAt()
+        );
     }
 
     @Transactional

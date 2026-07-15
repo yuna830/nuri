@@ -17,5 +17,11 @@ export const registerWelfareWorker = (data) =>
 export const checkLoginIdAvailable = (loginId) =>
   baseApi.get(`/welfare-auth/check-loginid?loginId=${encodeURIComponent(loginId)}`);
 
+export const findWelfareLoginId = (data) =>
+  baseApi.post('/welfare-auth/find-loginid', data);
+
+export const resetWelfarePassword = (data) =>
+  baseApi.post('/welfare-auth/reset-password', data);
+
 export const searchFacilities = (name) =>
   baseApi.get(`/welfare-facilities/search?name=${encodeURIComponent(name)}`);

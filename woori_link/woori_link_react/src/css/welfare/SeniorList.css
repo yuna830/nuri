@@ -1,3 +1,9 @@
+.senior-list-table th,
+.senior-list-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
 .senior-list-toolbar {
     display: flex;
     justify-content: space-between;
