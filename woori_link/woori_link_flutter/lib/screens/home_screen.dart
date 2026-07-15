@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/senior_api.dart';
 import '../api/risk_api.dart';
 import '../api/action_api.dart';
+import '../api/care_monitoring_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import 'chat_screen.dart';
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _risk;
   List<dynamic> _actions = [];
   bool _loading = true;
+  Map<String, dynamic>? _pendingCheckIn;
 
   @override
   void initState() {
@@ -36,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SeniorApi.getSenior(seniorId),
         RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
         ActionApi.getActionsBySenior(seniorId),
+        CareMonitoringApi.getCheckIns(seniorId),
       ]);
       setState(() {
         _senior = results[0] as Map<String, dynamic>;
@@ -44,11 +47,21 @@ class _HomeScreenState extends State<HomeScreen> {
         _actions = (results[2] as List<dynamic>)
             .where((a) => a['status'] == 'PENDING' || a['status'] == 'IN_PROGRESS')
             .toList();
+        final checkIns = results[3] as List<dynamic>;
+        final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
+        _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
     } catch (_) {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _respondToCheckIn() async {
+    final checkIn = _pendingCheckIn;
+    if (checkIn == null) return;
+    await CareMonitoringApi.respondToCheckIn(checkIn['id'] as int, 'I am okay');
+    if (mounted) setState(() => _pendingCheckIn = null);
   }
 
   Color _riskColor(String? level) {
@@ -61,6 +74,34 @@ class _HomeScreenState extends State<HomeScreen> {
     if (level == 'HIGH') return '위험';
     if (level == 'MEDIUM') return '주의';
     return '안전';
+  }
+
+  String _actionTitle(Map<String, dynamic> action) {
+    final productName = '${action['productName'] ?? ''}'.trim();
+    switch ('${action['actionType'] ?? ''}') {
+      case 'RECALL':
+        return productName.isEmpty ? '리콜 조치 요청' : '리콜 조치 요청 · $productName';
+      case 'VOUCHER':
+        return '에너지바우처 신청 지원';
+      case 'SOS':
+        return 'SOS 신고 조치';
+      case 'GAS_CHECK':
+        return '가스 안전 점검';
+      case 'ELECTRIC_CHECK':
+        return '전기 안전 점검';
+      case 'VISIT':
+        return '방문 조치';
+      default:
+        return '${action['description'] ?? action['actionType'] ?? '조치 요청'}';
+    }
+  }
+
+  String _actionStatusLabel(String? status) {
+    if (status == 'PENDING') return '미조치';
+    if (status == 'IN_PROGRESS') return '조치 진행 중';
+    if (status == 'COMPLETED') return '조치 완료';
+    if (status == 'CANCELLED') return '취소됨';
+    return '상태 확인 중';
   }
 
   Future<void> _logout() async {
@@ -84,6 +125,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final riskScore = _risk?['totalScore'] as int?;
 
     return Scaffold(
+      floatingActionButton: _pendingCheckIn == null ? null : FloatingActionButton.extended(
+        onPressed: _respondToCheckIn,
+        icon: const Icon(Icons.favorite),
+        label: const Text('안부 확인: 괜찮아요'),
+        backgroundColor: kPrimary,
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
@@ -239,30 +286,59 @@ class _HomeScreenState extends State<HomeScreen> {
                                 style: const TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 12),
-                            ..._actions.map((a) => Padding(
+                            ..._actions.map((a) {
+                              final action = Map<String, dynamic>.from(a as Map);
+                              final title = _actionTitle(action);
+                              final status =
+                                  _actionStatusLabel(action['status'] as String?);
+                              final note = '${action['note'] ?? ''}'.trim();
+                              return Padding(
                                   padding:
                                       const EdgeInsets.only(bottom: 8),
                                   child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Container(
                                         width: 8,
                                         height: 8,
+                                        margin: const EdgeInsets.only(top: 5),
                                         decoration: const BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: kWarning),
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
-                                        child: Text(
-                                          a['description'] ??
-                                              a['actionType'] ??
-                                              '',
-                                          style: const TextStyle(fontSize: 13),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '$title · $status',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            if (note.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                note,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: kTextMuted,
+                                                  height: 1.35,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                )),
+                                );
+                            }),
                           ],
                         ),
                       ),

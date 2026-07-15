@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../api/action_api.dart';
+import '../api/care_monitoring_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 
@@ -17,13 +17,8 @@ class _SosScreenState extends State<SosScreen> {
     setState(() => _sending = true);
     try {
       final seniorId = await AuthService.getUserId();
-      await ActionApi.createAction({
-        'seniorId': seniorId,
-        'actionType': 'SOS',
-        'actionSubject': 'SENIOR',
-        'description': description,
-        'status': 'PENDING',
-      });
+      if (seniorId == null) throw Exception('No senior session');
+      await CareMonitoringApi.reportSos(seniorId, description);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

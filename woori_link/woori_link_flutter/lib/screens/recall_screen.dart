@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../api/product_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import '../api/action_api.dart';
 
 class RecallScreen extends StatefulWidget {
   const RecallScreen({super.key});
@@ -16,6 +17,8 @@ class RecallScreen extends StatefulWidget {
 
 class _RecallScreenState extends State<RecallScreen> {
   List<dynamic> _products = [];
+  List<dynamic> _actions = [];
+  int _selectedTab = 0;
   bool _loading = true;
 
   @override
@@ -28,9 +31,18 @@ class _RecallScreenState extends State<RecallScreen> {
     try {
       final seniorId = await AuthService.getUserId();
       if (seniorId == null) return;
-      final data = await ProductApi.getProductsBySenior(seniorId);
+      final results = await Future.wait([
+        ProductApi.getProductsBySenior(seniorId),
+        ActionApi.getActionsBySenior(seniorId),
+      ]);
       setState(() {
-        _products = data;
+        _products = _sortNewest(results[0] as List<dynamic>, 'createdAt');
+        _actions = _sortNewest(
+          (results[1] as List<dynamic>)
+            .where((a) => '${a['actionType'] ?? ''}' == 'RECALL')
+            .toList(),
+          'createdAt',
+        );
         _loading = false;
       });
     } catch (_) {
@@ -407,6 +419,473 @@ class _RecallScreenState extends State<RecallScreen> {
     return '${message.substring(0, 140)}...';
   }
 
+  List<dynamic> _sortNewest(List<dynamic> items, String dateField) {
+    final sorted = [...items];
+    sorted.sort((a, b) {
+      final left = a is Map ? DateTime.tryParse('${a[dateField] ?? ''}') : null;
+      final right = b is Map ? DateTime.tryParse('${b[dateField] ?? ''}') : null;
+      final leftTime = left ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final rightTime = right ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return rightTime.compareTo(leftTime);
+    });
+    return sorted;
+  }
+
+  void _showProductDetail(Map<String, dynamic> product) {
+    final status = '${product['recallStatus'] ?? ''}';
+    final reason = '${product['recallReason'] ?? ''}'.trim();
+    final reasonSections = _recallReasonSections(reason);
+    final hasOpenRequest = _hasOpenRecallRequest(product);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.88,
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: kBorder,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(
+                      status == 'RECALLED'
+                          ? Icons.warning_amber
+                          : Icons.inventory_2_outlined,
+                      color: _statusColor(status),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${product['productName'] ?? '제품명 없음'}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _statusLabel(status),
+                      style: TextStyle(
+                        color: _statusColor(status),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _detailLine('제조사', '${product['manufacturer'] ?? '-'}'),
+                _detailLine('모델명', '${product['modelNumber'] ?? '-'}'),
+                _detailLine('등록일', _checkedAtLabel(product['createdAt'])),
+                _detailLine('마지막 조회', _checkedAtLabel(product['lastCheckedAt'])),
+                if (reason.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '리콜 사유',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  if (reasonSections.isEmpty)
+                    _recallReasonCard('상세 내용', reason)
+                  else
+                    ...reasonSections.entries.map(
+                      (entry) => _recallReasonCard(entry.key, entry.value),
+                    ),
+                ],
+                if (status == 'RECALLED') ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        if (hasOpenRequest) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('이미 리콜 조치 요청을 보낸 제품입니다. 요청 내역을 확인해 주세요.')),
+                          );
+                          setState(() => _selectedTab = 1);
+                        } else {
+                          _requestRecallAction(product);
+                        }
+                      },
+                      icon: Icon(hasOpenRequest
+                          ? Icons.check_circle_outline
+                          : Icons.support_agent),
+                      label: Text(hasOpenRequest ? '요청 완료' : '리콜 조치 요청'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            hasOpenRequest ? kTextMuted : kDanger,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showActionDetail(Map<String, dynamic> action) {
+    final status = '${action['status'] ?? 'PENDING'}';
+    final note = '${action['note'] ?? ''}'.trim();
+    final modelNumber = _extractActionModelNumber(note);
+    final requestMemo = _requestMemoOnly(note);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.82,
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: kBorder,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.assignment_turned_in_outlined,
+                        color: kDanger),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '리콜 조치 요청 상세',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _actionStatusLabel(status),
+                      style: TextStyle(
+                        color: _actionStatusColor(status),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _detailLine('제품명', '${action['productName'] ?? '-'}'),
+                if (modelNumber.isNotEmpty) _detailLine('모델명', modelNumber),
+                _detailLine('요청 상태', _actionStatusLabel(status)),
+                _detailLine('요청일', _checkedAtLabel(action['createdAt'])),
+                if (requestMemo.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '요청 내용',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kPrimary.withOpacity(0.07),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: kPrimary.withOpacity(0.14)),
+                    ),
+                    child: Text(
+                      requestMemo,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: kTextMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 86,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: kTextMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '-' : value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _requestMemoOnly(String note) {
+    if (note.isEmpty) return '';
+    final marker = '제품안전정보센터 리콜 사유:';
+    final markerIndex = note.indexOf(marker);
+    final raw = markerIndex >= 0 ? note.substring(0, markerIndex) : note;
+    return raw
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty && !line.startsWith('모델명:'))
+        .join('\n');
+  }
+
+  String _extractActionModelNumber(String note) {
+    final match = RegExp(r'모델명:\s*([^\r\n]+)').firstMatch(note);
+    return match?.group(1)?.trim() ?? '';
+  }
+
+  Map<String, String> _recallReasonSections(String reason) {
+    if (reason.trim().isEmpty) return {};
+
+    final normalized = reason
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .trim();
+    final labels = ['제품 결함', '위해 정보', '소비자 행동요령', '문의처'];
+    final matches = <({String label, int start, int valueStart})>[];
+
+    for (final label in labels) {
+      final index = normalized.indexOf('$label:');
+      if (index >= 0) {
+        matches.add((
+          label: label,
+          start: index,
+          valueStart: index + label.length + 1,
+        ));
+      }
+    }
+
+    matches.sort((a, b) => a.start.compareTo(b.start));
+    final sections = <String, String>{};
+    for (var i = 0; i < matches.length; i++) {
+      final current = matches[i];
+      final end = i + 1 < matches.length
+          ? matches[i + 1].start
+          : normalized.length;
+      final value = normalized
+          .substring(current.valueStart, end)
+          .trim()
+          .replaceAll(RegExp(r'\n{3,}'), '\n\n');
+      if (value.isNotEmpty) sections[current.label] = value;
+    }
+    return sections;
+  }
+
+  Widget _recallReasonCard(String title, String content) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kDanger.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kDanger.withOpacity(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: kDanger,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            content,
+            style: const TextStyle(
+              color: kDanger,
+              fontSize: 12,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _hasOpenRecallRequest(Map<String, dynamic> product) {
+    final productName = '${product['productName'] ?? ''}'.trim();
+    final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
+
+    return _actions.any((a) {
+      if (a is! Map) return false;
+      final action = Map<String, dynamic>.from(a);
+      final status = '${action['status'] ?? ''}';
+      final isOpen = status == 'PENDING' || status == 'IN_PROGRESS';
+      if (!isOpen || '${action['actionType'] ?? ''}' != 'RECALL') return false;
+
+      final actionProductName = '${action['productName'] ?? ''}'.trim();
+      final note = '${action['note'] ?? ''}';
+      if (modelNumber.isNotEmpty && note.contains(modelNumber)) return true;
+      return productName.isNotEmpty && actionProductName == productName;
+    });
+  }
+
+  Future<void> _requestRecallAction(Map<String, dynamic> product) async {
+    final productName = '${product['productName'] ?? '제품명 없음'}';
+    final modelNumber = '${product['modelNumber'] ?? ''}';
+    final reason = '${product['recallReason'] ?? ''}';
+    if (_hasOpenRecallRequest(product)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미 리콜 조치 요청을 보낸 제품입니다. 요청 내역을 확인해 주세요.')),
+      );
+      setState(() => _selectedTab = 1);
+      return;
+    }
+    final defaultMemo = [
+      '제가 가진 제품이 리콜 대상이라고 확인되었습니다.',
+      if (modelNumber.isNotEmpty) '모델명: $modelNumber',
+      '보호자나 복지사에게 전화 또는 방문 안내를 요청합니다.',
+    ].join('\n');
+    final memoCtrl = TextEditingController(text: defaultMemo);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('리콜 조치 요청'),
+        scrollable: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$productName 제품이 제품안전정보센터 리콜 대상으로 확인되었습니다.',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '보호자와 복지사에게 이 제품의 리콜 조치가 필요하다고 알릴까요?',
+              style: TextStyle(fontSize: 13, color: kTextMuted, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: memoCtrl,
+              minLines: 4,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                labelText: '요청 메모',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kDanger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('요청하기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final seniorId = await AuthService.getUserId();
+      if (seniorId == null) {
+        throw Exception('로그인 사용자 정보를 찾지 못했습니다.');
+      }
+
+      await ActionApi.createAction({
+        'seniorId': seniorId,
+        'actionType': 'RECALL',
+        'actionSubject': 'SENIOR',
+        'status': 'PENDING',
+        'productName': productName,
+        'note': [
+          memoCtrl.text.trim(),
+          if (reason.isNotEmpty) '',
+          if (reason.isNotEmpty) '제품안전정보센터 리콜 사유:',
+          if (reason.isNotEmpty) reason,
+        ].where((line) => line.isNotEmpty).join('\n'),
+      });
+
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('리콜 조치 요청이 등록되었습니다.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_shortError(error))),
+      );
+    }
+  }
+
   String _guessProductName(List<String> lines) {
     for (final line in lines) {
       final value = _cleanOcrValue(line);
@@ -495,8 +974,8 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   String _statusLabel(String? status) {
-    if (status == 'RECALLED') return '리콜';
-    if (status == 'SAFE') return '안전';
+    if (status == 'RECALLED') return '리콜 대상';
+    if (status == 'SAFE') return '리콜 없음';
     return '확인중';
   }
 
@@ -505,6 +984,44 @@ class _RecallScreenState extends State<RecallScreen> {
     if (checkedAt == null) return '아직 조회 전';
     return DateFormat('yyyy.MM.dd HH:mm').format(checkedAt);
   }
+
+  Future<void> _deleteProduct(Map<String, dynamic> product) async {
+  final id = int.tryParse('${product['id'] ?? ''}');
+  if (id == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('삭제할 제품 정보를 찾지 못했습니다.')),
+    );
+    return;
+  }
+
+  final yes = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('제품 삭제'),
+      content: Text('${product['productName'] ?? '제품'} 을(를) 삭제하시겠습니까?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('취소'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('삭제'),
+        ),
+      ],
+    ),
+  );
+
+  if (yes != true) return;
+
+  await ProductApi.deleteProduct(id);
+  await _load();
+
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('제품이 삭제되었습니다.')),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -544,132 +1061,188 @@ class _RecallScreenState extends State<RecallScreen> {
                 children: [
                   _recallFlowCard(),
                   const SizedBox(height: 12),
-                  if (_products.isEmpty)
+                  _recallTabs(),
+                  const SizedBox(height: 12),
+                  if (_selectedTab == 1)
+                    _actionRequestsCard()
+                  else if (_products.isEmpty)
                     _emptyProducts()
                   else
                     ..._products.map((p) {
                       final status = p['recallStatus'] as String?;
+                      final product = Map<String, dynamic>.from(p as Map);
                       final reason = p['recallReason'] as String?;
                       final manufacturer = p['manufacturer'] as String?;
+                      final hasOpenRequest = _hasOpenRecallRequest(product);
                       return Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          leading: Icon(
-                            status == 'RECALLED'
-                                ? Icons.warning_amber
-                                : Icons.inventory_2_outlined,
-                            color: _statusColor(status),
-                            size: 28,
-                          ),
-                          title: Text(
-                            p['productName'] ?? '제품명 없음',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Column(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _showProductDetail(product),
+                          onLongPress: () => _deleteProduct(product),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  [
-                                    if (manufacturer != null && manufacturer.isNotEmpty)
-                                      manufacturer,
-                                    if ((p['modelNumber'] ?? '').toString().isNotEmpty)
-                                      '모델명 ${p['modelNumber']}',
-                                  ].join(' · '),
-                                  style: const TextStyle(fontSize: 12),
+                                Icon(
+                                  status == 'RECALLED'
+                                      ? Icons.warning_amber
+                                      : Icons.inventory_2_outlined,
+                                  color: _statusColor(status),
+                                  size: 30,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '마지막 조회: ${_checkedAtLabel(p['lastCheckedAt'])}',
-                                  style: const TextStyle(
-                                      fontSize: 11, color: kTextMuted),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              p['productName'] ?? '제품명 없음',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _statusColor(status)
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              _statusLabel(status),
+                                              style: TextStyle(
+                                                color: _statusColor(status),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        [
+                                          if (manufacturer != null &&
+                                              manufacturer.isNotEmpty)
+                                            manufacturer,
+                                          if ((p['modelNumber'] ?? '')
+                                              .toString()
+                                              .isNotEmpty)
+                                            '모델명 ${p['modelNumber']}',
+                                        ].join(' · '),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '마지막 조회: ${_checkedAtLabel(p['lastCheckedAt'])}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: kTextMuted,
+                                        ),
+                                      ),
+                                      if (status == 'RECALLED' &&
+                                          reason != null &&
+                                          reason.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          reason,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: kDanger,
+                                          ),
+                                        ),
+                                      ],
+                                      if (status == 'RECALLED') ...[
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: kDanger.withOpacity(0.08),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: kDanger.withOpacity(0.18),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            '리콜 미조치 대상자로 보호자와 복지사에게 표시됩니다. 방문·전화 조치가 필요합니다.',
+                                            style: TextStyle(
+                                              color: kDanger,
+                                              fontSize: 11,
+                                              height: 1.35,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () =>
+                                                _requestRecallAction(product),
+                                            icon: Icon(hasOpenRequest
+                                                ? Icons.check_circle_outline
+                                                : Icons.support_agent),
+                                            label: const Text('리콜 조치 요청'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: hasOpenRequest
+                                                  ? kTextMuted
+                                                  : kDanger,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () =>
+                                              _deleteProduct(product),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            size: 18,
+                                          ),
+                                          label: const Text('삭제'),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: kTextMuted,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                if (status == 'RECALLED' &&
-                                    reason != null &&
-                                    reason.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    reason,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 12, color: kDanger),
-                                  ),
-                                ],
-                                if (status == 'RECALLED') ...[
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: kDanger.withOpacity(0.08),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: kDanger.withOpacity(0.18),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      '리콜 미조치 대상자로 보호자와 복지사에게 표시됩니다. 방문·전화 조치가 필요합니다.',
-                                      style: TextStyle(
-                                        color: kDanger,
-                                        fontSize: 11,
-                                        height: 1.35,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _statusColor(status).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _statusLabel(status),
-                              style: TextStyle(
-                                  color: _statusColor(status),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          onLongPress: () async {
-                            final yes = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('제품 삭제'),
-                                content: Text(
-                                    '${p['productName']} 을(를) 삭제하시겠습니까?'),
-                                actions: [
-                                  TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: const Text('취소')),
-                                  ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, true),
-                                      child: const Text('삭제')),
-                                ],
-                              ),
-                            );
-                            if (yes == true) {
-                              await ProductApi.deleteProduct(p['id']);
-                              await _load();
-                            }
-                          },
                         ),
                       );
                     }),
                 ],
               ),
       ),
-      floatingActionButton: Column(
+      floatingActionButton: _selectedTab == 1 ? null : Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           FloatingActionButton.small(
@@ -750,6 +1323,191 @@ class _RecallScreenState extends State<RecallScreen> {
         ),
       ),
     );
+  }
+
+  Widget _recallTabs() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorder),
+      ),
+      child: Row(
+        children: [
+          _recallTabButton(0, '보유 제품', _products.length),
+          _recallTabButton(1, '요청 내역', _actions.length),
+        ],
+      ),
+    );
+  }
+
+  Widget _recallTabButton(int index, String label, int count) {
+    final selected = _selectedTab == index;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => setState(() => _selectedTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? kPrimary.withOpacity(0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$label $count건',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? kPrimaryDark : kTextMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionRequestsCard() {
+    if (_actions.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: const [
+              Icon(Icons.assignment_outlined, color: kTextMuted),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '아직 신청한 리콜 조치 요청이 없습니다.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: kTextMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.assignment_turned_in_outlined, color: kDanger),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '내 리콜 조치 요청',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: kDanger.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_actions.length}건',
+                    style: const TextStyle(
+                      color: kDanger,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ..._actions.map((a) {
+              final action = Map<String, dynamic>.from(a as Map);
+              final productName = '${action['productName'] ?? '리콜 제품'}';
+              final status = '${action['status'] ?? 'PENDING'}';
+              final note = _requestMemoOnly('${action['note'] ?? ''}'.trim());
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _showActionDetail(action),
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kDanger.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kDanger.withOpacity(0.14)),
+                  ),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            productName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _actionStatusLabel(status),
+                          style: TextStyle(
+                            color: _actionStatusColor(status),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (note.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        note,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: kTextMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _actionStatusLabel(String status) {
+    if (status == 'PENDING') return '미조치';
+    if (status == 'IN_PROGRESS') return '조치 중';
+    if (status == 'COMPLETED') return '조치 완료';
+    if (status == 'CANCELLED') return '취소';
+    return '상태 확인 중';
+  }
+
+  Color _actionStatusColor(String status) {
+    if (status == 'COMPLETED') return kPrimary;
+    if (status == 'CANCELLED') return kTextMuted;
+    return kDanger;
   }
 
   Widget _emptyProducts() {

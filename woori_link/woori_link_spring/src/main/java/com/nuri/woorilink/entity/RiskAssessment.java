@@ -42,6 +42,7 @@ public class RiskAssessment {
     private Integer delayScore;
     private Integer vulnerabilityScore;
 
+
     @Column(length = 500)
     private String riskReason;
 

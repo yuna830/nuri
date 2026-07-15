@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { assessRisk, getLatestRisk, getSeniorsByGuardian } from '../../api/guardianApi.js';
 import '../../css/guardian/Home.css';
+import CareStatusPanel from './CareStatusPanel.jsx';
 
 const RISK_LABEL = { HIGH: '위험', MEDIUM: '주의', LOW: '안전' };
 const RISK_BADGE = { HIGH: 'badge-high', MEDIUM: 'badge-medium', LOW: 'badge-low' };
@@ -119,6 +120,7 @@ export default function GuardianHome() {
               </div>
             )}
           </div>
+          <CareStatusPanel seniorId={senior.id} />
         </div>
       </div>
     );
