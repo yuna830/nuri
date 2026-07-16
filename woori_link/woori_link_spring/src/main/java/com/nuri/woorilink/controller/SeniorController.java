@@ -1,6 +1,7 @@
 package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.entity.Senior;
+import com.nuri.woorilink.dto.SeniorProfileUpdateRequest;
 import com.nuri.woorilink.service.SeniorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,11 @@ public class SeniorController {
     @PatchMapping("/{id}")
     public Senior update(@PathVariable Long id, @RequestBody Senior req) {
         return seniorService.update(id, req);
+    }
+
+    @PutMapping("/{id}/profile")
+    public Senior updateProfile(@PathVariable Long id, @RequestBody SeniorProfileUpdateRequest req) {
+        return seniorService.updateProfile(id, req);
     }
 
     @DeleteMapping("/{id}")

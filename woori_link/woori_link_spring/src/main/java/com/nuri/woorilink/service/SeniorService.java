@@ -1,6 +1,7 @@
 package com.nuri.woorilink.service;
 
 import com.nuri.woorilink.dto.EnergyVoucherEvaluationResult;
+import com.nuri.woorilink.dto.SeniorProfileUpdateRequest;
 import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.repository.SeniorRepository;
 import lombok.RequiredArgsConstructor;
@@ -216,6 +217,58 @@ public class SeniorService {
                 name,
                 normalizePhone(phone)
         );
+    }
+
+    @Transactional
+    public Senior updateProfile(Long id, SeniorProfileUpdateRequest req) {
+        Senior senior = getById(id);
+
+        if (req.getBirthDate() != null && req.getBirthDate().isAfter(java.time.LocalDate.now())) {
+            throw new IllegalArgumentException("생년월일은 미래 날짜일 수 없습니다.");
+        }
+        validateIncomeBenefits(req);
+
+        senior.setName(req.getName());
+        senior.setBirthDate(req.getBirthDate());
+        senior.setGender(blankToNull(req.getGender()));
+        senior.setPhone(normalizePhone(req.getPhone()));
+        senior.setAddress(blankToNull(req.getAddress()));
+        senior.setDetailAddress(blankToNull(req.getDetailAddress()));
+        senior.setGuardianId(req.getGuardianId());
+        senior.setHouseholdType(blankToNull(req.getHouseholdType()));
+        senior.setHousingType(blankToNull(req.getHousingType()));
+        senior.setLivingAlone(req.getLivingAlone());
+        senior.setDisabilityGrade(blankToNull(req.getDisabilityGrade()));
+        senior.setLongTermCare(req.getLongTermCare());
+        senior.setIncomeLevel(req.getIncomeLevel());
+        senior.setLivelihoodBenefit(req.getLivelihoodBenefit());
+        senior.setMedicalBenefit(req.getMedicalBenefit());
+        senior.setHousingBenefit(req.getHousingBenefit());
+        senior.setEducationBenefit(req.getEducationBenefit());
+        senior.setEnergyVoucherEligible(req.getEnergyVoucherEligible());
+        senior.setEnergyVoucherApplied(Boolean.TRUE.equals(req.getEnergyVoucherEligible()) ? req.getEnergyVoucherApplied() : null);
+        senior.setElectricityDiscountEligible(req.getElectricityDiscountEligible());
+        senior.setElectricityDiscountApplied(Boolean.TRUE.equals(req.getElectricityDiscountEligible()) ? req.getElectricityDiscountApplied() : null);
+        senior.setGasDiscountEligible(req.getGasDiscountEligible());
+        senior.setGasDiscountApplied(Boolean.TRUE.equals(req.getGasDiscountEligible()) ? req.getGasDiscountApplied() : null);
+
+        return seniorRepository.save(senior);
+    }
+
+    private void validateIncomeBenefits(SeniorProfileUpdateRequest req) {
+        if (req.getIncomeLevel() == null || req.getIncomeLevel() == Senior.IncomeLevel.NONE) return;
+        boolean matches = switch (req.getIncomeLevel()) {
+            case LIVELIHOOD -> Boolean.TRUE.equals(req.getLivelihoodBenefit());
+            case MEDICAL -> Boolean.TRUE.equals(req.getMedicalBenefit());
+            case HOUSING -> Boolean.TRUE.equals(req.getHousingBenefit());
+            case EDUCATION -> Boolean.TRUE.equals(req.getEducationBenefit());
+            case NONE -> true;
+        };
+        if (!matches) throw new IllegalArgumentException("소득구분과 급여 여부가 일치하지 않습니다.");
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @Transactional

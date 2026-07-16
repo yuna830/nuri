@@ -4,6 +4,10 @@
   vertical-align: middle;
 }
 
+.senior-list-row { cursor: pointer; }
+.senior-list-row:hover,
+.senior-list-row:focus-visible { background: var(--primary-light); outline: none; }
+
 .senior-list-toolbar {
     display: flex;
     justify-content: space-between;

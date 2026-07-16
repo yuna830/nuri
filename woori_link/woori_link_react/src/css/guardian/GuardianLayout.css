@@ -1,0 +1,103 @@
+* {
+  box-sizing: border-box;
+}
+
+
+body {
+  margin: 0;
+}
+
+
+.guardian-layout {
+  min-height: 100vh;
+  background: #f3f6fa;
+}
+
+
+.guardian-layout__main {
+  min-height: 100vh;
+  margin-left: 220px;
+}
+
+
+.guardian-mobile-header {
+  display: none;
+}
+
+
+@media (max-width: 900px) {
+  .guardian-layout__main {
+    margin-left: 0;
+  }
+
+
+  .guardian-mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    min-height: 62px;
+    padding: 0 18px;
+
+    border-bottom: 1px solid #e2e8e2;
+    background: rgba(255, 255, 255, 0.97);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+
+  .guardian-mobile-header__menu {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+
+    width: 36px;
+    height: 36px;
+    padding: 0 9px;
+
+    border: 1px solid #dfe6df;
+    border-radius: 9px;
+    background: #ffffff;
+
+    cursor: pointer;
+  }
+
+
+  .guardian-mobile-header__menu span {
+    display: block;
+
+    width: 100%;
+    height: 2px;
+
+    border-radius: 999px;
+    background: #667469;
+  }
+
+
+  .guardian-mobile-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+
+  .guardian-mobile-header__brand strong {
+    color: #7d9a79;
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+  }
+
+
+  .guardian-mobile-header__brand span {
+    color: #98a29a;
+    font-size: 10px;
+    font-weight: 800;
+  }
+}

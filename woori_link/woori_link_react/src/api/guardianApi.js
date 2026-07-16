@@ -1,6 +1,8 @@
 import api from './index.js';
 import { getUserId } from '../utils/auth.js';
 
+export const getGuardians = () => api.get('/guardians');
+
 export const getSeniorsByGuardian = () =>
   api.get(`/seniors/by-guardian/${getUserId()}`);
 

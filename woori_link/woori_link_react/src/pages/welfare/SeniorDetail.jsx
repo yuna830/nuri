@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import '../../css/welfare/SeniorDetail.css'
-import { getSeniorById, updateSenior } from '../../api/seniorApi'
+import { getSeniorById, updateSeniorProfile } from '../../api/seniorApi'
 import { getLatestRisk, assessRisk } from '../../api/riskApi'
 import { getActionsBySenior, createAction } from '../../api/actionApi'
 import { getProductsBySenior } from '../../api/recallApi'
+import { getGuardians } from '../../api/guardianApi'
+import { getUser } from '../../utils/auth'
+import SeniorEditModal from './SeniorEditModal'
 
-const INCOME_LABEL = { BASIC_LIVELIHOOD: '기초생활', NEAR_POVERTY: '차상위', LOWER_MIDDLE: '하위중간', MIDDLE: '중간', UPPER: '상위' }
+const HOUSEHOLD_LABEL = { SINGLE: '1인 가구', FAMILY: '가족 가구', COUPLE: '부부 가구', OTHER: '기타 가구' }
 const LEVEL_MAP = { HIGH: { label: '우선 확인 후보', cls: 'high' }, MEDIUM: { label: '관심 필요', cls: 'medium' }, LOW: { label: '일반', cls: 'low' } }
 const RISK_CRITERIA = [
   { group: 'A', label: '심각한 지역 기상위험', value: 'weatherRisk', score: 20 },
@@ -29,6 +32,22 @@ const RISK_CRITERIA = [
 
 function valueOrDash(value) {
   return value === null || value === undefined || value === '' ? '-' : value
+}
+
+function formatPhone(value) {
+  const digits = value?.replace(/\D/g, '')
+  if (!digits) return '-'
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')
+  if (digits.length === 10) return digits.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+  return value
+}
+
+function booleanLabel(value, trueLabel = '예', falseLabel = '아니오') {
+  return value === true ? trueLabel : value === false ? falseLabel : '미확인'
+}
+
+function applicationLabel(value) {
+  return value === true ? '신청 완료' : value === false ? '미신청' : '미확인'
 }
 
 function areaScore(risk, ...keys) {
@@ -71,22 +90,39 @@ export default function SeniorDetail() {
   const [dueDate, setDueDate] = useState('')
   const [immediateRisk, setImmediateRisk] = useState(false)
   const [assessing, setAssessing] = useState(false)
-  const [showRiskDetails, setShowRiskDetails] = useState(false)
   const [managementTab, setManagementTab] = useState('products')
   const [showActionModal, setShowActionModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [toast, setToast] = useState('')
+  const [guardians, setGuardians] = useState([])
 
   useEffect(() => {
     getSeniorById(id).then(r => setSenior(r.data)).catch(() => {})
     getLatestRisk(id).then(r => setRisk(r.data)).catch(() => {})
     getActionsBySenior(id).then(r => setActions(r.data)).catch(() => {})
     getProductsBySenior(id).then(r => setProducts(r.data)).catch(() => {})
+    getGuardians().then(r => setGuardians(r.data)).catch(() => setGuardians([]))
   }, [id])
 
   async function handleAssess() {
     setAssessing(true)
     try { const r = await assessRisk(id); setRisk(r.data) }
     finally { setAssessing(false) }
+  }
+
+  async function handleProfileSave(data) {
+    const updated = await updateSeniorProfile(id, data)
+    setSenior(updated.data)
+    setShowEditModal(false)
+    try {
+      const recalculated = await assessRisk(id)
+      setRisk(recalculated.data)
+      setToast('대상자 정보가 수정되었으며 확인 우선도가 재산정되었습니다.')
+    } catch {
+      setToast('대상자 정보는 저장되었지만 확인 우선도 재산정에 실패했습니다.')
+    }
+    window.setTimeout(() => setToast(''), 3500)
   }
 
   async function handleAction() {
@@ -104,7 +140,7 @@ export default function SeniorDetail() {
 
   const levelInfo = risk ? LEVEL_MAP[risk.level] : null
   const scoredCriteria = getScoredCriteria(risk)
-  const appliedCriteria = scoredCriteria.filter(criteria => criteria.appliedScore > 0)
+  const guardianName = guardians.find(guardian => guardian.id === senior.guardianId)?.name
 
   return (
     <div>
@@ -122,45 +158,67 @@ export default function SeniorDetail() {
 
       <div className="detail-grid">
         <div className="card detail-info-card">
-          <div className="card-title">기본 정보</div>
+          <div className="section-header"><span className="card-title" style={{ margin: 0 }}>기본 정보</span><button className="btn-outline detail-small-button" onClick={() => setShowEditModal(true)}>정보 수정</button></div>
           <div className="detail-info-grid">
             <div className="info-row"><span className="info-label">나이</span><span className="info-value">{senior.age !== null && senior.age !== undefined ? `${senior.age}세` : '-'}</span></div>
-            <div className="info-row"><span className="info-label">연락처</span><span className="info-value">{valueOrDash(senior.phone)}</span></div>
+            <div className="info-row"><span className="info-label">연락처</span><span className="info-value">{formatPhone(senior.phone)}</span></div>
             <div className="info-row info-row-wide"><span className="info-label">주소</span><span className="info-value">{valueOrDash(senior.address)}</span></div>
-            <div className="info-row"><span className="info-label">소득구분</span><span className="info-value">{valueOrDash(INCOME_LABEL[senior.incomeLevel])}</span></div>
             <div className="info-row"><span className="info-label">장애등급</span><span className="info-value">{valueOrDash(senior.disabilityGrade)}</span></div>
             <div className="info-row"><span className="info-label">독거여부</span><span className="info-value">{senior.livingAlone === true ? '독거' : senior.livingAlone === false ? '비독거' : '-'}</span></div>
             <div className="info-row"><span className="info-label">보호자 등록 여부</span><span className="info-value">{senior.guardianId ? '등록' : '미등록'}</span></div>
           </div>
+          <div className="detail-last-updated">마지막 수정: {senior.updatedAt ? new Date(senior.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '') : '-'} · {getUser()?.name || '-'} 복지사</div>
+          <div className="detail-all-info">
+            <section>
+              <h3>인적 정보</h3>
+              <div className="detail-info-grid">
+                <div className="info-row"><span className="info-label">이름</span><span className="info-value">{valueOrDash(senior.name)}{senior.gender === 'MALE' ? ' (남성)' : senior.gender === 'FEMALE' ? ' (여성)' : ''}</span></div>
+                <div className="info-row"><span className="info-label">생년월일</span><span className="info-value">{senior.birthDate?.replaceAll('-', '.') || '-'}</span></div>
+                <div className="info-row"><span className="info-label">연락처</span><span className="info-value">{formatPhone(senior.phone)}</span></div>
+                <div className="info-row"><span className="info-label">장애등급</span><span className="info-value">{valueOrDash(senior.disabilityGrade)}</span></div>
+              </div>
+            </section>
+            <section>
+              <h3>생활·돌봄 정보</h3>
+              <div className="detail-info-grid">
+                <div className="info-row"><span className="info-label">가구 형태</span><span className="info-value">{senior.householdType ? `${HOUSEHOLD_LABEL[senior.householdType] || senior.householdType}${senior.livingAlone != null ? ` (${senior.livingAlone ? '독거' : '비독거'})` : ''}` : senior.livingAlone != null ? booleanLabel(senior.livingAlone, '독거', '비독거') : '-'}</span></div>
+                <div className="info-row"><span className="info-label">주거 형태</span><span className="info-value">{valueOrDash(senior.housingType)}</span></div>
+                <div className="info-row"><span className="info-label">장기요양</span><span className="info-value">{booleanLabel(senior.longTermCare, '대상', '대상 아님')}</span></div>
+                <div className="info-row"><span className="info-label">보호자</span><span className="info-value">{senior.guardianId ? (guardianName || '등록') : '미등록'}</span></div>
+                <div className="info-row info-row-wide"><span className="info-label">주소</span><span className="info-value">{senior.address ? `${senior.address}${senior.detailAddress ? ` (${senior.detailAddress})` : ''}` : '-'}</span></div>
+              </div>
+            </section>
+          </div>
         </div>
 
-        <div className="card detail-risk-card">
-          <div className="section-header">
-            <span className="card-title" style={{ margin: 0 }}>복지사 확인 우선도</span>
-            <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleAssess} disabled={assessing}>
-              {assessing ? '산정 중...' : '재산정'}
-            </button>
+        <div className="card detail-welfare-card">
+          <div className="card-title">복지 정보</div>
+          <div className="detail-info-grid">
+            <div className="info-row"><span className="info-label">생계급여</span><span className="info-value">{booleanLabel(senior.livelihoodBenefit)}</span></div>
+            <div className="info-row"><span className="info-label">의료급여</span><span className="info-value">{booleanLabel(senior.medicalBenefit)}</span></div>
+            <div className="info-row"><span className="info-label">주거급여</span><span className="info-value">{booleanLabel(senior.housingBenefit)}</span></div>
+            <div className="info-row"><span className="info-label">교육급여</span><span className="info-value">{booleanLabel(senior.educationBenefit)}</span></div>
           </div>
-          {risk ? (
-            <>
-              <div className="risk-header">
-                <span className={`risk-score ${levelInfo?.cls}`}>{risk.totalScore}점</span>
-                <span className={`badge badge-${levelInfo?.cls}`}>{levelInfo?.label}</span>
-              </div>
-              <div className="risk-applied-section">
-                <h3>점수 반영 항목</h3>
-                {appliedCriteria.length === 0 ? <div className="risk-no-items">반영된 항목이 없습니다.</div> : appliedCriteria.map(criteria => (
-                  <div className="risk-row" key={criteria.label}><span>{criteria.label}</span><strong>+{criteria.appliedScore}점</strong></div>
-                ))}
-              </div>
-              <div className="risk-area-scores">
-                <h3>영역별 점수</h3>
-                <div><span>실제 위험 <strong>{areaScore(risk, 'actualRiskScore', 'riskScore')}</strong></span><span>조치 지연 <strong>{areaScore(risk, 'delayScore')}</strong></span><span>기본 취약성 <strong>{areaScore(risk, 'vulnerabilityScore')}</strong></span></div>
-              </div>
-              <button type="button" className="risk-toggle-button" onClick={() => setShowRiskDetails(true)}>상세 보기</button>
-            </>
-          ) : <div className="empty-state detail-compact-empty">평가 이력 없음</div>}
+          <div className="support-status-table">
+            <div className="support-status-head"><span>지원 항목</span><span>자격</span><span>신청 상태</span></div>
+            <div><strong>에너지바우처</strong><span>{booleanLabel(senior.energyVoucherEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.energyVoucherApplied)}</span></div>
+            <div><strong>전기요금 할인</strong><span>{booleanLabel(senior.electricityDiscountEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.electricityDiscountApplied)}</span></div>
+            <div><strong>가스요금 할인</strong><span>{booleanLabel(senior.gasDiscountEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.gasDiscountApplied)}</span></div>
+          </div>
         </div>
+      </div>
+
+      <div className="card detail-risk-card detail-risk-card-wide">
+        <div className="section-header">
+          <span className="card-title" style={{ margin: 0 }}>복지사 확인 우선도</span>
+          <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleAssess} disabled={assessing}>{assessing ? '산정 중...' : '재산정'}</button>
+        </div>
+        {risk ? <>
+          <div className="risk-wide-content">
+            <div className="risk-wide-score"><span className="risk-total-label">총점</span><div className="risk-header"><span className={`risk-score ${levelInfo?.cls}`}>{risk.totalScore}점</span><span className={`badge badge-${levelInfo?.cls}`}>{levelInfo?.label}</span></div></div>
+            <div className="risk-all-groups">{[['A', '실제 위험', areaScore(risk, 'actualRiskScore', 'riskScore')], ['B', '조치 지연', areaScore(risk, 'delayScore')], ['C', '기본 취약성', areaScore(risk, 'vulnerabilityScore')]].map(([group, label, score]) => <section key={group}><div className="risk-group-heading"><span><b>{group}</b>{label}</span><strong>{score}</strong></div><div className="risk-group-criteria">{RISK_CRITERIA.filter(criteria => criteria.group === group).map(criteria => { const scored = scoredCriteria.find(item => item.value === criteria.value); const applied = scored?.appliedScore > 0; return <div className={`risk-criteria-item ${applied ? 'applied' : ''}`} key={criteria.label}><span>{criteria.label}</span><strong>{applied ? `+${scored.appliedScore}점` : '0점'}</strong></div> })}</div></section>)}</div>
+          </div>
+        </> : <div className="empty-state detail-compact-empty">평가 이력 없음</div>}
       </div>
 
       <div className="card detail-management-card">
@@ -202,22 +260,8 @@ export default function SeniorDetail() {
         )}
       </div>
 
-      {showRiskDetails && risk && (
-        <div className="detail-modal-overlay" onClick={() => setShowRiskDetails(false)}>
-          <div className="detail-modal risk-detail-modal" onClick={event => event.stopPropagation()}>
-            <div className="detail-modal-header"><div><h2>전체 산정 기준</h2><p>{risk.totalScore}점 · {levelInfo?.label}</p></div><button onClick={() => setShowRiskDetails(false)}>×</button></div>
-            <div className="risk-detail-groups">{[['A', 'A 실제 위험'], ['B', 'B 조치 지연'], ['C', 'C 기본 취약성']].map(([group, title]) => (
-              <section key={group}><h3>{title}</h3>{RISK_CRITERIA.filter(criteria => criteria.group === group).map(criteria => {
-                const scored = scoredCriteria.find(item => item.value === criteria.value)
-                return (
-                  <div className="risk-row" key={criteria.label}><span>{criteria.label}</span><span className={scored?.appliedScore > 0 ? 'risk-flag-on' : 'risk-flag-off'}>{scored?.appliedScore > 0 ? `해당 · +${scored.appliedScore}점` : '해당없음 · 0점'}</span></div>
-                )
-              })}</section>
-            ))}</div>
-            <div className="detail-modal-actions"><button className="btn-outline" onClick={() => setShowRiskDetails(false)}>닫기</button></div>
-          </div>
-        </div>
-      )}
+      {showEditModal && <SeniorEditModal senior={senior} onClose={() => setShowEditModal(false)} onSave={handleProfileSave} />}
+      {toast && <div className="detail-toast">{toast}</div>}
 
       {showActionModal && (
         <div className="detail-modal-overlay" onClick={() => setShowActionModal(false)}>

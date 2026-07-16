@@ -1,6 +1,59 @@
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; gap: 16px; margin-bottom: 20px; }
 .detail-grid > .card { min-height: 330px; height: 100%; box-sizing: border-box; }
 .detail-info-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; }
+.detail-info-card { display: flex; flex-direction: column; }
+.detail-info-card > .detail-info-grid { display: none; }
+.detail-last-updated { order: 3; margin-top: auto; padding-top: 18px; color: var(--text-muted); font-size: 11px; }
+.detail-all-info { order: 2; padding-top: 4px; }
+.detail-all-info section { padding-top: 0; }
+.detail-all-info h3 { display: none; }
+.detail-all-info .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
+.detail-all-info .info-label { width: 82px; }
+.detail-all-info .info-value { min-width: 0; overflow-wrap: anywhere; }
+.support-status-table { margin-top: 12px; font-size: 12px; }
+.support-status-table > div { display: grid; grid-template-columns: 1.3fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.support-status-table > div:last-child { border-bottom: 0; }
+.support-status-table .support-status-head { padding-top: 8px; color: var(--text-muted); font-weight: 700; }
+.support-status-table strong { font-size: 12px; }
+.detail-welfare-card { margin-bottom: 0; }
+.detail-welfare-card > .card-title { margin-bottom: 14px; }
+.detail-welfare-card > .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
+.detail-welfare-card .support-status-table { margin-top: 16px; }
+.detail-risk-card-wide { margin-bottom: 20px; }
+.risk-wide-content { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: start; gap: 16px; }
+.risk-wide-score { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px; border-radius: 10px; background: var(--primary-light); }
+.detail-risk-card-wide .badge { background: #fff; border: 1px solid var(--primary-border); color: var(--primary-dark); }
+.risk-total-label { color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.risk-wide-score .risk-header { margin: 0; }
+.detail-risk-card-wide .risk-applied-section { padding: 16px 18px; border-radius: 10px; background: var(--bg-page); }
+.detail-risk-card-wide .risk-area-scores { margin-top: 0; padding: 16px 18px; }
+.detail-risk-card-wide .risk-area-scores > div { flex-direction: column; gap: 10px; }
+.risk-group-selector { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px 16px; border-radius: 10px; background: var(--bg-page); }
+.risk-group-selector h3 { grid-column: 1 / -1; margin: 0 0 2px; font-size: 13px; }
+.risk-group-selector button { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text-secondary); cursor: pointer; transition: border-color .15s, background .15s; }
+.risk-group-selector button:hover { border-color: var(--primary-border); background: var(--primary-light); }
+.risk-group-selector button span { display: flex; align-items: center; gap: 8px; }
+.risk-group-selector button b { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; background: #fff; color: var(--primary-dark); }
+.risk-group-selector button.active { color: var(--primary-dark); font-weight: 700; }
+.risk-group-selector button.active { border-color: var(--primary); }
+.risk-group-selector button.active b { background: var(--primary); color: #fff; }
+.risk-inline-details { margin-top: 14px; padding: 16px 18px 18px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.risk-inline-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.risk-inline-header strong { font-size: 13px; }
+.risk-inline-header span { color: var(--text-muted); font-size: 11px; }
+.risk-criteria-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.risk-criteria-item { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 12px; border-bottom: 1px solid var(--border); background: #fff; color: var(--text-secondary); font-size: 12px; }
+.risk-criteria-item strong { color: var(--text-muted); }
+.risk-criteria-item.applied { color: var(--text-primary); font-weight: 700; }
+.risk-criteria-item.applied strong { color: var(--text-primary); }
+.risk-all-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.risk-all-groups section { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.risk-group-heading { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border); background: #fff; font-size: 13px; }
+.risk-group-heading span { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.risk-group-heading b { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--primary); color: #fff; }
+.risk-group-criteria { padding: 8px; }
+.risk-group-criteria .risk-criteria-item { min-height: 36px; padding: 0 9px; }
+.risk-group-criteria .risk-criteria-item:last-child { border-bottom: 0; }
 .info-row { display: flex; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .info-row-wide { grid-column: 1 / -1; }
 .info-label { width: 105px; font-size: 12px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
@@ -50,6 +103,24 @@
 .detail-action-list p { margin: 3px 0 0; color: var(--text-secondary); font-size: 12px; }
 .detail-modal-overlay { position: fixed; inset: 0; z-index: 320; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,.42); }
 .detail-modal { width: min(680px, 100%); max-height: 86vh; overflow-y: auto; padding: 24px; border-radius: 14px; background: #fff; }
+.senior-edit-modal { width: min(780px, 100%); }
+.edit-modal-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.edit-modal-tabs button { padding: 10px 18px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-weight: 700; cursor: pointer; }
+.edit-modal-tabs button.active { border-bottom-color: var(--primary); color: var(--primary-dark); }
+.edit-modal-error { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #fff1ef; color: var(--danger); font-size: 12px; }
+.welfare-edit-grid { align-items: end; }
+.benefit-toggle { display: grid; grid-template-columns: repeat(3, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: 8px; }
+.benefit-toggle button { min-height: 40px; border: 0; border-right: 1px solid var(--border); background: #fff; color: var(--text-muted); font: inherit; cursor: pointer; }
+.benefit-toggle button:last-child { border-right: 0; }
+.benefit-toggle button.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 700; }
+.welfare-edit-table { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.welfare-edit-head,
+.welfare-status-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; align-items: center; gap: 12px; padding: 10px 12px; }
+.welfare-edit-head { background: var(--bg-page); color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.welfare-status-row { border-top: 1px solid var(--border); }
+.welfare-status-row strong { align-self: center; font-size: 13px; }
+.welfare-status-row select { min-width: 0; }
+.detail-toast { position: fixed; right: 28px; bottom: 28px; z-index: 400; padding: 14px 18px; border-radius: 10px; background: #243526; color: #fff; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 .risk-detail-modal { width: min(760px, 100%); }
 .detail-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
 .detail-modal-header h2 { margin: 0 0 5px; font-size: 20px; }
@@ -77,14 +148,26 @@
 
 @media (max-width: 900px) {
   .detail-grid { grid-template-columns: 1fr; }
+  .detail-all-info .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-welfare-card > .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .risk-wide-content { grid-template-columns: 1fr; }
+  .risk-all-groups { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
   .detail-info-grid { grid-template-columns: 1fr; }
+  .detail-all-info .detail-info-grid { grid-template-columns: 1fr; }
+  .detail-welfare-card > .detail-info-grid { grid-template-columns: 1fr; }
   .info-row-wide { grid-column: auto; }
   .risk-detail-groups,
   .detail-modal-form,
   .product-detail-modal dl { grid-template-columns: 1fr; }
   .risk-detail-groups section:first-child,
   .detail-modal-wide { grid-column: auto; }
+  .welfare-edit-head,
+  .welfare-status-row { grid-template-columns: 1fr; }
+  .welfare-edit-head { display: none; }
+  .risk-group-selector { grid-template-columns: 1fr; }
+  .risk-criteria-grid { grid-template-columns: 1fr; }
+  .risk-inline-header { align-items: flex-start; flex-direction: column; }
 }

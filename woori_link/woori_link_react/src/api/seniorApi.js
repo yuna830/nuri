@@ -6,6 +6,7 @@ export const getSeniorsByWelfareWorker = (id) => api.get(`/seniors/by-welfare-wo
 export const getVoucherUnapplied = () => api.get('/seniors/voucher-unapplied')
 export const createSenior = (data) => api.post('/seniors', data)
 export const updateSenior = (id, data) => api.patch(`/seniors/${id}`, data)
+export const updateSeniorProfile = (id, data) => api.put(`/seniors/${id}/profile`, data)
 export const deleteSenior = (id) => api.delete(`/seniors/${id}`)
 
 export const searchSeniors = (params) =>

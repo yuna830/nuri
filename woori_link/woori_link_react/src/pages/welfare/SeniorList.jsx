@@ -185,21 +185,24 @@ export default function SeniorList() {
           <>
             <table className="data-table senior-list-table">
               <thead>
-                <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th><th>관리</th></tr>
+                <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th></tr>
               </thead>
               <tbody>
                 {pagedSeniors.map(s => (
-                  <tr key={s.id}>
+                  <tr
+                    key={s.id}
+                    className="senior-list-row"
+                    tabIndex={0}
+                    onClick={() => navigate(`/welfare/seniors/${s.id}`)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') navigate(`/welfare/seniors/${s.id}`)
+                    }}
+                  >
                     <td className="font-bold">{s.name}</td>
                     <td>{s.age}세</td>
                     <td>{s.address}</td>
                     <td><span className="income-tag">{INCOME_LABEL[s.incomeLevel] || '-'}</span></td>
                     <td>{s.energyVoucherApplied ? <span className="badge badge-completed">신청완료</span> : <span className="badge badge-pending">미신청</span>}</td>
-                    <td>
-                      <div className="action-cell">
-                        <button className="btn-sm primary" onClick={() => navigate(`/welfare/seniors/${s.id}`)}>상세</button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>

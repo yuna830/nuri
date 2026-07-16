@@ -40,6 +40,7 @@ public class Senior {
     }
 
     private String address;
+    private String detailAddress;
     private Double latitude;
     private Double longitude;
     private String phone;

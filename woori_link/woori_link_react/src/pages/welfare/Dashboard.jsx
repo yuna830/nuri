@@ -59,6 +59,10 @@ export default function Dashboard() {
     return voucherCandidate || electricCandidate
   })
 
+  const sortedHighRisk = [...highRisk].sort(
+    (a, b) => Number(b.totalScore ?? 0) - Number(a.totalScore ?? 0)
+  )
+
   async function handleAssessAll() {
     setAssessing(true)
     try {
@@ -133,7 +137,7 @@ export default function Dashboard() {
                   <tr><th>이름</th><th>나이</th><th>점수</th><th>주요 사유</th><th>현재 상태</th></tr>
                 </thead>
                 <tbody>
-                  {highRisk.map(r => (
+                  {sortedHighRisk.map(r => (
                     <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/welfare/seniors/${r.seniorId}`)}>
                       <td className="font-bold">{r.seniorName}</td>
                       <td>{r.seniorAge}세</td>
