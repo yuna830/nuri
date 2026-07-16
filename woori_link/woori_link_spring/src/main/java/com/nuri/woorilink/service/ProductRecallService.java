@@ -42,6 +42,22 @@ public class ProductRecallService {
                 .toList();
     }
 
+    public List<ProductRecallResponse> getRecalledByWelfareWorker(Long welfareWorkerId) {
+        List<Long> seniorIds = seniorRepository.findByWelfareWorkerId(welfareWorkerId)
+                .stream()
+                .map(Senior::getId)
+                .toList();
+        if (seniorIds.isEmpty()) return List.of();
+
+        return productRepository.findBySeniorIdInAndRecallStatus(
+                        seniorIds,
+                        RegisteredProduct.RecallStatus.RECALLED
+                )
+                .stream()
+                .map(this::toRecallResponse)
+                .toList();
+    }
+
     private ProductRecallResponse toRecallResponse(RegisteredProduct product) {
         Senior senior = product.getSeniorId() == null
                 ? null
@@ -133,6 +149,7 @@ public class ProductRecallService {
         product.setFinalResult(request.getFinalResult());
 
         RegisteredProduct saved = productRepository.save(product);
+        syncRecallActionStatus(saved, request);
         if (Boolean.TRUE.equals(request.getCreateAction()) && request.getWelfareWorkerId() != null) {
             actionRecordRepository.save(ActionRecord.builder()
                     .seniorId(product.getSeniorId())
@@ -147,6 +164,42 @@ public class ProductRecallService {
                     .build());
         }
         return saved;
+    }
+
+    private void syncRecallActionStatus(RegisteredProduct product, RecallWorkflowUpdateRequest request) {
+        if (product.getSeniorId() == null || !nonBlank(product.getProductName())) return;
+
+        List<ActionRecord> records = actionRecordRepository
+                .findBySeniorIdAndActionTypeAndProductNameOrderByCreatedAtDesc(
+                        product.getSeniorId(),
+                        ActionRecord.ActionType.RECALL,
+                        product.getProductName()
+                );
+        if (records.isEmpty()) return;
+
+        ActionRecord.ActionStatus status = recallActionStatus(product);
+        for (ActionRecord record : records) {
+            record.setStatus(status);
+            if (request.getNextActionDate() != null) record.setDueDate(request.getNextActionDate());
+            if (request.getWelfareWorkerId() != null) record.setWelfareWorkerId(request.getWelfareWorkerId());
+            if (nonBlank(request.getNote())) record.setNote(request.getNote());
+            actionRecordRepository.save(record);
+        }
+    }
+
+    private ActionRecord.ActionStatus recallActionStatus(RegisteredProduct product) {
+        if (product.getFinalResult() != null ||
+                product.getFollowUpProgressStatus() == RegisteredProduct.FollowUpProgressStatus.COMPLETED) {
+            return ActionRecord.ActionStatus.COMPLETED;
+        }
+
+        if (Boolean.TRUE.equals(product.getStopGuidanceCompleted()) ||
+                nonBlank(product.getFollowUpType()) ||
+                product.getCurrentUseStatus() != RegisteredProduct.CurrentUseStatus.UNKNOWN) {
+            return ActionRecord.ActionStatus.IN_PROGRESS;
+        }
+
+        return ActionRecord.ActionStatus.PENDING;
     }
 
     private void applyRecallStatus(RegisteredProduct product) {
@@ -188,6 +241,10 @@ public class ProductRecallService {
         if (value == null) return;
         String normalized = value.trim();
         if (!normalized.isBlank()) terms.add(normalized);
+    }
+
+    private boolean nonBlank(String value) {
+        return value != null && !value.isBlank();
     }
 
     private record RecallLookup(boolean recalled, String detail) {}

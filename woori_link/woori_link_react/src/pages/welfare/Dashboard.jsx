@@ -15,7 +15,7 @@ const summarizeMemo = (memo) => {
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
 import { getHighRisk, assessAll } from '../../api/riskApi'
 import { getActionsByWelfareWorker } from '../../api/actionApi'
-import { getRecalledProducts } from '../../api/recallApi'
+import { getProductsBySenior, getRecalledProductsByWelfareWorker } from '../../api/recallApi'
 import { getUserId } from '../../utils/auth'
 
 const ACTION_STATUS_LABEL = {
@@ -45,9 +45,24 @@ export default function Dashboard() {
       getActionsByWelfareWorker(welfareWorkerId)
         .then(r => setPending(r.data.filter(action => action.status === 'PENDING')))
         .catch(() => {})
+      getRecalledProductsByWelfareWorker(welfareWorkerId)
+        .then(async r => {
+          if (Array.isArray(r.data) && r.data.length > 0) {
+            setRecalled(r.data)
+            return
+          }
+          const seniorsResponse = await getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
+          const seniors = Array.isArray(seniorsResponse.data) ? seniorsResponse.data : []
+          const productResponses = await Promise.all(
+            seniors.map(senior => getProductsBySenior(senior.id).catch(() => ({ data: [] })))
+          )
+          setRecalled(productResponses
+            .flatMap(result => Array.isArray(result.data) ? result.data : [])
+            .filter(product => product.recallStatus === 'RECALLED'))
+        })
+        .catch(() => {})
     }
     getHighRisk().then(r => setHighRisk(r.data)).catch(() => {})
-    getRecalledProducts().then(r => setRecalled(r.data)).catch(() => {})
   }, [])
 
   const energySupportCandidates = seniors.filter(s => {

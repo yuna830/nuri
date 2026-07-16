@@ -79,6 +79,9 @@
 .recall-key-guidance p { margin: 0; color: var(--text-secondary); }
 .recall-key-guidance > button { margin-top: 10px; padding: 0; border: 0; background: none; color: var(--primary-dark); font-size: 12px; cursor: pointer; }
 .recall-key-guidance pre { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--primary-border); white-space: pre-wrap; color: var(--text-secondary); font: inherit; font-size: 11px; line-height: 1.55; }
+.recall-api-match-note { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--primary-border); border-radius: 10px; background: rgba(238, 246, 237, .72); color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.recall-api-match-note strong { display: block; margin-bottom: 4px; color: var(--primary-dark); font-size: 13px; }
+.recall-api-match-note p { margin: 0; }
 .recall-choice-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
 .recall-modal-body > .recall-choice-group:first-child { margin-top: 4px; }
 .recall-choice-group legend { grid-column: 1 / -1; display: flex; align-items: center; margin: 0 0 2px; padding: 0; color: var(--text-secondary); font-size: 12px; font-weight: 700; }

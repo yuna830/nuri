@@ -25,6 +25,11 @@ public class ProductRecallController {
     @GetMapping("/recalled")
     public List<ProductRecallResponse> getRecalled() { return productRecallService.getRecalled(); }
 
+    @GetMapping("/recalled/welfare-worker/{welfareWorkerId}")
+    public List<ProductRecallResponse> getRecalledByWelfareWorker(@PathVariable Long welfareWorkerId) {
+        return productRecallService.getRecalledByWelfareWorker(welfareWorkerId);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RegisteredProduct register(@RequestBody RegisteredProduct product) {

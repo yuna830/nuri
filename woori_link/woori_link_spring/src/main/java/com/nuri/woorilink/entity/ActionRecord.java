@@ -46,6 +46,12 @@ public class ActionRecord {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Transient
+    private String seniorName;
+
+    @Transient
+    private Integer seniorAge;
+
     public enum ActionType {
         SOS, RECALL, VOUCHER, GAS_CHECK, ELECTRIC_CHECK, VISIT, OTHER
     }
