@@ -8,4 +8,8 @@ import java.util.List;
 public interface RegisteredProductRepository extends JpaRepository<RegisteredProduct, Long> {
     List<RegisteredProduct> findBySeniorId(Long seniorId);
     List<RegisteredProduct> findByRecallStatus(RegisteredProduct.RecallStatus recallStatus);
+    List<RegisteredProduct> findBySeniorIdInAndRecallStatus(
+            List<Long> seniorIds,
+            RegisteredProduct.RecallStatus recallStatus
+    );
 }

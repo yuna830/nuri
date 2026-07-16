@@ -5,12 +5,14 @@ import 'http_client.dart';
 
 class ScheduleApi {
   static Future<List<dynamic>> fetchTodaySchedules(int seniorId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/schedules/senior/$seniorId/today'),
-      headers: await authHeaders(),
-    );
-    if (res.statusCode == 200) return _normalizeList(jsonDecode(res.body));
-    throw Exception('오늘 일정 조회 실패');
+    final schedules = await fetchSeniorSchedules(seniorId);
+    final today = DateTime.now();
+    final todayText =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    return schedules.where((schedule) {
+      final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+      return date.length >= 10 && date.substring(0, 10) == todayText;
+    }).toList();
   }
 
   static Future<List<dynamic>> fetchSeniorSchedules(int seniorId) async {
@@ -18,8 +20,8 @@ class ScheduleApi {
       Uri.parse('$baseUrl/schedules/senior/$seniorId'),
       headers: await authHeaders(),
     );
-    if (res.statusCode == 200) return _normalizeList(jsonDecode(res.body));
-    throw Exception('일정 조회 실패');
+    if (res.statusCode == 200) return _normalizeList(jsonDecode(utf8.decode(res.bodyBytes)));
+    throw Exception('일정 조회 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}');
   }
 
   static Future<Map<String, dynamic>> createSchedule(
@@ -31,9 +33,18 @@ class ScheduleApi {
       body: jsonEncode(payload),
     );
     if (res.statusCode == 200 || res.statusCode == 201) {
-      return jsonDecode(res.body) as Map<String, dynamic>;
+      return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     }
-    throw Exception('일정 등록 실패');
+    throw Exception('일정 등록 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}');
+  }
+
+  static Future<void> deleteSchedule(dynamic scheduleId) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/schedules/$scheduleId'),
+      headers: await authHeaders(),
+    );
+    if (res.statusCode == 200 || res.statusCode == 204) return;
+    throw Exception('일정 삭제 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}');
   }
 }
 

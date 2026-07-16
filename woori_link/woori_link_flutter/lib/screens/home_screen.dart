@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../api/senior_api.dart';
 import '../api/risk_api.dart';
 import '../api/action_api.dart';
 import '../api/care_monitoring_api.dart';
+import '../api/product_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import 'chat_screen.dart';
@@ -23,14 +26,22 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _actions = [];
   bool _loading = true;
   Map<String, dynamic>? _pendingCheckIn;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
     try {
       final seniorId = await AuthService.getUserId();
       if (seniorId == null) return;
@@ -39,22 +50,127 @@ class _HomeScreenState extends State<HomeScreen> {
         RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
         ActionApi.getActionsBySenior(seniorId),
         CareMonitoringApi.getCheckIns(seniorId),
+        ProductApi.getProductsBySenior(seniorId),
       ]);
+      if (!mounted) return;
+      final products = results[4] as List<dynamic>;
       setState(() {
         _senior = results[0] as Map<String, dynamic>;
         final r = results[1] as Map<String, dynamic>;
         _risk = r.isNotEmpty ? r : null;
-        _actions = (results[2] as List<dynamic>)
-            .where((a) => a['status'] == 'PENDING' || a['status'] == 'IN_PROGRESS')
-            .toList();
+        _actions = _pendingActions(results[2] as List<dynamic>, products);
         final checkIns = results[3] as List<dynamic>;
         final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
         _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      if (!silent && mounted) setState(() => _loading = false);
     }
+  }
+
+  List<dynamic> _pendingActions(List<dynamic> actions, List<dynamic> products) {
+    final visible = <Map<String, dynamic>>[];
+    final recallByKey = <String, Map<String, dynamic>>{};
+
+    for (final item in actions) {
+      if (item is! Map) continue;
+      final action = Map<String, dynamic>.from(item);
+      final type = '${action['actionType'] ?? ''}';
+      final status = type == 'RECALL'
+          ? _effectiveRecallStatus(action, products)
+          : '${action['status'] ?? 'PENDING'}';
+      if (status != 'PENDING' && status != 'IN_PROGRESS') continue;
+
+      final normalized = {...action, 'status': status};
+      if (type == 'RECALL') {
+        final key = _recallActionKey(normalized, products);
+        final previous = recallByKey[key];
+        if (previous == null || _isNewer(normalized, previous)) {
+          recallByKey[key] = normalized;
+        }
+      } else {
+        visible.add(normalized);
+      }
+    }
+
+    visible.addAll(recallByKey.values);
+    visible.sort((a, b) => _actionDate(b).compareTo(_actionDate(a)));
+    return visible;
+  }
+
+  String _recallActionKey(Map<String, dynamic> action, List<dynamic> products) {
+    final product = _productForRecallAction(action, products);
+    final matchedProductName = '${product?['productName'] ?? ''}'.trim().toLowerCase();
+    if (matchedProductName.isNotEmpty) return matchedProductName;
+
+    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
+    if (productName.isNotEmpty) return productName;
+
+    final note = '${action['note'] ?? ''}';
+    final modelMatch = RegExp(r'모델명:\s*([^\s\n]+)').firstMatch(note);
+    final modelNumber = modelMatch?.group(1)?.trim().toLowerCase();
+    if (modelNumber != null && modelNumber.isNotEmpty) return modelNumber;
+
+    return '${action['id'] ?? action['createdAt'] ?? ''}';
+  }
+
+  bool _isNewer(Map<String, dynamic> left, Map<String, dynamic> right) {
+    return _actionDate(left).isAfter(_actionDate(right));
+  }
+
+  DateTime _actionDate(Map<String, dynamic> action) {
+    return DateTime.tryParse('${action['updatedAt'] ?? action['createdAt'] ?? ''}') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _effectiveRecallStatus(Map<String, dynamic> action, List<dynamic> products) {
+    final product = _productForRecallAction(action, products);
+    if (product == null) return '${action['status'] ?? 'PENDING'}';
+
+    final finalResult = '${product['finalResult'] ?? ''}';
+    final followUpProgress = '${product['followUpProgressStatus'] ?? ''}';
+    if (finalResult.isNotEmpty || followUpProgress == 'COMPLETED') {
+      return 'COMPLETED';
+    }
+
+    final currentUseStatus = '${product['currentUseStatus'] ?? 'UNKNOWN'}';
+    final followUpType = '${product['followUpType'] ?? ''}'.trim();
+    final stopGuidanceCompleted = product['stopGuidanceCompleted'] == true;
+    if (currentUseStatus != 'UNKNOWN' ||
+        followUpType.isNotEmpty ||
+        stopGuidanceCompleted) {
+      return 'IN_PROGRESS';
+    }
+
+    return '${action['status'] ?? 'PENDING'}';
+  }
+
+  Map<String, dynamic>? _productForRecallAction(Map<String, dynamic> action, List<dynamic> products) {
+    final actionProductName = '${action['productName'] ?? ''}'.trim();
+    final actionNote = '${action['note'] ?? ''}';
+
+    for (final item in products) {
+      if (item is! Map) continue;
+      final product = Map<String, dynamic>.from(item);
+      if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
+      final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
+      if (modelNumber.isNotEmpty && actionNote.contains(modelNumber)) {
+        return product;
+      }
+    }
+
+    for (final item in products) {
+      if (item is! Map) continue;
+      final product = Map<String, dynamic>.from(item);
+      if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
+      final productName = '${product['productName'] ?? ''}'.trim();
+      if (actionProductName.isNotEmpty && actionProductName == productName) {
+        return product;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _respondToCheckIn() async {
@@ -125,18 +241,39 @@ class _HomeScreenState extends State<HomeScreen> {
     final riskScore = _risk?['totalScore'] as int?;
 
     return Scaffold(
-      floatingActionButton: _pendingCheckIn == null ? null : FloatingActionButton.extended(
-        onPressed: _respondToCheckIn,
-        icon: const Icon(Icons.favorite),
-        label: const Text('안부 확인: 괜찮아요'),
-        backgroundColor: kPrimary,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_pendingCheckIn != null) ...[
+            FloatingActionButton.extended(
+              heroTag: 'checkInFab',
+              onPressed: _respondToCheckIn,
+              icon: const Icon(Icons.favorite),
+              label: const Text('안부 확인: 괜찮아요'),
+              backgroundColor: kPrimary,
+            ),
+            const SizedBox(height: 12),
+          ],
+          FloatingActionButton(
+            heroTag: 'chatFab',
+            tooltip: '상담 챗봇',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ChatScreen()),
+              );
+            },
+            backgroundColor: kPrimary,
+            child: const _RobotFaceIcon(),
+          ),
+        ],
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(),
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: 200,
+              expandedHeight: 128,
               pinned: true,
               backgroundColor: kPrimary,
               actions: [
@@ -155,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       end: Alignment.bottomRight,
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -433,4 +570,82 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _RobotFaceIcon extends StatelessWidget {
+  const _RobotFaceIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 42,
+      height: 42,
+      child: CustomPaint(painter: _RobotFacePainter()),
+    );
+  }
+}
+
+class _RobotFacePainter extends CustomPainter {
+  const _RobotFacePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / 48;
+    final scaleY = size.height / 48;
+    canvas.save();
+    canvas.scale(scaleX, scaleY);
+
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final fill = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    canvas.drawLine(const Offset(24, 8), const Offset(24, 13), stroke);
+    canvas.drawCircle(const Offset(24, 6), 2, stroke);
+
+    final face = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(8, 13, 32, 25),
+      const Radius.circular(10),
+    );
+    canvas.drawRRect(face, stroke);
+
+    canvas.drawCircle(const Offset(18, 25), 2.5, fill);
+    canvas.drawCircle(const Offset(30, 25), 2.5, fill);
+
+    final smile = Path()
+      ..moveTo(17, 32)
+      ..cubicTo(19, 34, 21.3, 35, 24, 35)
+      ..cubicTo(26.7, 35, 29, 34, 31, 32);
+    canvas.drawPath(smile, stroke);
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(8, 24)
+        ..lineTo(4, 24)
+        ..lineTo(4, 32)
+        ..lineTo(9, 32),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(40, 24)
+        ..lineTo(44, 24)
+        ..lineTo(44, 32)
+        ..lineTo(39, 32),
+      stroke,
+    );
+    canvas.drawLine(const Offset(18, 38), const Offset(18, 42), stroke);
+    canvas.drawLine(const Offset(30, 38), const Offset(30, 42), stroke);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

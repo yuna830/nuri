@@ -72,8 +72,7 @@ export default function ActionList() {
         : await getPendingActions()
       setActions(Array.isArray(response.data) ? response.data : [])
     } catch {
-      const fallback = await getPendingActions().catch(() => ({ data: [] }))
-      setActions(Array.isArray(fallback.data) ? fallback.data : [])
+      setActions([])
     }
   }
 

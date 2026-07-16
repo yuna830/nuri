@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,14 +22,24 @@ class _RecallScreenState extends State<RecallScreen> {
   List<dynamic> _actions = [];
   int _selectedTab = 0;
   bool _loading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _load(silent: true);
+    });
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
     try {
       final seniorId = await AuthService.getUserId();
       if (seniorId == null) return;
@@ -37,16 +49,18 @@ class _RecallScreenState extends State<RecallScreen> {
       ]);
       setState(() {
         _products = _sortNewest(results[0] as List<dynamic>, 'createdAt');
-        _actions = _sortNewest(
-          (results[1] as List<dynamic>)
-            .where((a) => '${a['actionType'] ?? ''}' == 'RECALL')
-            .toList(),
-          'createdAt',
+        _actions = _dedupeRecallActions(
+          _sortNewest(
+            (results[1] as List<dynamic>)
+                .where((a) => '${a['actionType'] ?? ''}' == 'RECALL')
+                .toList(),
+            'updatedAt',
+          ),
         );
-        _loading = false;
+        if (!silent) _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      if (!silent) setState(() => _loading = false);
     }
   }
 
@@ -431,11 +445,74 @@ class _RecallScreenState extends State<RecallScreen> {
     return sorted;
   }
 
+  List<dynamic> _dedupeRecallActions(List<dynamic> actions) {
+    final seen = <String>{};
+    final result = <dynamic>[];
+
+    for (final item in actions) {
+      if (item is! Map) continue;
+      final action = Map<String, dynamic>.from(item);
+      final key = _recallActionKey(
+        '${action['productName'] ?? ''}',
+      );
+      if (seen.add(key)) result.add(action);
+    }
+
+    return result;
+  }
+
+  String _recallActionKey(String productName) {
+    final productKey = productName.trim().toLowerCase();
+    return productKey;
+  }
+
+  Map<String, dynamic>? _productForAction(Map<String, dynamic> action) {
+    final actionProductName = '${action['productName'] ?? ''}'.trim();
+    final actionNote = '${action['note'] ?? ''}';
+
+    for (final item in _products) {
+      if (item is! Map) continue;
+      final product = Map<String, dynamic>.from(item);
+      final productName = '${product['productName'] ?? ''}'.trim();
+      final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
+      if (actionProductName.isNotEmpty && actionProductName == productName) {
+        return product;
+      }
+      if (modelNumber.isNotEmpty && actionNote.contains(modelNumber)) {
+        return product;
+      }
+    }
+
+    return null;
+  }
+
+  String _effectiveActionStatus(Map<String, dynamic> action) {
+    final product = _productForAction(action);
+    if (product == null) return '${action['status'] ?? 'PENDING'}';
+
+    final finalResult = '${product['finalResult'] ?? ''}';
+    final followUpProgress = '${product['followUpProgressStatus'] ?? ''}';
+    if (finalResult.isNotEmpty || followUpProgress == 'COMPLETED') {
+      return 'COMPLETED';
+    }
+
+    final currentUseStatus = '${product['currentUseStatus'] ?? 'UNKNOWN'}';
+    final followUpType = '${product['followUpType'] ?? ''}'.trim();
+    final stopGuidanceCompleted = product['stopGuidanceCompleted'] == true;
+    if (currentUseStatus != 'UNKNOWN' ||
+        followUpType.isNotEmpty ||
+        stopGuidanceCompleted) {
+      return 'IN_PROGRESS';
+    }
+
+    return '${action['status'] ?? 'PENDING'}';
+  }
+
   void _showProductDetail(Map<String, dynamic> product) {
     final status = '${product['recallStatus'] ?? ''}';
     final reason = '${product['recallReason'] ?? ''}'.trim();
     final reasonSections = _recallReasonSections(reason);
-    final hasOpenRequest = _hasOpenRecallRequest(product);
+    final hasRequest = _hasRecallRequest(product);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -520,22 +597,21 @@ class _RecallScreenState extends State<RecallScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        if (hasOpenRequest) {
+                        if (hasRequest) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('이미 리콜 조치 요청을 보낸 제품입니다. 요청 내역을 확인해 주세요.')),
+                            const SnackBar(content: Text('이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
                           );
                           setState(() => _selectedTab = 1);
                         } else {
                           _requestRecallAction(product);
                         }
                       },
-                      icon: Icon(hasOpenRequest
+                      icon: Icon(hasRequest
                           ? Icons.check_circle_outline
                           : Icons.support_agent),
-                      label: Text(hasOpenRequest ? '요청 완료' : '리콜 조치 요청'),
+                      label: Text(hasRequest ? '요청 내역 보기' : '리콜 조치 요청'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            hasOpenRequest ? kTextMuted : kDanger,
+                        backgroundColor: hasRequest ? kTextMuted : kDanger,
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -552,7 +628,7 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   void _showActionDetail(Map<String, dynamic> action) {
-    final status = '${action['status'] ?? 'PENDING'}';
+    final status = _effectiveActionStatus(action);
     final note = '${action['note'] ?? ''}'.trim();
     final modelNumber = _extractActionModelNumber(note);
     final requestMemo = _requestMemoOnly(note);
@@ -768,31 +844,35 @@ class _RecallScreenState extends State<RecallScreen> {
     );
   }
 
-  bool _hasOpenRecallRequest(Map<String, dynamic> product) {
+  bool _hasRecallRequest(Map<String, dynamic> product) {
+    return _findRecallRequest(product) != null;
+  }
+
+  Map<String, dynamic>? _findRecallRequest(Map<String, dynamic> product) {
     final productName = '${product['productName'] ?? ''}'.trim();
     final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
 
-    return _actions.any((a) {
-      if (a is! Map) return false;
+    for (final a in _actions) {
+      if (a is! Map) continue;
       final action = Map<String, dynamic>.from(a);
-      final status = '${action['status'] ?? ''}';
-      final isOpen = status == 'PENDING' || status == 'IN_PROGRESS';
-      if (!isOpen || '${action['actionType'] ?? ''}' != 'RECALL') return false;
+      if ('${action['actionType'] ?? ''}' != 'RECALL') continue;
 
       final actionProductName = '${action['productName'] ?? ''}'.trim();
       final note = '${action['note'] ?? ''}';
-      if (modelNumber.isNotEmpty && note.contains(modelNumber)) return true;
-      return productName.isNotEmpty && actionProductName == productName;
-    });
+      if (modelNumber.isNotEmpty && note.contains(modelNumber)) return action;
+      if (productName.isNotEmpty && actionProductName == productName) return action;
+    }
+
+    return null;
   }
 
   Future<void> _requestRecallAction(Map<String, dynamic> product) async {
     final productName = '${product['productName'] ?? '제품명 없음'}';
     final modelNumber = '${product['modelNumber'] ?? ''}';
     final reason = '${product['recallReason'] ?? ''}';
-    if (_hasOpenRecallRequest(product)) {
+    if (_hasRecallRequest(product)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이미 리콜 조치 요청을 보낸 제품입니다. 요청 내역을 확인해 주세요.')),
+        const SnackBar(content: Text('이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
       );
       setState(() => _selectedTab = 1);
       return;
@@ -969,13 +1049,12 @@ class _RecallScreenState extends State<RecallScreen> {
 
   Color _statusColor(String? status) {
     if (status == 'RECALLED') return kDanger;
-    if (status == 'SAFE') return kPrimary;
     return kTextMuted;
   }
 
   String _statusLabel(String? status) {
     if (status == 'RECALLED') return '리콜 대상';
-    if (status == 'SAFE') return '리콜 없음';
+    if (status == 'SAFE') return '리콜 미확인';
     return '확인중';
   }
 
@@ -1071,9 +1150,8 @@ class _RecallScreenState extends State<RecallScreen> {
                     ..._products.map((p) {
                       final status = p['recallStatus'] as String?;
                       final product = Map<String, dynamic>.from(p as Map);
-                      final reason = p['recallReason'] as String?;
                       final manufacturer = p['manufacturer'] as String?;
-                      final hasOpenRequest = _hasOpenRecallRequest(product);
+                      final hasRequest = _hasRecallRequest(product);
                       return Card(
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
@@ -1157,20 +1235,6 @@ class _RecallScreenState extends State<RecallScreen> {
                                           color: kTextMuted,
                                         ),
                                       ),
-                                      if (status == 'RECALLED' &&
-                                          reason != null &&
-                                          reason.isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          reason,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: kDanger,
-                                          ),
-                                        ),
-                                      ],
                                       if (status == 'RECALLED') ...[
                                         const SizedBox(height: 8),
                                         Container(
@@ -1200,12 +1264,14 @@ class _RecallScreenState extends State<RecallScreen> {
                                           child: ElevatedButton.icon(
                                             onPressed: () =>
                                                 _requestRecallAction(product),
-                                            icon: Icon(hasOpenRequest
+                                            icon: Icon(hasRequest
                                                 ? Icons.check_circle_outline
                                                 : Icons.support_agent),
-                                            label: const Text('리콜 조치 요청'),
+                                            label: Text(hasRequest
+                                                ? '요청 내역 보기'
+                                                : '리콜 조치 요청'),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: hasOpenRequest
+                                              backgroundColor: hasRequest
                                                   ? kTextMuted
                                                   : kDanger,
                                               foregroundColor: Colors.white,
@@ -1213,23 +1279,6 @@ class _RecallScreenState extends State<RecallScreen> {
                                           ),
                                         ),
                                       ],
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton.icon(
-                                          onPressed: () =>
-                                              _deleteProduct(product),
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                            size: 18,
-                                          ),
-                                          label: const Text('삭제'),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: kTextMuted,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -1431,7 +1480,7 @@ class _RecallScreenState extends State<RecallScreen> {
             ..._actions.map((a) {
               final action = Map<String, dynamic>.from(a as Map);
               final productName = '${action['productName'] ?? '리콜 제품'}';
-              final status = '${action['status'] ?? 'PENDING'}';
+              final status = _effectiveActionStatus(action);
               final note = _requestMemoOnly('${action['note'] ?? ''}'.trim());
               return InkWell(
                 borderRadius: BorderRadius.circular(10),

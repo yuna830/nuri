@@ -1,6 +1,8 @@
 import api from './index'
 
 export const getRecalledProducts = () => api.get('/products/recalled')
+export const getRecalledProductsByWelfareWorker = (id) =>
+  api.get(`/products/recalled/welfare-worker/${id}`)
 export const getProductsBySenior = (seniorId) => api.get(`/products/senior/${seniorId}`)
 export const registerProduct = (data) => api.post('/products', data)
 export const refreshRecall = () => api.post('/products/refresh')

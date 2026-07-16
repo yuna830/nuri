@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:intl/intl.dart';
 import '../api/assistant_conversation_api.dart';
+import '../api/product_api.dart';
 import '../api/schedule_api.dart';
 import '../api/senior_api.dart';
 import '../services/auth_service.dart';
@@ -23,12 +24,14 @@ class _ChatScreenState extends State<ChatScreen> {
   dynamic _activeConversationId;
   List<dynamic> _conversations = [];
   List<dynamic> _todaySchedules = [];
+  List<dynamic> _allSchedules = [];
   Map<String, dynamic>? _senior;
   List<_ChatMessage> _messages = [];
   ChatSession? _chat;
   bool _loading = true;
   bool _sending = false;
   bool _apiKeyMissing = false;
+  _PendingScheduleDraft? _pendingScheduleDraft;
 
   @override
   void initState() {
@@ -57,14 +60,16 @@ class _ChatScreenState extends State<ChatScreen> {
       final results = await Future.wait([
         SeniorApi.getSenior(seniorId).catchError((_) => <String, dynamic>{}),
         ScheduleApi.fetchTodaySchedules(seniorId).catchError((_) => <dynamic>[]),
+        ScheduleApi.fetchSeniorSchedules(seniorId).catchError((_) => <dynamic>[]),
         AssistantConversationApi.fetchConversations(seniorId)
             .catchError((_) => <dynamic>[]),
       ]);
 
       _seniorId = seniorId;
       _senior = results[0] as Map<String, dynamic>;
-      _todaySchedules = results[1] as List<dynamic>;
-      _conversations = results[2] as List<dynamic>;
+      _todaySchedules = _remainingTodaySchedules(results[1] as List<dynamic>);
+      _allSchedules = results[2] as List<dynamic>;
+      _conversations = results[3] as List<dynamic>;
       _initGemini();
 
       if (_conversations.isNotEmpty) {
@@ -128,9 +133,9 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     ];
 
-    final briefs = _todaySchedules.where(_isRemainingTodaySchedule).map(_formatScheduleBrief).toList();
+    final briefs = _remainingTodaySchedules(_todaySchedules).map(_formatScheduleBrief).toList();
     if (briefs.isNotEmpty) {
-      messages.add(_ChatMessage.assistant('남은 오늘 일정은 ${briefs.join(', ')}입니다.'));
+      messages.add(_ChatMessage.assistant(_formatScheduleAnswer('남은 오늘 일정입니다.', briefs)));
     }
     if (_apiKeyMissing) {
       messages.add(_ChatMessage.assistant(
@@ -188,6 +193,7 @@ class _ChatScreenState extends State<ChatScreen> {
       for (final message in nextMessages) {
         await _saveMessage(message);
       }
+      await _refreshConversations();
       _scrollToBottom();
     } catch (_) {
       setState(() {
@@ -195,6 +201,35 @@ class _ChatScreenState extends State<ChatScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _refreshConversations() async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return;
+    try {
+      final conversations = await AssistantConversationApi.fetchConversations(seniorId);
+      if (!mounted) return;
+      if (conversations.isEmpty && _activeConversationId != null && _conversations.isNotEmpty) {
+        return;
+      }
+      setState(() {
+        _conversations = conversations;
+      });
+    } catch (_) {
+      // The current chat can continue even if the list refresh fails.
+    }
+  }
+
+  Future<void> _refreshSchedules() async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return;
+    final todaySchedules = await ScheduleApi.fetchTodaySchedules(seniorId).catchError((_) => <dynamic>[]);
+    final allSchedules = await ScheduleApi.fetchSeniorSchedules(seniorId).catchError((_) => <dynamic>[]);
+    if (!mounted) return;
+    setState(() {
+      _todaySchedules = _remainingTodaySchedules(todaySchedules);
+      _allSchedules = allSchedules;
+    });
   }
 
   Future<void> _send() async {
@@ -210,7 +245,19 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
     await _saveMessage(userMessage);
 
-    final localAnswer = _answerLocally(text);
+    final scheduleDeleteAnswer = await _tryDeleteScheduleFromText(text);
+    if (scheduleDeleteAnswer != null) {
+      await _addAssistantAnswer(scheduleDeleteAnswer);
+      return;
+    }
+
+    final scheduleCreateAnswer = await _tryCreateScheduleFromText(text);
+    if (scheduleCreateAnswer != null) {
+      await _addAssistantAnswer(scheduleCreateAnswer);
+      return;
+    }
+
+    final localAnswer = await _answerLocally(text);
     if (localAnswer != null) {
       await _addAssistantAnswer(localAnswer);
       return;
@@ -230,6 +277,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final scheduleText = _todaySchedules.isEmpty
           ? '오늘 등록된 일정 없음'
           : _todaySchedules.map(_scheduleToText).join('\n');
+      final recallScheduleText = await _recallSchedulesToText();
       final response = await _chat!.sendMessage(
         Content.text('''
 최근 대화:
@@ -237,6 +285,9 @@ $historyText
 
 오늘 일정:
 $scheduleText
+
+리콜 후속 조치 일정:
+$recallScheduleText
 
 사용자 질문:
 $text
@@ -252,13 +303,37 @@ $text
     }
   }
 
-  String? _answerLocally(String text) {
+  Future<String?> _answerLocally(String text) async {
     final normalized = text.replaceAll(' ', '');
-    if (normalized.contains('오늘') && normalized.contains('일정')) {
-      final briefs =
-          _todaySchedules.where(_isRemainingTodaySchedule).map(_formatScheduleBrief).toList();
-      if (briefs.isEmpty) return '남은 오늘 일정은 없어요.';
-      return '남은 오늘 일정은 ${briefs.join(', ')}입니다.';
+    final targetDate = _parseScheduleQueryDate(text);
+    if (RegExp(r'(수정|변경|바꿔)').hasMatch(normalized) && _isScheduleQuestion(normalized)) {
+      return '일정 수정은 아직 서버 API가 없어서 바로 바꾸지는 못해요. 지금은 달력에서 기존 일정을 삭제한 뒤 새 일정으로 다시 등록해 주세요.';
+    }
+    if (_isRecallScheduleQuestion(normalized)) {
+      final briefs = await _fetchRecallScheduleBriefs(dateText: targetDate);
+      if (briefs.isEmpty) {
+        final dateLabel = targetDate == null ? '' : '${_formatDateLabel(targetDate)}에 ';
+        return '${dateLabel}등록된 리콜 후속 조치 일정은 없어요.';
+      }
+      return _formatScheduleAnswer(
+        targetDate == null ? '리콜 후속 조치 일정입니다.' : '${_formatDateLabel(targetDate)} 리콜 후속 조치 일정입니다.',
+        briefs,
+      );
+    }
+    if (_isScheduleQuestion(normalized)) {
+      final dateText = targetDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final briefs = _scheduleBriefsForDate(dateText);
+      if (briefs.isEmpty) {
+        return dateText == DateFormat('yyyy-MM-dd').format(DateTime.now())
+            ? '남은 오늘 일정은 없어요.'
+            : '${_formatDateLabel(dateText)} 일정은 없어요.';
+      }
+      return _formatScheduleAnswer(
+        dateText == DateFormat('yyyy-MM-dd').format(DateTime.now())
+            ? '남은 오늘 일정입니다.'
+            : '${_formatDateLabel(dateText)} 일정입니다.',
+        briefs,
+      );
     }
     if (normalized.contains('리콜')) {
       return '하단의 리콜 탭에서 보유 제품을 등록하면 제품안전정보센터 리콜 데이터와 자동으로 비교해 드려요. 제품 사진 OCR, 바코드/QR 스캔, 직접 입력으로 등록할 수 있고, 리콜 대상이면 리콜 조치 요청을 눌러 보호자와 복지사에게 미조치 대상으로 알릴 수 있어요.';
@@ -270,6 +345,257 @@ $text
       return '응급 상황이면 즉시 119에 전화해 주세요. 가능하면 보호자나 담당 복지사에게도 바로 알려주세요.';
     }
     return null;
+  }
+
+  Future<String?> _tryDeleteScheduleFromText(String text) async {
+    final compact = text.replaceAll(' ', '');
+    if (!RegExp(r'(삭제|지워|취소)').hasMatch(compact) ||
+        !RegExp(r'(일정|예약|알림|산책|운동|수영|병원|진료|검진|약|복약|방문|전화|약속|식사|아침|점심|저녁)').hasMatch(compact)) {
+      return null;
+    }
+
+    final targetDate = _parseScheduleDate(text);
+    final keyword = _cleanScheduleTitle(text
+        .replaceAll(RegExp(r'삭제해줘|삭제|지워줘|지워|취소해줘|취소'), ' ')
+        .trim());
+    if (keyword.isEmpty) {
+      return '어떤 일정을 삭제할까요? 예: 산책 일정 삭제해줘';
+    }
+
+    final candidates = _allSchedules.where((schedule) {
+      final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+      if (targetDate != null && (date.length < 10 || date.substring(0, 10) != targetDate)) {
+        return false;
+      }
+      final title = '${schedule['purpose'] ?? schedule['title'] ?? schedule['content'] ?? schedule['memo'] ?? ''}';
+      return title.isNotEmpty && (title.contains(keyword) || keyword.contains(title));
+    }).toList()
+      ..sort((a, b) => _scheduleDateTime(a).compareTo(_scheduleDateTime(b)));
+
+    if (candidates.isEmpty) {
+      return '$keyword 일정을 찾지 못했어요.';
+    }
+    if (candidates.length > 1 && targetDate == null) {
+      return '$keyword 일정이 여러 개 있어요. 날짜를 같이 말해 주세요. 예: 내일 $keyword 삭제';
+    }
+
+    final schedule = candidates.first;
+    final id = schedule is Map ? schedule['id'] : null;
+    if (id == null) return '일정 ID를 찾지 못해서 삭제할 수 없어요.';
+
+    try {
+      await ScheduleApi.deleteSchedule(id);
+      await _refreshSchedules();
+      return '${_formatScheduleBrief(schedule)} 일정을 삭제했어요.';
+    } catch (error) {
+      return '일정 삭제에 실패했어요. ${error.toString().replaceFirst('Exception: ', '')}';
+    }
+  }
+
+  Future<String?> _tryCreateScheduleFromText(String text) async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return null;
+
+    final pending = _pendingScheduleDraft;
+    if (pending != null) {
+      final time = _parseScheduleTime(text, pending.date);
+      if (time.isEmpty) {
+        return '${pending.title} 일정을 몇 시로 등록할까요? 예: 오전 9시';
+      }
+      final timeMatch = _scheduleTimeMatch(text);
+      final hour = int.tryParse(timeMatch?.group(2) ?? '') ?? 0;
+      if (pending.needsMeridiem && hour >= 1 && hour <= 11 && !_hasMeridiem(text)) {
+        return '${_formatDateLabel(pending.date)} ${pending.title} 일정은 오전인지 오후인지 알려주세요. 예: 오전 6시';
+      }
+      _pendingScheduleDraft = null;
+      return _saveParsedSchedule(
+        _ParsedSchedule(date: pending.date, time: time, title: pending.title),
+      );
+    }
+
+    final parsed = _parseScheduleCreateText(text);
+    if (parsed == null) return null;
+    if (parsed.needsTime) {
+      _pendingScheduleDraft = _PendingScheduleDraft(
+        date: parsed.date,
+        title: parsed.title,
+        needsMeridiem: false,
+      );
+      return '${_formatDateLabel(parsed.date)} ${parsed.title} 일정을 몇 시로 등록할까요?';
+    }
+    if (parsed.needsMeridiem) {
+      _pendingScheduleDraft = _PendingScheduleDraft(
+        date: parsed.date,
+        title: parsed.title,
+        needsMeridiem: true,
+      );
+      return '${_formatDateLabel(parsed.date)} ${parsed.title} 일정은 오전인지 오후인지 알려주세요. 예: 오전 6시';
+    }
+
+    return _saveParsedSchedule(parsed);
+  }
+
+  Future<String> _saveParsedSchedule(_ParsedSchedule parsed) async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return '로그인 정보를 확인하지 못해서 일정 등록을 할 수 없어요.';
+    try {
+      final saved = await ScheduleApi.createSchedule({
+        'seniorId': seniorId,
+        'welfareWorkerId': _senior?['welfareWorkerId'],
+        'visitDate': parsed.date,
+        'visitTime': parsed.time,
+        'purpose': parsed.title,
+        'note': '챗봇에서 등록한 일정입니다.',
+        'status': 'PLANNED',
+      });
+      await _refreshSchedules();
+      final savedDate = '${saved['visitDate'] ?? parsed.date}';
+      final savedTime = '${saved['visitTime'] ?? parsed.time}';
+      final timeLabel = savedTime.isEmpty ? '시간 미정' : _formatTime(savedTime);
+      return '${_formatDateLabel(savedDate)} $timeLabel에 ${parsed.title} 일정으로 등록했어요.';
+    } catch (error) {
+      final message = error.toString().replaceFirst('Exception: ', '');
+      return '일정 등록에 실패했어요. $message';
+    }
+  }
+
+  _ParsedSchedule? _parseScheduleCreateText(String text) {
+    final normalized = text
+        .replaceAll('낼', '내일')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final compact = normalized.replaceAll(' ', '');
+    final wantsCreate = RegExp(r'(등록|추가|넣어|넣어줘|기억|챙겨|알림|예약)').hasMatch(compact);
+    final hasDateOrTime = _parseScheduleDate(normalized) != null ||
+        RegExp(r'(오전|오후|아침|점심|저녁|밤|새벽)?\s*\d{1,2}\s*시').hasMatch(normalized);
+    final hasScheduleTopic = RegExp(r'(일정|예약|알림|산책|운동|수영|병원|진료|검진|약|복약|방문|전화|약속|식사|아침|점심|저녁|마트|시장|복지관|주민센터)').hasMatch(compact);
+    if (!wantsCreate || (!hasScheduleTopic && !hasDateOrTime)) return null;
+
+    final parsedDate = _parseScheduleDate(normalized);
+    final date = parsedDate ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final time = _parseScheduleTime(normalized, date);
+    final title = _cleanScheduleTitle(normalized);
+    if (title.isEmpty) return null;
+
+    final timeMatch = _scheduleTimeMatch(normalized);
+    final hasTime = timeMatch != null;
+    final parsedHour = int.tryParse(timeMatch?.group(2) ?? '') ?? 0;
+    final isToday = date == DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final needsMeridiem = hasTime && parsedHour >= 1 && parsedHour <= 11 && !isToday && !_hasMeridiem(normalized);
+
+    return _ParsedSchedule(
+      date: date,
+      time: time,
+      title: title,
+      needsTime: !hasTime,
+      needsMeridiem: needsMeridiem,
+    );
+  }
+
+  String? _parseScheduleDate(String text) {
+    final now = DateTime.now();
+    if (text.contains('오늘')) return DateFormat('yyyy-MM-dd').format(now);
+    if (text.contains('글피')) {
+      return DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 3)));
+    }
+    if (text.contains('내일모레') || text.contains('모레')) {
+      return DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 2)));
+    }
+    if (text.contains('내일')) {
+      return DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 1)));
+    }
+
+    final fullDate = RegExp(r'(20\d{2})[년./-]?\s*(\d{1,2})[월./-]?\s*(\d{1,2})일?').firstMatch(text);
+    if (fullDate != null) {
+      final year = int.parse(fullDate.group(1)!);
+      final month = int.parse(fullDate.group(2)!);
+      final day = int.parse(fullDate.group(3)!);
+      return DateFormat('yyyy-MM-dd').format(DateTime(year, month, day));
+    }
+
+    final monthDay = RegExp(r'(\d{1,2})\s*월\s*(\d{1,2})\s*일?').firstMatch(text);
+    if (monthDay != null) {
+      final month = int.parse(monthDay.group(1)!);
+      final day = int.parse(monthDay.group(2)!);
+      return DateFormat('yyyy-MM-dd').format(DateTime(now.year, month, day));
+    }
+
+    final dayOnly = RegExp(r'(^|[^\d월])(\d{1,2})\s*일').firstMatch(text);
+    if (dayOnly != null) {
+      final day = int.parse(dayOnly.group(2)!);
+      var date = DateTime(now.year, now.month, day);
+      if (date.isBefore(DateTime(now.year, now.month, now.day))) {
+        date = DateTime(now.year, now.month + 1, day);
+      }
+      return DateFormat('yyyy-MM-dd').format(date);
+    }
+
+    return null;
+  }
+
+  String? _parseScheduleQueryDate(String text) {
+    return _parseScheduleDate(text);
+  }
+
+  String _parseScheduleTime(String text, String date) {
+    final match = _scheduleTimeMatch(text);
+    if (match == null) return '';
+
+    final meridiem = match.group(1) ?? '';
+    var hour = int.tryParse(match.group(2) ?? '') ?? 0;
+    final minuteText = match.group(3) ?? '';
+    final minute = minuteText == '반' ? 30 : int.tryParse(match.group(4) ?? '0') ?? 0;
+
+    if (['오후', '저녁', '밤'].contains(meridiem) && hour < 12) hour += 12;
+    if (['오전', '아침', '새벽'].contains(meridiem) && hour == 12) hour = 0;
+    if (meridiem.isEmpty && hour >= 1 && hour <= 11) {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final now = DateTime.now();
+      final morning = DateTime(now.year, now.month, now.day, hour, minute);
+      final eveningHour = hour + 12;
+      if (date == today && morning.isBefore(now) && eveningHour < 24) {
+        hour = eveningHour;
+      }
+    }
+
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  }
+
+  RegExpMatch? _scheduleTimeMatch(String text) {
+    return RegExp(r'(오전|오후|아침|점심|저녁|밤|새벽)?\s*(\d{1,2})\s*시\s*(반|(\d{1,2})\s*분?)?').firstMatch(text);
+  }
+
+  bool _hasMeridiem(String text) {
+    return RegExp(r'(오전|오후|아침|점심|저녁|밤|새벽)').hasMatch(text);
+  }
+
+  String _cleanScheduleTitle(String text) {
+    return text
+        .replaceAll(RegExp(r'20\d{2}[년./-]?\s*\d{1,2}[월./-]?\s*\d{1,2}일?'), ' ')
+        .replaceAll(RegExp(r'\d{1,2}\s*월\s*\d{1,2}\s*일?'), ' ')
+        .replaceAll(RegExp(r'오늘|내일모레|모레|내일|글피'), ' ')
+        .replaceAll(RegExp(r'(오전|오후|아침|점심|저녁|밤|새벽)?\s*\d{1,2}\s*시\s*(반|(\d{1,2})\s*분?)?\s*에?'), ' ')
+        .replaceAll(RegExp(r'일정|예약|알림|리마인드|등록해줘|등록|추가해줘|추가|넣어줘|넣어|기억해줘|기억|챙겨줘|챙겨|해줘|줘'), ' ')
+        .replaceAll(RegExp(r'[,.:]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _isScheduleQuestion(String normalized) {
+    return normalized.contains('일정') ||
+        normalized.contains('스케줄') ||
+        normalized.contains('예정') ||
+        normalized.contains('방문') ||
+        normalized.contains('조치일');
+  }
+
+  bool _isRecallScheduleQuestion(String normalized) {
+    return normalized.contains('리콜') &&
+        (normalized.contains('일정') ||
+            normalized.contains('조치일') ||
+            normalized.contains('후속조치') ||
+            normalized.contains('방문') ||
+            normalized.contains('예정'));
   }
 
   Future<void> _addAssistantAnswer(String text) async {
@@ -328,6 +654,7 @@ $text
         _conversations =
             _conversations.where((conversation) => conversation['id'] != conversationId).toList();
       });
+      await _refreshConversations();
       if (_activeConversationId == conversationId) {
         if (_conversations.isEmpty) {
           await _createConversation();
@@ -349,10 +676,10 @@ $text
   }
 
   bool _isRemainingTodaySchedule(dynamic schedule) {
-    final date = '${schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+    final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    if (date.isNotEmpty && date != today) return false;
-    final time = '${schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    if (date.isNotEmpty && (date.length < 10 || date.substring(0, 10) != today)) return false;
+    final time = '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
     if (time.isEmpty) return true;
     final parts = time.split(':');
     if (parts.length < 2) return true;
@@ -366,16 +693,111 @@ $text
     return scheduledAt.isAfter(DateTime.now());
   }
 
+  List<dynamic> _remainingTodaySchedules(List<dynamic> schedules) {
+    final remaining = schedules.where(_isRemainingTodaySchedule).toList();
+    remaining.sort((a, b) => _scheduleDateTime(a).compareTo(_scheduleDateTime(b)));
+    return remaining;
+  }
+
+  DateTime _scheduleDateTime(dynamic schedule) {
+    final now = DateTime.now();
+    final rawDate = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+    final date = DateTime.tryParse(rawDate.length >= 10 ? rawDate.substring(0, 10) : '') ??
+        DateTime(now.year, now.month, now.day);
+    final time = '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    final parts = time.split(':');
+    if (parts.length < 2) {
+      return DateTime(date.year, date.month, date.day, 23, 59);
+    }
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.tryParse(parts[0]) ?? 23,
+      int.tryParse(parts[1]) ?? 59,
+    );
+  }
+
   String _formatScheduleBrief(dynamic schedule) {
-    final title = '${schedule['title'] ?? schedule['content'] ?? schedule['memo'] ?? '일정'}';
-    final time = '${schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    final title =
+        '${schedule['purpose'] ?? schedule['title'] ?? schedule['content'] ?? schedule['memo'] ?? '일정'}';
+    final time = '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
     if (time.isEmpty) return title;
     return '${_formatTime(time)} $title';
   }
 
   String _scheduleToText(dynamic schedule) {
-    final date = '${schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+    final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
     return '$date ${_formatScheduleBrief(schedule)}'.trim();
+  }
+
+  List<String> _scheduleBriefsForDate(String dateText) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final schedules = (dateText == today
+        ? _remainingTodaySchedules(_allSchedules)
+        : _allSchedules.where((schedule) {
+            final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+            return date.length >= 10 && date.substring(0, 10) == dateText;
+          }).toList());
+    schedules.sort((a, b) => _scheduleDateTime(a).compareTo(_scheduleDateTime(b)));
+    return schedules.map(_formatScheduleBrief).toList();
+  }
+
+  Future<String> _recallSchedulesToText() async {
+    final briefs = await _fetchRecallScheduleBriefs();
+    if (briefs.isEmpty) return '등록된 리콜 후속 조치 일정 없음';
+    return _summarizeBriefs(briefs);
+  }
+
+  String _summarizeBriefs(List<String> briefs, {int limit = 2}) {
+    if (briefs.length <= limit) return briefs.join(', ');
+    final visible = briefs.take(limit).join(', ');
+    return '$visible 외 ${briefs.length - limit}건';
+  }
+
+  String _formatScheduleAnswer(String title, List<String> briefs, {int limit = 2}) {
+    final visible = briefs.take(limit).toList();
+    final lines = <String>[
+      title,
+      for (final brief in visible) '- $brief',
+    ];
+    if (briefs.length > limit) {
+      lines.add('외 ${briefs.length - limit}건이 더 있어요.');
+    }
+    return lines.join('\n');
+  }
+
+  Future<List<String>> _fetchRecallScheduleBriefs({String? dateText}) async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return [];
+    try {
+      final products = await ProductApi.getProductsBySenior(seniorId);
+      return products
+          .where((product) => '${product['recallStatus'] ?? ''}' == 'RECALLED')
+          .where((product) {
+            final date = '${product['nextActionDate'] ?? ''}';
+            if (date.isEmpty) return false;
+            final shortDate = date.length >= 10 ? date.substring(0, 10) : date;
+            return dateText == null || shortDate == dateText;
+          })
+          .map((product) {
+            final date = '${product['nextActionDate'] ?? ''}';
+            final shortDate = date.length >= 10 ? date.substring(0, 10) : date;
+            final productName = '${product['productName'] ?? '리콜 제품'}';
+            final followUpType = '${product['followUpType'] ?? ''}'.trim();
+            final label = followUpType.isEmpty ? '리콜 후속 조치' : followUpType;
+            return '${_formatDateLabel(shortDate)} $productName $label';
+          })
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _formatDateLabel(String date) {
+    final parsed = DateTime.tryParse(date);
+    if (parsed == null) return date;
+    return DateFormat('M월 d일').format(parsed);
   }
 
   String _formatTime(String time) {
@@ -432,8 +854,8 @@ $text
             _TodaySchedulePanel(
               schedules: _todaySchedules,
               formatScheduleBrief: _formatScheduleBrief,
+              onOpenCalendar: _openScheduleCalendar,
             ),
-            _QuickQuestions(onTap: _sendQuickQuestion),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -447,6 +869,7 @@ $text
                 },
               ),
             ),
+            _QuickQuestions(onTap: _sendQuickQuestion),
             _ChatInput(
               controller: _controller,
               sending: _sending,
@@ -518,45 +941,339 @@ $text
       ),
     );
   }
+
+  void _openScheduleCalendar() {
+    var selectedDate = DateTime.now();
+    var focusedMonth = DateTime(selectedDate.year, selectedDate.month);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final selectedText = DateFormat('yyyy-MM-dd').format(selectedDate);
+          final scheduleDates = _allSchedules
+              .map((schedule) => '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}')
+              .where((date) => date.length >= 10)
+              .map((date) => date.substring(0, 10))
+              .toSet();
+          final schedules = _allSchedules.where((schedule) {
+            final date = '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+            return date.length >= 10 && date.substring(0, 10) == selectedText;
+          }).toList();
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '일정 달력',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  _ScheduleMonthCalendar(
+                    focusedMonth: focusedMonth,
+                    selectedDate: selectedDate,
+                    scheduleDates: scheduleDates,
+                    onMonthChanged: (month) => setSheetState(() => focusedMonth = month),
+                    onDateSelected: (date) => setSheetState(() {
+                      selectedDate = date;
+                      focusedMonth = DateTime(date.year, date.month);
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${_formatDateLabel(selectedText)} 일정',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  if (schedules.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('등록된 일정이 없습니다.', style: TextStyle(color: kTextMuted)),
+                    )
+                  else
+                    ...schedules.map((schedule) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.event_available, color: kPrimary),
+                          title: Text(_formatScheduleBrief(schedule)),
+                          subtitle: Text('${schedule['note'] ?? ''}'.trim().isEmpty
+                              ? '방문 일정'
+                              : '${schedule['note']}'),
+                          trailing: IconButton(
+                            tooltip: '일정 삭제',
+                            icon: const Icon(Icons.delete_outline, color: kTextMuted),
+                            onPressed: () async {
+                              final deleted = await _deleteSchedule(schedule);
+                              if (!deleted || !context.mounted) return;
+                              setSheetState(() {});
+                            },
+                          ),
+                        )),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<bool> _deleteSchedule(dynamic schedule) async {
+    final id = schedule is Map ? schedule['id'] : null;
+    if (id == null) {
+      await _addAssistantAnswer('일정 ID를 찾지 못해서 삭제할 수 없어요.');
+      return false;
+    }
+    try {
+      await ScheduleApi.deleteSchedule(id);
+      await _refreshSchedules();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('일정을 삭제했습니다.')),
+        );
+      }
+      return true;
+    } catch (error) {
+      await _addAssistantAnswer('일정 삭제에 실패했어요. ${error.toString().replaceFirst('Exception: ', '')}');
+      return false;
+    }
+  }
 }
 
 class _TodaySchedulePanel extends StatelessWidget {
   const _TodaySchedulePanel({
     required this.schedules,
     required this.formatScheduleBrief,
+    required this.onOpenCalendar,
   });
 
   final List<dynamic> schedules;
   final String Function(dynamic schedule) formatScheduleBrief;
+  final VoidCallback onOpenCalendar;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('오늘 일정', style: TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          if (schedules.isEmpty)
-            const Text('등록된 일정이 없습니다.', style: TextStyle(color: kTextMuted, fontSize: 12))
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: schedules
-                  .take(4)
-                  .map((schedule) => Chip(
-                        label: Text(formatScheduleBrief(schedule)),
-                        labelStyle: const TextStyle(fontSize: 12),
-                        backgroundColor: kPrimaryLight,
-                        side: BorderSide(color: kPrimary.withOpacity(0.2)),
-                      ))
-                  .toList(),
+      color: kBg,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: kBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: kPrimaryLight,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Icon(Icons.event_available, color: kPrimary, size: 18),
+                ),
+                const SizedBox(width: 8),
+                const Text('오늘 일정', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onOpenCalendar,
+                  icon: const Icon(Icons.calendar_month, size: 18),
+                  label: const Text('달력'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: kPrimaryDark,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (schedules.isEmpty)
+              const Text('등록된 일정이 없습니다.', style: TextStyle(color: kTextMuted, fontSize: 12))
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: schedules
+                    .take(4)
+                    .map((schedule) => Chip(
+                          avatar: const Icon(Icons.schedule, size: 15, color: kPrimaryDark),
+                          label: Text(formatScheduleBrief(schedule)),
+                          labelStyle: const TextStyle(
+                            fontSize: 12,
+                            color: kTextPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          backgroundColor: kPrimaryLight,
+                          side: BorderSide(color: kPrimary.withOpacity(0.22)),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ))
+                    .toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleMonthCalendar extends StatelessWidget {
+  const _ScheduleMonthCalendar({
+    required this.focusedMonth,
+    required this.selectedDate,
+    required this.scheduleDates,
+    required this.onMonthChanged,
+    required this.onDateSelected,
+  });
+
+  final DateTime focusedMonth;
+  final DateTime selectedDate;
+  final Set<String> scheduleDates;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onDateSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final firstDay = DateTime(focusedMonth.year, focusedMonth.month);
+    final daysInMonth = DateTime(focusedMonth.year, focusedMonth.month + 1, 0).day;
+    final leadingBlanks = firstDay.weekday % 7;
+    final cellCount = ((leadingBlanks + daysInMonth + 6) ~/ 7) * 7;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorder),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => onMonthChanged(DateTime(focusedMonth.year, focusedMonth.month - 1)),
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    DateFormat('yyyy년 M월').format(focusedMonth),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => onMonthChanged(DateTime(focusedMonth.year, focusedMonth.month + 1)),
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          const Row(
+            children: [
+              _WeekdayLabel('일', color: kDanger),
+              _WeekdayLabel('월'),
+              _WeekdayLabel('화'),
+              _WeekdayLabel('수'),
+              _WeekdayLabel('목'),
+              _WeekdayLabel('금'),
+              _WeekdayLabel('토', color: kPrimary),
+            ],
+          ),
+          const SizedBox(height: 4),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+            ),
+            itemCount: cellCount,
+            itemBuilder: (context, index) {
+              final day = index - leadingBlanks + 1;
+              if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
+
+              final date = DateTime(focusedMonth.year, focusedMonth.month, day);
+              final dateText = DateFormat('yyyy-MM-dd').format(date);
+              final selected = _isSameDate(date, selectedDate);
+              final hasSchedule = scheduleDates.contains(dateText);
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => onDateSelected(date),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: selected ? kPrimary : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$day',
+                        style: TextStyle(
+                          color: selected ? Colors.white : kTextPrimary,
+                          fontWeight: selected || hasSchedule ? FontWeight.w800 : FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: hasSchedule
+                              ? (selected ? Colors.white : kDanger)
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ],
+      ),
+    );
+  }
+
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+class _WeekdayLabel extends StatelessWidget {
+  const _WeekdayLabel(this.label, {this.color = kTextMuted});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -571,27 +1288,44 @@ class _QuickQuestions extends StatelessWidget {
   Widget build(BuildContext context) {
     const questions = [
       '오늘 일정 알려줘',
+      '리콜 조치일정 알려줘',
       '리콜 제품은 어떻게 확인해?',
-      '긴급 상황이면 어떻게 해?',
     ];
 
     return Container(
       width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: kBorder)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: questions
+              .asMap()
+              .entries
               .map(
                 (question) => Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
-                    label: Text(question),
-                    labelStyle: const TextStyle(fontSize: 12),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: kBorder),
-                    onPressed: () => onTap(question),
+                    avatar: Icon(
+                      _quickQuestionIcon(question.key),
+                      size: 16,
+                      color: kPrimaryDark,
+                    ),
+                    label: Text(question.value),
+                    labelStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: kTextPrimary,
+                    ),
+                    backgroundColor: kPrimaryLight,
+                    side: BorderSide(color: kPrimary.withOpacity(0.22)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onTap(question.value),
                   ),
                 ),
               )
@@ -599,6 +1333,14 @@ class _QuickQuestions extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  IconData _quickQuestionIcon(int index) {
+    return switch (index) {
+      0 => Icons.today,
+      1 => Icons.support_agent,
+      _ => Icons.manage_search,
+    };
   }
 }
 
@@ -763,4 +1505,32 @@ class _ChatMessage {
   final String role;
   final String content;
   final DateTime createdAt;
+}
+
+class _ParsedSchedule {
+  const _ParsedSchedule({
+    required this.date,
+    required this.time,
+    required this.title,
+    this.needsTime = false,
+    this.needsMeridiem = false,
+  });
+
+  final String date;
+  final String time;
+  final String title;
+  final bool needsTime;
+  final bool needsMeridiem;
+}
+
+class _PendingScheduleDraft {
+  const _PendingScheduleDraft({
+    required this.date,
+    required this.title,
+    required this.needsMeridiem,
+  });
+
+  final String date;
+  final String title;
+  final bool needsMeridiem;
 }
