@@ -37,10 +37,11 @@ public class CareMonitoringService {
     public SeniorLocation recordLocation(Long seniorId, double latitude, double longitude) {
         Senior senior = seniorRepository.findById(seniorId)
                 .orElseThrow(() -> new IllegalArgumentException("Senior not found: " + seniorId));
-        boolean outside = safetyZoneRepository.findBySeniorId(seniorId)
+        List<SafetyZone> enabledZones = safetyZoneRepository.findBySeniorIdOrderByIdAsc(seniorId).stream()
                 .filter(zone -> Boolean.TRUE.equals(zone.getEnabled()))
-                .map(zone -> distanceMeters(latitude, longitude, zone.getLatitude(), zone.getLongitude()) > zone.getRadiusMeters())
-                .orElse(false);
+                .toList();
+        boolean outside = !enabledZones.isEmpty() && enabledZones.stream()
+                .noneMatch(zone -> distanceMeters(latitude, longitude, zone.getLatitude(), zone.getLongitude()) <= zone.getRadiusMeters());
         SeniorLocation location = locationRepository.save(SeniorLocation.builder()
                 .seniorId(seniorId).latitude(latitude).longitude(longitude).outsideSafetyZone(outside).build());
         if (outside && !eventRepository.existsBySeniorIdAndTypeAndStatus(seniorId, CareEvent.EventType.SAFETY_RADIUS_EXIT, CareEvent.EventStatus.PENDING)) {
@@ -50,17 +51,41 @@ public class CareMonitoringService {
     }
 
     @Transactional
-    public SafetyZone saveSafetyZone(Long seniorId, double latitude, double longitude, int radiusMeters, boolean enabled) {
+    public SafetyZone saveSafetyZone(Long seniorId, Long zoneId, int slotNumber, String name, double latitude, double longitude, int radiusMeters) {
         if (radiusMeters < 50 || radiusMeters > 10000) throw new IllegalArgumentException("radiusMeters must be between 50 and 10000");
+        if (slotNumber < 1 || slotNumber > 3) throw new IllegalArgumentException("slotNumber must be between 1 and 3");
         seniorRepository.findById(seniorId).orElseThrow(() -> new IllegalArgumentException("Senior not found: " + seniorId));
-        SafetyZone zone = safetyZoneRepository.findBySeniorId(seniorId)
-                .orElseGet(() -> SafetyZone.builder().seniorId(seniorId).build());
-        zone.setLatitude(latitude); zone.setLongitude(longitude); zone.setRadiusMeters(radiusMeters); zone.setEnabled(enabled);
+        SafetyZone zone;
+        if (zoneId != null) {
+            zone = safetyZoneRepository.findById(zoneId)
+                    .filter(existing -> existing.getSeniorId().equals(seniorId))
+                    .orElseThrow(() -> new IllegalArgumentException("Safety zone not found: " + zoneId));
+        } else {
+            if (safetyZoneRepository.countBySeniorId(seniorId) >= 3) {
+                throw new IllegalStateException("Safety zones can be registered up to 3");
+            }
+            zone = SafetyZone.builder().seniorId(seniorId).build();
+        }
+        String normalizedName = name == null ? "" : name.trim();
+        if (normalizedName.isEmpty() || normalizedName.length() > 30) {
+            throw new IllegalArgumentException("Safety zone name must be between 1 and 30 characters");
+        }
+        zone.setName(normalizedName);
+        zone.setSlotNumber(slotNumber);
+        zone.setLatitude(latitude); zone.setLongitude(longitude); zone.setRadiusMeters(radiusMeters); zone.setEnabled(true);
         return safetyZoneRepository.save(zone);
     }
 
+    @Transactional
+    public void deleteSafetyZone(Long seniorId, Long zoneId) {
+        SafetyZone zone = safetyZoneRepository.findById(zoneId)
+                .filter(existing -> existing.getSeniorId().equals(seniorId))
+                .orElseThrow(() -> new IllegalArgumentException("Safety zone not found: " + zoneId));
+        safetyZoneRepository.delete(zone);
+    }
+
     public Optional<SeniorLocation> latestLocation(Long seniorId) { return locationRepository.findTopBySeniorIdOrderByRecordedAtDesc(seniorId); }
-    public Optional<SafetyZone> safetyZone(Long seniorId) { return safetyZoneRepository.findBySeniorId(seniorId); }
+    public List<SafetyZone> safetyZones(Long seniorId) { return safetyZoneRepository.findBySeniorIdOrderByIdAsc(seniorId); }
     public List<CareEvent> events(Long seniorId) { return eventRepository.findBySeniorIdOrderByOccurredAtDesc(seniorId); }
     public List<CareAlert> guardianAlerts(Long guardianId) { return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId); }
 

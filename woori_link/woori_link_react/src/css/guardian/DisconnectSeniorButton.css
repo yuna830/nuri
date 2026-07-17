@@ -1,0 +1,328 @@
+.guardian-action-button--disconnect {
+  border-color: #e2c0bb;
+  background: #ffffff;
+  color: #aa5047;
+}
+
+
+.guardian-action-button--disconnect:hover:not(:disabled) {
+  border-color: #ca7168;
+  background: #fff6f4;
+  color: #9d4037;
+}
+
+
+.guardian-action-button--disconnect:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   화면 위 반투명 배경
+   ========================================================= */
+
+.guardian-disconnect-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+
+  display: block;
+
+  width: 100%;
+  height: 100%;
+  padding: 0;
+
+  border: 0;
+  background: rgba(29, 40, 32, 0.42);
+
+  cursor: default;
+
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+}
+
+
+/* =========================================================
+   연결 해제 모달
+   ========================================================= */
+
+.guardian-disconnect-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 9999;
+
+  display: flex;
+  flex-direction: column;
+
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100vh - 40px);
+
+  overflow: hidden;
+
+  border: 1px solid #e1e7e1;
+  border-radius: 18px;
+  background: #ffffff;
+
+  box-shadow:
+    0 24px 70px rgba(20, 31, 23, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.6);
+
+  transform: translate(-50%, -50%);
+}
+
+
+.guardian-disconnect-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 23px 24px 19px;
+
+  border-bottom: 1px solid #edf1ed;
+}
+
+
+.guardian-disconnect-modal__eyebrow {
+  display: inline-flex;
+
+  margin-bottom: 9px;
+  padding: 4px 8px;
+
+  border-radius: 999px;
+  background: #fff0ed;
+
+  color: #b65349;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+.guardian-disconnect-modal__header h2 {
+  margin: 0;
+
+  color: #2d3930;
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+
+.guardian-disconnect-modal__close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 36px;
+  height: 36px;
+  padding: 0;
+
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+
+  color: #818c84;
+  cursor: pointer;
+}
+
+
+.guardian-disconnect-modal__close:hover:not(:disabled) {
+  border-color: #e2e7e2;
+  background: #f2f5f2;
+}
+
+
+.guardian-disconnect-modal__close svg {
+  width: 20px;
+  height: 20px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+
+.guardian-disconnect-modal__close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+.guardian-disconnect-modal__content {
+  min-height: 0;
+  padding: 20px 24px;
+
+  overflow-y: auto;
+}
+
+
+.guardian-disconnect-modal__notice {
+  padding: 16px;
+
+  border: 1px solid #ead1cd;
+  border-radius: 12px;
+  background: #fff8f6;
+}
+
+
+.guardian-disconnect-modal__notice strong {
+  display: block;
+
+  color: #93483f;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+.guardian-disconnect-modal__notice p {
+  margin: 8px 0 0;
+
+  color: #6f625f;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+
+.guardian-disconnect-modal__information {
+  margin: 17px 0 0;
+
+  border-top: 1px solid #edf1ed;
+}
+
+
+.guardian-disconnect-modal__information > div {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 16px;
+
+  padding: 13px 2px;
+
+  border-bottom: 1px solid #edf1ed;
+}
+
+
+.guardian-disconnect-modal__information dt {
+  color: #8c978f;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+.guardian-disconnect-modal__information dd {
+  margin: 0;
+
+  color: #3d4a40;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
+
+.guardian-disconnect-modal__error {
+  margin-top: 16px;
+  padding: 11px 12px;
+
+  border: 1px solid #efc6c1;
+  border-radius: 9px;
+  background: #fff5f3;
+
+  color: #b3473d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+.guardian-disconnect-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+
+  padding: 15px 24px;
+
+  border-top: 1px solid #edf1ed;
+  background: #fafcfa;
+}
+
+
+.guardian-disconnect-modal__footer button {
+  min-height: 40px;
+  padding: 0 15px;
+
+  border-radius: 9px;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+.guardian-disconnect-modal__cancel {
+  border: 1px solid #dce4dc;
+  background: #ffffff;
+  color: #6e7a70;
+}
+
+
+.guardian-disconnect-modal__cancel:hover:not(:disabled) {
+  background: #f4f7f4;
+}
+
+
+.guardian-disconnect-modal__confirm {
+  border: 1px solid #bd5b51;
+  background: #bd5b51;
+  color: #ffffff;
+}
+
+
+.guardian-disconnect-modal__confirm:hover:not(:disabled) {
+  border-color: #a94a41;
+  background: #a94a41;
+}
+
+
+.guardian-disconnect-modal__footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
+@media (max-width: 520px) {
+  .guardian-disconnect-modal {
+    width: calc(100% - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+
+  .guardian-disconnect-modal__header,
+  .guardian-disconnect-modal__content,
+  .guardian-disconnect-modal__footer {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+
+
+  .guardian-disconnect-modal__information > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+
+  .guardian-disconnect-modal__footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+
+  .guardian-disconnect-modal__footer button {
+    width: 100%;
+  }
+}

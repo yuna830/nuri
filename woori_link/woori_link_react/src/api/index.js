@@ -19,7 +19,7 @@ api.interceptors.response.use(
   (err) => {
     const status = err.response?.status
 
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       const isAuthPage =
         window.location.pathname.includes('/login') ||
         window.location.pathname.includes('/register')

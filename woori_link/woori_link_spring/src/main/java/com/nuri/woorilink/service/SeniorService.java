@@ -287,4 +287,16 @@ public class SeniorService {
     private String normalizePhone(String phone) {
         return phone == null ? null : phone.replaceAll("\\D", "");
     }
+
+    @Transactional
+    public void disconnectGuardian(Long guardianId, Long seniorId) {
+        Senior senior = getById(seniorId);
+
+        if (!guardianId.equals(senior.getGuardianId())) {
+            throw new IllegalArgumentException("연결된 보호자 정보가 일치하지 않습니다.");
+        }
+
+        senior.setGuardianId(null);
+        seniorRepository.save(senior);
+    }
 }

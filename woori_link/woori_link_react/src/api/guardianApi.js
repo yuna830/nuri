@@ -25,4 +25,6 @@ export const acknowledgeAlert = (alertId, resolved = false) =>
   api.patch(`/care/alerts/${alertId}`, { resolved });
 export const getLatestLocation = (seniorId) => api.get(`/care/seniors/${seniorId}/locations/latest`);
 export const getSafetyZone = (seniorId) => api.get(`/care/seniors/${seniorId}/safety-zone`);
+export const saveSafetyZone = (seniorId, data) => api.put(`/care/seniors/${seniorId}/safety-zone`, data);
+export const deleteSafetyZone = (seniorId, zoneId) => api.delete(`/care/seniors/${seniorId}/safety-zone/${zoneId}`);
 export const getCheckIns = (seniorId) => api.get(`/care/seniors/${seniorId}/check-ins`);

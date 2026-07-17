@@ -69,12 +69,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "04_RAG_변환규칙/복지정책_문서_작성_규칙.md",
+                "file": "utility-discount/electricity/전기요금_복지할인_지원내용.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "복지정책_문서_작성_규칙"
+              "title": "전기요금_복지할인_지원내용"
             }
           }
         ],
@@ -135,7 +135,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 264.49999618530273
+    "width": 304.49999618530273
   },
   "right": {
     "id": "277221a58f061283",
@@ -253,10 +253,30 @@
       "bases:새 베이스 생성하기": false
     }
   },
-  "active": "594e8b467db34ac1",
+  "active": "d9374dae41fdf951",
   "lastOpenFiles": [
-    "RAG메모/플랜.md",
+    "welfare/energy/에너지바우처_신청방법.md",
+    "utility-discount/gas/도시가스요금_경감내용.md",
+    "utility-discount/electricity/전기요금_복지할인_지원내용.md",
+    "utility-discount/electricity/전기요금_복지할인_신청방법.md",
+    "utility-discount/electricity/전기요금_복지할인_대상.md",
+    "product-safety/recall/리콜제품_확인방법.md",
+    "product-safety/recall/리콜제품_발견시_조치.md",
+    "복지정책/지역사회통합돌봄.md",
     "04_RAG_변환규칙/복지정책_문서_작성_규칙.md",
+    "product-safety/recall",
+    "product-safety",
+    "utility-discount/gas/도시가스요금_경감신청.md",
+    "utility-discount/gas/도시가스요금_경감대상.md",
+    "utility-discount/gas",
+    "utility-discount/electricity",
+    "utility-discount",
+    "welfare/energy/에너지바우처_필요서류.md",
+    "welfare/energy/에너지바우처_지원내용.md",
+    "welfare/energy/에너지바우처_지원대상.md",
+    "welfare/energy",
+    "welfare",
+    "RAG메모/플랜.md",
     "03_프로젝트_구현메모/DB_저장_중복처리_기준.md",
     "04_RAG_변환규칙/복지정책_문서_작성_규칙.md.tmp.13008.ee46f910f8e8",
     "03_프로젝트_구현메모/얼굴인식_서버_처리흐름.md",
@@ -269,28 +289,8 @@
     "복지정책/의료급여_만성질환자.md",
     "2026-06-16.md",
     "무제 3.base",
-    "무제 2.base",
-    "무제 1.base",
     "무제.canvas",
-    "무제.base",
     "01_복지_API/한국사회보장정보원_사회복지시설정보서비스.md",
-    "00_API_공통/API_문서작성_공통_템플릿.md",
-    "00_API_공통/공공데이터_API_공통_관리_규칙.md",
-    "복지정책/주거급여.md",
-    "복지정책/낙상예방_관련복지.md",
-    "복지정책/관절염_관련복지.md",
-    "복지정책/당뇨병_관련복지.md",
-    "복지정책/관절염_낙상_관련복지.md",
-    "복지정책/간질환_관련복지.md.tmp.43136.e4efeaed5d86",
-    "복지정책/희귀질환_관련복지.md.tmp.43136.6568e85a1b71",
-    "복지정책/정신건강_우울증_관련복지.md.tmp.43136.0f819e81ca22",
-    "복지정책/관절염_낙상_관련복지.md.tmp.43136.7daed9ee1cc3",
-    "복지정책/디지털배움터.md",
-    "복지정책/교육급여.md",
-    "복지정책/간질환_관련복지.md",
-    "복지정책/폐질환_호흡기_관련복지.md",
-    "복지정책/희귀질환_관련복지.md",
-    "복지정책/정신건강_우울증_관련복지.md",
-    "복지정책/신장질환_관련복지.md"
+    "00_API_공통/API_문서작성_공통_템플릿.md"
   ]
 }

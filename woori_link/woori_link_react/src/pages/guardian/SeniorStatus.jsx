@@ -5,7 +5,9 @@ import {
   useState,
 } from 'react';
 
-import { useSearchParams } from 'react-router-dom';
+import {
+  useSearchParams,
+} from 'react-router-dom';
 
 import {
   getCheckIns,
@@ -17,7 +19,8 @@ import {
 } from '../../api/guardianApi.js';
 
 import GuardianLayout from './GuardianLayout.jsx';
-import CareStatusPanel from './CareStatusPanel.jsx';
+import DisconnectSeniorButton from './DisconnectSeniorButton.jsx';
+import KakaoSafetyMap from './KakaoSafetyMap.jsx';
 
 import '../../css/guardian/SeniorStatus.css';
 
@@ -74,6 +77,15 @@ const CHECK_IN_LABELS = {
   WAITING: '응답 대기',
 
   FAILED: '확인 실패',
+};
+
+
+const EMPTY_CARE = {
+  alerts: [],
+  location: null,
+  zone: null,
+  zones: [],
+  checkIn: null,
 };
 
 
@@ -212,23 +224,28 @@ function getRiskReasons(risk) {
 
   const reasons = [];
 
-  if (risk.aiNoResponse || risk.checkInRisk) {
+  if (
+    risk.aiNoResponse
+    || risk.checkInRisk
+  ) {
     reasons.push('최근 안부 응답 미확인');
-  }
-
-  if (risk.locationAnomaly || risk.safetyZoneRisk) {
-    reasons.push('안전구역 또는 위치 이상');
   }
 
   if (risk.weatherRisk) {
     reasons.push('심각한 기상특보');
   }
 
-  if (risk.recallRisk || risk.recallUsageUnknown) {
+  if (
+    risk.recallRisk
+    || risk.recallUsageUnknown
+  ) {
     reasons.push('리콜 제품 확인 필요');
   }
 
-  if (risk.safetyRisk || risk.safetyInspectionOverdue) {
+  if (
+    risk.safetyRisk
+    || risk.safetyInspectionOverdue
+  ) {
     reasons.push('전기·가스 안전 확인 필요');
   }
 
@@ -241,7 +258,9 @@ function getCheckInText(checkIn) {
     return '기록 없음';
   }
 
-  const status = String(checkIn.status ?? '').toUpperCase();
+  const status = String(
+    checkIn.status ?? '',
+  ).toUpperCase();
 
   return (
     CHECK_IN_LABELS[status]
@@ -253,8 +272,9 @@ function getCheckInText(checkIn) {
 
 function getHouseholdText(value) {
   const labels = {
+    ALONE: '독거 가구',
     SINGLE: '1인 가구',
-    SINGLE_PERSON: '1인 가구',
+    SINGLE_PERSON: '독거 가구',
     COUPLE: '부부 가구',
     FAMILY: '가족 동거',
     LIVING_WITH_CHILDREN: '자녀 동거',
@@ -262,9 +282,51 @@ function getHouseholdText(value) {
     OTHER: '기타',
   };
 
-  return labels[String(value ?? '').toUpperCase()] ?? value ?? '미확인';
+  return (
+    labels[String(value ?? '').toUpperCase()]
+    ?? value
+    ?? '미확인'
+  );
 }
 
+
+function getLivingText(senior) {
+  if (senior?.livingAlone === true) return '독거';
+  if (senior?.livingAlone === false && String(senior?.householdType ?? '').toUpperCase() === 'COUPLE') return '배우자와 동거';
+  return getHouseholdText(senior?.householdType);
+}
+
+function getHealthCautionText(senior, risk) {
+  const cautions = [];
+  if (senior?.severeDiseaseHouseholdMember) cautions.push('중증질환');
+  if (senior?.rareDiseaseHouseholdMember) cautions.push('희귀질환');
+  if (senior?.intractableDiseaseHouseholdMember) cautions.push('난치질환');
+  if (risk?.fallRisk || risk?.fallRiskHigh || risk?.fallHistory) cautions.push('낙상 위험 높음');
+  if (cautions.length === 0) return '등록 정보 없음';
+  const cautionText = cautions.join(' · ');
+  return senior?.disabilityGrade
+    ? `${cautionText} (${senior.disabilityGrade})`
+    : cautionText;
+}
+
+function getCareSupportView(senior) {
+  const primary = senior?.longTermCare === true
+    ? (senior?.longTermCareGrade ? `장기요양 ${senior.longTermCareGrade}등급` : '장기요양 대상')
+    : senior?.longTermCare === false
+      ? '장기요양 대상 아님'
+      : '장기요양 정보 미확인';
+  return { primary };
+}
+
+function getWelfareSummary(senior) {
+  const eligible = [senior?.energyVoucherEligible, senior?.electricityDiscountEligible, senior?.gasDiscountEligible]
+    .filter((value) => value === true).length;
+  const completed = [senior?.energyVoucherApplied, senior?.electricityDiscountApplied, senior?.gasDiscountApplied]
+    .filter((value) => value === true).length;
+  if (eligible > 0) return `신청 가능성 ${eligible}건`;
+  if (completed > 0) return `확인 완료 ${completed}건`;
+  return '정보 확인 필요';
+}
 
 function getLongTermCareText(value) {
   if (value === true) {
@@ -322,7 +384,10 @@ function isZoneEnabled(zone) {
     return false;
   }
 
-  return zone.enabled == null || zone.enabled === true;
+  return (
+    zone.enabled == null
+    || zone.enabled === true
+  );
 }
 
 
@@ -337,7 +402,10 @@ function getZoneRadius(zone) {
 
 
 export default function SeniorStatus() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [
+    searchParams,
+    setSearchParams,
+  ] = useSearchParams();
 
   const [seniors, setSeniors] = useState([]);
   const [selectedSeniorId, setSelectedSeniorId] = useState(null);
@@ -345,10 +413,7 @@ export default function SeniorStatus() {
   const [risk, setRisk] = useState(null);
 
   const [care, setCare] = useState({
-    alerts: [],
-    location: null,
-    zone: null,
-    checkIn: null,
+    ...EMPTY_CARE,
   });
 
   const [loading, setLoading] = useState(true);
@@ -356,6 +421,9 @@ export default function SeniorStatus() {
   const [error, setError] = useState('');
 
 
+  /*
+   * 로그인한 보호자와 연결된 어르신 목록 조회
+   */
   useEffect(() => {
     let cancelled = false;
 
@@ -365,7 +433,10 @@ export default function SeniorStatus() {
 
       try {
         const response = await getSeniorsByGuardian();
-        const seniorList = normalizeArray(response.data);
+
+        const seniorList = normalizeArray(
+          response.data,
+        );
 
         if (cancelled) {
           return;
@@ -373,11 +444,16 @@ export default function SeniorStatus() {
 
         setSeniors(seniorList);
 
-        const requestedId = searchParams.get('seniorId');
+        const requestedId = searchParams.get(
+          'seniorId',
+        );
 
-        const requestedSenior = seniorList.find((senior) => (
-          String(senior.id) === String(requestedId)
-        ));
+        const requestedSenior = seniorList.find(
+          (senior) => (
+            String(senior.id)
+            === String(requestedId)
+          ),
+        );
 
         const initialSeniorId = (
           requestedSenior?.id
@@ -388,11 +464,21 @@ export default function SeniorStatus() {
         setSelectedSeniorId(initialSeniorId);
 
         if (initialSeniorId) {
-          setSearchParams({
-            seniorId: String(initialSeniorId),
-          }, {
-            replace: true,
-          });
+          setSearchParams(
+            {
+              seniorId: String(initialSeniorId),
+            },
+            {
+              replace: true,
+            },
+          );
+        } else {
+          setSearchParams(
+            {},
+            {
+              replace: true,
+            },
+          );
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -416,77 +502,119 @@ export default function SeniorStatus() {
   }, []);
 
 
-  const loadSeniorDetail = useCallback(async (seniorId) => {
-    if (!seniorId) {
-      return;
-    }
+  /*
+   * 선택된 어르신의 상세 정보 조회
+   */
+  const loadSeniorDetail = useCallback(
+    async (seniorId) => {
+      if (!seniorId) {
+        setRisk(null);
 
-    setCareLoading(true);
+        setCare({
+          ...EMPTY_CARE,
+        });
 
-    try {
-      const [
-        riskResult,
-        alertsResult,
-        locationResult,
-        zoneResult,
-        checkInResult,
-      ] = await Promise.allSettled([
-        getLatestRisk(seniorId),
-        getGuardianAlerts(),
-        getLatestLocation(seniorId),
-        getSafetyZone(seniorId),
-        getCheckIns(seniorId),
-      ]);
+        return;
+      }
 
-      const allAlerts = (
-        alertsResult.status === 'fulfilled'
-          ? normalizeArray(alertsResult.value.data)
-          : []
-      );
+      setCareLoading(true);
 
-      const seniorAlerts = allAlerts.filter((alert) => (
-        String(getAlertSeniorId(alert))
-        === String(seniorId)
-      ));
+      try {
+        const [
+          riskResult,
+          alertsResult,
+          locationResult,
+          zoneResult,
+          checkInResult,
+        ] = await Promise.allSettled([
+          getLatestRisk(seniorId),
+          getGuardianAlerts(),
+          getLatestLocation(seniorId),
+          getSafetyZone(seniorId),
+          getCheckIns(seniorId),
+        ]);
 
-      const checkIns = (
-        checkInResult.status === 'fulfilled'
-          ? normalizeArray(checkInResult.value.data)
-          : []
-      );
+        const allAlerts = (
+          alertsResult.status === 'fulfilled'
+            ? normalizeArray(
+              alertsResult.value.data,
+            )
+            : []
+        );
 
-      const sortedCheckIns = [...checkIns].sort((first, second) => (
-        new Date(getTimestamp(second) ?? 0).getTime()
-        - new Date(getTimestamp(first) ?? 0).getTime()
-      ));
+        const seniorAlerts = allAlerts.filter(
+          (alert) => (
+            String(getAlertSeniorId(alert))
+            === String(seniorId)
+          ),
+        );
 
-      setRisk(
-        riskResult.status === 'fulfilled'
-          ? normalizeSingle(riskResult.value.data)
-          : null,
-      );
+        const checkIns = (
+          checkInResult.status === 'fulfilled'
+            ? normalizeArray(
+              checkInResult.value.data,
+            )
+            : []
+        );
 
-      setCare({
-        alerts: seniorAlerts,
+        const sortedCheckIns = [
+          ...checkIns,
+        ].sort((first, second) => (
+          new Date(
+            getTimestamp(second) ?? 0,
+          ).getTime()
+          - new Date(
+            getTimestamp(first) ?? 0,
+          ).getTime()
+        ));
 
-        location: locationResult.status === 'fulfilled'
-          ? normalizeSingle(locationResult.value.data)
-          : null,
+        setRisk(
+          riskResult.status === 'fulfilled'
+            ? normalizeSingle(
+              riskResult.value.data,
+            )
+            : null,
+        );
 
-        zone: zoneResult.status === 'fulfilled'
-          ? selectSafetyZone(zoneResult.value.data)
-          : null,
+        setCare({
+          alerts: seniorAlerts,
 
-        checkIn: sortedCheckIns[0] ?? null,
-      });
-    } finally {
-      setCareLoading(false);
-    }
-  }, []);
+          location: (
+            locationResult.status === 'fulfilled'
+              ? normalizeSingle(
+                locationResult.value.data,
+              )
+              : null
+          ),
+
+          zone: (
+            zoneResult.status === 'fulfilled'
+              ? selectSafetyZone(
+                zoneResult.value.data,
+              )
+              : null
+          ),
+
+          zones: (
+            zoneResult.status === 'fulfilled'
+              ? normalizeArray(zoneResult.value.data).slice(0, 3)
+              : []
+          ),
+
+          checkIn: sortedCheckIns[0] ?? null,
+        });
+      } finally {
+        setCareLoading(false);
+      }
+    },
+    [],
+  );
 
 
   useEffect(() => {
-    loadSeniorDetail(selectedSeniorId);
+    loadSeniorDetail(
+      selectedSeniorId,
+    );
   }, [
     loadSeniorDetail,
     selectedSeniorId,
@@ -495,7 +623,8 @@ export default function SeniorStatus() {
 
   const selectedSenior = useMemo(() => (
     seniors.find((senior) => (
-      String(senior.id) === String(selectedSeniorId)
+      String(senior.id)
+      === String(selectedSeniorId)
     )) ?? null
   ), [
     seniors,
@@ -503,27 +632,47 @@ export default function SeniorStatus() {
   ]);
 
 
-  const riskView = getRiskView(risk?.level);
-  const riskReasons = getRiskReasons(risk);
+  const riskView = getRiskView(
+    risk?.level,
+  );
 
-  const unreadAlertCount = care.alerts.filter((alert) => (
-    [
-      'NEW',
-      'UNREAD',
-      'OPEN',
-      'PENDING',
-      'IN_PROGRESS',
-    ].includes(String(alert?.status ?? '').toUpperCase())
-  )).length;
-
-  const zoneEnabled = isZoneEnabled(care.zone);
-  const zoneRadius = getZoneRadius(care.zone);
+  const riskReasons = getRiskReasons(
+    risk,
+  );
 
 
-  const handleSeniorChange = (event) => {
-    const seniorId = event.target.value;
+  const unreadAlertCount = care.alerts.filter(
+    (alert) => (
+      [
+        'NEW',
+        'UNREAD',
+        'OPEN',
+        'PENDING',
+        'IN_PROGRESS',
+      ].includes(
+        String(
+          alert?.status ?? '',
+        ).toUpperCase(),
+      )
+    ),
+  ).length;
 
+
+  const zoneEnabled = isZoneEnabled(
+    care.zone,
+  );
+
+  const zoneRadius = getZoneRadius(
+    care.zone,
+  );
+
+
+  /*
+   * 다른 어르신 선택
+   */
+  const handleSeniorChange = (seniorId) => {
     setSelectedSeniorId(seniorId);
+    setError('');
 
     setSearchParams({
       seniorId: String(seniorId),
@@ -531,12 +680,93 @@ export default function SeniorStatus() {
   };
 
 
+  /*
+   * 전화하기
+   */
   const callSenior = () => {
     if (!selectedSenior?.phone) {
       return;
     }
 
-    window.location.href = `tel:${String(selectedSenior.phone).replace(/[^\d+]/g, '')}`;
+    const normalizedPhone = String(
+      selectedSenior.phone,
+    ).replace(/[^\d+]/g, '');
+
+    window.location.href = `tel:${normalizedPhone}`;
+  };
+
+
+  /*
+   * 연결 해제 완료 후 현재 화면의 목록만 갱신한다.
+   *
+   * 별도 페이지로 이동하거나 새로고침하지 않는다.
+   */
+  const handleSeniorDisconnected = (
+    disconnectedSeniorId,
+  ) => {
+    const disconnectedIndex = seniors.findIndex(
+      (senior) => (
+        String(senior.id)
+        === String(disconnectedSeniorId)
+      ),
+    );
+
+    const remainingSeniors = seniors.filter(
+      (senior) => (
+        String(senior.id)
+        !== String(disconnectedSeniorId)
+      ),
+    );
+
+    setSeniors(remainingSeniors);
+    setRisk(null);
+
+    setCare({
+      ...EMPTY_CARE,
+    });
+
+    setError('');
+
+    /*
+     * 해제된 어르신의 다음 항목을 선택한다.
+     * 마지막 항목이었다면 이전 항목을 선택한다.
+     */
+    const nextSenior = (
+      remainingSeniors[disconnectedIndex]
+      ?? remainingSeniors[disconnectedIndex - 1]
+      ?? remainingSeniors[0]
+      ?? null
+    );
+
+    if (nextSenior) {
+      setSelectedSeniorId(
+        nextSenior.id,
+      );
+
+      setSearchParams(
+        {
+          seniorId: String(nextSenior.id),
+        },
+        {
+          replace: true,
+        },
+      );
+
+      return;
+    }
+
+    /*
+     * 연결된 어르신이 한 명도 남지 않은 경우
+     */
+    setSelectedSeniorId(null);
+    setCareLoading(false);
+
+    setSearchParams(
+      {},
+      {
+        replace: true,
+      },
+    );
   };
 
 
@@ -549,20 +779,18 @@ export default function SeniorStatus() {
           </div>
 
           {seniors.length > 1 && (
-            <select
-              className="guardian-senior-page__select"
-              value={selectedSeniorId ?? ''}
-              onChange={handleSeniorChange}
-            >
+            <div className="guardian-senior-page__selector" role="group" aria-label="어르신 선택">
               {seniors.map((senior) => (
-                <option
+                <button
+                  type="button"
                   key={senior.id}
-                  value={senior.id}
+                  className={String(selectedSeniorId) === String(senior.id) ? 'active' : ''}
+                  onClick={() => handleSeniorChange(senior.id)}
                 >
-                  {senior.name} 어르신
-                </option>
+                  {senior.name}
+                </button>
               ))}
-            </select>
+            </div>
           )}
         </section>
 
@@ -591,7 +819,10 @@ export default function SeniorStatus() {
               <div className="guardian-senior-hero__top">
                 <div>
                   <div className="guardian-senior-hero__title">
-                    <h2>{selectedSenior.name} 어르신</h2>
+                    <h2>
+                      {selectedSenior.name}
+                      {selectedSenior.age ? ` (${selectedSenior.age}세)` : ''}
+                    </h2>
 
                     <span
                       className={[
@@ -603,19 +834,15 @@ export default function SeniorStatus() {
                     </span>
                   </div>
 
-                  <p className="guardian-senior-hero__address">
-                    {selectedSenior.age
-                      ? `${selectedSenior.age}세 · `
-                      : ''}
-
-                    {buildAddress(selectedSenior)}
+                  <p className="guardian-senior-hero__phone">
+                    {formatPhone(selectedSenior.phone)}
                   </p>
 
-                  <p className="guardian-senior-hero__description">
-                    {riskReasons.length > 0
-                      ? riskReasons.join(' · ')
-                      : riskView.description}
-                  </p>
+                  {riskReasons.length > 0 && (
+                    <p className="guardian-senior-hero__description">
+                      {riskReasons.join(' · ')}
+                    </p>
+                  )}
                 </div>
 
                 <div className="guardian-senior-hero__actions">
@@ -628,107 +855,59 @@ export default function SeniorStatus() {
                     전화하기
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      document
-                        .getElementById('guardian-care-status')
-                        ?.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'start',
-                        });
-                    }}
-                  >
-                    최근 위치·알림 보기
-                  </button>
+                  <DisconnectSeniorButton
+                    senior={selectedSenior}
+                    onDisconnected={
+                      handleSeniorDisconnected
+                    }
+                  />
                 </div>
               </div>
 
               <div className="guardian-senior-hero__information">
                 <div>
-                  <span>연락처</span>
-                  <strong>{formatPhone(selectedSenior.phone)}</strong>
-                </div>
+                  <span>거주 상황</span>
 
-                <div>
-                  <span>가구 형태</span>
                   <strong>
-                    {getHouseholdText(selectedSenior.householdType)}
+                    {getLivingText(selectedSenior)}
                   </strong>
                 </div>
 
                 <div>
-                  <span>장기요양</span>
+                  <span>건강 주의</span>
+
                   <strong>
-                    {getLongTermCareText(selectedSenior.longTermCare)}
+                    {getHealthCautionText(selectedSenior, risk)}
                   </strong>
                 </div>
 
                 <div>
-                  <span>장애 정보</span>
+                  <span>돌봄·지원</span>
+
                   <strong>
-                    {selectedSenior.disabilityGrade
-                      || '해당 없음 또는 미확인'}
+                    {getCareSupportView(selectedSenior).primary}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>맞춤 복지</span>
+
+                  <strong>
+                    {getWelfareSummary(selectedSenior)}
                   </strong>
                 </div>
               </div>
             </section>
 
-            <section className="guardian-senior-summary">
-              <article>
-                <span>안부 상태</span>
-                <strong>{getCheckInText(care.checkIn)}</strong>
-
-                <small>
-                  {formatDateTime(getTimestamp(care.checkIn))}
-                </small>
-              </article>
-
-              <article>
-                <span>위치·안전</span>
-
-                <strong>
-                  {zoneEnabled
-                    ? '안전구역 설정'
-                    : '안전구역 미설정'}
-                </strong>
-
-                <small>
-                  {care.location
-                    ? `최근 위치 수신 · 반경 ${zoneRadius ?? '-'}m`
-                    : '최근 위치 정보 없음'}
-                </small>
-              </article>
-
-              <article>
-                <span>확인 필요 알림</span>
-                <strong>{unreadAlertCount}건</strong>
-
-                <small>
-                  {unreadAlertCount > 0
-                    ? '최근 알림 확인이 필요합니다.'
-                    : '새 알림이 없습니다.'}
-                </small>
-              </article>
-
-              <article>
-                <span>에너지복지</span>
-
-                <strong>
-                  {getEnergyVoucherText(selectedSenior)}
-                </strong>
-
-                <small>복지사 확인 결과 기준</small>
-              </article>
-            </section>
-
-            <CareStatusPanel
+            <KakaoSafetyMap
+              senior={selectedSenior}
               location={care.location}
-              zone={care.zone}
-              alerts={care.alerts}
+              zones={care.zones}
+              hasLocationRisk={Boolean(risk?.locationAnomaly || risk?.safetyZoneRisk)}
               loading={careLoading}
-              onRefresh={() => loadSeniorDetail(selectedSenior.id)}
+              onRefreshLocation={() => loadSeniorDetail(selectedSeniorId)}
             />
+
           </>
         )}
       </main>

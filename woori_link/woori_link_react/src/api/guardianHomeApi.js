@@ -1,21 +1,40 @@
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:8000/api';
+const DEFAULT_SPRING_API_BASE_URL = 'http://localhost:8090/api';
+const DEFAULT_RAG_API_BASE_URL = 'http://127.0.0.1:8000/api';
 
+
+/*
+ * 등록 제품과 리콜 관련 API는 Spring Boot 서버를 사용한다.
+ *
+ * 우선순위:
+ * 1. VITE_PRODUCT_API_BASE_URL
+ * 2. VITE_SPRING_API_BASE_URL
+ * 3. http://localhost:8090/api
+ */
 const PRODUCT_API_BASE_URL = (
   import.meta.env.VITE_PRODUCT_API_BASE_URL
-  || import.meta.env.VITE_API_BASE_URL
-  || DEFAULT_API_BASE_URL
+  || import.meta.env.VITE_SPRING_API_BASE_URL
+  || DEFAULT_SPRING_API_BASE_URL
 ).replace(/\/$/, '');
 
+
+/*
+ * RAG 질문 API는 FastAPI 서버를 사용한다.
+ *
+ * 우선순위:
+ * 1. VITE_RAG_API_BASE_URL
+ * 2. http://127.0.0.1:8000/api
+ */
 const RAG_API_BASE_URL = (
   import.meta.env.VITE_RAG_API_BASE_URL
-  || import.meta.env.VITE_API_BASE_URL
-  || DEFAULT_API_BASE_URL
+  || DEFAULT_RAG_API_BASE_URL
 ).replace(/\/$/, '');
+
 
 const REGISTERED_PRODUCT_PATH = (
   import.meta.env.VITE_REGISTERED_PRODUCT_PATH
   || '/registered-products/senior'
 );
+
 
 const RAG_QUERY_PATH = (
   import.meta.env.VITE_RAG_QUERY_PATH
@@ -69,7 +88,60 @@ function normalizeArray(value) {
     return value.data.items;
   }
 
+  if (Array.isArray(value?.result?.content)) {
+    return value.result.content;
+  }
+
+  if (Array.isArray(value?.result?.items)) {
+    return value.result.items;
+  }
+
   return [];
+}
+
+
+/**
+ * 응답 본문을 안전하게 읽는다.
+ */
+async function readResponseBody(response) {
+  const contentType = response.headers.get(
+    'content-type',
+  );
+
+  if (
+    contentType
+    && contentType.includes('application/json')
+  ) {
+    return response.json();
+  }
+
+  const text = await response.text();
+
+  return text || null;
+}
+
+
+/**
+ * 서버 응답에서 오류 메시지를 추출한다.
+ */
+function getErrorMessage(
+  responseBody,
+  status,
+  requestName = '요청',
+) {
+  if (typeof responseBody === 'string') {
+    return (
+      responseBody
+      || `${requestName}에 실패했습니다. (${status})`
+    );
+  }
+
+  return (
+    responseBody?.message
+    || responseBody?.detail
+    || responseBody?.error
+    || `${requestName}에 실패했습니다. (${status})`
+  );
 }
 
 
@@ -82,9 +154,11 @@ async function requestJson(
     method = 'GET',
     body,
     timeout = 30000,
+    requestName = '요청',
   } = {},
 ) {
   const controller = new AbortController();
+
   const timeoutId = window.setTimeout(
     () => controller.abort(),
     timeout,
@@ -113,41 +187,49 @@ async function requestJson(
       },
 
       body,
+
+      /*
+       * Spring의 세션 쿠키 인증을 사용할 수 있도록 포함한다.
+       * FastAPI에서 쿠키를 사용하지 않더라도 요청 자체에는 문제없다.
+       */
       credentials: 'include',
+
       signal: controller.signal,
     });
 
-    const contentType = response.headers.get(
-      'content-type',
+    const responseBody = await readResponseBody(
+      response,
     );
 
-    const responseBody = contentType?.includes(
-      'application/json',
-    )
-      ? await response.json()
-      : await response.text();
-
     if (!response.ok) {
-      const message = (
-        responseBody?.message
-        || responseBody?.detail
-        || responseBody?.error
-        || (
-          typeof responseBody === 'string'
-            ? responseBody
-            : ''
-        )
-        || `요청에 실패했습니다. (${response.status})`
+      throw new Error(
+        getErrorMessage(
+          responseBody,
+          response.status,
+          requestName,
+        ),
       );
-
-      throw new Error(message);
     }
 
     return responseBody;
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error(
-        '서버 응답 시간이 초과되었습니다.',
+        `${requestName} 중 서버 응답 시간이 초과되었습니다.`,
+      );
+    }
+
+    /*
+     * fetch의 Failed to fetch를 사용자에게 이해할 수 있는
+     * 메시지로 변경한다.
+     */
+    if (
+      error instanceof TypeError
+      && error.message === 'Failed to fetch'
+    ) {
+      throw new Error(
+        `${requestName} 서버에 연결하지 못했습니다. `
+        + `요청 주소와 서버 실행 상태를 확인해 주세요. (${url})`,
       );
     }
 
@@ -161,14 +243,17 @@ async function requestJson(
 /**
  * 보호자에게 연결된 모든 어르신의 등록 제품을 조회한다.
  *
- * 기본 요청 주소:
- * GET /api/registered-products/senior/{seniorId}
+ * Spring Boot 요청 예시:
+ * GET http://localhost:8090/api/registered-products/senior/{seniorId}
  */
 export async function getGuardianRecallProducts(
   seniorIds = [],
 ) {
   const validSeniorIds = seniorIds.filter(
-    (seniorId) => seniorId != null,
+    (seniorId) => (
+      seniorId != null
+      && String(seniorId).trim() !== ''
+    ),
   );
 
   if (validSeniorIds.length === 0) {
@@ -178,13 +263,21 @@ export async function getGuardianRecallProducts(
   const results = await Promise.allSettled(
     validSeniorIds.map(async (seniorId) => {
       const encodedSeniorId = encodeURIComponent(
-        seniorId,
+        String(seniorId),
+      );
+
+      const requestUrl = (
+        `${PRODUCT_API_BASE_URL}`
+        + `${REGISTERED_PRODUCT_PATH}`
+        + `/${encodedSeniorId}`
       );
 
       const response = await requestJson(
-        `${PRODUCT_API_BASE_URL}`
-        + `${REGISTERED_PRODUCT_PATH}`
-        + `/${encodedSeniorId}`,
+        requestUrl,
+        {
+          method: 'GET',
+          requestName: '등록 제품 조회',
+        },
       );
 
       return normalizeArray(response).map((product) => ({
@@ -205,18 +298,36 @@ export async function getGuardianRecallProducts(
     ))
     .flatMap((result) => result.value);
 
-  const allRequestsFailed = results.every(
+  const failedResults = results.filter(
     (result) => result.status === 'rejected',
   );
 
+  const allRequestsFailed = (
+    failedResults.length === results.length
+  );
+
   if (allRequestsFailed) {
-    const firstError = results.find(
-      (result) => result.status === 'rejected',
-    );
+    const firstError = failedResults[0];
 
     throw (
       firstError?.reason
-      || new Error('등록 제품을 불러오지 못했습니다.')
+      || new Error(
+        '등록 제품을 불러오지 못했습니다.',
+      )
+    );
+  }
+
+  /*
+   * 일부 어르신의 제품 조회만 실패한 경우에는
+   * 성공한 결과를 그대로 반환한다.
+   */
+  if (failedResults.length > 0) {
+    console.warn(
+      '일부 어르신의 등록 제품 조회 실패:',
+      failedResults.map((result) => (
+        result.reason?.message
+        || result.reason
+      )),
     );
   }
 
@@ -227,10 +338,10 @@ export async function getGuardianRecallProducts(
 /**
  * 보호자용 RAG 질문을 전송한다.
  *
- * 기본 요청 주소:
- * POST /api/rag/query
+ * FastAPI 요청 예시:
+ * POST http://127.0.0.1:8000/api/rag/query
  *
- * 기본 요청:
+ * 요청 본문:
  * {
  *   question: "...",
  *   role: "GUARDIAN",
@@ -243,11 +354,17 @@ export async function askGuardianRag(question) {
   ).trim();
 
   if (!trimmedQuestion) {
-    throw new Error('질문을 입력해 주세요.');
+    throw new Error(
+      '질문을 입력해 주세요.',
+    );
   }
 
+  const requestUrl = (
+    `${RAG_API_BASE_URL}${RAG_QUERY_PATH}`
+  );
+
   const response = await requestJson(
-    `${RAG_API_BASE_URL}${RAG_QUERY_PATH}`,
+    requestUrl,
     {
       method: 'POST',
 
@@ -258,6 +375,7 @@ export async function askGuardianRag(question) {
       }),
 
       timeout: 45000,
+      requestName: '복지·안전 도우미 질문',
     },
   );
 
@@ -288,48 +406,50 @@ export async function askGuardianRag(question) {
     ?? []
   );
 
-  const sources = normalizeArray(rawSources).map(
-    (source, index) => {
-      if (typeof source === 'string') {
-        return {
-          id: `source-${index}`,
-          title: source,
-          description: '',
-          url: '',
-        };
-      }
-
+  const sources = normalizeArray(
+    rawSources,
+  ).map((source, index) => {
+    if (typeof source === 'string') {
       return {
-        id: (
-          source?.id
-          ?? source?.documentId
-          ?? `source-${index}`
-        ),
-
-        title: (
-          source?.title
-          ?? source?.documentTitle
-          ?? source?.source
-          ?? source?.name
-          ?? `근거 문서 ${index + 1}`
-        ),
-
-        description: (
-          source?.description
-          ?? source?.snippet
-          ?? source?.content
-          ?? source?.text
-          ?? ''
-        ),
-
-        url: (
-          source?.url
-          ?? source?.link
-          ?? ''
-        ),
+        id: `source-${index}`,
+        title: source,
+        description: '',
+        url: '',
       };
-    },
-  );
+    }
+
+    return {
+      id: (
+        source?.id
+        ?? source?.documentId
+        ?? source?.document_id
+        ?? `source-${index}`
+      ),
+
+      title: (
+        source?.title
+        ?? source?.documentTitle
+        ?? source?.document_title
+        ?? source?.source
+        ?? source?.name
+        ?? `근거 문서 ${index + 1}`
+      ),
+
+      description: (
+        source?.description
+        ?? source?.snippet
+        ?? source?.content
+        ?? source?.text
+        ?? ''
+      ),
+
+      url: (
+        source?.url
+        ?? source?.link
+        ?? ''
+      ),
+    };
+  });
 
   if (!answer) {
     throw new Error(

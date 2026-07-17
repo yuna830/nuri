@@ -21,6 +21,7 @@ public class RegisteredProduct {
 
     @Column(nullable = false)
     private String productName;
+    private String productType;
 
     private String manufacturer;
     private String modelNumber;
@@ -81,7 +82,7 @@ public class RegisteredProduct {
         UNKNOWN, SAFE, RECALLED
     }
 
-    public enum CurrentUseStatus { UNKNOWN, IN_USE, NOT_IN_USE, STOPPED, NOT_OWNED }
+    public enum CurrentUseStatus { UNKNOWN, IN_USE, NOT_IN_USE, STOPPED, DISPOSED, NOT_OWNED }
     public enum ModelMatchStatus { UNKNOWN, MATCHED, NEEDS_REVIEW, NOT_MATCHED }
     public enum GuardianContactStatus { UNKNOWN, SCHEDULED, COMPLETED, UNREACHABLE }
     public enum FollowUpProgressStatus { PLANNED, IN_PROGRESS, COMPLETED, ON_HOLD, UNREACHABLE, DECLINED }

@@ -58,4 +58,13 @@ public class SeniorController {
                                @RequestParam String phone) {
         return seniorService.search(name, phone);
     }
+
+    @DeleteMapping("/guardian/{guardianId}/{seniorId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void disconnectGuardian(
+            @PathVariable Long guardianId,
+            @PathVariable Long seniorId
+    ) {
+        seniorService.disconnectGuardian(guardianId, seniorId);
+    }
 }

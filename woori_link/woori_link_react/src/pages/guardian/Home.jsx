@@ -58,6 +58,15 @@ const RECOMMENDED_QUESTIONS = [
 ];
 
 
+const RECALL_CATEGORY_ORDER = [
+  '전기·난방제품',
+  '배터리·충전기',
+  '주방·생활용품',
+  '의료·건강용품',
+  '기타 제품',
+];
+
+
 function normalizeArray(value) {
   if (Array.isArray(value)) {
     return value;
@@ -537,6 +546,45 @@ function getRecallCategory(product) {
 }
 
 
+function getSeniorNameByProduct(product, seniors) {
+  const seniorId = getProductSeniorId(product);
+
+  const senior = seniors.find((item) => (
+    String(item.id) === String(seniorId)
+  ));
+
+  return (
+    senior?.name
+    ?? product?.seniorName
+    ?? product?.senior?.name
+    ?? '담당 어르신'
+  );
+}
+
+
+function getProductStatusLabel(product) {
+  if (isRecallActionCompleted(product)) {
+    return '조치 완료';
+  }
+
+  const useStatus = getCurrentUseStatus(product);
+
+  if (useStatus === 'IN_USE') {
+    return '사용 중';
+  }
+
+  if (
+    !useStatus
+    || useStatus === 'UNKNOWN'
+    || useStatus === 'UNCONFIRMED'
+  ) {
+    return '사용 여부 미확인';
+  }
+
+  return '확인 필요';
+}
+
+
 function createAlertKey(alert, index) {
   return (
     alert?.id
@@ -576,6 +624,18 @@ function getPriorityAction(item) {
 }
 
 
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+
 export default function GuardianHome() {
   const navigate = useNavigate();
   const currentUser = getUser();
@@ -588,6 +648,8 @@ export default function GuardianHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [recallLoadError, setRecallLoadError] = useState('');
+
+  const [recallModalOpen, setRecallModalOpen] = useState(false);
 
   const [ragQuestion, setRagQuestion] = useState('');
   const [ragAnswer, setRagAnswer] = useState('');
@@ -711,6 +773,37 @@ export default function GuardianHome() {
   }, []);
 
 
+  useEffect(() => {
+    if (!recallModalOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setRecallModalOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      'keydown',
+      handleKeyDown,
+    );
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+
+      document.removeEventListener(
+        'keydown',
+        handleKeyDown,
+      );
+    };
+  }, [recallModalOpen]);
+
+
   const unreadAlerts = useMemo(() => (
     alerts.filter(isUnreadAlert)
   ), [alerts]);
@@ -726,9 +819,27 @@ export default function GuardianHome() {
         }
       );
 
-      const riskActionItems = getRiskActionItems(
+      const assessedRiskActionItems = getRiskActionItems(
         state.risk,
       );
+
+      const locationDataMissing = hasNoLocationData(
+        state.location,
+      );
+
+      const riskActionItems = locationDataMissing
+        ? [
+            ...assessedRiskActionItems.filter((item) => (
+              item.type !== '위치'
+              && item.type !== '안전구역'
+            )),
+            {
+              type: '위치',
+              title: '위치 정보가 수신되지 않았습니다.',
+              description: '기기의 위치 권한과 연동 상태를 확인해주세요.',
+            },
+          ]
+        : assessedRiskActionItems;
 
       const seniorUnreadAlerts = unreadAlerts.filter(
         (alert) => (
@@ -829,22 +940,26 @@ export default function GuardianHome() {
 
 
   const recallChartData = useMemo(() => {
-    const counts = new Map();
+    const categoryCounts = new Map(
+      RECALL_CATEGORY_ORDER.map((category) => (
+        [category, 0]
+      )),
+    );
+
+    let collectedCount = 0;
 
     recalledProducts.forEach((product) => {
       const category = getRecallCategory(product);
 
-      counts.set(
+      categoryCounts.set(
         category,
-        (counts.get(category) ?? 0) + 1,
+        (categoryCounts.get(category) ?? 0) + 1,
       );
+
+      collectedCount += 1;
     });
 
-    /*
-     * 제품 API를 아직 연결하지 못한 경우,
-     * 리콜 알림 내용을 기준으로 그래프를 보조 생성한다.
-     */
-    if (counts.size === 0) {
+    if (collectedCount === 0) {
       alerts
         .filter(isRecallAlert)
         .forEach((alert) => {
@@ -853,25 +968,36 @@ export default function GuardianHome() {
             getAlertMessage(alert),
           ].join(' '));
 
-          counts.set(
+          categoryCounts.set(
             category,
-            (counts.get(category) ?? 0) + 1,
+            (categoryCounts.get(category) ?? 0) + 1,
           );
+
+          collectedCount += 1;
         });
     }
 
-    return [...counts.entries()]
-      .map(([category, count]) => ({
-        category,
-        count,
-      }))
-      .sort((first, second) => (
-        second.count - first.count
-      ));
+    return RECALL_CATEGORY_ORDER.map((category) => ({
+      category,
+      count: categoryCounts.get(category) ?? 0,
+    }));
   }, [
     alerts,
     recalledProducts,
   ]);
+
+
+  const totalRecallCategoryCount = useMemo(() => (
+    recallChartData.reduce(
+      (total, item) => total + item.count,
+      0,
+    )
+  ), [recallChartData]);
+
+
+  const hasRecallCategoryData = (
+    totalRecallCategoryCount > 0
+  );
 
 
   const maxRecallCategoryCount = useMemo(() => (
@@ -880,16 +1006,6 @@ export default function GuardianHome() {
       1,
     )
   ), [recallChartData]);
-
-
-  const latestPendingRecall = useMemo(() => (
-    [...pendingRecallProducts].sort(
-      (first, second) => (
-        new Date(getTimestamp(second) ?? 0).getTime()
-        - new Date(getTimestamp(first) ?? 0).getTime()
-      ),
-    )[0] ?? null
-  ), [pendingRecallProducts]);
 
 
   const priorityItems = useMemo(() => {
@@ -940,7 +1056,7 @@ export default function GuardianHome() {
             seniorName: summary.senior.name,
             type: riskItem.type,
             title: riskItem.title,
-            description: '',
+            description: riskItem.description ?? '',
             time: summary.state.risk?.assessedAt,
           });
         },
@@ -1012,6 +1128,7 @@ export default function GuardianHome() {
 
   const handleRagSubmit = (event) => {
     event.preventDefault();
+
     runRagQuestion(ragQuestion);
   };
 
@@ -1023,10 +1140,10 @@ export default function GuardianHome() {
   };
 
 
-  const handleLatestRecallClick = () => {
-    const seniorId = getProductSeniorId(
-      latestPendingRecall,
-    );
+  const handleProductClick = (product) => {
+    const seniorId = getProductSeniorId(product);
+
+    setRecallModalOpen(false);
 
     navigate(
       seniorId
@@ -1036,17 +1153,99 @@ export default function GuardianHome() {
   };
 
 
+  const handleSafetyPageClick = () => {
+    setRecallModalOpen(false);
+
+    navigate('/guardian/safety');
+  };
+
+
+  const renderRecallChart = (variant = 'home') => (
+    <div
+      className={[
+        'guardian-recall-chart',
+        `guardian-recall-chart--${variant}`,
+      ].join(' ')}
+    >
+      <div className="guardian-recall-chart__title">
+        <div>
+          <strong>
+            리콜 제품 종류
+          </strong>
+        </div>
+
+        <span>
+          총 {totalRecallCategoryCount}건
+        </span>
+      </div>
+
+      <div
+        className="guardian-recall-chart__list"
+        role="img"
+        aria-label={`제품 종류별 리콜 건수, 총 ${totalRecallCategoryCount}건`}
+      >
+        {recallChartData.map((item) => {
+          const width = (
+            item.count
+            / maxRecallCategoryCount
+          ) * 100;
+
+          return (
+            <div
+              key={item.category}
+              className={[
+                'guardian-recall-chart__row',
+                item.count === 0
+                  ? 'guardian-recall-chart__row--empty'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <span className="guardian-recall-chart__label">
+                {item.category}
+              </span>
+
+              <div
+                className="guardian-recall-chart__track"
+                role="progressbar"
+                aria-label={`${item.category} ${item.count}건`}
+                aria-valuemin="0"
+                aria-valuemax={maxRecallCategoryCount}
+                aria-valuenow={item.count}
+              >
+                <span
+                  className="guardian-recall-chart__bar"
+                  style={{
+                    width: item.count === 0
+                      ? '0%'
+                      : `${Math.max(width, 8)}%`,
+                  }}
+                />
+              </div>
+
+              <strong>
+                {item.count}건
+              </strong>
+            </div>
+          );
+        })}
+      </div>
+
+      {!hasRecallCategoryData && (
+        <p className="guardian-recall-chart__simple-empty">
+          현재 집계된 리콜 제품이 없습니다.
+        </p>
+      )}
+    </div>
+  );
+
+
   return (
     <GuardianLayout activeMenu="home">
       <main className="guardian-dashboard">
         <section className="guardian-dashboard__heading">
           <h1>홈</h1>
-
-          <p>
-            {currentUser?.name
-              ? `${currentUser.name}님, 오늘 확인할 내용을 정리했어요.`
-              : '보호자님, 오늘 확인할 내용을 정리했어요.'}
-          </p>
         </section>
 
         {error && (
@@ -1065,23 +1264,7 @@ export default function GuardianHome() {
           </div>
         ) : (
           <>
-            {/* =================================================
-                상단 요약
-                ================================================= */}
-
             <section className="guardian-dashboard-summary">
-              <article className="guardian-dashboard-summary__card">
-                <span>담당 어르신</span>
-
-                <strong>
-                  {seniors.length}명
-                </strong>
-
-                <small>
-                  현재 연결된 전체 인원
-                </small>
-              </article>
-
               <article className="guardian-dashboard-summary__card">
                 <span>확인 필요</span>
 
@@ -1119,19 +1302,11 @@ export default function GuardianHome() {
               </article>
             </section>
 
-            {/* =================================================
-                중간 60% / 40%
-                ================================================= */}
-
             <section className="guardian-dashboard-middle">
-              <article className="guardian-dashboard-panel">
+              <article className="guardian-dashboard-panel guardian-priority-panel">
                 <div className="guardian-dashboard-panel__heading">
                   <div>
                     <h2>우선 확인</h2>
-
-                    <p>
-                      현재 보호자가 확인하거나 대응해야 할 항목입니다.
-                    </p>
                   </div>
 
                   <span>
@@ -1155,6 +1330,10 @@ export default function GuardianHome() {
                       const action = getPriorityAction(
                         item,
                       );
+                      const isLocationMissing = (
+                        item.type === '위치'
+                        && item.title === '위치 정보가 수신되지 않았습니다.'
+                      );
 
                       return (
                         <div
@@ -1162,18 +1341,22 @@ export default function GuardianHome() {
                           className="guardian-priority-item"
                         >
                           <div className="guardian-priority-item__copy">
-                            <div className="guardian-priority-item__labels">
-                              <span>
-                                {item.type}
-                              </span>
+                            {!isLocationMissing && (
+                              <div className="guardian-priority-item__labels">
+                                <span>
+                                  {item.type}
+                                </span>
 
-                              <strong>
-                                {item.seniorName} 어르신
-                              </strong>
-                            </div>
+                                <strong>
+                                  {item.seniorName}
+                                </strong>
+                              </div>
+                            )}
 
                             <h3>
-                              {item.title}
+                              {isLocationMissing
+                                ? `${item.seniorName} 님의 ${item.title}`
+                                : item.title}
                             </h3>
 
                             {item.description && (
@@ -1182,19 +1365,23 @@ export default function GuardianHome() {
                               </p>
                             )}
 
-                            <small>
-                              {formatDateTime(item.time)}
-                            </small>
+                            {!isLocationMissing && (
+                              <small>
+                                {formatDateTime(item.time)}
+                              </small>
+                            )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => (
-                              handlePriorityAction(item)
-                            )}
-                          >
-                            {action.label}
-                          </button>
+                          {!isLocationMissing && (
+                            <button
+                              type="button"
+                              onClick={() => (
+                                handlePriorityAction(item)
+                              )}
+                            >
+                              {action.label}
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -1206,146 +1393,20 @@ export default function GuardianHome() {
                 <div className="guardian-dashboard-panel__heading">
                   <div>
                     <h2>리콜·생활안전 현황</h2>
-
-                    <p>
-                      담당 어르신의 등록 제품과 안전점검 현황입니다.
-                    </p>
                   </div>
 
                   <button
                     type="button"
                     className="guardian-panel-link-button"
-                    onClick={() => navigate('/guardian/safety')}
+                    onClick={() => setRecallModalOpen(true)}
                   >
                     전체 보기
                   </button>
                 </div>
 
-                <div className="guardian-recall-summary">
-                  <div>
-                    <span>사용 중</span>
-
-                    <strong>
-                      {inUseRecallProducts.length}건
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>사용 여부 미확인</span>
-
-                    <strong>
-                      {unknownUseRecallProducts.length}건
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>조치 완료</span>
-
-                    <strong>
-                      {completedRecallProducts.length}건
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>생활안전 확인</span>
-
-                    <strong>
-                      {lifeSafetySeniorCount}명
-                    </strong>
-                  </div>
-                </div>
-
-                {recallLoadError && (
-                  <div className="guardian-recall-warning">
-                    등록 제품 API 응답이 없어 알림·위험도 기준으로 일부 집계했습니다.
-                  </div>
-                )}
-
-                <div className="guardian-recall-chart">
-                  <div className="guardian-recall-chart__title">
-                    <strong>
-                      리콜 제품 종류
-                    </strong>
-
-                    <span>
-                      총 {recallChartData.reduce(
-                        (total, item) => total + item.count,
-                        0,
-                      )}건
-                    </span>
-                  </div>
-
-                  {recallChartData.length === 0 ? (
-                    <div className="guardian-recall-chart__empty">
-                      현재 집계된 리콜 제품이 없습니다.
-                    </div>
-                  ) : (
-                    <div className="guardian-recall-chart__list">
-                      {recallChartData.map((item) => {
-                        const width = (
-                          item.count
-                          / maxRecallCategoryCount
-                        ) * 100;
-
-                        return (
-                          <div
-                            key={item.category}
-                            className="guardian-recall-chart__row"
-                          >
-                            <span className="guardian-recall-chart__label">
-                              {item.category}
-                            </span>
-
-                            <div className="guardian-recall-chart__track">
-                              <span
-                                className="guardian-recall-chart__bar"
-                                style={{
-                                  width: `${Math.max(width, 8)}%`,
-                                }}
-                              />
-                            </div>
-
-                            <strong>
-                              {item.count}건
-                            </strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {latestPendingRecall && (
-                  <div className="guardian-recall-focus">
-                    <div>
-                      <span>
-                        현재 확인 필요
-                      </span>
-
-                      <strong>
-                        {getProductName(latestPendingRecall)}
-                      </strong>
-
-                      <small>
-                        {getProductModel(latestPendingRecall)
-                          || '모델명 미확인'}
-                      </small>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleLatestRecallClick}
-                    >
-                      확인하기
-                    </button>
-                  </div>
-                )}
+                {renderRecallChart('home')}
               </article>
             </section>
-
-            {/* =================================================
-                하단 RAG
-                ================================================= */}
 
             <section className="guardian-rag-panel">
               <div className="guardian-rag-panel__intro">
@@ -1369,10 +1430,6 @@ export default function GuardianHome() {
                   className="guardian-rag-form"
                   onSubmit={handleRagSubmit}
                 >
-                  <label htmlFor="guardian-rag-question">
-                    궁금한 내용을 입력하세요.
-                  </label>
-
                   <div className="guardian-rag-form__input-row">
                     <input
                       id="guardian-rag-question"
@@ -1499,6 +1556,180 @@ export default function GuardianHome() {
           </>
         )}
       </main>
+
+      {recallModalOpen && (
+        <>
+          <button
+            type="button"
+            className="guardian-recall-modal-overlay"
+            onClick={() => setRecallModalOpen(false)}
+            aria-label="리콜 현황 닫기"
+          />
+
+          <section
+            className="guardian-recall-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guardian-recall-modal-title"
+          >
+            <header className="guardian-recall-modal__header">
+              <div>
+                <h2 id="guardian-recall-modal-title">
+                  리콜·생활안전 전체 현황
+                </h2>
+
+                <p>
+                  등록 제품의 사용 여부와 리콜 조치 상태를 확인합니다.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="guardian-recall-modal__close"
+                onClick={() => setRecallModalOpen(false)}
+                aria-label="모달 닫기"
+              >
+                <CloseIcon />
+              </button>
+            </header>
+
+            <div className="guardian-recall-modal__content">
+              <section className="guardian-recall-modal-summary">
+                <article>
+                  <span>사용 중</span>
+
+                  <strong>
+                    {inUseRecallProducts.length}건
+                  </strong>
+                </article>
+
+                <article>
+                  <span>사용 여부 미확인</span>
+
+                  <strong>
+                    {unknownUseRecallProducts.length}건
+                  </strong>
+                </article>
+
+                <article>
+                  <span>조치 완료</span>
+
+                  <strong>
+                    {completedRecallProducts.length}건
+                  </strong>
+                </article>
+
+                <article>
+                  <span>생활안전 확인</span>
+
+                  <strong>
+                    {lifeSafetySeniorCount}명
+                  </strong>
+                </article>
+              </section>
+
+              {recallLoadError && (
+                <div className="guardian-recall-warning">
+                  등록 제품 API 응답이 없어 알림·위험도 기준으로 일부 집계했습니다.
+                </div>
+              )}
+
+              <section className="guardian-recall-modal__section">
+                {renderRecallChart('modal')}
+              </section>
+
+              <section className="guardian-recall-modal__section">
+                <div className="guardian-recall-modal__section-heading">
+                  <div>
+                    <h3>확인 필요 제품</h3>
+
+                    <p>
+                      사용 여부 또는 후속 조치 확인이 필요한 제품입니다.
+                    </p>
+                  </div>
+
+                  <span>
+                    {pendingRecallProducts.length}건
+                  </span>
+                </div>
+
+                {pendingRecallProducts.length === 0 ? (
+                  <div className="guardian-recall-product-empty">
+                    현재 상세 확인이 필요한 등록 제품이 없습니다.
+                  </div>
+                ) : (
+                  <div className="guardian-recall-product-list">
+                    {pendingRecallProducts.map((product, index) => {
+                      const productId = (
+                        product?.id
+                        ?? product?.registeredProductId
+                        ?? [
+                          getProductSeniorId(product),
+                          getProductName(product),
+                          index,
+                        ].join('-')
+                      );
+
+                      return (
+                        <article
+                          key={productId}
+                          className="guardian-recall-product-item"
+                        >
+                          <div className="guardian-recall-product-item__copy">
+                            <div className="guardian-recall-product-item__labels">
+                              <span>
+                                {getProductStatusLabel(product)}
+                              </span>
+
+                              <strong>
+                                {getSeniorNameByProduct(product, seniors)} 어르신
+                              </strong>
+                            </div>
+
+                            <h4>
+                              {getProductName(product)}
+                            </h4>
+
+                            <p>
+                              {getProductModel(product)
+                                || '모델명 미확인'}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleProductClick(product)}
+                          >
+                            확인하기
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <footer className="guardian-recall-modal__footer">
+              <button
+                type="button"
+                className="guardian-recall-modal__cancel"
+                onClick={() => setRecallModalOpen(false)}
+              >
+                닫기
+              </button>
+
+              <button
+                type="button"
+                className="guardian-recall-modal__primary"
+                onClick={handleSafetyPageClick}
+              >
+                제품·생활안전 관리로 이동
+              </button>
+            </footer>
+          </section>
+        </>
+      )}
     </GuardianLayout>
   );
 }

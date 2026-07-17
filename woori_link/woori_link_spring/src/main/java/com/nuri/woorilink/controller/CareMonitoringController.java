@@ -48,11 +48,17 @@ public class CareMonitoringController {
 
     @PutMapping("/seniors/{seniorId}/safety-zone")
     public SafetyZone saveSafetyZone(@PathVariable Long seniorId, @RequestBody SafetyZoneRequest request) {
-        return careMonitoringService.saveSafetyZone(seniorId, request.latitude(), request.longitude(), request.radiusMeters(), request.enabled());
+        return careMonitoringService.saveSafetyZone(seniorId, request.id(), request.slotNumber(), request.name(), request.latitude(), request.longitude(), request.radiusMeters());
+    }
+
+    @DeleteMapping("/seniors/{seniorId}/safety-zone/{zoneId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteSafetyZone(@PathVariable Long seniorId, @PathVariable Long zoneId) {
+        careMonitoringService.deleteSafetyZone(seniorId, zoneId);
     }
 
     @GetMapping("/seniors/{seniorId}/safety-zone")
-    public SafetyZone safetyZone(@PathVariable Long seniorId) { return careMonitoringService.safetyZone(seniorId).orElse(null); }
+    public List<SafetyZone> safetyZones(@PathVariable Long seniorId) { return careMonitoringService.safetyZones(seniorId); }
 
     @GetMapping("/guardians/{guardianId}/alerts")
     public List<CareAlert> guardianAlerts(@PathVariable Long guardianId) { return careMonitoringService.guardianAlerts(guardianId); }
@@ -64,7 +70,7 @@ public class CareMonitoringController {
 
     public record EventRequest(CareEvent.EventType type, Double latitude, Double longitude, String note) { }
     public record LocationRequest(double latitude, double longitude) { }
-    public record SafetyZoneRequest(double latitude, double longitude, int radiusMeters, boolean enabled) { }
+    public record SafetyZoneRequest(Long id, int slotNumber, String name, double latitude, double longitude, int radiusMeters) { }
     public record AlertStatusRequest(boolean resolved) { }
     public record CheckInResponse(String message) { }
 }

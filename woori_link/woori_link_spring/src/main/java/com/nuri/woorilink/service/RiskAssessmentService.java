@@ -145,6 +145,9 @@ public class RiskAssessmentService {
                                         && isPastDue(action)
                         );
 
+        boolean safetyInspectionNeeded =
+                safetyRisk || safetyInspectionOverdue;
+
         long maxActionOverdueDays =
                 getMaxActionOverdueDays(pendingActions);
 
@@ -257,14 +260,9 @@ public class RiskAssessmentService {
             reasons.add("심각한 지역 기상위험");
         }
 
-        if (safetyRisk) {
+        if (safetyInspectionNeeded) {
             actualRiskScore += 25;
-            reasons.add("전기·가스 즉시 개선 항목");
-        }
-
-        if (safetyInspectionOverdue) {
-            actualRiskScore += 10;
-            reasons.add("전기·가스 안전점검 미완료");
+            reasons.add("전기·가스 점검 미완료");
         }
 
         if (aiNoResponse) {
@@ -364,7 +362,7 @@ public class RiskAssessmentService {
                 recallRisk
                         || recallUsageUnknown
                         || weatherRisk
-                        || safetyRisk
+                        || safetyInspectionNeeded
                         || overdueAction
                         || delayedVisit
                         || aiNoResponse
@@ -374,7 +372,7 @@ public class RiskAssessmentService {
 
         if (totalScore >= 50 && hasActionableRisk) {
             level = RiskAssessment.RiskLevel.HIGH;
-        } else if (totalScore >= 20) {
+        } else if (totalScore >= 30) {
             level = RiskAssessment.RiskLevel.MEDIUM;
         } else {
             level = RiskAssessment.RiskLevel.LOW;
@@ -620,7 +618,7 @@ public class RiskAssessmentService {
 
         if (totalScore >= 50 && hasActionableRisk) {
             level = RiskAssessment.RiskLevel.HIGH;
-        } else if (totalScore >= 20) {
+        } else if (totalScore >= 30) {
             level = RiskAssessment.RiskLevel.MEDIUM;
         } else {
             level = RiskAssessment.RiskLevel.LOW;

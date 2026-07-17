@@ -75,7 +75,7 @@ function currentStage(product) {
 
 function manageButtonLabel(stage) {
   if (stage === '사용 여부 확인') return '사용 확인'
-  if (stage === '후속 조치') return '조치 관리'
+  if (stage === '후속 조치') return '후속 조치'
   return '결과 보기'
 }
 
@@ -366,7 +366,7 @@ export default function RecallList() {
                 <label>다음 조치일<input type="date" value={form.nextActionDate ?? ''} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label>
                 {form.followUpType === '보호자 연락' && <label>보호자 연락 상태<select value={form.guardianContactStatus ?? 'UNKNOWN'} onChange={event => setForm(previous => ({ ...previous, guardianContactStatus: event.target.value }))}><option value="UNKNOWN">미확인</option><option value="SCHEDULED">연락 예정</option><option value="COMPLETED">연락 완료</option><option value="UNREACHABLE">연락 불가</option></select></label>}
                 <label className="recall-note-field">담당자 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="확인 및 후속 조치 내용을 기록하세요" /></label>
-                <label className="recall-action-check"><input type="checkbox" checked={form.createAction} onChange={event => setForm(previous => ({ ...previous, createAction: event.target.checked }))} />조치 관리에 후속 업무 등록</label>
+                <label className="recall-action-check"><input type="checkbox" checked={form.createAction} onChange={event => setForm(previous => ({ ...previous, createAction: event.target.checked }))} />후속 업무 등록</label>
               </div>}
             </div>
 

@@ -15,8 +15,7 @@ const RISK_CRITERIA = [
   { group: 'A', label: '심각한 지역 기상위험', value: 'weatherRisk', score: 20 },
   { group: 'A', label: '사용 중인 미조치 리콜 제품', value: 'recallRisk', score: 30 },
   { group: 'A', label: '리콜 제품 사용 여부 미확인', value: 'recallUsageUnknown', score: 20 },
-  { group: 'A', label: '전기·가스 즉시 개선 항목', value: 'safetyRisk', score: 25 },
-  { group: 'A', label: '전기·가스 점검 미완료', value: 'safetyInspectionOverdue', score: 10 },
+  { group: 'A', label: '전기·가스 점검 미완료', value: 'safetyInspectionNeeded', values: ['safetyRisk', 'safetyInspectionOverdue'], score: 25 },
   { group: 'B', label: '조치 요청 7일 이상 지연', value: 'overdueAction', score: 10 },
   { group: 'B', label: '예정 방문 지연', value: 'delayedVisit', score: 15 },
   { group: 'B', label: '동일 문제 반복', value: 'repeatedIssue', score: 10 },
@@ -65,7 +64,10 @@ function getScoredCriteria(risk) {
   }
 
   return ['A', 'B', 'C'].flatMap(group => {
-    const applied = RISK_CRITERIA.filter(criteria => criteria.group === group && risk[criteria.value] === true)
+    const applied = RISK_CRITERIA.filter(criteria =>
+      criteria.group === group &&
+      (criteria.values ?? [criteria.value]).some(value => risk[value] === true)
+    )
     let remaining = groupScores[group]
 
     return applied.map((criteria, index) => {
@@ -210,13 +212,32 @@ export default function SeniorDetail() {
 
       <div className="card detail-risk-card detail-risk-card-wide">
         <div className="section-header">
-          <span className="card-title" style={{ margin: 0 }}>복지사 확인 우선도</span>
+          <div className="risk-title-summary">
+            <span className="card-title" style={{ margin: 0 }}>복지사 확인 우선도</span>
+            {risk && <div className="risk-header"><span className={`risk-score ${levelInfo?.cls}`}>{risk.totalScore}점</span><span className={`badge badge-${levelInfo?.cls}`}>{levelInfo?.label}</span></div>}
+          </div>
           <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleAssess} disabled={assessing}>{assessing ? '산정 중...' : '재산정'}</button>
         </div>
         {risk ? <>
           <div className="risk-wide-content">
-            <div className="risk-wide-score"><span className="risk-total-label">총점</span><div className="risk-header"><span className={`risk-score ${levelInfo?.cls}`}>{risk.totalScore}점</span><span className={`badge badge-${levelInfo?.cls}`}>{levelInfo?.label}</span></div></div>
-            <div className="risk-all-groups">{[['A', '실제 위험', areaScore(risk, 'actualRiskScore', 'riskScore')], ['B', '조치 지연', areaScore(risk, 'delayScore')], ['C', '기본 취약성', areaScore(risk, 'vulnerabilityScore')]].map(([group, label, score]) => <section key={group}><div className="risk-group-heading"><span><b>{group}</b>{label}</span><strong>{score}</strong></div><div className="risk-group-criteria">{RISK_CRITERIA.filter(criteria => criteria.group === group).map(criteria => { const scored = scoredCriteria.find(item => item.value === criteria.value); const applied = scored?.appliedScore > 0; return <div className={`risk-criteria-item ${applied ? 'applied' : ''}`} key={criteria.label}><span>{criteria.label}</span><strong>{applied ? `+${scored.appliedScore}점` : '0점'}</strong></div> })}</div></section>)}</div>
+            <div className="risk-all-groups">
+              {[
+                ['A', '실제 위험', areaScore(risk, 'actualRiskScore', 'riskScore')],
+                ['B', '조치 지연', areaScore(risk, 'delayScore')],
+                ['C', '기본 취약성', areaScore(risk, 'vulnerabilityScore')],
+              ].map(([group, label, score]) => (
+                <section className={`risk-group risk-group-${group.toLowerCase()}`} key={group}>
+                  <div className="risk-group-heading"><span><b>{group}</b>{label}</span><strong>{score}</strong></div>
+                  <div className="risk-group-criteria">
+                    {RISK_CRITERIA.filter(criteria => criteria.group === group).map(criteria => {
+                      const scored = scoredCriteria.find(item => item.value === criteria.value)
+                      const applied = scored?.appliedScore > 0
+                      return <div className={`risk-criteria-item ${applied ? 'applied' : ''}`} key={criteria.label}><span>{criteria.label}</span><strong>{applied ? `+${scored.appliedScore}점` : '0점'}</strong></div>
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         </> : <div className="empty-state detail-compact-empty">평가 이력 없음</div>}
       </div>

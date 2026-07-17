@@ -53,7 +53,7 @@ public class ActionRecord {
     private Integer seniorAge;
 
     public enum ActionType {
-        SOS, RECALL, VOUCHER, GAS_CHECK, ELECTRIC_CHECK, VISIT, OTHER
+        SOS, RECALL, VOUCHER, GAS_CHECK, ELECTRIC_CHECK, FIRE_CHECK, HEATING_CHECK, FALL_CHECK, VISIT, OTHER
     }
 
     public enum ActionSubject {

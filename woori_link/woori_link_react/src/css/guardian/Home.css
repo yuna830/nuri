@@ -65,7 +65,7 @@
 
 .guardian-dashboard-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 15px;
 }
 
@@ -117,7 +117,7 @@
   grid-template-columns:
     minmax(0, 3fr)
     minmax(350px, 2fr);
-  align-items: start;
+  align-items: stretch;
   gap: 17px;
 
   margin-top: 18px;
@@ -125,6 +125,7 @@
 
 
 .guardian-dashboard-panel {
+  height: 310px;
   overflow: hidden;
 
   border: 1px solid #e1e7e1;
@@ -135,13 +136,20 @@
 }
 
 
+.guardian-priority-panel,
+.guardian-recall-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+
 .guardian-dashboard-panel__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
 
-  padding: 21px;
+  padding: 16px 21px;
 
   border-bottom: 1px solid #edf1ed;
 }
@@ -207,6 +215,7 @@
 
 .guardian-dashboard-panel__empty {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -240,7 +249,10 @@
 
 .guardian-priority-list {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 
@@ -250,8 +262,8 @@
   justify-content: space-between;
   gap: 20px;
 
-  min-height: 112px;
-  padding: 17px 21px;
+  min-height: 72px;
+  padding: 9px 21px;
 
   border-bottom: 1px solid #edf1ed;
 }
@@ -294,7 +306,7 @@
 
 
 .guardian-priority-item h3 {
-  margin: 8px 0 0;
+  margin: 5px 0 0;
 
   color: #2e3b31;
   font-size: 14px;
@@ -306,7 +318,7 @@
 .guardian-priority-item p {
   display: -webkit-box;
 
-  margin: 6px 0 0;
+  margin: 3px 0 0;
 
   overflow: hidden;
 
@@ -322,7 +334,7 @@
 .guardian-priority-item small {
   display: block;
 
-  margin-top: 7px;
+  margin-top: 4px;
 
   color: #a0aaa2;
   font-size: 10px;
@@ -355,130 +367,99 @@
 
 
 /* =========================================================
-   리콜·생활안전
+   리콜 가로 막대그래프
    ========================================================= */
 
-.guardian-recall-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-
-  border-bottom: 1px solid #edf1ed;
-  background: #fafcfa;
-}
-
-
-.guardian-recall-summary > div {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-
+.guardian-recall-panel {
   min-width: 0;
-  padding: 14px 10px;
-
-  border-right: 1px solid #edf1ed;
-  text-align: center;
-}
-
-
-.guardian-recall-summary > div:last-child {
-  border-right: 0;
-}
-
-
-.guardian-recall-summary span {
-  overflow: hidden;
-
-  color: #909b93;
-  font-size: 9px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
-.guardian-recall-summary strong {
-  color: #344137;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-
-.guardian-recall-warning {
-  margin: 14px 17px 0;
-  padding: 9px 10px;
-
-  border: 1px solid #eadbb7;
-  border-radius: 8px;
-  background: #fffaf0;
-
-  color: #92702f;
-  font-size: 10px;
-  line-height: 1.5;
 }
 
 
 .guardian-recall-chart {
-  padding: 18px 19px;
+  min-width: 0;
+}
+
+
+.guardian-recall-chart--home {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  padding: 21px 20px 22px;
+}
+
+
+.guardian-recall-chart--modal {
+  padding: 0;
 }
 
 
 .guardian-recall-chart__title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 
-  margin-bottom: 16px;
+  margin-bottom: 19px;
+}
+
+
+.guardian-recall-chart__title > div {
+  min-width: 0;
 }
 
 
 .guardian-recall-chart__title strong {
   color: #344138;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 
-.guardian-recall-chart__title span {
-  color: #929d95;
-  font-size: 10px;
+.guardian-recall-chart__title p {
+  margin: 5px 0 0;
+
+  color: #98a29b;
+  font-size: 9px;
+  line-height: 1.5;
 }
 
 
-.guardian-recall-chart__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.guardian-recall-chart__title > span {
+  flex-shrink: 0;
 
-  min-height: 145px;
-
-  border: 1px dashed #dfe6df;
-  border-radius: 10px;
-
-  color: #99a39b;
-  font-size: 11px;
+  color: #7c8980;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 
 .guardian-recall-chart__list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+}
+
+
+.guardian-recall-chart--home
+.guardian-recall-chart__list {
+  flex: 1;
+  justify-content: center;
 }
 
 
 .guardian-recall-chart__row {
   display: grid;
-  grid-template-columns: 94px minmax(0, 1fr) 32px;
+  grid-template-columns: 100px minmax(0, 1fr) 35px;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
 
 .guardian-recall-chart__label {
   overflow: hidden;
 
-  color: #657168;
+  color: #5e6c62;
   font-size: 10px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -489,12 +470,12 @@
 .guardian-recall-chart__track {
   position: relative;
 
-  height: 11px;
+  height: 14px;
 
   overflow: hidden;
 
   border-radius: 999px;
-  background: #edf1ed;
+  background: #edf2ec;
 }
 
 
@@ -504,76 +485,364 @@
   bottom: 0;
   left: 0;
 
+  min-width: 0;
+
   border-radius: 999px;
-  background: #8fa88c;
+  background: linear-gradient(
+    90deg,
+    #98b195 0%,
+    #789775 100%
+  );
+
+  box-shadow: inset 0 0 0 1px rgba(86, 119, 82, 0.08);
 
   transition: width 0.3s ease;
 }
 
 
+.guardian-recall-chart__row--empty
+.guardian-recall-chart__track {
+  background: #f2f4f1;
+}
+
+
+.guardian-recall-chart__row--empty
+.guardian-recall-chart__label {
+  color: #9da69f;
+}
+
+
 .guardian-recall-chart__row > strong {
-  color: #5f6d62;
+  color: #506055;
   font-size: 10px;
+  font-weight: 900;
   text-align: right;
-}
-
-
-.guardian-recall-focus {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-
-  margin: 0 19px 19px;
-  padding: 14px;
-
-  border: 1px solid #ead8d4;
-  border-radius: 11px;
-  background: #fff8f6;
-}
-
-
-.guardian-recall-focus > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-
-.guardian-recall-focus span {
-  color: #b35a50;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-
-.guardian-recall-focus strong {
-  overflow: hidden;
-
-  color: #3c4640;
-  font-size: 12px;
-  font-weight: 900;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 
-.guardian-recall-focus small {
-  color: #929d95;
-  font-size: 9px;
+.guardian-recall-chart__row--empty > strong {
+  color: #a4aca6;
 }
 
 
-.guardian-recall-focus button {
+.guardian-recall-chart__simple-empty {
+  margin: 19px 0 0;
+
+  color: #9ca59e;
+  font-size: 10px;
+  text-align: center;
+}
+
+
+/* =========================================================
+   리콜 전체 보기 모달
+   ========================================================= */
+
+.guardian-recall-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+
+  width: 100%;
+  height: 100%;
+  padding: 0;
+
+  border: 0;
+  background: rgba(24, 34, 27, 0.48);
+
+  cursor: default;
+}
+
+
+.guardian-recall-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 810;
+
+  display: flex;
+  flex-direction: column;
+
+  width: min(760px, calc(100% - 36px));
+  max-height: min(86vh, 820px);
+
+  overflow: hidden;
+
+  border: 1px solid #dfe6df;
+  border-radius: 19px;
+  background: #ffffff;
+
+  box-shadow: 0 24px 70px rgba(19, 31, 22, 0.28);
+
+  transform: translate(-50%, -50%);
+}
+
+
+.guardian-recall-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 23px 25px 19px;
+
+  border-bottom: 1px solid #edf1ed;
+}
+
+
+.guardian-recall-modal__header h2 {
+  margin: 0;
+
+  color: #263329;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+
+.guardian-recall-modal__header p {
+  margin: 7px 0 0;
+
+  color: #8c978f;
+  font-size: 11px;
+}
+
+
+.guardian-recall-modal__close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 37px;
+  height: 37px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+
+  color: #7f8a82;
+  cursor: pointer;
+}
+
+
+.guardian-recall-modal__close:hover {
+  background: #f2f5f2;
+}
+
+
+.guardian-recall-modal__close svg {
+  width: 20px;
+  height: 20px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+
+.guardian-recall-modal__content {
+  flex: 1;
+  min-height: 0;
+  padding: 20px 24px;
+
+  overflow-y: auto;
+}
+
+
+.guardian-recall-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  overflow: hidden;
+
+  border: 1px solid #e2e8e2;
+  border-radius: 12px;
+  background: #fafcfa;
+}
+
+
+.guardian-recall-modal-summary article {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  min-width: 0;
+  padding: 16px 12px;
+
+  border-right: 1px solid #e6ebe6;
+  text-align: center;
+}
+
+
+.guardian-recall-modal-summary article:last-child {
+  border-right: 0;
+}
+
+
+.guardian-recall-modal-summary span {
+  color: #87938a;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+.guardian-recall-modal-summary strong {
+  color: #303e33;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+
+.guardian-recall-warning {
+  margin-top: 15px;
+  padding: 11px 12px;
+
+  border: 1px solid #eadbb7;
+  border-radius: 9px;
+  background: #fffaf0;
+
+  color: #92702f;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+
+.guardian-recall-modal__section {
+  margin-top: 18px;
+  padding: 18px;
+
+  border: 1px solid #e3e9e3;
+  border-radius: 13px;
+  background: #ffffff;
+}
+
+
+.guardian-recall-modal__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+
+  margin-bottom: 14px;
+}
+
+
+.guardian-recall-modal__section-heading h3 {
+  margin: 0;
+
+  color: #303d33;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+.guardian-recall-modal__section-heading p {
+  margin: 5px 0 0;
+
+  color: #939e96;
+  font-size: 10px;
+}
+
+
+.guardian-recall-modal__section-heading > span {
   flex-shrink: 0;
 
-  min-height: 34px;
-  padding: 0 10px;
+  padding: 4px 8px;
 
-  border: 1px solid #bf655b;
+  border-radius: 999px;
+  background: #f0f5ef;
+
+  color: #6d866b;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+.guardian-recall-product-list {
+  display: flex;
+  flex-direction: column;
+}
+
+
+.guardian-recall-product-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  min-height: 91px;
+  padding: 14px 0;
+
+  border-bottom: 1px solid #edf1ed;
+}
+
+
+.guardian-recall-product-item:last-child {
+  border-bottom: 0;
+}
+
+
+.guardian-recall-product-item__copy {
+  min-width: 0;
+}
+
+
+.guardian-recall-product-item__labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+
+.guardian-recall-product-item__labels span {
+  padding: 3px 7px;
+
+  border-radius: 999px;
+  background: #fff0ed;
+
+  color: #b65349;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+.guardian-recall-product-item__labels strong {
+  color: #6e7b71;
+  font-size: 10px;
+}
+
+
+.guardian-recall-product-item h4 {
+  margin: 8px 0 0;
+
+  color: #303d33;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+.guardian-recall-product-item p {
+  margin: 5px 0 0;
+
+  color: #949f97;
+  font-size: 10px;
+}
+
+
+.guardian-recall-product-item > button {
+  flex-shrink: 0;
+
+  min-height: 35px;
+  padding: 0 11px;
+
+  border: 1px solid #8fa88c;
   border-radius: 8px;
-  background: #bf655b;
+  background: #8fa88c;
 
   color: #ffffff;
   font-family: inherit;
@@ -584,13 +853,69 @@
 }
 
 
+.guardian-recall-product-empty {
+  padding: 38px 16px;
+
+  border: 1px dashed #dce4dc;
+  border-radius: 10px;
+  background: #fbfcfb;
+
+  color: #929d95;
+  text-align: center;
+  font-size: 11px;
+}
+
+
+.guardian-recall-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+
+  padding: 15px 24px;
+
+  border-top: 1px solid #edf1ed;
+  background: #fafcfa;
+}
+
+
+.guardian-recall-modal__footer button {
+  min-height: 39px;
+  padding: 0 14px;
+
+  border-radius: 9px;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+.guardian-recall-modal__cancel {
+  border: 1px solid #dce4dc;
+  background: #ffffff;
+  color: #6d796f;
+}
+
+
+.guardian-recall-modal__primary {
+  border: 1px solid #829f80;
+  background: #829f80;
+  color: #ffffff;
+}
+
+
 /* =========================================================
    RAG 도우미
    ========================================================= */
 
 .guardian-rag-panel {
   display: grid;
-  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 0.66fr);
+  grid-template-columns:
+    minmax(260px, 0.34fr)
+    minmax(0, 0.66fr);
   gap: 28px;
 
   margin-top: 18px;
@@ -913,6 +1238,8 @@
     grid-template-columns: 1fr;
   }
 
+  .guardian-dashboard-panel { height: auto; min-height: 340px; }
+
 
   .guardian-rag-panel {
     grid-template-columns: 1fr;
@@ -949,18 +1276,45 @@
   }
 
 
-  .guardian-recall-summary {
+  .guardian-recall-chart__row {
+    grid-template-columns: 91px minmax(0, 1fr) 33px;
+  }
+
+
+  .guardian-recall-modal-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
 
-  .guardian-recall-summary > div:nth-child(2) {
+  .guardian-recall-modal-summary article:nth-child(2) {
     border-right: 0;
   }
 
 
-  .guardian-recall-summary > div:nth-child(-n + 2) {
-    border-bottom: 1px solid #edf1ed;
+  .guardian-recall-modal-summary article:nth-child(-n + 2) {
+    border-bottom: 1px solid #e6ebe6;
+  }
+
+
+  .guardian-recall-product-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  .guardian-recall-product-item > button {
+    width: 100%;
+  }
+
+
+  .guardian-recall-modal__footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+
+  .guardian-recall-modal__footer button {
+    width: 100%;
   }
 
 
@@ -982,7 +1336,27 @@
 
 @media (max-width: 440px) {
   .guardian-recall-chart__row {
-    grid-template-columns: 82px minmax(0, 1fr) 29px;
+    grid-template-columns: 82px minmax(0, 1fr) 30px;
+    gap: 7px;
+  }
+
+
+  .guardian-recall-chart__label {
+    font-size: 9px;
+  }
+
+
+  .guardian-recall-modal {
+    width: calc(100% - 20px);
+    max-height: 91vh;
+  }
+
+
+  .guardian-recall-modal__header,
+  .guardian-recall-modal__content,
+  .guardian-recall-modal__footer {
+    padding-right: 17px;
+    padding-left: 17px;
   }
 
 

@@ -74,8 +74,16 @@ export default function Dashboard() {
     return voucherCandidate || electricCandidate
   })
 
-  const sortedHighRisk = [...highRisk].sort(
-    (a, b) => Number(b.totalScore ?? 0) - Number(a.totalScore ?? 0)
+  const assignedSeniorIds = new Set(seniors.map(senior => Number(senior.id)))
+  const assignedHighRisk = highRisk.filter(risk => {
+    const score = Number(risk.totalScore ?? 0)
+    return assignedSeniorIds.has(Number(risk.seniorId)) && score >= 30 && score <= 50
+  })
+
+  const sortedHighRisk = [...assignedHighRisk].sort(
+    (a, b) =>
+      Number(b.totalScore ?? 0) - Number(a.totalScore ?? 0) ||
+      String(a.seniorName ?? '').localeCompare(String(b.seniorName ?? ''), 'ko')
   )
 
   async function handleAssessAll() {
@@ -114,7 +122,7 @@ export default function Dashboard() {
         </div>
         <div className="stat-card danger" onClick={() => navigate('/welfare/seniors')}>
           <div className="label">우선 확인 후보</div>
-          <div className="value">{highRisk.length}</div>
+          <div className="value">{assignedHighRisk.length}</div>
         </div>
         <div className="stat-card warning" onClick={() => navigate('/welfare/energy-voucher')}>
           <div className="label">에너지복지 확인 필요</div>
@@ -143,7 +151,7 @@ export default function Dashboard() {
               </svg>
             </button>
           </div>
-          {highRisk.length === 0 ? (
+          {assignedHighRisk.length === 0 ? (
             <div className="empty-state">우선 확인 대상자가 없습니다</div>
           ) : (
             <div className="dashboard-scroll-area">
@@ -170,7 +178,6 @@ export default function Dashboard() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span className="card-title" style={{ margin: 0 }}>미처리 조치</span>
-            <button className="btn-text" onClick={() => navigate('/welfare/actions')}>전체 보기</button>
           </div>
           {pending.length === 0 ? (
             <div className="empty-state">미처리 조치가 없습니다</div>

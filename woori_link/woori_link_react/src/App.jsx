@@ -19,6 +19,7 @@ import {
 
 import GuardianHome from './pages/guardian/Home.jsx';
 import SeniorStatus from './pages/guardian/SeniorStatus.jsx';
+import GuardianSafety from './pages/guardian/Safety.jsx';
 import GuardianLogin from './pages/guardian/Login.jsx';
 import GuardianRegister from './pages/guardian/Register.jsx';
 
@@ -28,7 +29,6 @@ import GuardianRegister from './pages/guardian/Register.jsx';
 
 import WelfareLogin from './pages/welfare/Login.jsx';
 import WelfareRegister from './pages/welfare/Register.jsx';
-import ActionList from './pages/welfare/ActionList.jsx';
 import Dashboard from './pages/welfare/Dashboard.jsx';
 import EnergyVoucher from './pages/welfare/EnergyVoucher.jsx';
 import RecallList from './pages/welfare/RecallList.jsx';
@@ -109,10 +109,6 @@ function WelfareProtectedLayout() {
 
           <NavLink to="/welfare/recalled">
             리콜 제품 확인 대상
-          </NavLink>
-
-          <NavLink to="/welfare/actions">
-            조치 관리
           </NavLink>
 
           <NavLink to="/welfare/schedule">
@@ -263,11 +259,6 @@ export default function App() {
           />
 
           <Route
-            path="/welfare/actions"
-            element={<ActionList />}
-          />
-
-          <Route
             path="/welfare/schedule"
             element={<Schedule />}
           />
@@ -302,6 +293,10 @@ export default function App() {
           <Route
             path="/guardian/seniors"
             element={<SeniorStatus />}
+          />
+          <Route
+            path="/guardian/safety"
+            element={<GuardianSafety />}
           />
         </Route>
       </Routes>
