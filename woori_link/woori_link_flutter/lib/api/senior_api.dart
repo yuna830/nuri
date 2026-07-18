@@ -9,7 +9,7 @@ class SeniorApi {
       Uri.parse('$baseUrl/seniors/$id'),
       headers: await authHeaders(),
     );
-    if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
     throw Exception('어르신 정보 조회 실패');
   }
 
@@ -20,7 +20,7 @@ class SeniorApi {
       headers: await authHeaders(),
       body: jsonEncode(body),
     );
-    if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
     throw Exception('어르신 정보 수정 실패');
   }
 }

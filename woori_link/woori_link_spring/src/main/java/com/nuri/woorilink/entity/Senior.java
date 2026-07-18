@@ -77,6 +77,15 @@ public class Senior {
     private Long guardianId;
     private Long welfareWorkerId;
 
+    @Builder.Default
+    private Boolean recallReminderEnabled = true;
+
+    @Builder.Default
+    private Boolean scheduleReminderEnabled = true;
+
+    @Builder.Default
+    private Boolean chatbotVoiceEnabled = true;
+
     // 에너지바우처 소득기준
     private Boolean livelihoodBenefit;
     private Boolean medicalBenefit;

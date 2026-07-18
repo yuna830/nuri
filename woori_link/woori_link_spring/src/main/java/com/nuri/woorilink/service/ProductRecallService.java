@@ -1,5 +1,6 @@
 package com.nuri.woorilink.service;
 
+import com.nuri.woorilink.common.client.KcApiClient;
 import com.nuri.woorilink.common.client.RecallApiClient;
 import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
@@ -29,6 +30,7 @@ public class ProductRecallService {
     private final SeniorRepository seniorRepository;
     private final ActionRecordRepository actionRecordRepository;
     private final RecallApiClient recallApiClient;
+    private final KcApiClient kcApiClient;
     private final WelfareWorkerRepository welfareWorkerRepository;
 
     public List<RegisteredProduct> getBySenior(Long seniorId) {
@@ -94,6 +96,13 @@ public class ProductRecallService {
                 product.getNote(),
                 product.getFinalResult(),
                 product.getRecallReason(),
+                product.getKcStatus(),
+                product.getKcCertNum(),
+                product.getKcCertState(),
+                product.getKcCertOrganName(),
+                product.getKcCertProductName(),
+                product.getKcCertModelName(),
+                product.getKcCertManufacturer(),
                 product.getLastCheckedAt(),
                 product.getCreatedAt(),
                 product.getUpdatedAt()
@@ -208,7 +217,23 @@ public class ProductRecallService {
                 ? RegisteredProduct.RecallStatus.RECALLED
                 : RegisteredProduct.RecallStatus.SAFE);
         product.setRecallReason(lookup.recalled() ? lookup.detail() : null);
+        applyKcStatus(product);
         product.setLastCheckedAt(LocalDateTime.now());
+    }
+
+    private void applyKcStatus(RegisteredProduct product) {
+        KcApiClient.KcLookup lookup = kcApiClient.lookup(
+                product.getModelNumber(),
+                product.getProductName(),
+                product.getManufacturer()
+        );
+        product.setKcStatus(lookup.status());
+        product.setKcCertNum(lookup.certNum());
+        product.setKcCertState(lookup.certState());
+        product.setKcCertOrganName(lookup.certOrganName());
+        product.setKcCertProductName(lookup.productName());
+        product.setKcCertModelName(lookup.modelName());
+        product.setKcCertManufacturer(lookup.makerName());
     }
 
     private RecallLookup lookupRecall(RegisteredProduct product) {
