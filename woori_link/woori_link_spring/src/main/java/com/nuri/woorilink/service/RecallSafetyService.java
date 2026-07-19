@@ -1,21 +1,392 @@
 package com.nuri.woorilink.service;
-import com.nuri.woorilink.common.client.SafetyKoreaRecallClient;import com.nuri.woorilink.common.config.RecallSafetyProperties;import com.nuri.woorilink.entity.*;import com.nuri.woorilink.repository.*;import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;import java.util.*;
-@Service @RequiredArgsConstructor
+
+import com.nuri.woorilink.common.client.KcApiClient;
+import com.nuri.woorilink.common.client.SafetyKoreaRecallClient;
+import com.nuri.woorilink.common.config.RecallSafetyProperties;
+import com.nuri.woorilink.entity.ProductRecallAlert;
+import com.nuri.woorilink.entity.ProductRecallCheckHistory;
+import com.nuri.woorilink.entity.RecallNotice;
+import com.nuri.woorilink.entity.RegisteredProduct;
+import com.nuri.woorilink.repository.ProductRecallAlertRepository;
+import com.nuri.woorilink.repository.ProductRecallCheckHistoryRepository;
+import com.nuri.woorilink.repository.RegisteredProductRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
 public class RecallSafetyService {
- private final RegisteredProductRepository products;private final SafetyKoreaRecallClient client;private final RecallNoticeStore store;private final RecallDecisionEngine engine;private final ProductRecallCheckHistoryRepository histories;private final ProductRecallAlertRepository alerts;private final RecallSafetyProperties properties;
- public boolean enabled(){return properties.isNewDecisionEngineEnabled();}
- @Transactional public RegisteredProduct check(Long id){RegisteredProduct p=products.findById(id).orElseThrow(()->new IllegalArgumentException("등록 제품을 찾을 수 없습니다: "+id));LocalDateTime now=LocalDateTime.now();var lookup=client.lookup(new SafetyKoreaRecallClient.ProductQuery(p.getProductName(),p.getBrandName(),p.getManufacturer(),p.getModelNumber(),effectiveBarcode(p),p.getCertificationNumber()));
-  if(!lookup.success()){p.setRecallCheckStatus(RegisteredProduct.RecallCheckStatus.FAILED);p.setLastCheckedAt(now);p.setLastCheckFailedAt(now);p.setLastCheckErrorCode(lookup.errorCode());p.setLastCheckErrorMessage(lookup.errorMessage());products.save(p);history(p,null,p.getRecallDecisionStatus(),RegisteredProduct.RecallCheckStatus.FAILED,List.of(),List.of(),List.of(),List.of(),p.getRecallDecisionReason(),null,null,lookup);return p;}
-  List<RecallNotice>candidates=store.save(lookup.notices());var d=engine.decide(p,candidates);RegisteredProduct.RecallDecisionStatus previous=p.getRecallDecisionStatus();
-  if(previous==RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED&&d.status()!=RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED){p.setRecallCheckStatus(RegisteredProduct.RecallCheckStatus.SUCCESS);p.setLastCheckedAt(now);p.setLastSuccessfulCheckedAt(now);p.setRecallMissingFields(List.of("ADMINISTRATOR_REVIEW"));p.setRecallDecisionReason("기존 확정 공고가 새 조회에서 확인되지 않아 기존 확정 판정을 유지합니다.");products.save(p);history(p,p.getMatchedRecallNoticeId(),previous,RegisteredProduct.RecallCheckStatus.SUCCESS,p.getRecallMatchedFields(),List.of(),p.getRecallMissingFields(),d.candidateUids(),p.getRecallDecisionReason(),d.queryType(),d.queryValue(),lookup);return p;}
-  p.setRecallDecisionStatus(d.status());p.setRecallCheckStatus(RegisteredProduct.RecallCheckStatus.SUCCESS);p.setMatchedRecallNoticeId(d.notice()==null?null:d.notice().getId());p.setRecallDecisionReason(d.reason());p.setRecallMatchedFields(d.matched());p.setRecallMissingFields(d.missing());p.setLastCheckedAt(now);p.setLastSuccessfulCheckedAt(now);p.setLastCheckErrorCode(null);p.setLastCheckErrorMessage(null);
-  fillMissingOfficialFields(p,d.notice());
-  p.setRecallStatus(switch(d.status()){case RECALL_CONFIRMED->RegisteredProduct.RecallStatus.RECALLED;case NO_MATCH_FOUND->RegisteredProduct.RecallStatus.SAFE;case REVIEW_REQUIRED->RegisteredProduct.RecallStatus.UNKNOWN;});p.setModelMatchStatus(switch(d.status()){case RECALL_CONFIRMED->RegisteredProduct.ModelMatchStatus.MATCHED;case NO_MATCH_FOUND->RegisteredProduct.ModelMatchStatus.NOT_MATCHED;case REVIEW_REQUIRED->RegisteredProduct.ModelMatchStatus.NEEDS_REVIEW;});p.setRecallReason(legacyReason(d.notice(),d.reason()));products.save(p);history(p,p.getMatchedRecallNoticeId(),d.status(),RegisteredProduct.RecallCheckStatus.SUCCESS,d.matched(),d.mismatched(),d.missing(),d.candidateUids(),d.reason(),d.queryType(),d.queryValue(),lookup);
-  if(d.status()==RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED&&previous!=d.status()&&d.notice()!=null&&!alerts.existsByRegisteredProductIdAndRecallNoticeIdAndAlertType(p.getId(),d.notice().getId(),"RECALL_CONFIRMED")){alerts.save(ProductRecallAlert.builder().registeredProductId(p.getId()).recallNoticeId(d.notice().getId()).alertType("RECALL_CONFIRMED").dryRun(properties.isDryRun()||!properties.isNotificationEnabled()).build());}return p;
- }
- private String effectiveBarcode(RegisteredProduct p){if(p.getBarcode()!=null)return p.getBarcode();String m=p.getModelNumber();return m!=null&&m.replaceAll("[\\s-]","").matches("\\d{8,14}")?m:null;}
- private void fillMissingOfficialFields(RegisteredProduct p,RecallNotice n){if(n==null)return;if((p.getProductName()==null||p.getProductName().isBlank())&&n.getProductName()!=null&&!n.getProductName().isBlank())p.setProductName(n.getProductName());if((p.getBrandName()==null||p.getBrandName().isBlank())&&n.getBrandName()!=null&&!n.getBrandName().isBlank())p.setBrandName(n.getBrandName());if((p.getModelNumber()==null||p.getModelNumber().isBlank())&&n.getModelNames()!=null&&!n.getModelNames().isEmpty())p.setModelNumber(n.getModelNames().get(0));}
- private String legacyReason(RecallNotice n,String fallback){if(n==null)return fallback;StringBuilder b=new StringBuilder();append(b,"제품 결함",n.getDefectDescription());append(b,"위해 정보",n.getHazardDescription());append(b,"소비자 행동요령",n.getConsumerAction());append(b,"문의처",n.getInquiryTel());return b.isEmpty()?fallback:b.toString();}private void append(StringBuilder b,String k,String v){if(v!=null&&!v.isBlank()){if(!b.isEmpty())b.append('\n');b.append(k).append(": ").append(v);}}
- private void history(RegisteredProduct p,Long n,RegisteredProduct.RecallDecisionStatus ds,RegisteredProduct.RecallCheckStatus cs,List<String>m,List<String>mm,List<String>miss,List<String>uids,String reason,String qt,String qv,SafetyKoreaRecallClient.Lookup l){histories.save(ProductRecallCheckHistory.builder().registeredProductId(p.getId()).recallNoticeId(n).decisionStatus(ds).checkStatus(cs).queryType(qt).queryValue(qv).matchedFields(m).mismatchedFields(mm).missingFields(miss).candidateRecallUids(uids).decisionReason(reason).externalResultCode(l.resultCode()).externalResultMessage(l.resultMessage()).errorCode(l.errorCode()).errorMessage(l.errorMessage()).productSnapshot(Map.of("productName",safe(p.getProductName()),"manufacturer",safe(p.getManufacturer()),"modelNumber",safe(p.getModelNumber()),"barcode",safe(p.getBarcode()),"certificationNumber",safe(p.getCertificationNumber()))).checkedAt(LocalDateTime.now()).build());}private String safe(String v){return v==null?"":v;}
+
+    private final RegisteredProductRepository products;
+    private final SafetyKoreaRecallClient client;
+    private final KcApiClient kcApiClient;
+    private final RecallNoticeStore store;
+    private final RecallDecisionEngine engine;
+    private final ProductRecallCheckHistoryRepository histories;
+    private final ProductRecallAlertRepository alerts;
+    private final RecallSafetyProperties properties;
+
+    public boolean enabled() {
+        return properties.isNewDecisionEngineEnabled();
+    }
+
+    @Transactional
+    public RegisteredProduct check(Long id) {
+        RegisteredProduct product = products.findById(id)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + id));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        applyKcStatus(product);
+
+        var lookup = client.lookup(
+                new SafetyKoreaRecallClient.ProductQuery(
+                        product.getProductName(),
+                        product.getBrandName(),
+                        product.getManufacturer(),
+                        product.getModelNumber(),
+                        effectiveBarcode(product),
+                        product.getCertificationNumber()
+                )
+        );
+
+        if (!lookup.success()) {
+            product.setRecallCheckStatus(
+                    RegisteredProduct.RecallCheckStatus.FAILED
+            );
+            product.setLastCheckedAt(now);
+            product.setLastCheckFailedAt(now);
+            product.setLastCheckErrorCode(lookup.errorCode());
+            product.setLastCheckErrorMessage(lookup.errorMessage());
+
+            products.save(product);
+
+            history(
+                    product,
+                    null,
+                    product.getRecallDecisionStatus(),
+                    RegisteredProduct.RecallCheckStatus.FAILED,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    product.getRecallDecisionReason(),
+                    null,
+                    null,
+                    lookup
+            );
+
+            return product;
+        }
+
+        List<RecallNotice> candidates = store.save(lookup.notices());
+        var decision = engine.decide(product, candidates);
+
+        RegisteredProduct.RecallDecisionStatus previousStatus =
+                product.getRecallDecisionStatus();
+
+        if (previousStatus
+                == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED
+                && decision.status()
+                != RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED) {
+
+            product.setRecallCheckStatus(
+                    RegisteredProduct.RecallCheckStatus.SUCCESS
+            );
+            product.setLastCheckedAt(now);
+            product.setLastSuccessfulCheckedAt(now);
+            product.setRecallMissingFields(
+                    List.of("ADMINISTRATOR_REVIEW")
+            );
+            product.setRecallDecisionReason(
+                    "기존 확정 공고가 재조회에서 확인되지 않아 "
+                            + "기존 확정 판정을 유지합니다."
+            );
+
+            products.save(product);
+
+            history(
+                    product,
+                    product.getMatchedRecallNoticeId(),
+                    previousStatus,
+                    RegisteredProduct.RecallCheckStatus.SUCCESS,
+                    product.getRecallMatchedFields(),
+                    List.of(),
+                    product.getRecallMissingFields(),
+                    decision.candidateUids(),
+                    product.getRecallDecisionReason(),
+                    decision.queryType(),
+                    decision.queryValue(),
+                    lookup
+            );
+
+            return product;
+        }
+
+        product.setRecallDecisionStatus(decision.status());
+        product.setRecallCheckStatus(
+                RegisteredProduct.RecallCheckStatus.SUCCESS
+        );
+        product.setMatchedRecallNoticeId(
+                decision.notice() == null
+                        ? null
+                        : decision.notice().getId()
+        );
+        product.setRecallDecisionReason(decision.reason());
+        product.setRecallMatchedFields(decision.matched());
+        product.setRecallMissingFields(decision.missing());
+        product.setLastCheckedAt(now);
+        product.setLastSuccessfulCheckedAt(now);
+        product.setLastCheckErrorCode(null);
+        product.setLastCheckErrorMessage(null);
+
+        fillMissingOfficialFields(product, decision.notice());
+
+        product.setRecallStatus(
+                switch (decision.status()) {
+                    case RECALL_CONFIRMED ->
+                            RegisteredProduct.RecallStatus.RECALLED;
+                    case NO_MATCH_FOUND ->
+                            RegisteredProduct.RecallStatus.SAFE;
+                    case REVIEW_REQUIRED ->
+                            RegisteredProduct.RecallStatus.UNKNOWN;
+                }
+        );
+
+        product.setModelMatchStatus(
+                switch (decision.status()) {
+                    case RECALL_CONFIRMED ->
+                            RegisteredProduct.ModelMatchStatus.MATCHED;
+                    case NO_MATCH_FOUND ->
+                            RegisteredProduct.ModelMatchStatus.NOT_MATCHED;
+                    case REVIEW_REQUIRED ->
+                            RegisteredProduct.ModelMatchStatus.NEEDS_REVIEW;
+                }
+        );
+
+        product.setRecallReason(
+                legacyReason(decision.notice(), decision.reason())
+        );
+
+        products.save(product);
+
+        history(
+                product,
+                product.getMatchedRecallNoticeId(),
+                decision.status(),
+                RegisteredProduct.RecallCheckStatus.SUCCESS,
+                decision.matched(),
+                decision.mismatched(),
+                decision.missing(),
+                decision.candidateUids(),
+                decision.reason(),
+                decision.queryType(),
+                decision.queryValue(),
+                lookup
+        );
+
+        if (decision.status()
+                == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED
+                && previousStatus != decision.status()
+                && decision.notice() != null
+                && !alerts.existsByRegisteredProductIdAndRecallNoticeIdAndAlertType(
+                product.getId(),
+                decision.notice().getId(),
+                "RECALL_CONFIRMED"
+        )) {
+
+            alerts.save(
+                    ProductRecallAlert.builder()
+                            .registeredProductId(product.getId())
+                            .recallNoticeId(decision.notice().getId())
+                            .alertType("RECALL_CONFIRMED")
+                            .dryRun(
+                                    properties.isDryRun()
+                                            || !properties.isNotificationEnabled()
+                            )
+                            .build()
+            );
+        }
+
+        return product;
+    }
+
+    private String effectiveBarcode(RegisteredProduct product) {
+        if (product.getBarcode() != null
+                && !product.getBarcode().isBlank()) {
+            return product.getBarcode();
+        }
+
+        String modelNumber = product.getModelNumber();
+
+        if (modelNumber == null) {
+            return null;
+        }
+
+        String normalized = modelNumber.replaceAll("[\\s-]", "");
+
+        return normalized.matches("\\d{8,14}")
+                ? normalized
+                : null;
+    }
+
+    private void fillMissingOfficialFields(
+            RegisteredProduct product,
+            RecallNotice notice
+    ) {
+        if (notice == null) {
+            return;
+        }
+
+        if (isBlank(product.getProductName())
+                && !isBlank(notice.getProductName())) {
+            product.setProductName(notice.getProductName());
+        }
+
+        if (isBlank(product.getBrandName())
+                && !isBlank(notice.getBrandName())) {
+            product.setBrandName(notice.getBrandName());
+        }
+
+        if (isBlank(product.getModelNumber())
+                && notice.getModelNames() != null
+                && !notice.getModelNames().isEmpty()) {
+            product.setModelNumber(notice.getModelNames().get(0));
+        }
+    }
+
+    private void applyKcStatus(RegisteredProduct product) {
+        KcApiClient.KcLookup lookup = kcApiClient.lookup(
+                product.getCertificationNumber(),
+                product.getModelNumber(),
+                product.getProductName(),
+                product.getManufacturer()
+        );
+
+        product.setKcStatus(lookup.status());
+        product.setKcCertNum(lookup.certNum());
+        product.setKcCertState(lookup.certState());
+        product.setKcCertOrganName(lookup.certOrganName());
+        product.setKcCertProductName(lookup.productName());
+        product.setKcCertModelName(lookup.modelName());
+        product.setKcCertManufacturer(lookup.makerName());
+    }
+
+    private String legacyReason(
+            RecallNotice notice,
+            String fallback
+    ) {
+        if (notice == null) {
+            return fallback;
+        }
+
+        StringBuilder builder = new StringBuilder();
+
+        append(
+                builder,
+                "제품 결함",
+                notice.getDefectDescription()
+        );
+        append(
+                builder,
+                "위해 정보",
+                notice.getHazardDescription()
+        );
+        append(
+                builder,
+                "소비자 행동요령",
+                notice.getConsumerAction()
+        );
+        append(
+                builder,
+                "문의처",
+                notice.getInquiryTel()
+        );
+
+        return builder.isEmpty()
+                ? fallback
+                : builder.toString();
+    }
+
+    private void append(
+            StringBuilder builder,
+            String key,
+            String value
+    ) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        if (!builder.isEmpty()) {
+            builder.append('\n');
+        }
+
+        builder.append(key)
+                .append(": ")
+                .append(value);
+    }
+
+    private void history(
+            RegisteredProduct product,
+            Long noticeId,
+            RegisteredProduct.RecallDecisionStatus decisionStatus,
+            RegisteredProduct.RecallCheckStatus checkStatus,
+            List<String> matchedFields,
+            List<String> mismatchedFields,
+            List<String> missingFields,
+            List<String> candidateUids,
+            String reason,
+            String queryType,
+            String queryValue,
+            SafetyKoreaRecallClient.Lookup lookup
+    ) {
+        histories.save(
+                ProductRecallCheckHistory.builder()
+                        .registeredProductId(product.getId())
+                        .recallNoticeId(noticeId)
+                        .decisionStatus(decisionStatus)
+                        .checkStatus(checkStatus)
+                        .queryType(queryType)
+                        .queryValue(queryValue)
+                        .matchedFields(matchedFields)
+                        .mismatchedFields(mismatchedFields)
+                        .missingFields(missingFields)
+                        .candidateRecallUids(candidateUids)
+                        .decisionReason(reason)
+                        .externalResultCode(lookup.resultCode())
+                        .externalResultMessage(lookup.resultMessage())
+                        .errorCode(lookup.errorCode())
+                        .errorMessage(lookup.errorMessage())
+                        .productSnapshot(
+                                Map.of(
+                                        "productName",
+                                        safe(product.getProductName()),
+                                        "manufacturer",
+                                        safe(product.getManufacturer()),
+                                        "modelNumber",
+                                        safe(product.getModelNumber()),
+                                        "barcode",
+                                        safe(product.getBarcode()),
+                                        "certificationNumber",
+                                        safe(product.getCertificationNumber())
+                                )
+                        )
+                        .checkedAt(LocalDateTime.now())
+                        .build()
+        );
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
 }

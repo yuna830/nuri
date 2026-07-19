@@ -7,11 +7,13 @@ import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
 import com.nuri.woorilink.entity.ActionRecord;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.entity.Senior;
+import com.nuri.woorilink.entity.VisitSchedule;
 import com.nuri.woorilink.entity.RecallNotice;
 import com.nuri.woorilink.dto.RecallNoticeDto;
 import com.nuri.woorilink.repository.RegisteredProductRepository;
 import com.nuri.woorilink.repository.SeniorRepository;
 import com.nuri.woorilink.repository.ActionRecordRepository;
+import com.nuri.woorilink.repository.VisitScheduleRepository;
 import com.nuri.woorilink.repository.WelfareWorkerRepository;
 import com.nuri.woorilink.repository.RecallNoticeRepository;
 import com.nuri.woorilink.repository.GuardianRepository;
@@ -39,6 +41,7 @@ public class ProductRecallService {
     private final RecallSafetyService recallSafetyService;
     private final RecallNoticeRepository recallNoticeRepository;
     private final GuardianRepository guardianRepository;
+    private final VisitScheduleRepository visitScheduleRepository;
 
     public List<ProductRecallResponse> getBySenior(Long seniorId) {
         return productRepository.findBySeniorId(seniorId).stream().map(this::toRecallResponse).toList();
@@ -258,7 +261,34 @@ public class ProductRecallService {
 
         RegisteredProduct saved = productRepository.save(product);
         syncRecallActionStatus(saved, request);
+        syncRecallVisitSchedule(saved, request);
         return saved;
+    }
+
+    private void syncRecallVisitSchedule(RegisteredProduct product, RecallWorkflowUpdateRequest request) {
+        if (product.getSeniorId() == null || product.getNextActionDate() == null) return;
+
+        Senior senior = seniorRepository.findById(product.getSeniorId()).orElse(null);
+        String seniorName = senior == null || !nonBlank(senior.getName()) ? "어르신" : senior.getName();
+        Long welfareWorkerId = request.getWelfareWorkerId();
+        if (welfareWorkerId == null && senior != null) welfareWorkerId = senior.getWelfareWorkerId();
+
+        String purpose = seniorName + "님 리콜 조치 방문일";
+        boolean exists = visitScheduleRepository.findBySeniorId(product.getSeniorId()).stream()
+                .anyMatch(schedule ->
+                        product.getNextActionDate().equals(schedule.getVisitDate()) &&
+                        purpose.equals(schedule.getPurpose()) &&
+                        schedule.getStatus() != VisitSchedule.VisitStatus.CANCELLED);
+        if (exists) return;
+
+        visitScheduleRepository.save(VisitSchedule.builder()
+                .seniorId(product.getSeniorId())
+                .welfareWorkerId(welfareWorkerId)
+                .visitDate(product.getNextActionDate())
+                .purpose(purpose)
+                .note(product.getProductName() + " 리콜 후속 조치")
+                .status(VisitSchedule.VisitStatus.PLANNED)
+                .build());
     }
 
     private void syncRecallActionStatus(RegisteredProduct product, RecallWorkflowUpdateRequest request) {
@@ -328,6 +358,7 @@ public class ProductRecallService {
 
     private void applyKcStatus(RegisteredProduct product) {
         KcApiClient.KcLookup lookup = kcApiClient.lookup(
+                product.getCertificationNumber(),
                 product.getModelNumber(),
                 product.getProductName(),
                 product.getManufacturer()

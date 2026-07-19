@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:intl/intl.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../api/assistant_conversation_api.dart';
 import '../api/product_api.dart';
 import '../api/schedule_api.dart';
@@ -19,6 +21,8 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FlutterTts _tts = FlutterTts();
+  final stt.SpeechToText _speech = stt.SpeechToText();
 
   int? _seniorId;
   dynamic _activeConversationId;
@@ -31,19 +35,54 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loading = true;
   bool _sending = false;
   bool _apiKeyMissing = false;
+  bool _listening = false;
+  bool _speechReady = false;
+  bool _voiceAnswerEnabled = true;
+  bool _voiceSendScheduled = false;
+  bool _voiceHadRecognizedText = false;
   _PendingScheduleDraft? _pendingScheduleDraft;
 
   @override
   void initState() {
     super.initState();
+    _initVoice();
     _loadInitialData();
   }
 
   @override
   void dispose() {
+    _speech.stop();
+    _tts.stop();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initVoice() async {
+    await _tts.setLanguage('ko-KR');
+    await _tts.setSpeechRate(0.45);
+    await _tts.setPitch(1.0);
+    await _tts.setVolume(1.0);
+    await _tts.awaitSpeakCompletion(false);
+
+    final ready = await _speech.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'done') {
+          _finishVoiceInput();
+        } else if (status == 'notListening') {
+          _finishVoiceInput();
+        }
+      },
+      onError: (_) {
+        if (!mounted) return;
+        _voiceSendScheduled = false;
+        setState(() => _listening = false);
+      },
+    );
+    if (mounted) {
+      setState(() => _speechReady = ready);
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -67,6 +106,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       _seniorId = seniorId;
       _senior = results[0] as Map<String, dynamic>;
+      _voiceAnswerEnabled = _senior?['chatbotVoiceEnabled'] != false;
       _todaySchedules = _remainingTodaySchedules(results[1] as List<dynamic>);
       _allSchedules = results[2] as List<dynamic>;
       _conversations = results[3] as List<dynamic>;
@@ -232,14 +272,138 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Future<void> _toggleListening() async {
+    if (_sending) return;
+
+    if (!_speechReady) {
+      final ready = await _speech.initialize(
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'done') {
+            _finishVoiceInput();
+          } else if (status == 'notListening') {
+            _finishVoiceInput();
+          }
+        },
+        onError: (_) {
+          if (!mounted) return;
+          _voiceSendScheduled = false;
+          setState(() => _listening = false);
+        },
+      );
+      if (!mounted) return;
+      setState(() => _speechReady = ready);
+      if (!ready) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('음성 인식을 시작하지 못했습니다. 마이크 권한을 확인해 주세요.')),
+        );
+        return;
+      }
+    }
+
+    if (_listening) {
+      await _finishVoiceInput();
+      return;
+    }
+
+    await _tts.stop();
+    _voiceSendScheduled = false;
+    _voiceHadRecognizedText = false;
+    setState(() => _listening = true);
+    await _speech.listen(
+      localeId: 'ko_KR',
+      listenMode: stt.ListenMode.dictation,
+      partialResults: true,
+      listenFor: const Duration(seconds: 10),
+      pauseFor: const Duration(seconds: 2),
+      onResult: (result) {
+        if (!mounted) return;
+        if (_sending) return;
+        final words = result.recognizedWords.trim();
+        if (words.isEmpty) return;
+        _voiceHadRecognizedText = true;
+        setState(() {
+          _controller.text = words;
+          _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+        });
+      },
+    );
+  }
+
+  Future<void> _finishVoiceInput() async {
+    if (_voiceSendScheduled) return;
+    _voiceSendScheduled = true;
+    await _speech.stop();
+    if (!mounted) {
+      _voiceSendScheduled = false;
+      return;
+    }
+
+    setState(() => _listening = false);
+    if (!_voiceHadRecognizedText && _controller.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('음성이 인식되지 않았어요. 다시 말씀해 주세요.')),
+      );
+    }
+    _voiceSendScheduled = false;
+  }
+
+  Future<void> _speak(String text) async {
+    if (!_voiceAnswerEnabled || text.trim().isEmpty) return;
+    final speakable = text
+        .replaceAll(RegExp(r'[#*_`>~\[\]\(\)]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (speakable.isEmpty) return;
+    try {
+      await _tts.stop();
+      await _tts.speak(speakable);
+    } catch (_) {
+      // Korean TTS can be unavailable on some devices.
+    }
+  }
+
+  Future<void> _setVoiceAnswerEnabled(bool enabled) async {
+    final previous = _voiceAnswerEnabled;
+    setState(() => _voiceAnswerEnabled = enabled);
+
+    try {
+      final seniorId = _seniorId ?? await AuthService.getUserId();
+      if (seniorId == null) throw Exception('사용자 정보를 확인할 수 없습니다.');
+      final updated = await SeniorApi.updateSenior(seniorId, {
+        'chatbotVoiceEnabled': enabled,
+      });
+      if (!mounted) return;
+      setState(() => _senior = updated);
+      if (enabled) {
+        await _speak('음성 답변을 켰습니다.');
+      } else {
+        await _tts.stop();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _voiceAnswerEnabled = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('음성 답변 설정을 저장하지 못했습니다.')),
+      );
+    }
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
+    if (_listening) {
+      _voiceSendScheduled = true;
+      await _speech.stop();
+      if (mounted) setState(() => _listening = false);
+      _voiceSendScheduled = false;
+    }
 
     final userMessage = _ChatMessage.user(text);
     setState(() {
       _messages.add(userMessage);
       _sending = true;
+      _voiceHadRecognizedText = false;
     });
     _controller.clear();
     _scrollToBottom();
@@ -605,6 +769,7 @@ $text
       _sending = false;
     });
     await _saveMessage(assistantMessage);
+    await _speak(text);
     _scrollToBottom();
   }
 
@@ -772,7 +937,7 @@ $text
     if (seniorId == null) return [];
     try {
       final products = await ProductApi.getProductsBySenior(seniorId);
-      return products
+      final scheduledProducts = products
           .where((product) => '${product['recallStatus'] ?? ''}' == 'RECALLED')
           .where((product) {
             final date = '${product['nextActionDate'] ?? ''}';
@@ -780,6 +945,13 @@ $text
             final shortDate = date.length >= 10 ? date.substring(0, 10) : date;
             return dateText == null || shortDate == dateText;
           })
+          .toList()
+        ..sort((a, b) {
+          final left = _productNextActionDate(a);
+          final right = _productNextActionDate(b);
+          return left.compareTo(right);
+        });
+      return scheduledProducts
           .map((product) {
             final date = '${product['nextActionDate'] ?? ''}';
             final shortDate = date.length >= 10 ? date.substring(0, 10) : date;
@@ -792,6 +964,12 @@ $text
     } catch (_) {
       return [];
     }
+  }
+
+  DateTime _productNextActionDate(dynamic product) {
+    final raw = product is Map ? '${product['nextActionDate'] ?? ''}' : '';
+    final shortDate = raw.length >= 10 ? raw.substring(0, 10) : raw;
+    return DateTime.tryParse(shortDate) ?? DateTime(9999, 12, 31);
   }
 
   String _formatDateLabel(String date) {
@@ -837,6 +1015,11 @@ $text
         title: const Text('상담 챗봇'),
         actions: [
           IconButton(
+            tooltip: _voiceAnswerEnabled ? '음성 답변 끄기' : '음성 답변 켜기',
+            onPressed: () => _setVoiceAnswerEnabled(!_voiceAnswerEnabled),
+            icon: Icon(_voiceAnswerEnabled ? Icons.volume_up : Icons.volume_off),
+          ),
+          IconButton(
             tooltip: '대화 목록',
             onPressed: _openConversationSheet,
             icon: const Icon(Icons.menu),
@@ -873,7 +1056,9 @@ $text
             _ChatInput(
               controller: _controller,
               sending: _sending,
+              listening: _listening,
               onSend: _send,
+              onVoice: _toggleListening,
             ),
           ],
         ),
@@ -1434,12 +1619,16 @@ class _ChatInput extends StatelessWidget {
   const _ChatInput({
     required this.controller,
     required this.sending,
+    required this.listening,
     required this.onSend,
+    required this.onVoice,
   });
 
   final TextEditingController controller;
   final bool sending;
+  final bool listening;
   final VoidCallback onSend;
+  final VoidCallback onVoice;
 
   @override
   Widget build(BuildContext context) {
@@ -1451,6 +1640,16 @@ class _ChatInput extends StatelessWidget {
       ),
       child: Row(
         children: [
+          IconButton.filledTonal(
+            tooltip: listening ? '음성 입력 중지' : '음성으로 말하기',
+            onPressed: sending ? null : onVoice,
+            style: IconButton.styleFrom(
+              backgroundColor: listening ? kDanger.withOpacity(0.12) : kPrimaryLight,
+              foregroundColor: listening ? kDanger : kPrimaryDark,
+            ),
+            icon: Icon(listening ? Icons.stop : Icons.mic),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,

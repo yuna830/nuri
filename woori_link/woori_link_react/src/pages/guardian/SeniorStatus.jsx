@@ -11,6 +11,7 @@ import {
 
 import {
   getCheckIns,
+  getCareEvents,
   getGuardianAlerts,
   getLatestLocation,
   getLatestRisk,
@@ -22,6 +23,7 @@ import GuardianLayout from './GuardianLayout.jsx';
 import DisconnectSeniorButton from './DisconnectSeniorButton.jsx';
 import KakaoSafetyMap from './KakaoSafetyMap.jsx';
 import { connectGuardianSenior } from '../../api/guardianRelationshipApi.js';
+import FallDetectionCard from './FallDetectionCard.jsx';
 
 import '../../css/guardian/SeniorStatus.css';
 
@@ -83,6 +85,7 @@ const CHECK_IN_LABELS = {
 
 const EMPTY_CARE = {
   alerts: [],
+  fallEvents: [],
   location: null,
   zone: null,
   zones: [],
@@ -554,12 +557,14 @@ export default function SeniorStatus() {
           locationResult,
           zoneResult,
           checkInResult,
+          eventResult,
         ] = await Promise.allSettled([
           getLatestRisk(seniorId),
           getGuardianAlerts(),
           getLatestLocation(seniorId),
           getSafetyZone(seniorId),
           getCheckIns(seniorId),
+          getCareEvents(seniorId),
         ]);
 
         const allAlerts = (
@@ -596,6 +601,17 @@ export default function SeniorStatus() {
           ).getTime()
         ));
 
+        const fallEvents = (
+          eventResult.status === 'fulfilled'
+            ? normalizeArray(eventResult.value.data)
+            : []
+        )
+          .filter((event) => event.type === 'FALL_DETECTED')
+          .sort((first, second) => (
+            new Date(second.occurredAt ?? 0).getTime()
+            - new Date(first.occurredAt ?? 0).getTime()
+          ));
+
         setRisk(
           riskResult.status === 'fulfilled'
             ? normalizeSingle(
@@ -606,6 +622,7 @@ export default function SeniorStatus() {
 
         setCare({
           alerts: seniorAlerts,
+          fallEvents,
 
           location: (
             locationResult.status === 'fulfilled'
@@ -949,6 +966,11 @@ export default function SeniorStatus() {
                 </div>
               </div>
             </section>
+
+            <FallDetectionCard
+              events={care.fallEvents}
+              loading={careLoading}
+            />
 
             <KakaoSafetyMap
               senior={selectedSenior}

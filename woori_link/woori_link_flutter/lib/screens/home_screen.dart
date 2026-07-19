@@ -360,7 +360,10 @@ class _HomeScreenState extends State<HomeScreen> {
           content: Text('내일 방문 예정인 조치가 있어요: $names$extra'),
           action: SnackBarAction(
             label: '보기',
-            onPressed: () => widget.onRecallRequestsSelected?.call(),
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              widget.onRecallRequestsSelected?.call();
+            },
           ),
         ),
       );

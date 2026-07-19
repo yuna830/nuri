@@ -27,9 +27,24 @@ public class KcApiClient {
     private static final String DETAIL_URL =
             "http://www.safetykorea.kr/openapi/api/cert/certificationDetail.json";
 
-    public KcLookup lookup(String modelName, String productName, String makerName) {
+    public KcLookup lookup(String certificationNumber, String modelName, String productName, String makerName) {
         String key = config.getRecallApiKey();
         if (!nonBlank(key)) return KcLookup.notChecked();
+
+        if (nonBlank(certificationNumber)) {
+            JsonNode detail = findCertificationDetail(certificationNumber.trim(), key);
+            if (detail != null) {
+                return new KcLookup(
+                        "KC 인증 확인",
+                        text(detail, "certNum"),
+                        text(detail, "certState"),
+                        text(detail, "certOrganName"),
+                        text(detail, "productName"),
+                        text(detail, "modelName"),
+                        text(detail, "makerName")
+                );
+            }
+        }
 
         for (SearchTerm term : searchTerms(modelName, productName, makerName)) {
             JsonNode item = findFirstCertification(term.conditionKey(), term.conditionValue(), key);
