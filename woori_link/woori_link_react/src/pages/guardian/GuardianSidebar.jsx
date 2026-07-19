@@ -56,6 +56,8 @@ const UNREAD_STATUSES = [
 
 
 const ALERT_TYPE_LABELS = {
+  FALL_DETECTED: '낙상',
+
   CHECK_IN: '안부',
   CHECKIN: '안부',
   AI_CHECK: '안부',
@@ -156,6 +158,17 @@ function getAlertMessage(alert) {
     ?? alert?.description
     ?? ''
   );
+}
+
+
+function getAlertImageUrl(alert) {
+  return alert?.imageUrl ?? alert?.imageAccessUrl ?? null;
+}
+
+
+function getAlertDetectionScore(alert) {
+  const score = Number(alert?.detectionScore ?? alert?.score);
+  return Number.isFinite(score) ? score : null;
 }
 
 
@@ -769,6 +782,8 @@ export default function GuardianSidebar({
 
                     const unread = isUnreadAlert(alert);
                     const action = getAlertAction(alert);
+                    const imageUrl = getAlertImageUrl(alert);
+                    const detectionScore = getAlertDetectionScore(alert);
 
                     return (
                       <article
@@ -811,6 +826,28 @@ export default function GuardianSidebar({
 
                           {getAlertMessage(alert) && (
                             <p>{getAlertMessage(alert)}</p>
+                          )}
+
+                          {detectionScore != null && (
+                            <span className="guardian-notification-item__score">
+                              감지 점수 {detectionScore}
+                            </span>
+                          )}
+
+                          {imageUrl && (
+                            <a
+                              className="guardian-notification-item__image-link"
+                              href={imageUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label="낙상 감지 사진 크게 보기"
+                            >
+                              <img
+                                src={imageUrl}
+                                alt="낙상 감지 당시 사진"
+                                loading="lazy"
+                              />
+                            </a>
                           )}
                         </div>
 

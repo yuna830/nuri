@@ -1,0 +1,9 @@
+ALTER TABLE wl_care_events
+    ADD COLUMN IF NOT EXISTS image_url VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS detection_score INTEGER,
+    ADD COLUMN IF NOT EXISTS fall_details JSONB;
+
+ALTER TABLE wl_care_alerts
+    ADD COLUMN IF NOT EXISTS image_url VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS detection_score INTEGER,
+    ADD COLUMN IF NOT EXISTS fall_details JSONB;

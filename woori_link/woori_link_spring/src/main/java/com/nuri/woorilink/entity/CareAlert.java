@@ -3,8 +3,11 @@ package com.nuri.woorilink.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Entity
 @Table(name = "wl_care_alerts")
@@ -20,6 +23,12 @@ public class CareAlert {
     @Enumerated(EnumType.STRING) @Column(nullable = false) private AlertStatus status;
     @Column(nullable = false) private String title;
     @Column(nullable = false, length = 1000) private String message;
+    @Column(length = 2000) private String imageUrl;
+    private Integer detectionScore;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    @Builder.Default
+    private Map<String, Object> fallDetails = Map.of();
     @CreationTimestamp private LocalDateTime createdAt;
     private LocalDateTime acknowledgedAt;
     private LocalDateTime lastReminderAt;

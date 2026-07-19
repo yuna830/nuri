@@ -3,8 +3,11 @@ package com.nuri.woorilink.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Entity
 @Table(name = "wl_care_events")
@@ -18,6 +21,12 @@ public class CareEvent {
     private Double latitude;
     private Double longitude;
     @Column(length = 1000) private String note;
+    @Column(length = 2000) private String imageUrl;
+    private Integer detectionScore;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    @Builder.Default
+    private Map<String, Object> fallDetails = Map.of();
     private LocalDateTime occurredAt;
     @CreationTimestamp private LocalDateTime createdAt;
 
