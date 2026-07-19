@@ -19,13 +19,20 @@ public class FallAlertController {
 
     @PostMapping("/fall")
     public Map<String, Object> receiveFall(@RequestBody FallAlertRequest request) {
-        String note = "Fall model detected: score=" + request.score();
-        CareEvent event = careMonitoringService.reportEvent(
-                request.seniorId(), CareEvent.EventType.FALL_DETECTED, null, null, note);
-        return Map.of("id", event.getId(), "status", "accepted", "eventType", event.getType().name());
+        String imageUrl = request.imageAccessUrl() == null || request.imageAccessUrl().isBlank()
+                ? request.imageUrl()
+                : request.imageAccessUrl();
+        CareEvent event = careMonitoringService.reportFall(
+                request.seniorId(), request.score(), imageUrl, request.fallDetails());
+        return Map.of(
+                "id", event.getId(),
+                "status", "accepted",
+                "eventType", event.getType().name(),
+                "imageStored", event.getImageUrl() != null
+        );
     }
 
-    public record FallAlertRequest(Long seniorId, Integer score, String imageUrl,
+    public record FallAlertRequest(Long seniorId, Integer score, String imageUrl, String imageAccessUrl,
                                    Boolean notifyGuardian, Boolean escalationRequired,
                                    Map<String, Object> fallDetails) { }
 }

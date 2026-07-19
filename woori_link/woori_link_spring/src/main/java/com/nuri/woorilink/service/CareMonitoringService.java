@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -24,11 +26,34 @@ public class CareMonitoringService {
 
     @Transactional
     public CareEvent reportEvent(Long seniorId, CareEvent.EventType type, Double latitude, Double longitude, String note) {
+        return reportEvent(seniorId, type, latitude, longitude, note, null, null, Map.of());
+    }
+
+    @Transactional
+    public CareEvent reportFall(Long seniorId, Integer score, String imageUrl, Map<String, Object> fallDetails) {
+        String note = "Fall model detected" + (score == null ? "" : ": score=" + score);
+        return reportEvent(
+                seniorId,
+                CareEvent.EventType.FALL_DETECTED,
+                null,
+                null,
+                note,
+                normalizeImageUrl(imageUrl),
+                score,
+                fallDetails == null ? Map.of() : new LinkedHashMap<>(fallDetails)
+        );
+    }
+
+    private CareEvent reportEvent(Long seniorId, CareEvent.EventType type, Double latitude, Double longitude,
+                                  String note, String imageUrl, Integer detectionScore,
+                                  Map<String, Object> fallDetails) {
         Senior senior = seniorRepository.findById(seniorId)
                 .orElseThrow(() -> new IllegalArgumentException("Senior not found: " + seniorId));
         CareEvent event = eventRepository.save(CareEvent.builder()
                 .seniorId(seniorId).type(type).status(CareEvent.EventStatus.PENDING)
-                .latitude(latitude).longitude(longitude).note(note).occurredAt(LocalDateTime.now()).build());
+                .latitude(latitude).longitude(longitude).note(note)
+                .imageUrl(imageUrl).detectionScore(detectionScore).fallDetails(fallDetails)
+                .occurredAt(LocalDateTime.now()).build());
         createAlert(senior, event);
         return event;
     }
@@ -132,8 +157,9 @@ public class CareMonitoringService {
     }
 
     @Transactional
-    public CareAlert acknowledgeAlert(Long alertId, boolean resolved) {
-        CareAlert alert = alertRepository.findById(alertId).orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+    public CareAlert acknowledgeAlert(Long alertId, boolean resolved, Long guardianId) {
+        CareAlert alert = alertRepository.findByIdAndGuardianId(alertId, guardianId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
         alert.setStatus(resolved ? CareAlert.AlertStatus.RESOLVED : CareAlert.AlertStatus.ACKNOWLEDGED);
         alert.setAcknowledgedAt(LocalDateTime.now());
         return alert;
@@ -150,7 +176,18 @@ public class CareMonitoringService {
                 ? CareAlert.Severity.HIGH : CareAlert.Severity.MEDIUM;
         alertRepository.save(CareAlert.builder().seniorId(senior.getId()).guardianId(senior.getGuardianId())
                 .careEventId(event.getId()).type(event.getType()).severity(severity).status(CareAlert.AlertStatus.UNREAD)
+                .imageUrl(event.getImageUrl()).detectionScore(event.getDetectionScore())
+                .fallDetails(event.getFallDetails())
                 .title(title).message(senior.getName() + "님: " + title).build());
+    }
+
+    private String normalizeImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return null;
+        String normalized = imageUrl.trim();
+        if (normalized.length() > 2000) {
+            throw new IllegalArgumentException("imageUrl must not exceed 2000 characters");
+        }
+        return normalized;
     }
 
     private double distanceMeters(double lat1, double lon1, double lat2, double lon2) {

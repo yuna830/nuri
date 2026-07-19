@@ -16,21 +16,27 @@ class CareMonitoringService {
   static const double _stillnessLow = 7.0; // m/s^2
   static const double _stillnessHigh = 11.5; // m/s^2
   static const Duration _stillnessWindow = Duration(milliseconds: 800);
+  static const Duration _requiredStillness = Duration(milliseconds: 300);
   static const Duration _reportCooldown = Duration(minutes: 2);
 
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   _ImpactStage _stage = _ImpactStage.idle;
   DateTime? _impactTime;
+  DateTime? _stillnessStartedAt;
   DateTime? _lastFallReport;
+  Timer? _normalStatusTimer;
+  bool _disposed = false;
 
   Future<void> start() async {
     final seniorId = await AuthService.getUserId();
-    if (seniorId == null || !await _requestLocationPermission()) return;
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 30),
-    ).listen((position) => CareMonitoringApi.sendLocation(seniorId, position.latitude, position.longitude).catchError((_) {}));
+    if (seniorId == null) return;
     _accelerometerSubscription = accelerometerEventStream().listen((event) => _onAccelerometerEvent(event, seniorId));
+    if (await _requestLocationPermission()) {
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 30),
+      ).listen((position) => CareMonitoringApi.sendLocation(seniorId, position.latitude, position.longitude).catchError((_) {}));
+    }
   }
 
   void _onAccelerometerEvent(AccelerometerEvent event, int seniorId) {
@@ -41,20 +47,32 @@ class CareMonitoringService {
       if (magnitude > _impactThreshold) {
         _stage = _ImpactStage.impactDetected;
         _impactTime = now;
+        _stillnessStartedAt = null;
       }
       return;
     }
 
     // impactDetected: 충격 이후 정지 상태 확인 대기.
     if (now.difference(_impactTime!) > _stillnessWindow) {
-      _stage = _ImpactStage.idle;
+      _resetImpactState();
       return;
     }
 
     if (magnitude >= _stillnessLow && magnitude <= _stillnessHigh) {
-      _stage = _ImpactStage.idle;
-      _reportFall(seniorId);
+      _stillnessStartedAt ??= now;
+      if (now.difference(_stillnessStartedAt!) >= _requiredStillness) {
+        _resetImpactState();
+        _reportFall(seniorId);
+      }
+    } else {
+      _stillnessStartedAt = null;
     }
+  }
+
+  void _resetImpactState() {
+    _stage = _ImpactStage.idle;
+    _impactTime = null;
+    _stillnessStartedAt = null;
   }
 
   void _reportFall(int seniorId) {
@@ -62,20 +80,27 @@ class CareMonitoringService {
     if (_lastFallReport != null && now.difference(_lastFallReport!) < _reportCooldown) return;
     _lastFallReport = now;
 
-    CareMonitoringApi.reportFall(seniorId).catchError((_) {});
-
-    // fall-detection 서버(카메라 앙상블)에도 폰 센서 신호 전달 — 기존 /arduino/status와 동일한 계약.
-    _postPhoneStatus('FALL');
-    Future.delayed(const Duration(seconds: 5), () => _postPhoneStatus('NORMAL'));
+    // Python combines phone, camera, and Arduino signals and reports one final
+    // event to woori_link_spring.
+    _postPhoneStatus('FALL', seniorId);
+    _normalStatusTimer?.cancel();
+    _normalStatusTimer = Timer(const Duration(seconds: 5), () {
+      if (!_disposed) _postPhoneStatus('NORMAL', seniorId);
+    });
   }
 
-  Future<void> _postPhoneStatus(String status) async {
+  Future<void> _postPhoneStatus(String status, int seniorId) async {
     try {
       await http
           .post(
             Uri.parse('$fallServerBaseUrl/phone/status'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'status': status}),
+            body: jsonEncode({
+              'status': status,
+              'seniorId': seniorId,
+              'deviceId': fallDeviceId,
+              'occurredAt': DateTime.now().toUtc().toIso8601String(),
+            }),
           )
           .timeout(const Duration(seconds: 5));
     } catch (_) {}
@@ -88,5 +113,10 @@ class CareMonitoringService {
     return permission == LocationPermission.always || permission == LocationPermission.whileInUse;
   }
 
-  void dispose() { _positionSubscription?.cancel(); _accelerometerSubscription?.cancel(); }
+  void dispose() {
+    _disposed = true;
+    _normalStatusTimer?.cancel();
+    _positionSubscription?.cancel();
+    _accelerometerSubscription?.cancel();
+  }
 }
