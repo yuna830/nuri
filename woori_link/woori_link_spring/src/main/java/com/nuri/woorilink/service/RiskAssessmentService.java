@@ -3,11 +3,13 @@ package com.nuri.woorilink.service;
 import com.nuri.woorilink.common.client.WeatherAlertApiClient;
 import com.nuri.woorilink.dto.RiskAssessmentDto;
 import com.nuri.woorilink.entity.ActionRecord;
+import com.nuri.woorilink.entity.CareEvent;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.entity.RiskAssessment;
 import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.entity.VisitSchedule;
 import com.nuri.woorilink.repository.ActionRecordRepository;
+import com.nuri.woorilink.repository.CareEventRepository;
 import com.nuri.woorilink.repository.RegisteredProductRepository;
 import com.nuri.woorilink.repository.RiskAssessmentRepository;
 import com.nuri.woorilink.repository.SeniorRepository;
@@ -37,6 +39,7 @@ public class RiskAssessmentService {
     private final ActionRecordRepository actionRepository;
     private final VisitScheduleRepository visitRepository;
     private final WeatherAlertApiClient weatherAlertApiClient;
+    private final CareEventRepository careEventRepository;
 
     public Optional<RiskAssessmentDto> getLatest(Long seniorId) {
         return riskRepository
@@ -69,6 +72,12 @@ public class RiskAssessmentService {
 
         List<VisitSchedule> visits =
                 visitRepository.findBySeniorId(seniorId);
+
+        FallRiskCalculator.Result fallRisk = FallRiskCalculator.calculate(
+                careEventRepository.findBySeniorIdOrderByOccurredAtDesc(seniorId),
+                LocalDateTime.now()
+        );
+        int fallEnvironmentScore = calculateFallEnvironmentScore(actions);
 
         /*
          * 리콜 대상이지만 아직 조치가 완료되지 않은 제품
@@ -275,6 +284,21 @@ public class RiskAssessmentService {
             reasons.add("안전반경 이탈 후 상태 미확인");
         }
 
+        actualRiskScore += fallRisk.actualRiskScore();
+        if (fallRisk.activeDetectedFall()) {
+            reasons.add("현재 낙상 감지");
+        } else if (fallRisk.actualRiskScore() == 20) {
+            reasons.add("현재 낙상 의심");
+        }
+        if (fallRisk.activeSos()) {
+            reasons.add("현재 SOS 긴급 호출");
+        }
+
+        actualRiskScore += fallEnvironmentScore;
+        if (fallEnvironmentScore > 0) {
+            reasons.add("생활환경 낙상 위험");
+        }
+
         /*
          * B. 조치 지연 점수
          */
@@ -297,6 +321,11 @@ public class RiskAssessmentService {
         if (repeatedIssue) {
             delayScore += 10;
             reasons.add("최근 30일 내 동일 미처리 문제 반복");
+        }
+
+        delayScore += fallRisk.delayScore();
+        if (fallRisk.delayScore() > 0) {
+            reasons.add("낙상 안전 미확인 지연");
         }
 
         delayScore = Math.min(delayScore, 40);
@@ -336,6 +365,11 @@ public class RiskAssessmentService {
             reasons.add("전기·가스요금 복지할인 대상 미신청");
         }
 
+        vulnerabilityScore += fallRisk.historyScore();
+        if (fallRisk.historyScore() > 0) {
+            reasons.add("최근 해결된 낙상 이력");
+        }
+
         vulnerabilityScore =
                 Math.min(vulnerabilityScore, 25);
 
@@ -365,14 +399,17 @@ public class RiskAssessmentService {
                         || safetyInspectionNeeded
                         || overdueAction
                         || delayedVisit
-                        || aiNoResponse
-                        || locationAnomaly;
+                         || aiNoResponse
+                         || locationAnomaly
+                         || fallRisk.actionableRisk();
 
         RiskAssessment.RiskLevel level;
 
         if (totalScore >= 50 && hasActionableRisk) {
             level = RiskAssessment.RiskLevel.HIGH;
-        } else if (totalScore >= 30) {
+        } else if (totalScore >= 30
+                || ((fallRisk.actualRiskScore() > 0 || fallEnvironmentScore > 0)
+                && totalScore >= 20)) {
             level = RiskAssessment.RiskLevel.MEDIUM;
         } else {
             level = RiskAssessment.RiskLevel.LOW;
@@ -460,6 +497,16 @@ public class RiskAssessmentService {
                         assessment.getGuardianMissing()
                 );
 
+        FallRiskCalculator.Result fallRisk = FallRiskCalculator.calculate(
+                careEventRepository.findBySeniorIdOrderByOccurredAtDesc(
+                        assessment.getSeniorId()
+                ),
+                LocalDateTime.now()
+        );
+        int fallEnvironmentScore = calculateFallEnvironmentScore(
+                actionRepository.findBySeniorId(assessment.getSeniorId())
+        );
+
         /*
          * A. 실제 위험 점수 재구성
          */
@@ -505,15 +552,31 @@ public class RiskAssessmentService {
             actualRiskScore += 20;
         }
 
+        actualRiskScore += fallRisk.actualRiskScore();
+        actualRiskScore += fallEnvironmentScore;
+
         /*
          * B. 조치 지연 점수
          */
         int delayScore;
 
         if (assessment.getDelayScore() != null) {
+            FallRiskCalculator.Result assessedFallRisk =
+                    FallRiskCalculator.calculate(
+                            careEventRepository.findBySeniorIdOrderByOccurredAtDesc(
+                                    assessment.getSeniorId()
+                            ),
+                            assessment.getAssessedAt() != null
+                                    ? assessment.getAssessedAt()
+                                    : LocalDateTime.now()
+                    );
             delayScore =
                     Math.min(
-                            assessment.getDelayScore(),
+                            Math.max(
+                                    assessment.getDelayScore()
+                                            - assessedFallRisk.delayScore(),
+                                    0
+                            ),
                             40
                     );
         } else {
@@ -540,6 +603,8 @@ public class RiskAssessmentService {
             delayScore =
                     Math.min(fallbackDelayScore, 40);
         }
+
+        delayScore = Math.min(delayScore + fallRisk.delayScore(), 40);
 
         /*
          * C. 기본 취약성 점수
@@ -580,6 +645,8 @@ public class RiskAssessmentService {
             vulnerabilityScore += 5;
         }
 
+        vulnerabilityScore += fallRisk.historyScore();
+
         vulnerabilityScore =
                 Math.min(vulnerabilityScore, 25);
 
@@ -612,13 +679,16 @@ public class RiskAssessmentService {
                 )
                         || Boolean.TRUE.equals(
                         assessment.getLocationAnomaly()
-                );
+                )
+                        || fallRisk.actionableRisk();
 
         RiskAssessment.RiskLevel level;
 
         if (totalScore >= 50 && hasActionableRisk) {
             level = RiskAssessment.RiskLevel.HIGH;
-        } else if (totalScore >= 30) {
+        } else if (totalScore >= 30
+                || ((fallRisk.actualRiskScore() > 0 || fallEnvironmentScore > 0)
+                && totalScore >= 20)) {
             level = RiskAssessment.RiskLevel.MEDIUM;
         } else {
             level = RiskAssessment.RiskLevel.LOW;
@@ -706,6 +776,20 @@ public class RiskAssessmentService {
                         assessment.getAssessedAt()
                 )
                 .build();
+    }
+
+    private int calculateFallEnvironmentScore(List<ActionRecord> actions) {
+        return actions.stream()
+                .filter(action -> action.getActionType() == ActionRecord.ActionType.FALL_CHECK)
+                .map(ActionRecord::getFallEnvironmentRisk)
+                .filter(Objects::nonNull)
+                .mapToInt(risk -> switch (risk) {
+                    case DANGER -> 20;
+                    case CAUTION -> 10;
+                    case GOOD, UNCHECKED -> 0;
+                })
+                .max()
+                .orElse(0);
     }
 
     private boolean isRecallActionCompleted(

@@ -40,6 +40,9 @@ public class ActionRecord {
     @Builder.Default
     private Boolean immediateRisk = false;
 
+    @Enumerated(EnumType.STRING)
+    private FallEnvironmentRisk fallEnvironmentRisk;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -62,5 +65,9 @@ public class ActionRecord {
 
     public enum ActionStatus {
         PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+    }
+
+    public enum FallEnvironmentRisk {
+        GOOD, CAUTION, DANGER, UNCHECKED
     }
 }

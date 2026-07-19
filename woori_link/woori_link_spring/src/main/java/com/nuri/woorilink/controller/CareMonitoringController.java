@@ -1,9 +1,12 @@
 package com.nuri.woorilink.controller;
 
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.entity.*;
 import com.nuri.woorilink.service.CareMonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +25,14 @@ public class CareMonitoringController {
 
     @GetMapping("/seniors/{seniorId}/events")
     public List<CareEvent> events(@PathVariable Long seniorId) { return careMonitoringService.events(seniorId); }
+
+    @PatchMapping("/events/{eventId}/fall-status")
+    public CareEvent updateFallStatus(@PathVariable Long eventId,
+                                      @RequestBody FallStatusRequest request,
+                                      Authentication authentication) {
+        return careMonitoringService.updateFallStatus(
+                eventId, request.status(), requireGuardian(authentication));
+    }
 
     @PostMapping("/seniors/{seniorId}/check-ins")
     @ResponseStatus(HttpStatus.CREATED)
@@ -61,16 +72,34 @@ public class CareMonitoringController {
     public List<SafetyZone> safetyZones(@PathVariable Long seniorId) { return careMonitoringService.safetyZones(seniorId); }
 
     @GetMapping("/guardians/{guardianId}/alerts")
-    public List<CareAlert> guardianAlerts(@PathVariable Long guardianId) { return careMonitoringService.guardianAlerts(guardianId); }
+    public List<CareAlert> guardianAlerts(@PathVariable Long guardianId, Authentication authentication) {
+        Long authenticatedGuardianId = requireGuardian(authentication);
+        if (!authenticatedGuardianId.equals(guardianId)) {
+            throw new AccessDeniedException("You can only view your own alerts");
+        }
+        return careMonitoringService.guardianAlerts(authenticatedGuardianId);
+    }
 
     @PatchMapping("/alerts/{alertId}")
-    public CareAlert acknowledge(@PathVariable Long alertId, @RequestBody AlertStatusRequest request) {
-        return careMonitoringService.acknowledgeAlert(alertId, request.resolved());
+    public CareAlert acknowledge(@PathVariable Long alertId, @RequestBody AlertStatusRequest request,
+                                 Authentication authentication) {
+        return careMonitoringService.acknowledgeAlert(
+                alertId, request.resolved(), requireGuardian(authentication));
+    }
+
+    private Long requireGuardian(Authentication authentication) {
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof AuthenticatedUser user)
+                || !"GUARDIAN".equals(user.getRole())) {
+            throw new AccessDeniedException("Guardian authentication is required");
+        }
+        return user.getUserId();
     }
 
     public record EventRequest(CareEvent.EventType type, Double latitude, Double longitude, String note) { }
     public record LocationRequest(double latitude, double longitude) { }
     public record SafetyZoneRequest(Long id, int slotNumber, String name, double latitude, double longitude, int radiusMeters) { }
     public record AlertStatusRequest(boolean resolved) { }
+    public record FallStatusRequest(CareEvent.EventStatus status) { }
     public record CheckInResponse(String message) { }
 }

@@ -28,3 +28,4 @@ export const getSafetyZone = (seniorId) => api.get(`/care/seniors/${seniorId}/sa
 export const saveSafetyZone = (seniorId, data) => api.put(`/care/seniors/${seniorId}/safety-zone`, data);
 export const deleteSafetyZone = (seniorId, zoneId) => api.delete(`/care/seniors/${seniorId}/safety-zone/${zoneId}`);
 export const getCheckIns = (seniorId) => api.get(`/care/seniors/${seniorId}/check-ins`);
+export const getCareEvents = (seniorId) => api.get(`/care/seniors/${seniorId}/events`);
