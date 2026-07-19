@@ -2,10 +2,13 @@ package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.dto.SeniorProfileUpdateRequest;
+import com.nuri.woorilink.dto.GuardianSeniorConnectRequest;
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.service.SeniorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -57,6 +60,17 @@ public class SeniorController {
     public List<Senior> search(@RequestParam String name,
                                @RequestParam String phone) {
         return seniorService.search(name, phone);
+    }
+
+    @PostMapping("/guardian/connect")
+    public Senior connectGuardian(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestBody GuardianSeniorConnectRequest request
+    ) {
+        if (user == null || !"GUARDIAN".equals(user.getRole())) {
+            throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
+        }
+        return seniorService.connectGuardian(user.getUserId(), request.getName(), request.getPhone());
     }
 
     @DeleteMapping("/guardian/{guardianId}/{seniorId}")

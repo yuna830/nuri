@@ -23,7 +23,7 @@ public class SafetyKoreaRecallClient {
   return new Lookup(true,code,msg,null,null,new ArrayList<>(found.values()));
  }
  public Lookup fetchAll(){if(blank(config.getRecallApiKey()))return Lookup.fail("4000","AUTH_KEY_MISSING","인증키가 없습니다.");Result list=call(config.getRecallListUrl(),Map.of("conditionKey","all","conditionValue","all"));if(!list.success)return Lookup.fail(list.code,errorCode(list.code),list.message);List<NoticePayload>out=new ArrayList<>();for(JsonNode item:list.items){String uid=text(item,"recallUid");if(uid.isBlank())continue;Result detail=call(config.getRecallDetailUrl(),Map.of("recallUid",uid));out.add(new NoticePayload(uid,item,detail.success&&!detail.items.isEmpty()?detail.items.get(0):item,!detail.success,detail.code,detail.message));}return new Lookup(true,list.code,list.message,null,null,out);}
- private List<Query> queries(ProductQuery q){ List<Query> out=new ArrayList<>(); add(out,"barcodeNum",q.barcode); add(out,"certNum",q.certificationNumber); add(out,"recallModelName",q.modelNumber); add(out,"recallProductName",q.productName); return out; }
+ private List<Query> queries(ProductQuery q){ List<Query> out=new ArrayList<>(); add(out,"barcodeNum",q.barcode); add(out,"certNum",q.certificationNumber); add(out,"recallModelName",q.modelNumber); add(out,"recallProductName",q.productName); add(out,"recallBrandName",q.brandName); return out; }
  private void add(List<Query> out,String type,String value){ if(!blank(value)) out.add(new Query(type,value.trim())); }
  private Result call(String base,Map<String,String> params){
   try{ UriComponentsBuilder b=UriComponentsBuilder.fromUriString(base); params.forEach(b::queryParam); String url=b.build().encode().toUriString();
@@ -35,7 +35,7 @@ public class SafetyKoreaRecallClient {
  }
  private String errorCode(String code){return switch(code==null?"":code){case"4000"->"INVALID_AUTH_KEY";case"4001"->"UNAUTHORIZED_IP";case"4005"->"INVALID_PARAMETER";case"5000"->"EXTERNAL_SERVER_ERROR";default->code;};}
  private String text(JsonNode n,String f){JsonNode v=n==null?null:n.get(f);return v==null||v.isNull()?"":v.asText("").trim();} private boolean blank(String v){return v==null||v.isBlank();}
- public record ProductQuery(String productName,String manufacturer,String modelNumber,String barcode,String certificationNumber){}
+ public record ProductQuery(String productName,String brandName,String manufacturer,String modelNumber,String barcode,String certificationNumber){}
  public record NoticePayload(String recallUid,JsonNode listItem,JsonNode detailItem,boolean detailFailed,String detailCode,String detailMessage){}
  public record Lookup(boolean success,String resultCode,String resultMessage,String errorCode,String errorMessage,List<NoticePayload> notices){static Lookup fail(String c,String e,String m){return new Lookup(false,c,m,e,m,List.of());}}
  private record Query(String type,String value){} private record Result(boolean success,String code,String message,List<JsonNode>items){static Result ok(String c,String m,List<JsonNode>i){return new Result(true,c,m,i);}static Result fail(String c,String m){return new Result(false,c,m,List.of());}}

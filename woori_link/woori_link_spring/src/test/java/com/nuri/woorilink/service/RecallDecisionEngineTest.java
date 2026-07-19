@@ -20,10 +20,10 @@ class RecallDecisionEngineTest {
         assertThat(result.status()).isEqualTo(RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND);
     }
 
-    @Test void certificationMatchRequiresModelRange() {
+    @Test void certificationExactMatchIsConfirmed() {
         var product = product("OTHER-1", null, "JU12345-1");
         var result = engine.decide(product, List.of(notice(List.of("ABC-1"), List.of(), List.of("JU12345-1"), false)));
-        assertThat(result.status()).isEqualTo(RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND);
+        assertThat(result.status()).isEqualTo(RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED);
     }
 
     @Test void normalizedModelNumberMatches() {
@@ -41,7 +41,7 @@ class RecallDecisionEngineTest {
         var result = engine.decide(product("ABC-1", null, "JU12345-1"),
                 List.of(notice(List.of("ABC-1"), List.of(), List.of("JU12345-1"), false)));
         assertThat(result.status()).isEqualTo(RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED);
-        assertThat(result.matched()).contains("CERTIFICATION_NUMBER", "MODEL_NUMBER");
+        assertThat(result.matched()).contains("CERTIFICATION_NUMBER");
     }
 
     @Test void similarButDifferentModelDoesNotMatch() {

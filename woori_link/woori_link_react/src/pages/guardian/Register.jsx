@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { registerGuardian } from '../../api/guardianAuthApi.js';
+import '../../css/guardian/Register.css';
 
 const INIT = { name: '', phone: '', password: '', passwordConfirm: '', relationship: '', email: '' };
 
@@ -53,35 +54,44 @@ export default function GuardianRegister() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card" style={{ width: 420 }}>
+      <div className="auth-card auth-card-wide guardian-register-card">
         <div className="auth-logo">
           <div className="auth-logo-title">WOORI LINK</div>
           <div className="auth-logo-sub">보호자 회원가입</div>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {[
-            { label: '이름 *', field: 'name', placeholder: '홍길동', required: true },
-            { label: '전화번호 *', field: 'phone', placeholder: '010-0000-0000', required: true, type: 'tel', inputMode: 'numeric', maxLength: 13 },
-            { label: '비밀번호 *', field: 'password', placeholder: '8자 이상', required: true, type: 'password' },
-            { label: '비밀번호 확인 *', field: 'passwordConfirm', placeholder: '비밀번호 재입력', required: true, type: 'password' },
-            { label: '어르신과의 관계', field: 'relationship', placeholder: '예) 아들, 딸, 배우자' },
-            { label: '이메일', field: 'email', placeholder: 'example@email.com', type: 'email' },
-          ].map(({ label, field, placeholder, required, type = 'text', inputMode, maxLength }) => (
-            <div key={field} className="auth-field">
-              <label className="auth-label">{label}</label>
-              <input
-                className="auth-input"
-                type={type}
-                value={form[field]}
-                onChange={set(field)}
-                placeholder={placeholder}
-                inputMode={inputMode}
-                maxLength={maxLength}
-                required={required}
-              />
+          <div className="form-row">
+            <div className="auth-field guardian-register-name">
+              <label className="auth-label">이름 *</label>
+              <input className="auth-input" value={form.name} onChange={set('name')} placeholder="홍길동" required />
             </div>
-          ))}
+            <div className="auth-field">
+              <label className="auth-label">전화번호 *</label>
+              <input className="auth-input" type="tel" value={form.phone} onChange={set('phone')} placeholder="010-0000-0000" inputMode="numeric" maxLength={13} required />
+            </div>
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label">이메일</label>
+            <input className="auth-input" type="email" value={form.email} onChange={set('email')} placeholder="example@email.com" />
+          </div>
+
+          <div className="form-row">
+            <div className="auth-field">
+              <label className="auth-label">비밀번호 *</label>
+              <input className="auth-input" type="password" value={form.password} onChange={set('password')} placeholder="8자 이상" required />
+            </div>
+            <div className="auth-field">
+              <label className="auth-label">비밀번호 확인 *</label>
+              <input className="auth-input" type="password" value={form.passwordConfirm} onChange={set('passwordConfirm')} placeholder="비밀번호 재입력" required />
+            </div>
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label">어르신과의 관계</label>
+            <input className="auth-input" value={form.relationship} onChange={set('relationship')} placeholder="예) 아들, 딸, 배우자" />
+          </div>
 
           {error && <div className="auth-alert-error">{error}</div>}
 

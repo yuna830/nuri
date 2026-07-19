@@ -21,6 +21,7 @@ import {
 import GuardianLayout from './GuardianLayout.jsx';
 import DisconnectSeniorButton from './DisconnectSeniorButton.jsx';
 import KakaoSafetyMap from './KakaoSafetyMap.jsx';
+import { connectGuardianSenior } from '../../api/guardianRelationshipApi.js';
 
 import '../../css/guardian/SeniorStatus.css';
 
@@ -419,6 +420,33 @@ export default function SeniorStatus() {
   const [loading, setLoading] = useState(true);
   const [careLoading, setCareLoading] = useState(false);
   const [error, setError] = useState('');
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [connectForm, setConnectForm] = useState({ name: '', phone: '' });
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState('');
+
+  const handleConnectSenior = async (event) => {
+    event.preventDefault();
+    setConnecting(true);
+    setConnectError('');
+    try {
+      const connectedSenior = await connectGuardianSenior(connectForm.name, connectForm.phone);
+      setSeniors((current) => (
+        current.some((senior) => String(senior.id) === String(connectedSenior.id))
+          ? current
+          : [...current, connectedSenior]
+      ));
+      setSelectedSeniorId(connectedSenior.id);
+      setSearchParams({ seniorId: connectedSenior.id });
+      setConnectOpen(false);
+      setConnectForm({ name: '', phone: '' });
+      setError('');
+    } catch (connectRequestError) {
+      setConnectError(connectRequestError.message || '어르신을 연결하지 못했습니다.');
+    } finally {
+      setConnecting(false);
+    }
+  };
 
 
   /*
@@ -778,8 +806,16 @@ export default function SeniorStatus() {
             <h1>어르신 현황</h1>
           </div>
 
-          {seniors.length > 1 && (
-            <div className="guardian-senior-page__selector" role="group" aria-label="어르신 선택">
+          <div className="guardian-senior-page__selector" role="group" aria-label="어르신 선택 및 연결">
+              <button
+                type="button"
+                className="guardian-senior-page__connect"
+                onClick={() => { setConnectError(''); setConnectOpen(true); }}
+              >
+                <span aria-hidden="true">+</span>
+                어르신 연결
+              </button>
+
               {seniors.map((senior) => (
                 <button
                   type="button"
@@ -791,8 +827,23 @@ export default function SeniorStatus() {
                 </button>
               ))}
             </div>
-          )}
         </section>
+
+        {connectOpen && (
+          <div className="guardian-connect-overlay" onMouseDown={(event) => event.target === event.currentTarget && setConnectOpen(false)}>
+            <form className="guardian-connect-modal" onSubmit={handleConnectSenior}>
+              <header>
+                <div><span>보호자 연결 관리</span><h2>어르신 연결</h2></div>
+                <button type="button" aria-label="닫기" onClick={() => setConnectOpen(false)}>×</button>
+              </header>
+              <p>어르신 계정에 등록된 이름과 전화번호를 입력해 주세요.</p>
+              <label>어르신 이름<input required autoFocus value={connectForm.name} onChange={(event) => setConnectForm({ ...connectForm, name: event.target.value })} placeholder="예: 최숙희" /></label>
+              <label>전화번호<input required inputMode="tel" value={connectForm.phone} onChange={(event) => setConnectForm({ ...connectForm, phone: event.target.value })} placeholder="예: 010-5000-0001" /></label>
+              {connectError && <div className="guardian-connect-modal__error">{connectError}</div>}
+              <footer><button type="button" onClick={() => setConnectOpen(false)}>취소</button><button type="submit" className="primary" disabled={connecting}>{connecting ? '연결 중...' : '연결하기'}</button></footer>
+            </form>
+          </div>
+        )}
 
         {error && (
           <div className="guardian-senior-page__error">

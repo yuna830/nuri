@@ -28,12 +28,14 @@ public class RegisteredProduct {
     private String productType;
 
     private String manufacturer;
+    private String brandName;
     private String modelNumber;
     private String barcode;
     private String certificationNumber;
     private LocalDate manufacturingDate;
     private String serialNumber;
     private String lotNumber;
+    private String registrationSource;
 
     @Enumerated(EnumType.STRING)
     private RecallDecisionStatus recallDecisionStatus;

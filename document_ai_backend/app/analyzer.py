@@ -1,16 +1,16 @@
 import io
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
-from google.api_core.client_options import ClientOptions
-from google.cloud import documentai
+import numpy as np
+from paddleocr import PaddleOCR
 from PIL import Image, ImageStat
-
-from app.config import settings
 
 
 FIELD_PATTERNS = {
     "productName": [r"(?:제품명|품명)\s*[:：]?\s*([^\n]{2,40})"],
+    "brandName": [r"(?:브랜드명|브랜드|상표명)\s*[:：]?\s*([^\n]{2,40})"],
     "manufacturer": [r"(?:제조사|제조자|제조원|수입자)\s*[:：]?\s*([^\n]{2,50})"],
     "modelNumber": [r"(?:모델명|모델번호|MODEL\s*(?:NO\.?)?)\s*[:：]?\s*([A-Z0-9][A-Z0-9._/-]{3,})"],
     "certificationNumber": [r"(?:안전인증번호|KC)\s*[:：]?\s*([A-Z0-9][A-Z0-9-]{5,})", r"(R-R-[A-Z0-9-]+)"],
@@ -41,71 +41,57 @@ def inspect_image(content: bytes) -> QualityResult:
     return QualityResult(warnings)
 
 
-def _text_anchor(document, entity) -> str:
-    anchor = entity.text_anchor
-    parts = []
-    for segment in anchor.text_segments:
-        start = int(segment.start_index or 0)
-        end = int(segment.end_index)
-        parts.append(document.text[start:end])
-    return "".join(parts).strip()
+@lru_cache(maxsize=1)
+def _ocr() -> PaddleOCR:
+    return PaddleOCR(use_angle_cls=True, lang="korean", show_log=False)
+
+
+def _extract_text(content: bytes) -> tuple[str, float]:
+    image = np.array(Image.open(io.BytesIO(content)).convert("RGB"))
+    result = _ocr().ocr(image, cls=True)
+    texts = []
+    confidences = []
+    for page in result or []:
+        for line in page or []:
+            if not line or len(line) < 2:
+                continue
+            text, confidence = line[1]
+            if text:
+                texts.append(str(text).strip())
+                confidences.append(float(confidence))
+    average = sum(confidences) / len(confidences) if confidences else 0.0
+    return "\n".join(texts), average
 
 
 def _field(value=None, source_text=None, confidence=0.0, warning=None) -> dict:
     return {"value": value, "sourceText": source_text, "confidence": round(float(confidence), 4), "warning": warning}
 
 
-def _entity_fields(document) -> dict:
-    aliases = {
-        "product_name": "productName", "productName": "productName",
-        "manufacturer": "manufacturer", "brand": "manufacturer",
-        "model_number": "modelNumber", "modelNumber": "modelNumber",
-        "barcode": "barcode", "certification_number": "certificationNumber",
-        "manufacturing_date": "manufacturingDate", "serial_number": "serialNumber", "lot_number": "lotNumber",
-    }
+def _rule_fields(raw_text: str, confidence: float) -> dict:
     fields = {}
-    for entity in document.entities:
-        key = aliases.get(entity.type_)
-        if key and key not in fields:
-            source = _text_anchor(document, entity) or entity.mention_text
-            fields[key] = _field(entity.normalized_value.text or entity.mention_text, source, entity.confidence)
-    return fields
-
-
-def _rule_fields(raw_text: str, fields: dict) -> dict:
     for key, patterns in FIELD_PATTERNS.items():
-        if key in fields:
-            continue
         for pattern in patterns:
             match = re.search(pattern, raw_text, re.IGNORECASE)
             if match:
                 value = "-".join(match.groups()) if key == "manufacturingDate" else match.group(1)
-                fields[key] = _field(value.strip(), match.group(0).strip(), 0.72,
-                                     "규칙 기반 추출 결과이므로 라벨과 다시 비교해 주세요.")
+                fields[key] = _field(
+                    value.strip(), match.group(0).strip(), confidence,
+                    "OCR 추출 결과이므로 라벨과 다시 비교해 주세요.",
+                )
                 break
-    for key in ("productName", "manufacturer", "modelNumber", "barcode", "certificationNumber", "manufacturingDate", "serialNumber", "lotNumber"):
+    for key in FIELD_PATTERNS:
         fields.setdefault(key, _field())
     return fields
 
 
 def analyze_product_label(content: bytes, mime_type: str) -> tuple[str, dict, list[str]]:
+    del mime_type
     quality = inspect_image(content)
-    endpoint = f"{settings.google_cloud_location}-documentai.googleapis.com"
-    client = documentai.DocumentProcessorServiceClient(
-        client_options=ClientOptions(api_endpoint=endpoint)
-    )
-    processor_name = client.processor_path(
-        settings.google_cloud_project,
-        settings.google_cloud_location,
-        settings.google_document_ai_processor_id,
-    )
-    result = client.process_document(request=documentai.ProcessRequest(
-        name=processor_name,
-        raw_document=documentai.RawDocument(content=content, mime_type=mime_type),
-    ))
-    raw_text = result.document.text or ""
-    fields = _rule_fields(raw_text, _entity_fields(result.document))
+    raw_text, confidence = _extract_text(content)
+    fields = _rule_fields(raw_text, confidence)
     warnings = list(quality.warnings)
+    if not raw_text:
+        warnings.append("사진에서 글자를 찾지 못했습니다. 직접 입력하거나 다시 촬영해 주세요.")
     if not fields["modelNumber"]["value"]:
         warnings.append("모델번호를 확인하지 못했습니다. 라벨을 보고 직접 입력해 주세요.")
     warnings.append("분석 결과를 제품 라벨과 비교한 뒤 등록해 주세요.")

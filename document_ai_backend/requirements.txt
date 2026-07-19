@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 pydantic-settings
-google-cloud-documentai
 Pillow
-
+numpy
+paddlepaddle>=2.6,<3
+paddleocr>=2.7,<3

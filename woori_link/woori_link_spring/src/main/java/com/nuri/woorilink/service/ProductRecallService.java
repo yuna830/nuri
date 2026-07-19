@@ -14,6 +14,7 @@ import com.nuri.woorilink.repository.SeniorRepository;
 import com.nuri.woorilink.repository.ActionRecordRepository;
 import com.nuri.woorilink.repository.WelfareWorkerRepository;
 import com.nuri.woorilink.repository.RecallNoticeRepository;
+import com.nuri.woorilink.repository.GuardianRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,9 +38,21 @@ public class ProductRecallService {
     private final WelfareWorkerRepository welfareWorkerRepository;
     private final RecallSafetyService recallSafetyService;
     private final RecallNoticeRepository recallNoticeRepository;
+    private final GuardianRepository guardianRepository;
 
     public List<ProductRecallResponse> getBySenior(Long seniorId) {
         return productRepository.findBySeniorId(seniorId).stream().map(this::toRecallResponse).toList();
+    }
+
+    public void validateGuardianAccess(Long guardianId, Long seniorId) {
+        if (guardianId == null || seniorId == null) {
+            throw new IllegalArgumentException("보호자와 대상 어르신 정보가 필요합니다.");
+        }
+        Senior senior = seniorRepository.findById(seniorId)
+                .orElseThrow(() -> new IllegalArgumentException("대상 어르신을 찾을 수 없습니다."));
+        if (!guardianId.equals(senior.getGuardianId())) {
+            throw new IllegalArgumentException("연결된 어르신의 제품만 등록할 수 있습니다.");
+        }
     }
 
     public List<ProductRecallResponse> getRecalled() {
@@ -84,7 +97,11 @@ public class ProductRecallService {
                 senior == null ? null : senior.getAge(),
                 product.getProductName(),
                 product.getManufacturer(),
+                product.getBrandName(),
                 product.getModelNumber(),
+                product.getBarcode(),
+                product.getCertificationNumber(),
+                product.getRegistrationSource(),
                 product.getRecallStatus(),
                 product.getCurrentUseStatus(),
                 product.getModelMatchStatus(),
@@ -172,11 +189,23 @@ public class ProductRecallService {
     @Transactional
     public RegisteredProduct updateCurrentUseStatus(
             Long id,
-            RegisteredProduct.CurrentUseStatus status
+            RegisteredProduct.CurrentUseStatus status,
+            Long guardianId
     ) {
         RegisteredProduct product = productRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + id));
+        validateGuardianAccess(guardianId, product.getSeniorId());
         product.setCurrentUseStatus(status);
+        if (status == RegisteredProduct.CurrentUseStatus.STOPPED) {
+            String guardianName = guardianRepository.findById(guardianId)
+                    .map(guardian -> guardian.getName())
+                    .orElse("보호자");
+            product.setStopGuidanceCompleted(true);
+            product.setStopGuidanceCompletedAt(LocalDateTime.now());
+            product.setStopGuidanceMethod("GUARDIAN_WEB");
+            product.setStopGuidanceTarget(guardianName);
+            product.setStopGuidanceMemo("보호자가 제품 사용 중지를 확인했습니다.");
+        }
         return productRepository.save(product);
     }
 

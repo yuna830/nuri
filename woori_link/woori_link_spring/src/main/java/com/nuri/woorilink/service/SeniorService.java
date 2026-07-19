@@ -229,6 +229,25 @@ public class SeniorService {
     }
 
     @Transactional
+    public Senior connectGuardian(Long guardianId, String name, String phone) {
+        if (guardianId == null || name == null || name.isBlank() || phone == null || phone.isBlank()) {
+            throw new IllegalArgumentException("어르신 이름과 전화번호를 모두 입력해 주세요.");
+        }
+
+        Senior senior = seniorRepository.findFirstByPhoneAndName(
+                normalizePhone(phone),
+                name.trim()
+        ).orElseThrow(() -> new IllegalArgumentException("입력한 정보와 일치하는 어르신을 찾을 수 없습니다."));
+
+        if (senior.getGuardianId() != null && !guardianId.equals(senior.getGuardianId())) {
+            throw new IllegalArgumentException("이미 다른 보호자와 연결된 어르신입니다.");
+        }
+
+        senior.setGuardianId(guardianId);
+        return seniorRepository.save(senior);
+    }
+
+    @Transactional
     public Senior updateProfile(Long id, SeniorProfileUpdateRequest req) {
         Senior senior = getById(id);
 

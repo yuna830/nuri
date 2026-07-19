@@ -21,7 +21,13 @@ public class RecallDecisionEngine {
             if (decision.status() == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED) return decision;
             if (decision.status() == RegisteredProduct.RecallDecisionStatus.REVIEW_REQUIRED && review == null) review = decision;
         }
-        return review != null ? review : noMatch(candidateUids, "현재 등록된 리콜 공고에서 입력한 제품 식별정보와 일치하는 항목을 찾지 못했습니다. 이 결과는 제품의 전반적인 안전성을 보증하지 않습니다.");
+        if (review != null) return review;
+        if (blank(product.getModelNumber()) && blank(product.getBarcode()) && blank(product.getCertificationNumber())) {
+            return new Decision(RegisteredProduct.RecallDecisionStatus.REVIEW_REQUIRED, null, List.of(), List.of(),
+                    List.of("MODEL_NUMBER_OR_CERTIFICATION_NUMBER_OR_BARCODE"), candidateUids,
+                    "제품 식별정보가 부족하여 리콜 여부를 확정할 수 없습니다.", "PRODUCT_NAME", product.getProductName());
+        }
+        return noMatch(candidateUids, "현재 등록된 리콜 공고에서 입력한 제품 식별정보와 일치하는 항목을 찾지 못했습니다. 이 결과는 제품의 전반적인 안전성을 보증하지 않습니다.");
     }
 
     private Decision compare(RegisteredProduct product, RecallNotice notice, List<String> candidateUids) {
@@ -35,22 +41,11 @@ public class RecallDecisionEngine {
         }
         if (exact(product.getCertificationNumber(), notice.getCertNumbers())) {
             matched.add("CERTIFICATION_NUMBER");
-            if (!notice.getModelNames().isEmpty()) {
-                if (blank(product.getModelNumber())) {
-                    missing.add("MODEL_NUMBER");
-                    return review(notice, matched, mismatched, missing, candidateUids, "인증번호는 일치하지만 대상 모델 확인이 필요합니다.", "CERTIFICATION_NUMBER", product.getCertificationNumber());
-                }
-                if (!exact(product.getModelNumber(), notice.getModelNames())) {
-                    mismatched.add("MODEL_NUMBER");
-                    return noMatch(matched, mismatched, missing, candidateUids, "인증번호는 일치하지만 대상 모델 범위가 다릅니다.", "CERTIFICATION_NUMBER", product.getCertificationNumber());
-                }
-                matched.add("MODEL_NUMBER");
-            }
             return exactDecision(product, notice, matched, mismatched, missing, candidateUids, "CERTIFICATION_NUMBER", product.getCertificationNumber());
         }
         if (exact(product.getModelNumber(), notice.getModelNames())) {
             matched.add("MODEL_NUMBER");
-            if (companyMatch(product.getManufacturer(), notice)) {
+            if (companyMatch(product.getBrandName(), notice) || companyMatch(product.getManufacturer(), notice)) {
                 matched.add("MANUFACTURER_OR_BRAND");
                 return exactDecision(product, notice, matched, mismatched, missing, candidateUids, "MODEL_NUMBER", product.getModelNumber());
             }
@@ -60,8 +55,12 @@ public class RecallDecisionEngine {
         if (blank(product.getModelNumber()) && blank(product.getBarcode()) && blank(product.getCertificationNumber())
                 && similar(product.getProductName(), notice.getProductName())) {
             matched.add("PRODUCT_NAME");
+            if (!blank(product.getBrandName())) {
+                if (companyMatch(product.getBrandName(), notice)) matched.add("BRAND_NAME");
+                else missing.add("BRAND_CONFIRMATION");
+            }
             missing.addAll(List.of("MODEL_NUMBER", "BARCODE", "CERTIFICATION_NUMBER"));
-            return review(notice, matched, mismatched, missing, candidateUids, "제품명만 일치하여 추가 식별정보가 필요합니다.", "PRODUCT_NAME", product.getProductName());
+            return review(notice, matched, mismatched, missing, candidateUids, "제품명 또는 브랜드 후보만 일치하여 추가 식별정보가 필요합니다.", "PRODUCT_NAME", product.getProductName());
         }
         return noMatch(matched, mismatched, missing, candidateUids, "제품 식별정보가 일치하지 않습니다.", "NONE", null);
     }

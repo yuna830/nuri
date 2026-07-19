@@ -1,0 +1,15 @@
+@import '../welfare/Register.css';
+
+.guardian-register-card .form-row > .auth-field {
+  flex: 1;
+}
+
+.guardian-register-card .guardian-register-name {
+  flex: 0 0 38%;
+}
+
+@media (max-width: 640px) {
+  .guardian-register-card .form-row {
+    display: block;
+  }
+}
