@@ -99,7 +99,7 @@ public class ProductRecallService {
                 product.getSeniorId(),
                 senior == null ? null : senior.getName(),
                 senior == null ? null : senior.getAge(),
-                product.getProductName(),
+                nonBlank(product.getProductName()) ? product.getProductName() : "제품명 확인 필요",
                 product.getManufacturer(),
                 product.getBrandName(),
                 product.getModelNumber(),
@@ -154,6 +154,7 @@ public class ProductRecallService {
 
     @Transactional
     public RegisteredProduct register(RegisteredProduct product) {
+        normalizeRegistration(product);
         RegisteredProduct saved = productRepository.save(product);
         if (recallSafetyService.enabled()) {
             try { return recallSafetyService.check(saved.getId()); }
@@ -161,6 +162,28 @@ public class ProductRecallService {
         }
         applyRecallStatus(saved);
         return productRepository.save(saved);
+    }
+
+    private void normalizeRegistration(RegisteredProduct product) {
+        product.setProductName(blankToNull(product.getProductName()));
+        product.setBrandName(blankToNull(product.getBrandName()));
+        product.setManufacturer(blankToNull(product.getManufacturer()));
+        product.setModelNumber(blankToNull(product.getModelNumber()));
+        product.setBarcode(blankToNull(product.getBarcode()));
+        product.setCertificationNumber(blankToNull(product.getCertificationNumber()));
+        if (product.getProductName() == null
+                && product.getBrandName() == null
+                && product.getManufacturer() == null
+                && product.getModelNumber() == null
+                && product.getBarcode() == null
+                && product.getCertificationNumber() == null) {
+            throw new IllegalArgumentException("제품명 또는 제품 식별정보를 하나 이상 입력해 주세요.");
+        }
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
     }
 
     @Transactional

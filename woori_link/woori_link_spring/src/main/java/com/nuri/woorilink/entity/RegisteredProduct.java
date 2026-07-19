@@ -23,7 +23,6 @@ public class RegisteredProduct {
 
     private Long seniorId;
 
-    @Column(nullable = false)
     private String productName;
     private String productType;
 
