@@ -20,6 +20,7 @@ import {
 import GuardianHome from './pages/guardian/Home.jsx';
 import SeniorStatus from './pages/guardian/SeniorStatus.jsx';
 import GuardianSafety from './pages/guardian/Safety.jsx';
+import GuardianWelfareAssistant from './pages/guardian/WelfareAssistant.jsx';
 import GuardianLogin from './pages/guardian/Login.jsx';
 import GuardianRegister from './pages/guardian/Register.jsx';
 
@@ -297,6 +298,10 @@ export default function App() {
           <Route
             path="/guardian/safety"
             element={<GuardianSafety />}
+          />
+          <Route
+            path="/guardian/welfare"
+            element={<GuardianWelfareAssistant />}
           />
         </Route>
       </Routes>

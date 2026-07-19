@@ -1,11 +1,18 @@
 ﻿from typing import Any, Literal
 
+import asyncio
+import json
+import logging
+from time import perf_counter
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services.rag_service import RagService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class JobApplicationProfile(BaseModel):
@@ -74,11 +81,16 @@ class ChatSource(BaseModel):
     source: str | None = None
     chunk_index: int | None = None
     content: str | None = None
+    title: str | None = None
+    authority: str | None = None
+    effective_year: int | None = None
+    source_url: str | None = None
 
 
 class ChatResponse(BaseModel):
     answer: str
     sources: list[ChatSource]
+    assessment: dict[str, Any] | None = None
 
 def infer_question_mode(question: str, requested_mode: str) -> str:
     normalized = question.replace(" ", "")
@@ -160,4 +172,60 @@ def chat(request: ChatRequest):
     return ChatResponse(
         answer=result["answer"],
         sources=result["sources"],
+        assessment=result.get("assessment"),
+    )
+
+
+@router.post("/stream")
+async def chat_stream(request: ChatRequest):
+    question = request.question.strip()
+
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해 주세요.")
+
+    resolved_mode = infer_question_mode(question, request.mode)
+
+    async def event_stream():
+        started_at = perf_counter()
+        rag_service = RagService()
+        task = asyncio.create_task(asyncio.to_thread(
+            rag_service.ask,
+            question=question,
+            mode=resolved_mode,
+            audience=request.audience,
+            profile=request.profile.model_dump() if request.profile else None,
+            history=[message.model_dump() for message in request.history],
+            search_query=request.search_query,
+            limit=request.limit,
+        ))
+
+        yield f"event: status\ndata: {json.dumps({'stage': 'started'})}\n\n"
+
+        while not task.done():
+            done, _ = await asyncio.wait({task}, timeout=10)
+            if not done:
+                yield f"event: status\ndata: {json.dumps({'stage': 'processing'})}\n\n"
+
+        try:
+            result = await task
+            payload = {
+                "answer": result["answer"],
+                "sources": result["sources"],
+                "assessment": result.get("assessment"),
+            }
+            yield f"event: result\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        except Exception as error:
+            logger.exception("RAG streaming request failed")
+            payload = {"message": str(error)}
+            yield f"event: error\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        finally:
+            logger.info("RAG streaming request completed in %.3fs", perf_counter() - started_at)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )

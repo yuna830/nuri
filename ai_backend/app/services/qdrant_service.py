@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from uuid import uuid4
@@ -17,13 +18,15 @@ from qdrant_client.models import (
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class QdrantService:
     def __init__(self):
         self.client = QdrantClient(
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key,
-            timeout=120,
+            timeout=settings.qdrant_timeout_seconds,
         )
 
     def save_chunks(
@@ -90,6 +93,10 @@ class QdrantService:
                 "source": payload.get("source"),
                 "chunk_index": payload.get("chunk_index"),
                 "content": payload.get("content"),
+                "title": payload.get("title"),
+                "authority": payload.get("authority"),
+                "effective_year": payload.get("effective_year"),
+                "source_url": payload.get("source_url"),
             })
 
         return chunks
@@ -107,6 +114,24 @@ class QdrantService:
         )
 
         return result.count
+
+    def get_chunks_by_document_ids(
+        self,
+        document_ids: list[str],
+        limit: int = 100,
+    ) -> list[dict]:
+        normalized_document_ids = self._normalize_document_ids(document_ids)
+        if not normalized_document_ids:
+            return []
+
+        points, _ = self.client.scroll(
+            collection_name=settings.qdrant_collection,
+            scroll_filter=self._build_document_ids_filter(normalized_document_ids),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return [self._payload_to_chunk(point.payload or {}) for point in points]
 
     def count_by_document_ids(self, document_ids: list[str]) -> int:
         normalized_document_ids = self._normalize_document_ids(document_ids)
@@ -284,22 +309,26 @@ class QdrantService:
         vector_limit: int = 12,
         keyword_limit: int = 12,
     ) -> list[dict]:
-        vector_chunks = self.search_chunks(
-            query_vector=query_vector,
-            limit=vector_limit,
-        )
+        started_at = time.perf_counter()
+        try:
+            vector_chunks = self.search_chunks(
+                query_vector=query_vector,
+                limit=vector_limit,
+            )
 
-        keyword_chunks = self.keyword_search_chunks(
-            query_text=query_text,
-            limit=keyword_limit,
-        )
+            keyword_chunks = self.keyword_search_chunks(
+                query_text=query_text,
+                limit=keyword_limit,
+            )
 
-        return self._merge_and_rerank_chunks(
-            query_text=query_text,
-            vector_chunks=vector_chunks,
-            keyword_chunks=keyword_chunks,
-            limit=limit,
-        )
+            return self._merge_and_rerank_chunks(
+                query_text=query_text,
+                vector_chunks=vector_chunks,
+                keyword_chunks=keyword_chunks,
+                limit=limit,
+            )
+        finally:
+            logger.info("RAG Qdrant search completed in %.3fs", time.perf_counter() - started_at)
 
     def keyword_search_chunks(
         self,
@@ -324,20 +353,7 @@ class QdrantService:
 
         for point in points:
             payload = point.payload or {}
-
-            chunk = {
-                "score": 0.0,
-                "source_type": payload.get("source_type"),
-                "document_id": payload.get("document_id"),
-                "filename": payload.get("filename"),
-                "service_id": payload.get("service_id"),
-                "service_name": payload.get("service_name"),
-                "region": payload.get("region"),
-                "department": payload.get("department"),
-                "source": payload.get("source"),
-                "chunk_index": payload.get("chunk_index"),
-                "content": payload.get("content"),
-            }
+            chunk = self._payload_to_chunk(payload)
 
             keyword_score = self._keyword_score(query_keywords, chunk)
 
@@ -350,6 +366,25 @@ class QdrantService:
         chunks.sort(key=lambda chunk: chunk.get("keyword_score", 0), reverse=True)
 
         return chunks[:limit]
+
+    def _payload_to_chunk(self, payload: dict) -> dict:
+        return {
+            "score": 0.0,
+            "source_type": payload.get("source_type"),
+            "document_id": payload.get("document_id"),
+            "filename": payload.get("filename"),
+            "service_id": payload.get("service_id"),
+            "service_name": payload.get("service_name"),
+            "region": payload.get("region"),
+            "department": payload.get("department"),
+            "source": payload.get("source"),
+            "chunk_index": payload.get("chunk_index"),
+            "content": payload.get("content"),
+            "title": payload.get("title"),
+            "authority": payload.get("authority"),
+            "effective_year": payload.get("effective_year"),
+            "source_url": payload.get("source_url"),
+        }
 
     def _merge_and_rerank_chunks(
         self,

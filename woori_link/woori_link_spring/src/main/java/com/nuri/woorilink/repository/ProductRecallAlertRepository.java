@@ -1,0 +1,1 @@
+package com.nuri.woorilink.repository;import com.nuri.woorilink.entity.ProductRecallAlert;import org.springframework.data.jpa.repository.JpaRepository;public interface ProductRecallAlertRepository extends JpaRepository<ProductRecallAlert,Long>{boolean existsByRegisteredProductIdAndRecallNoticeIdAndAlertType(Long p,Long n,String t);}

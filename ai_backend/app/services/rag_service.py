@@ -1,5 +1,6 @@
 from app.services.embedding_cache_service import EmbeddingCacheService
 from app.services.embedding_service import EmbeddingService
+from app.services.eligibility_assessment_service import EligibilityAssessmentService
 from app.services.groq_service import GroqService
 from app.services.qdrant_service import QdrantService
 
@@ -10,6 +11,7 @@ class RagService:
         self.cache_service = EmbeddingCacheService()
         self.qdrant_service = QdrantService()
         self.groq_service = GroqService()
+        self.eligibility_assessment_service = EligibilityAssessmentService()
 
     def ask(
         self,
@@ -22,6 +24,19 @@ class RagService:
         search_query: str | None = None,
     ) -> dict:
         retrieval_query = (search_query or self._build_retrieval_query(question, mode, profile)).strip()
+
+        if mode == "recommend" and profile:
+            chunks = self.qdrant_service.get_chunks_by_document_ids([
+                "obsidian_복지정책_노인맞춤돌봄서비스",
+                "obsidian_복지정책_응급안전안심서비스",
+                "obsidian_노인맞춤돌봄서비스",
+                "obsidian_응급안전안심서비스",
+                "welfare_energy_voucher_eligibility",
+                "utility_electricity_discount_eligibility",
+                "utility_gas_discount_eligibility",
+            ])
+            return self._build_assessment_response(question, profile, chunks)
+
         cached_vector = self.cache_service.get(retrieval_query)
 
         if cached_vector is not None:
@@ -30,12 +45,13 @@ class RagService:
             query_vector = self.embedding_service.embed_text(retrieval_query)
             self.cache_service.set(retrieval_query, query_vector)
 
+        search_limit = max(limit, 12) if mode == "recommend" and profile else limit
         chunks = self.qdrant_service.hybrid_search_chunks(
             query_text=retrieval_query,
             query_vector=query_vector,
-            limit=limit,
-            vector_limit=max(limit * 3, 12),
-            keyword_limit=max(limit * 3, 12),
+            limit=search_limit,
+            vector_limit=max(search_limit * 3, 12),
+            keyword_limit=max(search_limit * 3, 12),
         )
 
         if not chunks:
@@ -56,7 +72,7 @@ class RagService:
         seen = set()
         unique_sources = []
         for chunk in chunks:
-            key = chunk.get("service_name") or chunk.get("filename") or ""
+            key = chunk.get("document_id") or chunk.get("title") or chunk.get("service_name") or chunk.get("filename") or ""
             if key and key not in seen:
                 seen.add(key)
                 unique_sources.append({
@@ -67,6 +83,18 @@ class RagService:
         return {
             "answer": answer,
             "sources": unique_sources,
+        }
+
+    def _build_assessment_response(self, question: str, profile: dict, chunks: list[dict]) -> dict:
+        assessment = self.eligibility_assessment_service.assess(
+            question=question,
+            profile=profile,
+            chunks=chunks,
+        )
+        return {
+            "answer": self.eligibility_assessment_service.format_answer(assessment),
+            "sources": self.eligibility_assessment_service.sources(assessment),
+            "assessment": assessment,
         }
 
     def _build_retrieval_query(
@@ -199,7 +227,7 @@ class RagService:
                     "방문건강관리",
                 ])
 
-            if "독거" in profile_text or "혼자" in profile_text or self._value(profile, "livingAlone") in ("예", "true", "True", "1"):
+            if profile.get("livingAlone") is True or "독거" in profile_text or "혼자" in profile_text:
                 keywords.extend([
                     "독거노인",
                     "돌봄",
@@ -274,6 +302,15 @@ class RagService:
         value = profile.get(key)
 
         if value is None:
+            return ""
+
+        if value is True:
+            return "예"
+
+        if value is False:
+            return "아니요"
+
+        if str(value).upper() in ("NONE", "UNKNOWN"):
             return ""
 
         return str(value).strip()

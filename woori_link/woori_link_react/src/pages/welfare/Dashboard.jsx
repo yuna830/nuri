@@ -58,7 +58,7 @@ export default function Dashboard() {
           )
           setRecalled(productResponses
             .flatMap(result => Array.isArray(result.data) ? result.data : [])
-            .filter(product => product.recallStatus === 'RECALLED'))
+            .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED')))
         })
         .catch(() => {})
     }

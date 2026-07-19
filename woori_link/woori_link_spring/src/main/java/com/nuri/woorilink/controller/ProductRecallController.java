@@ -18,7 +18,7 @@ public class ProductRecallController {
     private final ProductRecallService productRecallService;
 
     @GetMapping("/senior/{seniorId}")
-    public List<RegisteredProduct> getBySenior(@PathVariable Long seniorId) {
+    public List<ProductRecallResponse> getBySenior(@PathVariable Long seniorId) {
         return productRecallService.getBySenior(seniorId);
     }
 
@@ -32,12 +32,22 @@ public class ProductRecallController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RegisteredProduct register(@RequestBody RegisteredProduct product) {
-        return productRecallService.register(product);
+    public ProductRecallResponse register(@RequestBody RegisteredProduct product) {
+        RegisteredProduct saved = productRecallService.register(product);
+        return productRecallService.getResponse(saved.getId());
     }
 
     @PostMapping("/refresh")
     public void refreshAll() { productRecallService.refreshAll(); }
+
+    @PostMapping("/{productId}/recall-check")
+    public ProductRecallResponse checkRecall(@PathVariable Long productId) {
+        productRecallService.checkRecall(productId);
+        return productRecallService.getResponse(productId);
+    }
+
+    @PostMapping("/recall-check/refresh-all")
+    public void refreshAllNewPath() { productRecallService.refreshAll(); }
 
     @PatchMapping("/{id}/current-use")
     public RegisteredProduct updateCurrentUseStatus(

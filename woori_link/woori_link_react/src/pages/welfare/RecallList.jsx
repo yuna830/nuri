@@ -21,7 +21,7 @@ const ACTION_STATUS_LABEL = {
   RECALL_IN_PROGRESS: '제조사 조치 안내 중',
   COMPLETED: '조치 완료',
   UNREACHABLE: '연락 불가',
-  NOT_RECALLED: '리콜 대상 아님',
+  NOT_RECALLED: '등록 공고 일치 없음',
 }
 
 function valueOrFallback(value, fallback = '-') {
@@ -63,8 +63,8 @@ function currentStage(product) {
   const useStatus = product.currentUseStatus || 'UNKNOWN'
   const actionStatus = product.actionStatus || 'CONFIRMATION_NEEDED'
 
-  if (product.finalResult || actionStatus === 'COMPLETED') return product.finalResult === 'NOT_RECALLED' ? '리콜 대상 아님' : '조치 완료'
-  if (actionStatus === 'NOT_RECALLED' || match === '불일치') return '리콜 대상 아님'
+  if (product.finalResult || actionStatus === 'COMPLETED') return product.finalResult === 'NOT_RECALLED' ? '등록 공고 일치 없음' : '조치 완료'
+  if (actionStatus === 'NOT_RECALLED' || product.recallDecisionStatus === 'NO_MATCH_FOUND') return '등록 공고 일치 없음'
   if (
     useStatus === 'UNKNOWN' &&
     !product.followUpType &&
@@ -83,10 +83,10 @@ const SUMMARY_FILTERS = [
   { key: 'ALL', label: '전체' },
   { key: 'CHECK', label: '확인 필요', stages: ['사용 여부 확인'] },
   { key: 'ACTION', label: '조치 진행', stages: ['후속 조치'] },
-  { key: 'DONE', label: '완료', stages: ['조치 완료', '리콜 대상 아님'] },
+  { key: 'DONE', label: '완료', stages: ['조치 완료', '등록 공고 일치 없음'] },
 ]
 
-const DETAIL_STAGES = ['사용 여부 확인', '후속 조치', '조치 완료', '리콜 대상 아님']
+const DETAIL_STAGES = ['사용 여부 확인', '후속 조치', '조치 완료', '등록 공고 일치 없음']
 
 export default function RecallList() {
   const [products, setProducts] = useState([])
@@ -123,7 +123,7 @@ export default function RecallList() {
     )
     const recalledProducts = productResponses
       .flatMap(result => Array.isArray(result.data) ? result.data : [])
-      .filter(product => product.recallStatus === 'RECALLED')
+      .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
     setProducts(recalledProducts)
   }
 

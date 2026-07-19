@@ -1,5 +1,9 @@
+import {
+  getToken,
+} from '../utils/auth.js';
+
 const DEFAULT_SPRING_API_BASE_URL = 'http://localhost:8090/api';
-const DEFAULT_RAG_API_BASE_URL = 'http://127.0.0.1:8000/api';
+const DEFAULT_RAG_API_BASE_URL = 'http://127.0.0.1:8001/api';
 
 
 /*
@@ -22,7 +26,7 @@ const PRODUCT_API_BASE_URL = (
  *
  * 우선순위:
  * 1. VITE_RAG_API_BASE_URL
- * 2. http://127.0.0.1:8000/api
+ * 2. http://127.0.0.1:8001/api
  */
 const RAG_API_BASE_URL = (
   import.meta.env.VITE_RAG_API_BASE_URL
@@ -32,13 +36,18 @@ const RAG_API_BASE_URL = (
 
 const REGISTERED_PRODUCT_PATH = (
   import.meta.env.VITE_REGISTERED_PRODUCT_PATH
-  || '/registered-products/senior'
+  || '/products/senior'
 );
 
 
 const RAG_QUERY_PATH = (
   import.meta.env.VITE_RAG_QUERY_PATH
-  || '/rag/query'
+  || '/chat'
+);
+
+const RAG_STREAM_PATH = (
+  import.meta.env.VITE_RAG_STREAM_PATH
+  || `${RAG_QUERY_PATH}/stream`
 );
 
 
@@ -47,7 +56,8 @@ const RAG_QUERY_PATH = (
  */
 function getAccessToken() {
   return (
-    sessionStorage.getItem('accessToken')
+    getToken()
+    || sessionStorage.getItem('accessToken')
     || sessionStorage.getItem('token')
     || localStorage.getItem('accessToken')
     || localStorage.getItem('token')
@@ -246,6 +256,58 @@ async function requestJson(
  * Spring Boot 요청 예시:
  * GET http://localhost:8090/api/registered-products/senior/{seniorId}
  */
+async function requestEventStream(url, body, timeout = 90000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      body,
+      credentials: 'include',
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const responseBody = await readResponseBody(response);
+      throw new Error(getErrorMessage(responseBody, response.status, '복지·안전 도우미 질문'));
+    }
+    if (!response.body) throw new Error('스트리밍 응답을 읽을 수 없습니다.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+
+      for (const eventBlock of events) {
+        const eventName = eventBlock.match(/^event:\s*(.+)$/m)?.[1]?.trim();
+        const dataText = eventBlock.match(/^data:\s*(.+)$/m)?.[1];
+        if (!dataText) continue;
+        const eventData = JSON.parse(dataText);
+        if (eventName === 'result') return eventData;
+        if (eventName === 'error') throw new Error(eventData.message || '요청에 실패했습니다.');
+      }
+
+      if (done) break;
+    }
+    throw new Error('복지·안전 도우미 응답이 완료되지 않았습니다.');
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('복지·안전 도우미 질문 중 서버 응답 시간이 초과되었습니다.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+
 export async function getGuardianRecallProducts(
   seniorIds = [],
 ) {
@@ -339,7 +401,7 @@ export async function getGuardianRecallProducts(
  * 보호자용 RAG 질문을 전송한다.
  *
  * FastAPI 요청 예시:
- * POST http://127.0.0.1:8000/api/rag/query
+ * POST http://127.0.0.1:8001/api/chat
  *
  * 요청 본문:
  * {
@@ -348,7 +410,12 @@ export async function getGuardianRecallProducts(
  *   topK: 5
  * }
  */
-export async function askGuardianRag(question) {
+export async function askGuardianRag(
+  question,
+  history = [],
+  profile = null,
+  mode = 'qa',
+) {
   const trimmedQuestion = String(
     question ?? '',
   ).trim();
@@ -360,23 +427,27 @@ export async function askGuardianRag(question) {
   }
 
   const requestUrl = (
-    `${RAG_API_BASE_URL}${RAG_QUERY_PATH}`
+    `${RAG_API_BASE_URL}${RAG_STREAM_PATH}`
   );
 
-  const response = await requestJson(
+  const response = await requestEventStream(
     requestUrl,
-    {
-      method: 'POST',
-
-      body: JSON.stringify({
+    JSON.stringify({
         question: trimmedQuestion,
+        mode,
+        audience: 'guardian',
+        profile,
+        history: history.map((message) => ({
+          role: message.role,
+          text: message.text,
+        })),
+        limit: 5,
+
+        // 이전 RAG 서버와의 하위 호환 필드
         role: 'GUARDIAN',
         topK: 5,
-      }),
-
-      timeout: 45000,
-      requestName: '복지·안전 도우미 질문',
-    },
+    }),
+    90000,
   );
 
   const data = (
@@ -428,9 +499,10 @@ export async function askGuardianRag(question) {
 
       title: (
         source?.title
+        ?? source?.service_name
+        ?? source?.filename
         ?? source?.documentTitle
         ?? source?.document_title
-        ?? source?.source
         ?? source?.name
         ?? `근거 문서 ${index + 1}`
       ),
@@ -444,12 +516,20 @@ export async function askGuardianRag(question) {
       ),
 
       url: (
-        source?.url
+        source?.source_url
+        ?? source?.url
         ?? source?.link
         ?? ''
       ),
+      authority: source?.authority ?? source?.department ?? '',
+      effectiveYear: source?.effective_year ?? source?.effectiveYear ?? null,
     };
-  });
+  }).filter((source) => {
+    const internalTitle = String(source.title || '').trim().toLowerCase().replaceAll(' ', '_');
+    return !['current_upload', 'woori-vault', 'obsidian'].includes(internalTitle);
+  }).filter((source, index, items) => (
+    items.findIndex((item) => item.title === source.title) === index
+  ));
 
   if (!answer) {
     throw new Error(
@@ -460,5 +540,6 @@ export async function askGuardianRag(question) {
   return {
     answer,
     sources,
+    assessment: data?.assessment ?? data?.result?.assessment ?? null,
   };
 }

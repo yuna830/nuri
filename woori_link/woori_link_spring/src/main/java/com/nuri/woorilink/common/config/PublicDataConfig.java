@@ -10,6 +10,10 @@ import org.springframework.context.annotation.Configuration;
 @Getter @Setter
 public class PublicDataConfig {
     private String recallApiKey;
+    private String recallListUrl;
+    private String recallDetailUrl;
+    private int recallConnectTimeoutMs = 5000;
+    private int recallReadTimeoutMs = 8000;
     private String weatherApiKey;
     private String energyEfficiencyApiKey;
     private String welfareFacilityApiKey;

@@ -6,10 +6,13 @@ import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
 import com.nuri.woorilink.entity.ActionRecord;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.entity.Senior;
+import com.nuri.woorilink.entity.RecallNotice;
+import com.nuri.woorilink.dto.RecallNoticeDto;
 import com.nuri.woorilink.repository.RegisteredProductRepository;
 import com.nuri.woorilink.repository.SeniorRepository;
 import com.nuri.woorilink.repository.ActionRecordRepository;
 import com.nuri.woorilink.repository.WelfareWorkerRepository;
+import com.nuri.woorilink.repository.RecallNoticeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +33,11 @@ public class ProductRecallService {
     private final ActionRecordRepository actionRecordRepository;
     private final RecallApiClient recallApiClient;
     private final WelfareWorkerRepository welfareWorkerRepository;
+    private final RecallSafetyService recallSafetyService;
+    private final RecallNoticeRepository recallNoticeRepository;
 
-    public List<RegisteredProduct> getBySenior(Long seniorId) {
-        return productRepository.findBySeniorId(seniorId);
+    public List<ProductRecallResponse> getBySenior(Long seniorId) {
+        return productRepository.findBySeniorId(seniorId).stream().map(this::toRecallResponse).toList();
     }
 
     public List<ProductRecallResponse> getRecalled() {
@@ -67,6 +72,8 @@ public class ProductRecallService {
                 : welfareWorkerRepository.findById(product.getStopGuidanceWorkerId())
                 .map(worker -> worker.getName())
                 .orElse(null);
+        RecallNotice notice = product.getMatchedRecallNoticeId() == null ? null
+                : recallNoticeRepository.findById(product.getMatchedRecallNoticeId()).orElse(null);
 
         return new ProductRecallResponse(
                 product.getId(),
@@ -96,22 +103,58 @@ public class ProductRecallService {
                 product.getRecallReason(),
                 product.getLastCheckedAt(),
                 product.getCreatedAt(),
-                product.getUpdatedAt()
+                product.getUpdatedAt(),
+                product.getRecallDecisionStatus(),
+                product.getRecallCheckStatus(),
+                RecallNoticeDto.from(notice),
+                product.getRecallMatchedFields(),
+                product.getRecallMissingFields(),
+                product.getRecallDecisionReason(),
+                notice == null ? null : notice.getDefectDescription(),
+                notice == null ? null : notice.getHazardDescription(),
+                notice == null ? null : notice.getConsumerAction(),
+                notice == null ? null : notice.getInquiryTel(),
+                notice == null ? null : notice.getPublishDate(),
+                notice == null ? null : notice.getSourceName(),
+                notice == null ? null : notice.getSourceUrl(),
+                product.getLastSuccessfulCheckedAt(),
+                product.getLastCheckErrorMessage()
         );
     }
 
     @Transactional
     public RegisteredProduct register(RegisteredProduct product) {
-        applyRecallStatus(product);
-        return productRepository.save(product);
+        RegisteredProduct saved = productRepository.save(product);
+        if (recallSafetyService.enabled()) {
+            try { return recallSafetyService.check(saved.getId()); }
+            catch (Exception ignored) { return productRepository.findById(saved.getId()).orElse(saved); }
+        }
+        applyRecallStatus(saved);
+        return productRepository.save(saved);
     }
 
     @Transactional
     public void refreshAll() {
         productRepository.findAll().forEach(p -> {
-            applyRecallStatus(p);
-            productRepository.save(p);
+            try {
+                if (recallSafetyService.enabled()) recallSafetyService.check(p.getId());
+                else { applyRecallStatus(p); productRepository.save(p); }
+            } catch (Exception ignored) { }
         });
+    }
+
+    public ProductRecallResponse getResponse(Long productId) {
+        return toRecallResponse(productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + productId)));
+    }
+
+    @Transactional
+    public RegisteredProduct checkRecall(Long productId) {
+        if (recallSafetyService.enabled()) return recallSafetyService.check(productId);
+        RegisteredProduct product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + productId));
+        applyRecallStatus(product);
+        return productRepository.save(product);
     }
 
     @Transactional

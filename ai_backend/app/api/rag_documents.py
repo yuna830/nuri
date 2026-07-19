@@ -16,6 +16,9 @@ class RagDocumentEmbedRequest(BaseModel):
     source: str | None = None
     qdrant_collection: str | None = None
     content: str
+    authority: str | None = None
+    effective_year: int | None = None
+    source_url: str | None = None
 
 
 class RagDocumentEmbedResponse(BaseModel):
@@ -92,6 +95,9 @@ def embed_rag_document(request: RagDocumentEmbedRequest):
         "service_name": request.title,
         "source": request.source,
         "qdrant_collection": request.qdrant_collection,
+        "authority": request.authority,
+        "effective_year": request.effective_year,
+        "source_url": request.source_url,
     }
 
     saved_chunks = qdrant_service.save_chunks(

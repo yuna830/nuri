@@ -259,7 +259,7 @@ export default function SeniorDetail() {
                   <td className="font-bold">{product.productName || '-'}</td>
                   <td>{[product.manufacturer, product.modelNumber].filter(Boolean).join(' · ') || '-'}</td>
                   <td>{(product.registeredAt || product.createdAt)?.slice(0, 10) || '-'}</td>
-                  <td><span className={`badge badge-${product.recallStatus === 'RECALLED' ? 'recalled' : 'safe'}`}>{product.recallStatus === 'RECALLED' ? '리콜대상' : product.recallStatus || '-'}</span></td>
+                  <td><span className={`badge badge-${product.recallDecisionStatus === 'RECALL_CONFIRMED' ? 'recalled' : 'review'}`}>{product.recallDecisionStatus === 'RECALL_CONFIRMED' ? '공식 리콜 일치' : product.recallDecisionStatus === 'NO_MATCH_FOUND' ? '등록 공고 일치 없음' : product.recallDecisionStatus === 'REVIEW_REQUIRED' ? '추가 확인 필요' : product.recallStatus === 'RECALLED' ? '리콜 확인 필요' : '조회 전'}</span></td>
                   <td><button className="btn-primary detail-small-button" onClick={() => setSelectedProduct(product)}>상세 보기</button></td>
                 </tr>
               ))}</tbody>
@@ -305,7 +305,7 @@ export default function SeniorDetail() {
         <div className="detail-modal-overlay" onClick={() => setSelectedProduct(null)}>
           <div className="detail-modal product-detail-modal" onClick={event => event.stopPropagation()}>
             <div className="detail-modal-header"><div><h2>{selectedProduct.productName || '제품 정보'}</h2><p>등록 제품 상세</p></div><button onClick={() => setSelectedProduct(null)}>×</button></div>
-            <dl><div><dt>제조사</dt><dd>{selectedProduct.manufacturer || '-'}</dd></div><div><dt>모델명</dt><dd>{selectedProduct.modelNumber || '-'}</dd></div><div><dt>등록일</dt><dd>{(selectedProduct.registeredAt || selectedProduct.createdAt)?.slice(0, 10) || '-'}</dd></div><div><dt>리콜 상태</dt><dd>{selectedProduct.recallStatus || '-'}</dd></div></dl>
+            <dl><div><dt>제조사</dt><dd>{selectedProduct.manufacturer || '-'}</dd></div><div><dt>모델명</dt><dd>{selectedProduct.modelNumber || '-'}</dd></div><div><dt>등록일</dt><dd>{(selectedProduct.registeredAt || selectedProduct.createdAt)?.slice(0, 10) || '-'}</dd></div><div><dt>리콜 판정</dt><dd>{selectedProduct.recallDecisionStatus || '조회 전'}</dd></div><div><dt>마지막 정상 확인</dt><dd>{selectedProduct.lastSuccessfulCheckedAt?.slice(0, 16) || selectedProduct.lastCheckedAt?.slice(0, 16) || '-'}</dd></div></dl>
             <div className="detail-modal-actions"><button className="btn-outline" onClick={() => setSelectedProduct(null)}>닫기</button></div>
           </div>
         </div>

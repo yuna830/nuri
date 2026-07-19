@@ -1,0 +1,5 @@
+package com.nuri.woorilink.service;
+import com.nuri.woorilink.common.client.SafetyKoreaRecallClient;import lombok.RequiredArgsConstructor;import lombok.extern.slf4j.Slf4j;import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;import org.springframework.scheduling.annotation.Scheduled;import org.springframework.stereotype.Service;
+@Slf4j @Service @RequiredArgsConstructor @ConditionalOnProperty(name="recall.scheduler-enabled",havingValue="true")
+public class RecallSyncScheduler {private final SafetyKoreaRecallClient client;private final RecallNoticeStore store;private final ProductRecallService products;
+ @Scheduled(cron="${recall.scheduler-cron:0 0 3 * * *}",zone="${recall.scheduler-zone:Asia/Seoul}") public void run(){SafetyKoreaRecallClient.Lookup result=null;for(int i=1;i<=3;i++){result=client.fetchAll();if(result.success())break;log.warn("리콜 동기화 실패 attempt={}, code={}",i,result.errorCode());}if(result==null||!result.success())return;store.save(result.notices());products.refreshAll();}}

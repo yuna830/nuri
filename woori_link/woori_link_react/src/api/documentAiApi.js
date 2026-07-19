@@ -1,0 +1,30 @@
+import axios from 'axios';
+
+const DOCUMENT_AI_BASE_URL = (
+  import.meta.env.VITE_DOCUMENT_AI_BASE_URL
+  || 'http://127.0.0.1:8002'
+).replace(/\/$/, '');
+
+export const productDocumentAiEnabled = (
+  String(import.meta.env.VITE_PRODUCT_DOCUMENT_AI_ENABLED || 'true').toLowerCase() === 'true'
+);
+
+export async function analyzeProductLabel({ image, seniorId }) {
+  const formData = new FormData();
+  formData.append('image', image);
+  formData.append('source', 'GUARDIAN_WEB');
+  formData.append('seniorId', String(seniorId));
+  return axios.post(
+    `${DOCUMENT_AI_BASE_URL}/api/document-ai/product-label/analyze`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 },
+  );
+}
+
+export const confirmProductLabelAnalysis = (analysisId, fields, registeredProductId) => (
+  axios.patch(
+    `${DOCUMENT_AI_BASE_URL}/api/document-ai/product-label/analyses/${analysisId}/confirmation`,
+    { fields, registeredProductId },
+    { timeout: 10000 },
+  )
+);

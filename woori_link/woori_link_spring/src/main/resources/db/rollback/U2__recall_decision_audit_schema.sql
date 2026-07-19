@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS wl_product_recall_alerts;
+DROP TABLE IF EXISTS wl_product_recall_check_history;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS last_check_error_message;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS last_check_error_code;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS last_check_failed_at;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS last_successful_checked_at;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS lot_number;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS serial_number;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS manufacturing_date;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS certification_number;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS barcode;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS recall_missing_fields;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS recall_matched_fields;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS recall_decision_reason;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS matched_recall_notice_id;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS recall_check_status;
+ALTER TABLE wl_registered_products DROP COLUMN IF EXISTS recall_decision_status;
+DROP TABLE IF EXISTS wl_recall_notices;

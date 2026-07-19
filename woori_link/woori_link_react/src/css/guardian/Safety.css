@@ -30,5 +30,16 @@
 .guardian-safety-modal header { display:flex; align-items:center; justify-content:space-between; margin-bottom:17px; } .guardian-safety-modal header h2 { margin:0; font-size:19px; } .guardian-safety-modal header button { border:0; background:none; color:#758177; font-size:24px; cursor:pointer; }
 .guardian-safety-modal label { display:flex; flex-direction:column; gap:6px; margin-top:12px; color:#536057; font-size:11px; font-weight:800; } .guardian-safety-modal input,.guardian-safety-modal select { height:41px; box-sizing:border-box; padding:0 11px; border:1px solid #dfe6df; border-radius:8px; background:#fff; font:inherit; }
 .guardian-safety-modal .submit { width:100%; min-height:42px; margin-top:19px; border:0; border-radius:9px; background:#8fa78b; color:#fff; font-weight:900; cursor:pointer; } .detail-copy { padding:12px; border-radius:9px; background:#f5f7f4; color:#59675d; font-size:11px; line-height:1.6; }
+.guardian-product-register-modal { width:min(560px,100%); }
+.registration-method { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
+.registration-method button { min-height:42px; border:1px solid #dce5dc; border-radius:9px; background:#fff; color:#667269; font-weight:800; cursor:pointer; }
+.registration-method button.active { border-color:#8fa78b; background:#edf4eb; color:#506a51; }
+.label-analysis { margin-top:12px; padding:14px; border:1px solid #e2e8e2; border-radius:10px; background:#f8faf8; }
+.label-analysis .analyze { width:100%; min-height:38px; margin-top:10px; border:0; border-radius:8px; background:#697f68; color:#fff; font-weight:800; cursor:pointer; }
+.label-analysis .analyze:disabled { opacity:.45; cursor:not-allowed; }
+.label-analysis ul { margin:12px 0 0; padding-left:18px; color:#a15f29; font-size:11px; line-height:1.6; }
+.review-notice { margin:12px 0 0; padding:10px 12px; border-radius:8px; background:#fff7e9; color:#8b642d; font-size:11px; line-height:1.5; }
+.guardian-safety-modal label small { color:#9a6b32; font-weight:600; line-height:1.5; }
+.analysis-extra { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
 @media(max-width:1000px){.guardian-product-grid{grid-template-columns:1fr}.guardian-check-list{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:720px){.guardian-safety-page{width:min(100% - 24px,1220px);padding-top:25px}.guardian-safety-page__header{align-items:stretch;flex-direction:column}.guardian-safety-summary{grid-template-columns:1fr}.guardian-safety-summary div{border-right:0;border-bottom:1px solid #edf1ed}.guardian-check-list{grid-template-columns:1fr}.guardian-safety-section{padding:17px}.guardian-product-card__actions{flex-wrap:wrap}.guardian-product-card__actions button{flex-basis:40%}}

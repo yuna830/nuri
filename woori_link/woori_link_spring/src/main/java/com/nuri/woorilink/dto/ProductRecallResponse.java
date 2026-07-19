@@ -33,6 +33,21 @@ public record ProductRecallResponse(
         String recallReason,
         LocalDateTime lastCheckedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        RegisteredProduct.RecallDecisionStatus recallDecisionStatus,
+        RegisteredProduct.RecallCheckStatus recallCheckStatus,
+        RecallNoticeDto matchedRecallNotice,
+        java.util.List<String> matchedFields,
+        java.util.List<String> missingFields,
+        String decisionReason,
+        String defectDescription,
+        String hazardDescription,
+        String consumerAction,
+        String inquiryTel,
+        LocalDate publishDate,
+        String sourceName,
+        String sourceUrl,
+        LocalDateTime lastSuccessfulCheckedAt,
+        String lastCheckError
 ) {
 }

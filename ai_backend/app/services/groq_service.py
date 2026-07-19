@@ -1,6 +1,12 @@
+import logging
+import re
+import time
+
 from langchain_groq import ChatGroq
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class GroqService:
@@ -10,6 +16,8 @@ class GroqService:
             api_key=settings.groq_api_key,
             temperature=0.1,
             max_tokens=1000,
+            timeout=settings.groq_timeout_seconds,
+            max_retries=1,
         )
 
     def answer(
@@ -46,6 +54,14 @@ class GroqService:
             - 예/아니오형 질문은 첫 문장에서 가능한 범위 안에서 바로 답한다.
             - 단, 문서에 근거가 없으면 예/아니오를 추측하지 말고 확인이 필요하다고 답한다.
 
+            절대 위반 금지 규칙:
+            - 대상자 정보와 모순되는 사실을 만들지 않는다. 독거 여부가 "아니요"이면 독거노인이라고 표현하지 않는다.
+            - 낙상 기록 또는 낙상 위험 정보가 제공되지 않았다면 낙상 위험이 있다고 추론하지 않는다.
+            - 소득 정보가 "미등록"이면 저소득, 소득 없음, 기초생활수급자로 해석하지 않는다.
+            - 문서의 지원 대상 설명은 일반 조건일 뿐 대상자가 그 조건을 충족한다는 증거가 아니다.
+            - 공식 자격 조건을 모두 확인하지 못했다면 "받을 수 있습니다", "대상입니다", "해당됩니다"라고 표현하지 않는다.
+            - 추천 제도마다 확인된 조건과 추가 확인 필요 조건을 분리하고, 현재 판정을 "검토 가능" 또는 "정보 부족"으로 표시한다.
+
             {rules}
 
             [대상자 정보]
@@ -61,8 +77,12 @@ class GroqService:
             {question}
         """
 
-        response = self.llm.invoke(prompt)
-        return response.content.strip()
+        started_at = time.perf_counter()
+        try:
+            response = self.llm.invoke(prompt)
+            return self._sanitize_answer(response.content.strip(), mode, profile)
+        finally:
+            logger.info("RAG Groq generation completed in %.3fs", time.perf_counter() - started_at)
 
     def _build_rules(self, mode: str, audience: str) -> str:
         audience_rules = {
@@ -146,8 +166,8 @@ class GroqService:
         result = []
 
         for chunk in limited_chunks:
-            name = chunk.get("service_name") or chunk.get("filename") or "복지 문서"
-            source = chunk.get("source") or chunk.get("department") or "관련 기관"
+            name = chunk.get("title") or chunk.get("service_name") or chunk.get("filename") or "복지 문서"
+            source = chunk.get("authority") or chunk.get("department") or "공식 안내 문서"
             content = self._limit_text(chunk.get("content") or "", 1200)
 
             result.append(
@@ -163,6 +183,13 @@ class GroqService:
     def _build_profile_text(self, profile: dict | None) -> str:
         if not profile:
             return "대상자 정보 없음"
+
+        raw_income_level = profile.get("incomeLevel")
+        profile = {
+            **profile,
+            "incomeLevel": self._display_income(raw_income_level),
+            "livingAlone": self._display_boolean(profile.get("livingAlone")),
+        }
 
         job_applications = profile.get("jobApplications") or []
 
@@ -215,7 +242,70 @@ class GroqService:
             if value not in (None, "", [])
         ]
 
+        if not self._display_income(raw_income_level):
+            result.append("- 소득 정보: 미등록 (소득 기준 충족 여부를 판단할 수 없음)")
+        result.append("- 낙상 위험 정보: 미제공 (위험 여부를 추론하지 말 것)")
+
         return "\n".join(result) if result else "대상자 정보 없음"
+
+    def _display_boolean(self, value) -> str:
+        if value is True:
+            return "예"
+        if value is False:
+            return "아니요"
+        return "미등록"
+
+    def _display_income(self, value) -> str:
+        if value in (None, "", "NONE", "UNKNOWN"):
+            return ""
+        labels = {
+            "LIVELIHOOD": "생계급여",
+            "MEDICAL": "의료급여",
+            "HOUSING": "주거급여",
+            "EDUCATION": "교육급여",
+        }
+        return labels.get(str(value), str(value))
+
+    def _sanitize_answer(self, answer: str, mode: str, profile: dict | None) -> str:
+        if mode != "recommend" or not profile:
+            return answer
+
+        sanitized = answer.replace("NONE", "미등록").replace("False", "아니요").replace("True", "예")
+
+        if profile.get("livingAlone") is False:
+            sanitized = sanitized.replace("독거노인", "고령자")
+            lines = []
+            for line in sanitized.splitlines():
+                if line.strip().startswith("- 추천 이유:") and "독거 여부가 아니므로" in line:
+                    lines.append("- 추천 이유: 만 65세 이상 연령 정보는 확인됐습니다. 독거 여부는 아니요이며, 그 밖의 자격 조건은 추가 확인이 필요합니다.")
+                else:
+                    lines.append(line)
+            sanitized = "\n".join(lines)
+
+        fall_risk_provided = any(
+            profile.get(key) not in (None, "", [], "UNKNOWN")
+            for key in ("fallRiskStatus", "fallRisk", "fallHistory")
+        )
+        if not fall_risk_provided:
+            sanitized = sanitized.replace("낙상 위험이 있는", "낙상 위험 여부를 추가 확인해야 하는")
+            sanitized = sanitized.replace("낙상 위험군", "낙상 위험 확인 필요 대상")
+
+        replacements = {
+            "신청 가능성 있습니다": "검토 가능한 후보입니다",
+            "신청 가능합니다": "신청 가능 여부 확인이 필요합니다",
+            "참여 가능성이 있습니다": "검토 가능한 후보입니다",
+            "받을 수 있습니다": "검토할 수 있으나 추가 확인이 필요합니다",
+            "대상입니다": "대상 여부 확인이 필요합니다",
+            "해당됩니다": "해당 여부 확인이 필요합니다",
+            "현재 판정: 조건 충족": "현재 판정: 검토 가능",
+            "검토 구분: 확정 대상": "검토 구분: 조건 확인 후 검토",
+        }
+        for phrase, replacement in replacements.items():
+            sanitized = sanitized.replace(phrase, replacement)
+
+        sanitized = re.sub(r"독거 여부가 아니므로\s*", "독거 여부는 아니요이며 ", sanitized)
+
+        return sanitized
 
     def _build_history_text(self, history: list[dict]) -> str:
         if not history:

@@ -1,0 +1,1 @@
+package com.nuri.woorilink.repository;import com.nuri.woorilink.entity.ProductRecallCheckHistory;import org.springframework.data.jpa.repository.JpaRepository;public interface ProductRecallCheckHistoryRepository extends JpaRepository<ProductRecallCheckHistory,Long>{}

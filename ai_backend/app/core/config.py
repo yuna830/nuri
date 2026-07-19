@@ -6,6 +6,11 @@ class Settings(BaseSettings):
 
     gemini_embedding_model: str = "models/gemini-embedding-001"
     groq_model: str = "llama-3.1-8b-instant"
+    gemini_timeout_seconds: float = 15
+    groq_timeout_seconds: float = 25
+    qdrant_timeout_seconds: float = 15
+    embedding_max_retries: int = 2
+    embedding_max_retry_delay_seconds: int = 5
 
     qdrant_url: str
     qdrant_api_key: str
