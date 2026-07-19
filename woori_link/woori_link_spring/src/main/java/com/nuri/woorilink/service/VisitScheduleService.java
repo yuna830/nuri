@@ -1,6 +1,9 @@
 package com.nuri.woorilink.service;
 
+import com.nuri.woorilink.dto.VisitScheduleResponse;
+import com.nuri.woorilink.entity.Senior;
 import com.nuri.woorilink.entity.VisitSchedule;
+import com.nuri.woorilink.repository.SeniorRepository;
 import com.nuri.woorilink.repository.VisitScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,13 +17,20 @@ import java.util.List;
 public class VisitScheduleService {
 
     private final VisitScheduleRepository scheduleRepository;
+    private final SeniorRepository seniorRepository;
 
-    public List<VisitSchedule> getByWelfareWorker(Long welfareWorkerId) {
-        return scheduleRepository.findByWelfareWorkerId(welfareWorkerId);
+    public List<VisitScheduleResponse> getByWelfareWorker(Long welfareWorkerId) {
+        return scheduleRepository.findByWelfareWorkerId(welfareWorkerId)
+                .stream()
+                .map(this::toWelfareWorkerResponse)
+                .toList();
     }
 
-    public List<VisitSchedule> getByMonth(Long welfareWorkerId, int year, int month) {
-        return scheduleRepository.findByWelfareWorkerIdAndMonth(welfareWorkerId, year, month);
+    public List<VisitScheduleResponse> getByMonth(Long welfareWorkerId, int year, int month) {
+        return scheduleRepository.findByWelfareWorkerIdAndMonth(welfareWorkerId, year, month)
+                .stream()
+                .map(this::toWelfareWorkerResponse)
+                .toList();
     }
 
     public List<VisitSchedule> getBySenior(Long seniorId) {
@@ -42,4 +52,24 @@ public class VisitScheduleService {
 
     @Transactional
     public void delete(Long id) { scheduleRepository.deleteById(id); }
+
+    private VisitScheduleResponse toWelfareWorkerResponse(VisitSchedule schedule) {
+        String seniorName = schedule.getSeniorId() == null
+                ? "어르신"
+                : seniorRepository.findById(schedule.getSeniorId())
+                .map(Senior::getName)
+                .orElse("어르신");
+        return new VisitScheduleResponse(
+                schedule.getId(),
+                schedule.getSeniorId(),
+                seniorName,
+                schedule.getWelfareWorkerId(),
+                schedule.getVisitDate(),
+                schedule.getVisitTime(),
+                seniorName + "님 조치 방문일",
+                null,
+                schedule.getStatus(),
+                schedule.getCreatedAt()
+        );
+    }
 }

@@ -181,7 +181,7 @@ function GuardianProtectedRoute() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* 최초 접속 */}
         <Route
