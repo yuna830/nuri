@@ -90,6 +90,10 @@ public class ProductRecallService {
         RecallNotice notice = product.getMatchedRecallNoticeId() == null ? null
                 : recallNoticeRepository.findById(product.getMatchedRecallNoticeId()).orElse(null);
 
+        String inquiryTel = notice == null || !nonBlank(notice.getInquiryTel())
+                ? extractRecallContact(product.getRecallReason())
+                : notice.getInquiryTel();
+
         return new ProductRecallResponse(
                 product.getId(),
                 product.getSeniorId(),
@@ -139,7 +143,7 @@ public class ProductRecallService {
                 notice == null ? null : notice.getDefectDescription(),
                 notice == null ? null : notice.getHazardDescription(),
                 notice == null ? null : notice.getConsumerAction(),
-                notice == null ? null : notice.getInquiryTel(),
+                inquiryTel,
                 notice == null ? null : notice.getPublishDate(),
                 notice == null ? null : notice.getSourceName(),
                 notice == null ? null : notice.getSourceUrl(),
@@ -231,19 +235,6 @@ public class ProductRecallService {
 
         RegisteredProduct saved = productRepository.save(product);
         syncRecallActionStatus(saved, request);
-        if (Boolean.TRUE.equals(request.getCreateAction()) && request.getWelfareWorkerId() != null) {
-            actionRecordRepository.save(ActionRecord.builder()
-                    .seniorId(product.getSeniorId())
-                    .welfareWorkerId(request.getWelfareWorkerId())
-                    .actionType(ActionRecord.ActionType.RECALL)
-                    .actionSubject(ActionRecord.ActionSubject.WELFARE_WORKER)
-                    .status(ActionRecord.ActionStatus.PENDING)
-                    .productName(product.getProductName())
-                    .dueDate(request.getNextActionDate())
-                    .note(request.getNote())
-                    .immediateRisk(product.getCurrentUseStatus() == RegisteredProduct.CurrentUseStatus.IN_USE)
-                    .build());
-        }
         return saved;
     }
 
@@ -256,12 +247,31 @@ public class ProductRecallService {
                         ActionRecord.ActionType.RECALL,
                         product.getProductName()
                 );
-        if (records.isEmpty()) return;
 
         ActionRecord.ActionStatus status = recallActionStatus(product);
+        if (records.isEmpty()) {
+            if (!Boolean.TRUE.equals(request.getCreateAction()) || request.getWelfareWorkerId() == null) return;
+            actionRecordRepository.save(ActionRecord.builder()
+                    .seniorId(product.getSeniorId())
+                    .welfareWorkerId(request.getWelfareWorkerId())
+                    .actionType(ActionRecord.ActionType.RECALL)
+                    .actionSubject(ActionRecord.ActionSubject.WELFARE_WORKER)
+                    .status(status)
+                    .productName(product.getProductName())
+                    .dueDate(request.getNextActionDate())
+                    .note(request.getNote())
+                    .immediateRisk(product.getCurrentUseStatus() == RegisteredProduct.CurrentUseStatus.IN_USE)
+                    .build());
+            return;
+        }
+
         for (ActionRecord record : records) {
             record.setStatus(status);
-            if (request.getNextActionDate() != null) record.setDueDate(request.getNextActionDate());
+            if (Boolean.TRUE.equals(request.getCreateAction())) {
+                record.setDueDate(request.getNextActionDate());
+            } else {
+                record.setDueDate(null);
+            }
             if (request.getWelfareWorkerId() != null) record.setWelfareWorkerId(request.getWelfareWorkerId());
             if (nonBlank(request.getNote())) record.setNote(request.getNote());
             actionRecordRepository.save(record);
@@ -338,6 +348,19 @@ public class ProductRecallService {
         if (value == null) return;
         String normalized = value.trim();
         if (!normalized.isBlank()) terms.add(normalized);
+    }
+
+    private String extractRecallContact(String text) {
+        if (!nonBlank(text)) return null;
+        for (String line : text.split("\\R")) {
+            String lower = line.toLowerCase();
+            if (line.contains("문의처") || line.contains("연락처") || line.contains("전화") || lower.contains("tel")) {
+                return line
+                        .replaceFirst("(?i)^.*?(문의처|연락처|전화|tel)\\s*[:：]?\\s*", "")
+                        .trim();
+            }
+        }
+        return null;
     }
 
     private boolean nonBlank(String value) {
