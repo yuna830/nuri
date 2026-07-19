@@ -26,6 +26,14 @@ public class CareMonitoringController {
     @GetMapping("/seniors/{seniorId}/events")
     public List<CareEvent> events(@PathVariable Long seniorId) { return careMonitoringService.events(seniorId); }
 
+    @PatchMapping("/events/{eventId}/fall-status")
+    public CareEvent updateFallStatus(@PathVariable Long eventId,
+                                      @RequestBody FallStatusRequest request,
+                                      Authentication authentication) {
+        return careMonitoringService.updateFallStatus(
+                eventId, request.status(), requireGuardian(authentication));
+    }
+
     @PostMapping("/seniors/{seniorId}/check-ins")
     @ResponseStatus(HttpStatus.CREATED)
     public CheckIn requestCheckIn(@PathVariable Long seniorId) { return careMonitoringService.requestCheckIn(seniorId); }
@@ -92,5 +100,6 @@ public class CareMonitoringController {
     public record LocationRequest(double latitude, double longitude) { }
     public record SafetyZoneRequest(Long id, int slotNumber, String name, double latitude, double longitude, int radiusMeters) { }
     public record AlertStatusRequest(boolean resolved) { }
+    public record FallStatusRequest(CareEvent.EventStatus status) { }
     public record CheckInResponse(String message) { }
 }

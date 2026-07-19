@@ -30,6 +30,13 @@ public class CareEvent {
     private LocalDateTime occurredAt;
     @CreationTimestamp private LocalDateTime createdAt;
 
-    public enum EventType { FALL_DETECTED, SOS, SAFETY_RADIUS_EXIT, CHECK_IN_MISSED }
-    public enum EventStatus { PENDING, CONFIRMED, CANCELLED, RESOLVED }
+    public enum EventType { FALL_SUSPECTED, FALL_DETECTED, SOS, SAFETY_RADIUS_EXIT, CHECK_IN_MISSED }
+    public enum EventStatus {
+        PENDING,
+        CONFIRMED,
+        SAFETY_CONFIRMED,
+        FALSE_ALARM,
+        CANCELLED,
+        RESOLVED
+    }
 }

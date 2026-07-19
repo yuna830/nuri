@@ -112,6 +112,25 @@ public class CareMonitoringService {
     public Optional<SeniorLocation> latestLocation(Long seniorId) { return locationRepository.findTopBySeniorIdOrderByRecordedAtDesc(seniorId); }
     public List<SafetyZone> safetyZones(Long seniorId) { return safetyZoneRepository.findBySeniorIdOrderByIdAsc(seniorId); }
     public List<CareEvent> events(Long seniorId) { return eventRepository.findBySeniorIdOrderByOccurredAtDesc(seniorId); }
+
+    @Transactional
+    public CareEvent updateFallStatus(Long eventId, CareEvent.EventStatus status, Long guardianId) {
+        CareEvent event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + eventId));
+        if (event.getType() != CareEvent.EventType.FALL_DETECTED
+                && event.getType() != CareEvent.EventType.FALL_SUSPECTED) {
+            throw new IllegalArgumentException("Only fall event status can be changed here");
+        }
+        Senior senior = seniorRepository.findById(event.getSeniorId())
+                .orElseThrow(() -> new IllegalArgumentException("Senior not found: " + event.getSeniorId()));
+        if (!guardianId.equals(senior.getGuardianId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You can only update your assigned senior's fall event"
+            );
+        }
+        event.setStatus(status);
+        return eventRepository.save(event);
+    }
     public List<CareAlert> guardianAlerts(Long guardianId) { return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId); }
 
     public List<CheckIn> checkIns(Long seniorId) { return checkInRepository.findBySeniorIdOrderByRequestedAtDesc(seniorId); }
@@ -162,11 +181,18 @@ public class CareMonitoringService {
                 .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
         alert.setStatus(resolved ? CareAlert.AlertStatus.RESOLVED : CareAlert.AlertStatus.ACKNOWLEDGED);
         alert.setAcknowledgedAt(LocalDateTime.now());
+        if (resolved && alert.getCareEventId() != null) {
+            eventRepository.findById(alert.getCareEventId())
+                    .filter(event -> event.getType() == CareEvent.EventType.FALL_DETECTED
+                            || event.getType() == CareEvent.EventType.FALL_SUSPECTED)
+                    .ifPresent(event -> event.setStatus(CareEvent.EventStatus.RESOLVED));
+        }
         return alert;
     }
 
     private void createAlert(Senior senior, CareEvent event) {
         String title = switch (event.getType()) {
+            case FALL_SUSPECTED -> "낙상 의심 알림";
             case FALL_DETECTED -> "낙상 의심 알림";
             case SOS -> "SOS 긴급 호출";
             case SAFETY_RADIUS_EXIT -> "안전반경 이탈";
