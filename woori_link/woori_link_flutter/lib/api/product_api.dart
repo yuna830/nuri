@@ -10,7 +10,9 @@ class ProductApi {
       headers: await authHeaders(),
     );
     if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
-    return [];
+    throw Exception(
+      '제품 목록 조회 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}',
+    );
   }
 
   static Future<Map<String, dynamic>> registerProduct(
