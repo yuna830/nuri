@@ -39,11 +39,11 @@ function matchedEvidence(product) {
 }
 const MISSING_LABEL = { MODEL_NUMBER: '제품의 모델번호가 등록되지 않았습니다.', BARCODE: '제품의 바코드가 등록되지 않았습니다.', CERTIFICATION_NUMBER: '제품의 인증번호가 등록되지 않았습니다.', MANUFACTURING_DATE: '제품 라벨의 제조일자를 확인해 주세요.', SERIAL_NUMBER: '제품의 일련번호를 확인해 주세요.', LOT_NUMBER: '제품의 제조 로트를 확인해 주세요.', ADDITIONAL_SCOPE_CONDITION: '공식 공고의 추가 대상 조건을 확인해 주세요.', MANUFACTURER_OR_BRAND_CONFIRMATION: '제품의 브랜드 또는 제조사를 확인해 주세요.' };
 const ACTION_UI = {
-  IMMEDIATE_STOP: { status: '즉시 사용 중지 필요', button: '어르신께 즉시 사용 중지 안내', fallback: '즉시 사용을 중지해 주세요.' },
-  REPAIR_OR_COLLECTION: { status: '수선 필요', button: '어르신께 수선 안내', fallback: '구입처 또는 고객센터를 통해 수거·수선을 신청해 주세요.' },
-  EXCHANGE_OR_REFUND: { status: '교환·환불 필요', button: '어르신께 교환·환불 안내', fallback: '판매처에 교환·환불을 문의해 주세요.' },
-  PRODUCT_CHECK_REQUIRED: { status: '추가 확인 필요', button: '어르신께 제품 확인 안내', fallback: '모델번호와 제조기간을 확인해 주세요.' },
-  GENERAL_GUIDANCE: { status: '공식 조치 확인 필요', button: '어르신께 리콜 안내', fallback: '공식 리콜 행동요령을 확인해 주세요.' },
+  IMMEDIATE_STOP: { status: '즉시 사용 중지 필요', button: '리콜 제품 안내', fallback: '즉시 사용을 중지해 주세요.' },
+  REPAIR_OR_COLLECTION: { status: '수선 필요', button: '리콜 제품 안내', fallback: '구입처 또는 고객센터를 통해 수거·수선을 신청해 주세요.' },
+  EXCHANGE_OR_REFUND: { status: '교환·환불 필요', button: '리콜 제품 안내', fallback: '판매처에 교환·환불을 문의해 주세요.' },
+  PRODUCT_CHECK_REQUIRED: { status: '추가 확인 필요', button: '리콜 제품 안내', fallback: '모델번호와 제조기간을 확인해 주세요.' },
+  GENERAL_GUIDANCE: { status: '공식 조치 확인 필요', button: '리콜 제품 안내', fallback: '공식 리콜 행동요령을 확인해 주세요.' },
 };
 function actionUi(product) { return ACTION_UI[product.matchedRecallNotice?.actionType] || ACTION_UI.GENERAL_GUIDANCE; }
 
