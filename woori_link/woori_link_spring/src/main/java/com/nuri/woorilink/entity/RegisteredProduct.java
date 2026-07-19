@@ -95,6 +95,14 @@ public class RegisteredProduct {
     @Column(length = 1000)
     private String recallReason;
 
+    private String kcStatus;
+    private String kcCertNum;
+    private String kcCertState;
+    private String kcCertOrganName;
+    private String kcCertProductName;
+    private String kcCertModelName;
+    private String kcCertManufacturer;
+
     private LocalDateTime lastCheckedAt;
 
     @CreationTimestamp

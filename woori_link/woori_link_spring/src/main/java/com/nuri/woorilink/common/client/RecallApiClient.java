@@ -24,6 +24,8 @@ public class RecallApiClient {
 
     private static final String BASE_URL =
             "http://www.safetykorea.kr/openapi/api/recall/recallList.json";
+    private static final String DETAIL_URL =
+            "http://www.safetykorea.kr/openapi/api/recall/recallDetail.json";
 
     public boolean isRecalled(String keyword) {
         return findFirstRecall(keyword) != null;
@@ -32,6 +34,8 @@ public class RecallApiClient {
     public String getRecallDetail(String keyword) {
         JsonNode item = findFirstRecall(keyword);
         if (item == null) return null;
+        JsonNode detail = findRecallDetail(text(item, "recallUid"));
+        if (detail != null) item = detail;
 
         String harm = text(item, "harmDscr");
         String accident = text(item, "accidentCaseDscr");
@@ -54,6 +58,41 @@ public class RecallApiClient {
         }
 
         return sb.toString().trim();
+    }
+
+    private JsonNode findRecallDetail(String recallUid) {
+        if (!nonBlank(recallUid)) return null;
+
+        String key = config.getRecallApiKey();
+        if (!nonBlank(key)) return null;
+
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(DETAIL_URL)
+                    .queryParam("recallUid", recallUid)
+                    .build()
+                    .encode(StandardCharsets.UTF_8)
+                    .toUriString();
+
+            String response = get(url, key);
+            JsonNode root = objectMapper.readTree(response);
+
+            if (!"2000".equals(text(root, "resultCode"))) {
+                log.warn("리콜 상세 API 응답 실패: {}", response);
+                return null;
+            }
+
+            JsonNode resultData = root.get("resultData");
+            if (resultData != null && resultData.isArray() && resultData.size() > 0) {
+                return resultData.get(0);
+            }
+            if (resultData != null && resultData.isObject()) {
+                return resultData;
+            }
+        } catch (Exception e) {
+            log.warn("리콜 상세 API 조회 실패 recallUid={}, error={}", recallUid, e.getMessage());
+        }
+
+        return null;
     }
 
     private JsonNode findFirstRecall(String keyword) {

@@ -207,6 +207,15 @@ public class SeniorService {
         if (req.getWelfareWorkerId() != null) {
             senior.setWelfareWorkerId(req.getWelfareWorkerId());
         }
+        if (req.getRecallReminderEnabled() != null) {
+            senior.setRecallReminderEnabled(req.getRecallReminderEnabled());
+        }
+        if (req.getScheduleReminderEnabled() != null) {
+            senior.setScheduleReminderEnabled(req.getScheduleReminderEnabled());
+        }
+        if (req.getChatbotVoiceEnabled() != null) {
+            senior.setChatbotVoiceEnabled(req.getChatbotVoiceEnabled());
+        }
 
         applyEnergyVoucherEligibility(senior);
         return seniorRepository.save(senior);

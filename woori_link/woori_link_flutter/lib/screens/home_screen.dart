@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../api/senior_api.dart';
 import '../api/risk_api.dart';
 import '../api/action_api.dart';
@@ -12,9 +13,10 @@ import 'chat_screen.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onTabSelected});
+  const HomeScreen({super.key, this.onTabSelected, this.onRecallRequestsSelected});
 
   final ValueChanged<int>? onTabSelected;
+  final VoidCallback? onRecallRequestsSelected;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -27,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   Map<String, dynamic>? _pendingCheckIn;
   Timer? _refreshTimer;
+  final Set<String> _shownTomorrowReminderKeys = {};
 
   @override
   void initState() {
@@ -64,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
+      _showTomorrowVisitReminders();
     } catch (_) {
       if (!silent && mounted) setState(() => _loading = false);
     }
@@ -82,7 +86,15 @@ class _HomeScreenState extends State<HomeScreen> {
           : '${action['status'] ?? 'PENDING'}';
       if (status != 'PENDING' && status != 'IN_PROGRESS') continue;
 
-      final normalized = {...action, 'status': status};
+      final product = type == 'RECALL'
+          ? _productForRecallAction(action, products)
+          : null;
+      final nextActionDate = '${product?['nextActionDate'] ?? ''}'.trim();
+      final normalized = {
+        ...action,
+        'status': status,
+        if (nextActionDate.isNotEmpty) '_nextActionDate': nextActionDate,
+      };
       if (type == 'RECALL') {
         final key = _recallActionKey(normalized, products);
         final previous = recallByKey[key];
@@ -101,16 +113,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _recallActionKey(Map<String, dynamic> action, List<dynamic> products) {
     final product = _productForRecallAction(action, products);
-    final matchedProductName = '${product?['productName'] ?? ''}'.trim().toLowerCase();
-    if (matchedProductName.isNotEmpty) return matchedProductName;
+    final matchedProductId = '${product?['id'] ?? ''}'.trim();
+    if (matchedProductId.isNotEmpty) return 'id:$matchedProductId';
+
+    final note = '${action['note'] ?? ''}';
+    final actionProductId = _extractActionProductId(note);
+    if (actionProductId.isNotEmpty) return 'id:$actionProductId';
+
+    final modelNumber = _extractActionModelNumber(note);
+    if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
 
     final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
     if (productName.isNotEmpty) return productName;
-
-    final note = '${action['note'] ?? ''}';
-    final modelMatch = RegExp(r'모델명:\s*([^\s\n]+)').firstMatch(note);
-    final modelNumber = modelMatch?.group(1)?.trim().toLowerCase();
-    if (modelNumber != null && modelNumber.isNotEmpty) return modelNumber;
 
     return '${action['id'] ?? action['createdAt'] ?? ''}';
   }
@@ -149,13 +163,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _productForRecallAction(Map<String, dynamic> action, List<dynamic> products) {
     final actionProductName = '${action['productName'] ?? ''}'.trim();
     final actionNote = '${action['note'] ?? ''}';
+    final actionProductId = _extractActionProductId(actionNote);
+    final actionModelNumber = _extractActionModelNumber(actionNote);
 
     for (final item in products) {
       if (item is! Map) continue;
       final product = Map<String, dynamic>.from(item);
       if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
+      final productId = '${product['id'] ?? ''}'.trim();
       final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
-      if (modelNumber.isNotEmpty && actionNote.contains(modelNumber)) {
+      if (actionProductId.isNotEmpty && actionProductId == productId) {
+        return product;
+      }
+      if (actionModelNumber.isNotEmpty &&
+          modelNumber.isNotEmpty &&
+          actionModelNumber == modelNumber) {
         return product;
       }
     }
@@ -171,6 +193,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return null;
+  }
+
+  String _extractActionModelNumber(String note) {
+    final match = RegExp(r'모델명:\s*([^\r\n]+)').firstMatch(note);
+    return match?.group(1)?.trim() ?? '';
+  }
+
+  String _extractActionProductId(String note) {
+    final match = RegExp(r'제품ID:\s*([0-9]+)').firstMatch(note);
+    return match?.group(1)?.trim() ?? '';
   }
 
   Future<void> _respondToCheckIn() async {
@@ -218,6 +250,128 @@ class _HomeScreenState extends State<HomeScreen> {
     if (status == 'COMPLETED') return '조치 완료';
     if (status == 'CANCELLED') return '취소됨';
     return '상태 확인 중';
+  }
+
+  Color _actionStatusColor(String? status) {
+    if (status == 'IN_PROGRESS') return kPrimary;
+    if (status == 'COMPLETED') return kTextMuted;
+    return kWarning;
+  }
+
+  IconData _actionIcon(Map<String, dynamic> action) {
+    switch ('${action['actionType'] ?? ''}') {
+      case 'RECALL':
+        return Icons.warning_amber_rounded;
+      case 'VOUCHER':
+        return Icons.bolt;
+      case 'SOS':
+        return Icons.sos;
+      case 'VISIT':
+        return Icons.home_repair_service_outlined;
+      default:
+        return Icons.assignment_outlined;
+    }
+  }
+
+  String _actionNotePreview(Map<String, dynamic> action) {
+    final note = '${action['note'] ?? ''}'.trim();
+    if (note.isEmpty) return '';
+    final marker = '제품안전정보센터 리콜 사유:';
+    final markerIndex = note.indexOf(marker);
+    final raw = markerIndex >= 0 ? note.substring(0, markerIndex) : note;
+    return raw
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) =>
+            line.isNotEmpty &&
+            !line.startsWith('제품ID:') &&
+            !line.startsWith('모델명:'))
+        .take(2)
+        .join(' ');
+  }
+
+  DateTime? _actionNextDate(Map<String, dynamic> action) {
+    final rawActionDate = '${action['dueDate'] ?? ''}'.trim();
+    final rawProductDate = '${action['_nextActionDate'] ?? ''}'.trim();
+    final raw = rawActionDate.isNotEmpty ? rawActionDate : rawProductDate;
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  String _actionScheduleLabel(Map<String, dynamic> action) {
+    final date = _actionNextDate(action);
+    if (date == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    final diff = target.difference(today).inDays;
+    final formatted = DateFormat('yyyy.MM.dd').format(date);
+    if (diff == 0) return '오늘 방문 예정 ($formatted)';
+    if (diff == 1) return '내일 방문 예정 ($formatted)';
+    if (diff > 1) return '$diff일 뒤 방문 예정 ($formatted)';
+    return '방문 예정일 지남 ($formatted)';
+  }
+
+  bool _isTomorrowAction(Map<String, dynamic> action) {
+    final date = _actionNextDate(action);
+    if (date == null) return false;
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    return date.year == tomorrow.year &&
+        date.month == tomorrow.month &&
+        date.day == tomorrow.day;
+  }
+
+  String _actionReminderKey(Map<String, dynamic> action) {
+    final id = '${action['id'] ?? ''}'.trim();
+    if (id.isNotEmpty) return id;
+    return '${action['actionType'] ?? ''}:${action['productName'] ?? ''}:${action['dueDate'] ?? action['_nextActionDate'] ?? ''}';
+  }
+
+  void _showTomorrowVisitReminders() {
+    if (_senior?['recallReminderEnabled'] == false) return;
+
+    final fresh = _actions
+        .whereType<Map>()
+        .map((action) => Map<String, dynamic>.from(action))
+        .where((action) {
+          final status = '${action['status'] ?? 'PENDING'}';
+          return status != 'COMPLETED' &&
+              status != 'CANCELLED' &&
+              _isTomorrowAction(action) &&
+              !_shownTomorrowReminderKeys.contains(_actionReminderKey(action));
+        })
+        .toList();
+    if (fresh.isEmpty || !mounted) return;
+
+    for (final action in fresh) {
+      _shownTomorrowReminderKeys.add(_actionReminderKey(action));
+    }
+
+    final names = fresh
+        .take(2)
+        .map((action) => '${action['productName'] ?? '리콜 제품'}')
+        .join(', ');
+    final extra = fresh.length > 2 ? ' 외 ${fresh.length - 2}건' : '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('내일 방문 예정인 조치가 있어요: $names$extra'),
+          action: SnackBarAction(
+            label: '보기',
+            onPressed: () => widget.onRecallRequestsSelected?.call(),
+          ),
+        ),
+      );
+    });
+  }
+
+  int _actionCountByStatus(String status) {
+    return _actions.where((item) {
+      if (item is! Map) return false;
+      return '${item['status'] ?? ''}' == status;
+    }).length;
   }
 
   Future<void> _logout() async {
@@ -413,35 +567,106 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   // 대기 중인 서비스
                   if (_actions.isNotEmpty) ...[
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('대기 중인 서비스 ${_actions.length}건',
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 12),
-                            ..._actions.map((a) {
-                              final action = Map<String, dynamic>.from(a as Map);
-                              final title = _actionTitle(action);
-                              final status =
-                                  _actionStatusLabel(action['status'] as String?);
-                              final note = '${action['note'] ?? ''}'.trim();
-                              return Padding(
-                                  padding:
-                                      const EdgeInsets.only(bottom: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: widget.onRecallRequestsSelected,
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: kWarning.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.assignment_late_outlined,
+                                      color: kWarning,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          '조치가 필요한 요청',
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '미조치 ${_actionCountByStatus('PENDING')}건 · 진행 중 ${_actionCountByStatus('IN_PROGRESS')}건',
+                                          style: const TextStyle(
+                                            color: kTextMuted,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kDanger.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '${_actions.length}건',
+                                      style: const TextStyle(
+                                        color: kDanger,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              ..._actions.take(2).map((a) {
+                                final action =
+                                    Map<String, dynamic>.from(a as Map);
+                                final title = _actionTitle(action);
+                                final status =
+                                    '${action['status'] ?? 'PENDING'}';
+                                final note = _actionNotePreview(action);
+                                final scheduleLabel =
+                                    _actionScheduleLabel(action);
+                                final color = _actionStatusColor(status);
+                                return Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: color.withOpacity(0.18),
+                                    ),
+                                  ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        margin: const EdgeInsets.only(top: 5),
-                                        decoration: const BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: kWarning),
+                                      Icon(
+                                        _actionIcon(action),
+                                        color: color,
+                                        size: 22,
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
@@ -450,33 +675,104 @@ class _HomeScreenState extends State<HomeScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              '$title · $status',
+                                              title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                 fontSize: 13,
-                                                fontWeight: FontWeight.w700,
+                                                fontWeight: FontWeight.w800,
                                               ),
                                             ),
+                                            if (scheduleLabel.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.event_available,
+                                                    size: 14,
+                                                    color: color,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      scheduleLabel,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: color,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                             if (note.isNotEmpty) ...[
-                                              const SizedBox(height: 3),
+                                              const SizedBox(height: 4),
                                               Text(
                                                 note,
-                                                maxLines: 2,
+                                                maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
                                                   fontSize: 11,
                                                   color: kTextMuted,
-                                                  height: 1.35,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ],
                                           ],
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _actionStatusLabel(status),
+                                        style: TextStyle(
+                                          color: color,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 );
-                            }),
-                          ],
+                              }),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      _actions.length > 2
+                                          ? '외 ${_actions.length - 2}건 더 있음'
+                                          : '자세한 진행 상태를 확인할 수 있어요',
+                                      style: const TextStyle(
+                                        color: kTextMuted,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    const Text(
+                                      '요청 내역 보기',
+                                      style: TextStyle(
+                                        color: kPrimaryDark,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 3),
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      color: kPrimaryDark,
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

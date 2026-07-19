@@ -6,12 +6,15 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../api/product_api.dart';
+import '../api/senior_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import '../api/action_api.dart';
 
 class RecallScreen extends StatefulWidget {
-  const RecallScreen({super.key});
+  const RecallScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   State<RecallScreen> createState() => _RecallScreenState();
@@ -20,13 +23,16 @@ class RecallScreen extends StatefulWidget {
 class _RecallScreenState extends State<RecallScreen> {
   List<dynamic> _products = [];
   List<dynamic> _actions = [];
+  Map<String, dynamic>? _senior;
   int _selectedTab = 0;
   bool _loading = true;
   Timer? _refreshTimer;
+  final Set<String> _shownTomorrowReminderKeys = {};
 
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialTab;
     _load();
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) _load(silent: true);
@@ -46,6 +52,7 @@ class _RecallScreenState extends State<RecallScreen> {
       final results = await Future.wait([
         ProductApi.getProductsBySenior(seniorId),
         ActionApi.getActionsBySenior(seniorId),
+        SeniorApi.getSenior(seniorId).catchError((_) => <String, dynamic>{}),
       ]);
       setState(() {
         _products = _sortNewest(results[0] as List<dynamic>, 'createdAt');
@@ -57,8 +64,10 @@ class _RecallScreenState extends State<RecallScreen> {
             'updatedAt',
           ),
         );
+        _senior = results[2] as Map<String, dynamic>;
         if (!silent) _loading = false;
       });
+      _showTomorrowVisitReminders();
     } catch (_) {
       if (!silent) setState(() => _loading = false);
     }
@@ -452,33 +461,52 @@ class _RecallScreenState extends State<RecallScreen> {
     for (final item in actions) {
       if (item is! Map) continue;
       final action = Map<String, dynamic>.from(item);
-      final key = _recallActionKey(
-        '${action['productName'] ?? ''}',
-      );
+      final key = _recallActionKey(action);
       if (seen.add(key)) result.add(action);
     }
 
     return result;
   }
 
-  String _recallActionKey(String productName) {
-    final productKey = productName.trim().toLowerCase();
-    return productKey;
+  String _recallActionKey(Map<String, dynamic> action) {
+    final product = _productForAction(action);
+    final matchedProductId = '${product?['id'] ?? ''}'.trim();
+    if (matchedProductId.isNotEmpty) return 'id:$matchedProductId';
+
+    final productId = _extractActionProductId('${action['note'] ?? ''}');
+    if (productId.isNotEmpty) return 'id:$productId';
+
+    final modelNumber = _extractActionModelNumber('${action['note'] ?? ''}');
+    if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
+
+    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
+    return 'name:$productName';
   }
 
   Map<String, dynamic>? _productForAction(Map<String, dynamic> action) {
     final actionProductName = '${action['productName'] ?? ''}'.trim();
     final actionNote = '${action['note'] ?? ''}';
+    final actionProductId = _extractActionProductId(actionNote);
+    final actionModelNumber = _extractActionModelNumber(actionNote);
 
     for (final item in _products) {
       if (item is! Map) continue;
       final product = Map<String, dynamic>.from(item);
+      final productId = '${product['id'] ?? ''}'.trim();
       final productName = '${product['productName'] ?? ''}'.trim();
       final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
-      if (actionProductName.isNotEmpty && actionProductName == productName) {
+
+      if (actionProductId.isNotEmpty && actionProductId == productId) {
         return product;
       }
-      if (modelNumber.isNotEmpty && actionNote.contains(modelNumber)) {
+      if (actionModelNumber.isNotEmpty &&
+          modelNumber.isNotEmpty &&
+          actionModelNumber == modelNumber) {
+        return product;
+      }
+      if (actionModelNumber.isEmpty &&
+          actionProductName.isNotEmpty &&
+          actionProductName == productName) {
         return product;
       }
     }
@@ -506,6 +534,88 @@ class _RecallScreenState extends State<RecallScreen> {
     }
 
     return '${action['status'] ?? 'PENDING'}';
+  }
+
+  DateTime? _actionNextDate(Map<String, dynamic> action) {
+    final rawActionDate = '${action['dueDate'] ?? ''}'.trim();
+    final product = _productForAction(action);
+    final rawProductDate = '${product?['nextActionDate'] ?? ''}'.trim();
+    final raw = rawActionDate.isNotEmpty ? rawActionDate : rawProductDate;
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  String _actionScheduleLabel(Map<String, dynamic> action) {
+    final date = _actionNextDate(action);
+    if (date == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    final diff = target.difference(today).inDays;
+    final formatted = DateFormat('yyyy.MM.dd').format(date);
+    if (diff == 0) return '오늘 방문 예정 ($formatted)';
+    if (diff == 1) return '내일 방문 예정 ($formatted)';
+    if (diff > 1) return '$diff일 뒤 방문 예정 ($formatted)';
+    return '방문 예정일 지남 ($formatted)';
+  }
+
+  bool _isTomorrowAction(Map<String, dynamic> action) {
+    final date = _actionNextDate(action);
+    if (date == null) return false;
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    return date.year == tomorrow.year &&
+        date.month == tomorrow.month &&
+        date.day == tomorrow.day;
+  }
+
+  String _actionReminderKey(Map<String, dynamic> action) {
+    final id = '${action['id'] ?? ''}'.trim();
+    if (id.isNotEmpty) return id;
+    return _recallActionKey(action);
+  }
+
+  void _showTomorrowVisitReminders() {
+    if (_senior?['recallReminderEnabled'] == false) return;
+
+    final dueTomorrow = _actions
+        .whereType<Map>()
+        .map((action) => Map<String, dynamic>.from(action))
+        .where((action) {
+          final status = _effectiveActionStatus(action);
+          return status != 'COMPLETED' &&
+              status != 'CANCELLED' &&
+              _isTomorrowAction(action);
+        })
+        .toList();
+    if (dueTomorrow.isEmpty || !mounted) return;
+
+    final fresh = dueTomorrow
+        .where((action) => !_shownTomorrowReminderKeys.contains(_actionReminderKey(action)))
+        .toList();
+    if (fresh.isEmpty) return;
+
+    for (final action in fresh) {
+      _shownTomorrowReminderKeys.add(_actionReminderKey(action));
+    }
+
+    final names = fresh
+        .take(2)
+        .map((action) => '${action['productName'] ?? '리콜 제품'}')
+        .join(', ');
+    final extra = fresh.length > 2 ? ' 외 ${fresh.length - 2}건' : '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('내일 방문 예정인 리콜 조치가 있어요: $names$extra'),
+          action: SnackBarAction(
+            label: '보기',
+            onPressed: () => setState(() => _selectedTab = 1),
+          ),
+        ),
+      );
+    });
   }
 
   void _showProductDetail(Map<String, dynamic> product) {
@@ -576,6 +686,8 @@ class _RecallScreenState extends State<RecallScreen> {
                 _detailLine('모델명', '${product['modelNumber'] ?? '-'}'),
                 _detailLine('등록일', _checkedAtLabel(product['createdAt'])),
                 _detailLine('마지막 조회', _checkedAtLabel(product['lastCheckedAt'])),
+                const SizedBox(height: 4),
+                _kcInfoCard(product),
                 if (reason.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Text(
@@ -632,6 +744,7 @@ class _RecallScreenState extends State<RecallScreen> {
     final note = '${action['note'] ?? ''}'.trim();
     final modelNumber = _extractActionModelNumber(note);
     final requestMemo = _requestMemoOnly(note);
+    final scheduleLabel = _actionScheduleLabel(action);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -691,6 +804,34 @@ class _RecallScreenState extends State<RecallScreen> {
                 if (modelNumber.isNotEmpty) _detailLine('모델명', modelNumber),
                 _detailLine('요청 상태', _actionStatusLabel(status)),
                 _detailLine('요청일', _checkedAtLabel(action['createdAt'])),
+                if (scheduleLabel.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kPrimary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kPrimary.withOpacity(0.18)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_available, color: kPrimaryDark),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            scheduleLabel,
+                            style: const TextStyle(
+                              color: kPrimaryDark,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (requestMemo.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Text(
@@ -762,12 +903,20 @@ class _RecallScreenState extends State<RecallScreen> {
     return raw
         .split(RegExp(r'\r?\n'))
         .map((line) => line.trim())
-        .where((line) => line.isNotEmpty && !line.startsWith('모델명:'))
+        .where((line) =>
+            line.isNotEmpty &&
+            !line.startsWith('제품ID:') &&
+            !line.startsWith('모델명:'))
         .join('\n');
   }
 
   String _extractActionModelNumber(String note) {
     final match = RegExp(r'모델명:\s*([^\r\n]+)').firstMatch(note);
+    return match?.group(1)?.trim() ?? '';
+  }
+
+  String _extractActionProductId(String note) {
+    final match = RegExp(r'제품ID:\s*([0-9]+)').firstMatch(note);
     return match?.group(1)?.trim() ?? '';
   }
 
@@ -844,11 +993,131 @@ class _RecallScreenState extends State<RecallScreen> {
     );
   }
 
+  String _kcStatus(Map<String, dynamic> product) {
+    final raw = [
+      product['kcStatus'],
+      product['kcCertificationStatus'],
+      product['kcSafetyStatus'],
+      product['certificationStatus'],
+    ].where((value) => value != null).join(' ').trim().toUpperCase();
+
+    if (raw.isEmpty) return 'KC 확인 전';
+    if (raw.contains('미확인') ||
+        raw.contains('조회 불가') ||
+        raw.contains('불가') ||
+        raw.contains('NOT') ||
+        raw.contains('UNKNOWN') ||
+        raw.contains('INVALID') ||
+        raw.contains('FAILED') ||
+        raw.contains('EXPIRED') ||
+        raw.contains('부적합')) {
+      return raw.contains('불가') ? 'KC 조회 불가' : 'KC 인증 미확인';
+    }
+    if (raw.contains('VALID') ||
+        raw.contains('CERTIFIED') ||
+        raw.contains('PASS') ||
+        raw.contains('확인') ||
+        raw.contains('적합') ||
+        raw.contains('인증 확인')) {
+      return 'KC 인증 확인';
+    }
+    return 'KC 인증 미확인';
+  }
+
+  Color _kcStatusColor(String status) {
+    if (status == 'KC 인증 확인') return kPrimary;
+    if (status == 'KC 인증 미확인') return kDanger;
+    return kTextMuted;
+  }
+
+  Widget _kcChip(Map<String, dynamic> product) {
+    final status = _kcStatus(product);
+    final color = _kcStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _kcInfoCard(Map<String, dynamic> product) {
+    final status = _kcStatus(product);
+    final color = _kcStatusColor(status);
+    final certNum = '${product['kcCertNum'] ?? ''}'.trim();
+    final certState = '${product['kcCertState'] ?? ''}'.trim();
+    final certOrganName = '${product['kcCertOrganName'] ?? ''}'.trim();
+    final certProductName = '${product['kcCertProductName'] ?? ''}'.trim();
+    final certModelName = '${product['kcCertModelName'] ?? ''}'.trim();
+    final certManufacturer = '${product['kcCertManufacturer'] ?? ''}'.trim();
+    final details = [
+      if (certNum.isNotEmpty) '인증번호: $certNum',
+      if (certState.isNotEmpty) '인증상태: $certState',
+      if (certOrganName.isNotEmpty) '인증기관: $certOrganName',
+      if (certProductName.isNotEmpty) '인증제품: $certProductName',
+      if (certModelName.isNotEmpty) '인증모델: $certModelName',
+      if (certManufacturer.isNotEmpty) '제조사: $certManufacturer',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_outlined, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'KC 안전인증: $status',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  details.isEmpty
+                      ? '제품안전정보센터 KC 인증정보 API에서 일치하는 인증 정보를 찾지 못했습니다. 인증번호가 있으면 더 정확하게 조회할 수 있습니다.'
+                      : details.join('\n'),
+                  style: const TextStyle(
+                    color: kTextMuted,
+                    fontSize: 11,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _hasRecallRequest(Map<String, dynamic> product) {
     return _findRecallRequest(product) != null;
   }
 
   Map<String, dynamic>? _findRecallRequest(Map<String, dynamic> product) {
+    final productId = '${product['id'] ?? ''}'.trim();
     final productName = '${product['productName'] ?? ''}'.trim();
     final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
 
@@ -859,14 +1128,26 @@ class _RecallScreenState extends State<RecallScreen> {
 
       final actionProductName = '${action['productName'] ?? ''}'.trim();
       final note = '${action['note'] ?? ''}';
-      if (modelNumber.isNotEmpty && note.contains(modelNumber)) return action;
-      if (productName.isNotEmpty && actionProductName == productName) return action;
+      final actionProductId = _extractActionProductId(note);
+      final actionModelNumber = _extractActionModelNumber(note);
+
+      if (productId.isNotEmpty && actionProductId == productId) return action;
+      if (modelNumber.isNotEmpty && actionModelNumber == modelNumber) {
+        return action;
+      }
+      if (modelNumber.isEmpty &&
+          actionModelNumber.isEmpty &&
+          productName.isNotEmpty &&
+          actionProductName == productName) {
+        return action;
+      }
     }
 
     return null;
   }
 
   Future<void> _requestRecallAction(Map<String, dynamic> product) async {
+    final productId = '${product['id'] ?? ''}';
     final productName = '${product['productName'] ?? '제품명 없음'}';
     final modelNumber = '${product['modelNumber'] ?? ''}';
     final reason = '${product['recallReason'] ?? ''}';
@@ -946,6 +1227,8 @@ class _RecallScreenState extends State<RecallScreen> {
         'status': 'PENDING',
         'productName': productName,
         'note': [
+          if (productId.isNotEmpty) '제품ID: $productId',
+          if (modelNumber.isNotEmpty) '모델명: $modelNumber',
           memoCtrl.text.trim(),
           if (reason.isNotEmpty) '',
           if (reason.isNotEmpty) '제품안전정보센터 리콜 사유:',
@@ -1227,6 +1510,8 @@ class _RecallScreenState extends State<RecallScreen> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(fontSize: 12),
                                       ),
+                                      const SizedBox(height: 6),
+                                      _kcChip(product),
                                       const SizedBox(height: 4),
                                       Text(
                                         '마지막 조회: ${_checkedAtLabel(p['lastCheckedAt'])}',
@@ -1442,6 +1727,17 @@ class _RecallScreenState extends State<RecallScreen> {
       );
     }
 
+    final pendingCount = _actions.where((item) {
+      if (item is! Map) return false;
+      return _effectiveActionStatus(Map<String, dynamic>.from(item)) ==
+          'PENDING';
+    }).length;
+    final progressCount = _actions.where((item) {
+      if (item is! Map) return false;
+      return _effectiveActionStatus(Map<String, dynamic>.from(item)) ==
+          'IN_PROGRESS';
+    }).length;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1476,12 +1772,30 @@ class _RecallScreenState extends State<RecallScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              '미조치 $pendingCount건 · 조치 중 $progressCount건',
+              style: const TextStyle(
+                color: kTextMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 12),
             ..._actions.map((a) {
               final action = Map<String, dynamic>.from(a as Map);
               final productName = '${action['productName'] ?? '리콜 제품'}';
               final status = _effectiveActionStatus(action);
-              final note = _requestMemoOnly('${action['note'] ?? ''}'.trim());
+              final statusColor = _actionStatusColor(status);
+              final noteRaw = '${action['note'] ?? ''}'.trim();
+              final note = _requestMemoOnly(noteRaw)
+                  .split(RegExp(r'\r?\n'))
+                  .map((line) => line.trim())
+                  .where((line) => line.isNotEmpty)
+                  .take(2)
+                  .join(' ');
+              final modelNumber = _extractActionModelNumber(noteRaw);
+              final scheduleLabel = _actionScheduleLabel(action);
               return InkWell(
                 borderRadius: BorderRadius.circular(10),
                 onTap: () => _showActionDetail(action),
@@ -1490,51 +1804,100 @@ class _RecallScreenState extends State<RecallScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: kDanger.withOpacity(0.05),
+                    color: statusColor.withOpacity(0.07),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: kDanger.withOpacity(0.14)),
+                    border: Border.all(color: statusColor.withOpacity(0.18)),
                   ),
-                  child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            productName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          status == 'IN_PROGRESS'
+                              ? Icons.support_agent
+                              : Icons.assignment_late_outlined,
+                          color: statusColor,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    productName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    _actionStatusLabel(status),
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _actionStatusLabel(status),
-                          style: TextStyle(
-                            color: _actionStatusColor(status),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (note.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        note,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.35,
-                          color: kTextMuted,
+                            const SizedBox(height: 4),
+                            Text(
+                              [
+                                if (modelNumber.isNotEmpty)
+                                  '모델명 $modelNumber',
+                                '요청일 ${_checkedAtLabel(action['createdAt'])}',
+                                if (scheduleLabel.isNotEmpty) scheduleLabel,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: kTextMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (note.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                note,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  height: 1.35,
+                                  color: kTextMuted,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
-                  ],
                   ),
                 ),
               );
@@ -1554,7 +1917,8 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   Color _actionStatusColor(String status) {
-    if (status == 'COMPLETED') return kPrimary;
+    if (status == 'IN_PROGRESS') return kPrimary;
+    if (status == 'COMPLETED') return kTextMuted;
     if (status == 'CANCELLED') return kTextMuted;
     return kDanger;
   }
