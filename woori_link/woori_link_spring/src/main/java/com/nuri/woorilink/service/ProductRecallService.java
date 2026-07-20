@@ -96,6 +96,7 @@ public class ProductRecallService {
         String inquiryTel = notice == null || !nonBlank(notice.getInquiryTel())
                 ? extractRecallContact(product.getRecallReason())
                 : notice.getInquiryTel();
+        RegisteredProduct.RecallStatus recallStatus = effectiveRecallStatus(product, notice);
 
         return new ProductRecallResponse(
                 product.getId(),
@@ -109,7 +110,7 @@ public class ProductRecallService {
                 product.getBarcode(),
                 product.getCertificationNumber(),
                 product.getRegistrationSource(),
-                product.getRecallStatus(),
+                recallStatus,
                 product.getCurrentUseStatus(),
                 product.getModelMatchStatus(),
                 product.getContactMethod(),
@@ -153,6 +154,21 @@ public class ProductRecallService {
                 product.getLastSuccessfulCheckedAt(),
                 product.getLastCheckErrorMessage()
         );
+    }
+
+    private RegisteredProduct.RecallStatus effectiveRecallStatus(RegisteredProduct product, RecallNotice notice) {
+        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.RECALLED
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED
+                || notice != null
+                || product.getMatchedRecallNoticeId() != null
+                || nonBlank(product.getRecallReason())) {
+            return RegisteredProduct.RecallStatus.RECALLED;
+        }
+        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.SAFE
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND) {
+            return RegisteredProduct.RecallStatus.SAFE;
+        }
+        return product.getRecallStatus();
     }
 
     @Transactional

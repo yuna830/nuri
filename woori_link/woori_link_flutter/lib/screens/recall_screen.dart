@@ -788,7 +788,7 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   void _showProductDetail(Map<String, dynamic> product) {
-    final status = '${product['recallStatus'] ?? ''}';
+    final status = _effectiveRecallStatus(product);
     final reason = '${product['recallReason'] ?? ''}'.trim();
     final reasonSections = _recallReasonSections(reason);
     final hasRequest = _hasRecallRequest(product);
@@ -1623,6 +1623,24 @@ class _RecallScreenState extends State<RecallScreen> {
     return kTextMuted;
   }
 
+  String _effectiveRecallStatus(Map<String, dynamic> product) {
+    final status = '${product['recallStatus'] ?? ''}'.trim();
+    final decisionStatus = '${product['recallDecisionStatus'] ?? ''}'.trim();
+    final reason = '${product['recallReason'] ?? ''}'.trim();
+    final matchedNotice = product['matchedRecallNotice'];
+    final matchedNoticeId = '${product['matchedRecallNoticeId'] ?? ''}'.trim();
+
+    if (status == 'RECALLED' ||
+        decisionStatus == 'RECALL_CONFIRMED' ||
+        reason.isNotEmpty ||
+        matchedNotice != null ||
+        matchedNoticeId.isNotEmpty) {
+      return 'RECALLED';
+    }
+    if (status == 'SAFE' || decisionStatus == 'NO_MATCH_FOUND') return 'SAFE';
+    return status.isEmpty ? 'UNKNOWN' : status;
+  }
+
   String _statusLabel(String? status) {
     if (status == 'RECALLED') return '리콜 대상';
     if (status == 'SAFE') return '리콜 미확인';
@@ -1721,8 +1739,8 @@ class _RecallScreenState extends State<RecallScreen> {
                     _emptyProducts()
                   else
                     ..._products.map((p) {
-                      final status = p['recallStatus'] as String?;
                       final product = Map<String, dynamic>.from(p as Map);
+                      final status = _effectiveRecallStatus(product);
                       final manufacturer = p['manufacturer'] as String?;
                       final hasRequest = _hasRecallRequest(product);
                       return Card(
