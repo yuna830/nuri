@@ -38,10 +38,16 @@ public class ProductRecallController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestBody RegisteredProduct product
     ) {
-        if (user == null || !"GUARDIAN".equals(user.getRole())) {
-            throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
+        if (user == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
+        if ("SENIOR".equals(user.getRole())) {
+            product.setSeniorId(user.getUserId());
+        } else if ("GUARDIAN".equals(user.getRole())) {
+            productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
+        } else {
+            throw new IllegalArgumentException("제품을 등록할 수 있는 계정이 아닙니다.");
+        }
         RegisteredProduct saved = productRecallService.register(product);
         return productRecallService.getResponse(saved.getId());
     }

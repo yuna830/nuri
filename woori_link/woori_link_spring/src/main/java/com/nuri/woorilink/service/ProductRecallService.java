@@ -230,7 +230,17 @@ public class ProductRecallService {
     }
 
     @Transactional
-    public void delete(Long id) { productRepository.deleteById(id); }
+    public void delete(Long id) {
+        RegisteredProduct product = productRepository.findById(id).orElse(null);
+        if (product != null && product.getSeniorId() != null) {
+            actionRecordRepository.deleteBySeniorIdAndActionTypeAndNoteContaining(
+                    product.getSeniorId(),
+                    ActionRecord.ActionType.RECALL,
+                    "제품ID: " + id
+            );
+        }
+        productRepository.deleteById(id);
+    }
 
     @Transactional
     public RegisteredProduct updateCurrentUseStatus(
@@ -289,7 +299,8 @@ public class ProductRecallService {
         Long welfareWorkerId = request.getWelfareWorkerId();
         if (welfareWorkerId == null && senior != null) welfareWorkerId = senior.getWelfareWorkerId();
 
-        String purpose = seniorName + "님 리콜 조치 방문일";
+        String productName = nonBlank(product.getProductName()) ? product.getProductName() : "리콜 제품";
+        String purpose = seniorName + "님 - " + productName + " 리콜 조치 방문일";
         boolean exists = visitScheduleRepository.findBySeniorId(product.getSeniorId()).stream()
                 .anyMatch(schedule ->
                         product.getNextActionDate().equals(schedule.getVisitDate()) &&
@@ -302,7 +313,7 @@ public class ProductRecallService {
                 .welfareWorkerId(welfareWorkerId)
                 .visitDate(product.getNextActionDate())
                 .purpose(purpose)
-                .note(product.getProductName() + " 리콜 후속 조치")
+                .note(productName + " 리콜 후속 조치")
                 .status(VisitSchedule.VisitStatus.PLANNED)
                 .build());
     }

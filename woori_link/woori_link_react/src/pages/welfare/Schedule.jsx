@@ -5,7 +5,11 @@ import { getUserId } from '../../utils/auth'
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function actionScheduleTitle(action) {
-  return `${action.seniorName || '어르신'}님 조치 방문일`
+  const seniorName = action.seniorName || '어르신'
+  const productName = action.productName || ''
+  return productName
+    ? `${seniorName}님 - ${productName} 조치 방문일`
+    : `${seniorName}님 조치 방문일`
 }
 
 function actionToCalendarEvent(action) {
@@ -147,6 +151,7 @@ export default function Schedule() {
             <div className="schedule-item" key={s.id}>
               <div className="schedule-time">{s.visitTime || '시간 미정'}</div>
               <div className="schedule-body">{s.purpose}</div>
+              {s.productName && <div className="schedule-product">대상 제품: {s.productName}</div>}
               <div className="schedule-actions">
                 {!['COMPLETED', 'CANCELLED'].includes(s.status) && <button className="btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleStatus(s.id, 'COMPLETED')}>완료</button>}
                 <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleDelete(s.id)}>삭제</button>

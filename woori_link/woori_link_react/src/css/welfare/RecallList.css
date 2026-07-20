@@ -116,8 +116,6 @@
 .recall-guidance-memo textarea { min-height: 72px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; font: inherit; }
 .recall-guidance-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; background: #fff; }
 .recall-guidance-actions button { min-height: 40px; padding: 0 16px; }
-.recall-action-check { grid-column: 1 / -1; flex-direction: row !important; align-items: center; }
-.recall-action-check input { width: 16px !important; height: 16px; }
 .recall-modal-actions { flex: 0 0 auto; margin: 0; padding: 14px 28px; border-top: 0; background: #fff; }
 
 .recall-modal-overlay { background: rgba(15, 23, 42, .45); backdrop-filter: blur(1px); }
@@ -138,20 +136,46 @@
 .recall-modal-close { width: 36px; height: 36px; border-radius: 8px; color: #8a98aa; }
 .recall-modal-close:hover { background: #f3f6f8; color: #526173; }
 .recall-stepper {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 13px 28px;
   border-bottom: 1px solid #e7edf3;
   background: #fff;
 }
 .recall-stepper > div { gap: 8px; min-width: 0; color: #8a98aa; }
 .recall-stepper > div:not(:last-child)::after {
-  left: calc(50% + 74px);
-  right: calc(-50% + 74px);
+  left: calc(50% + 66px);
+  right: calc(-50% + 66px);
   background: #d9e2ec;
 }
 .recall-stepper b { background: #f1f5f8; color: #738195; font-size: 12px; }
-.recall-stepper .done b { background: #edf7ef; color: var(--primary-dark); }
+.recall-stepper .active { color: #506a51; }
+.recall-stepper .active b { background: #8fa78b; color: #fff; }
+.recall-stepper .done { color: #6f856c; }
+.recall-stepper .done b { background: #edf4eb; color: #5d7558; }
 .recall-modal-body { padding: 24px 28px 22px; background: #fff; }
+.recall-workflow-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #dce5dc;
+  border-radius: 10px;
+  background: #f8faf7;
+}
+.recall-workflow-note strong {
+  color: #506a51;
+  font-size: 13px;
+}
+.recall-workflow-note p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: right;
+}
 .recall-form-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .recall-form-grid label { gap: 8px; color: #394656; font-weight: 700; }
 .recall-form-grid select,
@@ -170,7 +194,6 @@
   outline: none;
 }
 .recall-note-field textarea { min-height: 94px; line-height: 1.55; }
-.recall-action-check { justify-content: flex-start; color: #526173 !important; font-weight: 600 !important; }
 .recall-completion-group { grid-column: 1 / -1; margin-top: 0; }
 .recall-completion-panel {
   border: 1px solid #cfded2;
@@ -193,8 +216,8 @@
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #eef6ef;
-  color: #4f7258;
+  background: #edf4eb;
+  color: #506a51;
   font-size: 12px;
   font-weight: 800;
 }
@@ -239,8 +262,8 @@
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #eef6ef;
-  color: #4f7258;
+  background: #edf4eb;
+  color: #506a51;
   font-size: 12px;
   font-weight: 800;
 }
@@ -291,8 +314,8 @@
   color: #526173;
 }
 .recall-followup-summary__actions .btn-primary {
-  border: 1px solid #7fa287;
-  background: #7fa287;
+  border: 1px solid #8fa78b;
+  background: #8fa78b;
   color: #fff;
 }
 .recall-modal-actions {
@@ -446,8 +469,8 @@
 .recall-action-guide__quick button:hover,
 .recall-action-guide__tools button:not(:disabled):hover,
 .recall-action-guide__tools a:hover {
-  border-color: #9bb79f;
-  background: #eef6ef;
+  border-color: #a9bca6;
+  background: #edf4eb;
 }
 
 .recall-summary-cards button {
@@ -464,42 +487,46 @@
   background: #94a3b8;
 }
 .recall-summary-cards button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, .08); }
-.recall-summary-cards button.tone-all::before { background: #8da894; }
-.recall-summary-cards button.tone-check::before { background: #b8c8bc; }
-.recall-summary-cards button.tone-action::before { background: #7fa287; }
-.recall-summary-cards button.tone-done::before { background: #5f8568; }
-.recall-summary-cards button.tone-all.active { border-color: #a9c0ae; background: #f8fbf8; color: #3f5545; }
-.recall-summary-cards button.tone-check.active { border-color: #cfded2; background: #fbfdfb; color: #5f7464; }
-.recall-summary-cards button.tone-action.active { border-color: #b5cdb9; background: #f3f8f4; color: #52725a; }
-.recall-summary-cards button.tone-done.active { border-color: #9bb79f; background: #eef6ef; color: #47684f; }
-.recall-summary-cards button.tone-all.active strong { color: #3f5545; }
-.recall-summary-cards button.tone-check.active strong { color: #5f7464; }
-.recall-summary-cards button.tone-action.active strong { color: #52725a; }
-.recall-summary-cards button.tone-done.active strong { color: #47684f; }
+.recall-summary-cards button.tone-all::before { background: #8fa78b; }
+.recall-summary-cards button.tone-check::before { background: #c7d7c4; }
+.recall-summary-cards button.tone-action::before { background: #9fb69b; }
+.recall-summary-cards button.tone-done::before { background: #789277; }
+.recall-summary-cards button.tone-all.active,
+.recall-summary-cards button.tone-check.active,
+.recall-summary-cards button.tone-action.active,
+.recall-summary-cards button.tone-done.active {
+  border-color: #dce5dc;
+  background: #f8faf7;
+  color: #506a51;
+}
+.recall-summary-cards button.tone-all.active strong,
+.recall-summary-cards button.tone-check.active strong,
+.recall-summary-cards button.tone-action.active strong,
+.recall-summary-cards button.tone-done.active strong { color: #243128; }
 
 .recall-table tbody tr.recall-row td { border-bottom-color: #e4ebf3; }
 .recall-table tbody tr.recall-row { cursor: pointer; outline: none; }
 .recall-table tbody tr.recall-row:focus-visible td {
-  background: #f3f8f4;
-  box-shadow: inset 0 0 0 2px #9bb79f;
+  background: #f3f7f1;
+  box-shadow: inset 0 0 0 2px #a9bca6;
 }
-.recall-table tbody tr.recall-row.tone-check td:first-child { box-shadow: inset 4px 0 0 #b8c8bc; }
-.recall-table tbody tr.recall-row.tone-action td:first-child { box-shadow: inset 4px 0 0 #7fa287; }
-.recall-table tbody tr.recall-row.tone-done td:first-child { box-shadow: inset 4px 0 0 #5f8568; }
-.recall-table tbody tr.recall-row.tone-excluded td:first-child { box-shadow: inset 4px 0 0 #c8d2cb; }
+.recall-table tbody tr.recall-row.tone-check td:first-child { box-shadow: inset 4px 0 0 #c7d7c4; }
+.recall-table tbody tr.recall-row.tone-action td:first-child { box-shadow: inset 4px 0 0 #9fb69b; }
+.recall-table tbody tr.recall-row.tone-done td:first-child { box-shadow: inset 4px 0 0 #789277; }
+.recall-table tbody tr.recall-row.tone-excluded td:first-child { box-shadow: inset 4px 0 0 #d7e0d5; }
 .recall-table tbody tr.recall-row.tone-check:hover td { background: #fbfdfb; }
-.recall-table tbody tr.recall-row.tone-action:hover td { background: #f3f8f4; }
-.recall-table tbody tr.recall-row.tone-done:hover td { background: #eef6ef; }
+.recall-table tbody tr.recall-row.tone-action:hover td { background: #f3f7f1; }
+.recall-table tbody tr.recall-row.tone-done:hover td { background: #edf4eb; }
 .recall-table tbody tr.recall-row.tone-excluded:hover td { background: #f8fafc; }
 
 .recall-state-badge {
   border: 1px solid transparent;
   min-width: 52px;
 }
-.recall-state-badge.tone-check { border-color: #cfded2; background: #fbfdfb; color: #5f7464; }
-.recall-state-badge.tone-action { border-color: #b5cdb9; background: #f3f8f4; color: #52725a; }
-.recall-state-badge.tone-done { border-color: #9bb79f; background: #eef6ef; color: #47684f; }
-.recall-state-badge.tone-excluded { border-color: #d5ded7; background: #f8fafc; color: #526173; }
+.recall-state-badge.tone-check { border-color: #dce5dc; background: #fbfdfb; color: #5f7464; }
+.recall-state-badge.tone-action { border-color: #cbdcc8; background: #f3f7f1; color: #506a51; }
+.recall-state-badge.tone-done { border-color: #b8cbb5; background: #edf4eb; color: #496346; }
+.recall-state-badge.tone-excluded { border-color: #d7e0d5; background: #f8faf7; color: #637462; }
 
 @media (max-width: 760px) {
   .recall-page-header { flex-direction: column; }

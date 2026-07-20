@@ -157,21 +157,6 @@ export default function RecallList() {
 
   useEffect(() => { load() }, [])
 
-  function setFollowUpFromGuide(type) {
-    const contact = recallContact(selected)
-    const line = contact
-      ? `${type}: 리콜 문의처(${contact}) 기준으로 안내/확인했습니다.`
-      : `${type}: 리콜 안내 내용을 기준으로 안내/확인했습니다.`
-    setStep(2)
-    setFollowUpEditing(true)
-    setCompletionOnly(false)
-    setForm(previous => ({
-      ...previous,
-      followUpType: type,
-      note: [removeGuideNotes(previous.note), line].filter(Boolean).join('\n'),
-    }))
-  }
-
   async function copyRecallContact() {
     const contact = recallContact(selected)
     if (!contact) return alert('등록된 문의처가 없습니다.')
@@ -227,7 +212,6 @@ export default function RecallList() {
       followUpProgressStatus: product.followUpProgressStatus || 'PLANNED',
       note: product.note || '',
       finalResult: product.finalResult || '',
-      createAction: false,
     })
     setStep(!product.currentUseStatus || ['UNKNOWN', 'NOT_OWNED'].includes(product.currentUseStatus) ? 1 : 2)
     setFollowUpEditing(!(product.followUpType || product.finalResult || product.followUpProgressStatus === 'COMPLETED'))
@@ -354,7 +338,7 @@ export default function RecallList() {
     ? '조치 완료 저장'
     : completionOnly
       ? '조치 완료 저장'
-    : (form.createAction ? '달력 등록 및 저장' : '후속 조치 저장')
+    : '후속 조치 저장'
   const hasSavedFollowUp = Boolean(form.followUpType || form.finalResult || form.nextActionDate || form.note)
 
   return (
@@ -445,16 +429,18 @@ export default function RecallList() {
             </div>
 
             <div className="recall-stepper">
-              {[1, 2].map(number => <div key={number} className={step === number ? 'active' : step > number ? 'done' : ''}><b>{step > number ? '✓' : number}</b><span>{['사용 여부 확인', '후속 조치'][number - 1]}</span></div>)}
+              <div className="done"><b>✓</b><span>리콜 공고 확인</span></div>
+              <div className={step === 1 ? 'active' : 'done'}><b>{step > 1 ? '✓' : '1'}</b><span>사용 여부 확인</span></div>
+              <div className={step === 2 ? 'active' : ''}><b>2</b><span>후속 조치</span></div>
             </div>
 
             <div className="recall-modal-body">
               <section className="recall-action-guide">
                 <div className="recall-action-guide__header">
                   <div>
-                    <span>리콜 조치 안내</span>
+                    <span>리콜 공고 확인</span>
                     <strong>{recallContact(selected) || '문의처 정보 없음'}</strong>
-                    {!recallContact(selected) && <small>상세 안내 원문 또는 출처에서 문의처를 확인하세요.</small>}
+                    <small>{recallContact(selected) ? '문의처 확인 후 실제 안내·조치 내용은 아래 업무 단계에서 기록하세요.' : '상세 안내 원문 또는 출처에서 문의처를 확인하세요.'}</small>
                   </div>
                   <div className="recall-action-guide__tools">
                     <button type="button" onClick={copyRecallContact} disabled={!recallContact(selected)}>문의처 복사</button>
@@ -486,11 +472,6 @@ export default function RecallList() {
                     )}
                   </dl>
                 )}
-                <div className="recall-action-guide__quick">
-                  <button type="button" onClick={() => setFollowUpFromGuide('어르신 안내')}>어르신 안내 기록</button>
-                  <button type="button" onClick={() => setFollowUpFromGuide('보호자 안내')}>보호자 안내 기록</button>
-                  <button type="button" onClick={() => setFollowUpFromGuide('제조사 문의')}>제조사 문의 기록</button>
-                </div>
               </section>
 
               {false && <>
@@ -504,6 +485,11 @@ export default function RecallList() {
                   <p>리콜 여부는 API 조회 결과로 처리하고, 복지사는 실제 보유·사용 여부와 후속 조치만 확인합니다.</p>
                 </div>
               </>}
+
+              <div className="recall-workflow-note">
+                <strong>{step === 1 ? '현재 업무: 사용 여부 확인' : '현재 업무: 후속 조치 기록'}</strong>
+                <p>{step === 1 ? '어르신이 실제로 제품을 보유하고 사용하는지 먼저 확인합니다.' : '확인한 내용을 바탕으로 제조사 문의, 방문, 수리·환불 등 다음 조치를 기록합니다.'}</p>
+              </div>
 
               {step === 1 && <>
                 <div className="recall-usage-layout">
@@ -540,7 +526,7 @@ export default function RecallList() {
                     <strong>조치 완료 처리</strong>
                     <span>{valueOrFallback(form.followUpType)}</span>
                   </div>
-                  <fieldset className="recall-choice-group recall-completion-group"><legend>완료 결과 <small>실제 조치가 끝난 결과만 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '', createAction: false }))}>{label}</button>)}</fieldset>
+                  <fieldset className="recall-choice-group recall-completion-group"><legend>완료 결과 <small>실제 조치가 끝난 결과만 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
                   <label className="recall-completion-note">완료 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="완료 처리 내용이나 확인 사항을 기록하세요" /></label>
                 </div>
               )}
@@ -550,8 +536,7 @@ export default function RecallList() {
                 <label>다음 조치일<input type="date" value={form.nextActionDate ?? ''} disabled={Boolean(form.finalResult)} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label>
                 {['보호자 연락', '보호자 안내'].includes(form.followUpType) && <label>보호자 연락 상태<select value={form.guardianContactStatus ?? 'UNKNOWN'} onChange={event => setForm(previous => ({ ...previous, guardianContactStatus: event.target.value }))}><option value="UNKNOWN">미확인</option><option value="SCHEDULED">연락 예정</option><option value="COMPLETED">연락 완료</option><option value="UNREACHABLE">연락 불가</option></select></label>}
                 <label className="recall-note-field">담당자 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="확인 및 후속 조치 내용을 기록하세요" /></label>
-                <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '', createAction: false }))}>{label}</button>)}</fieldset>
-                <label className="recall-action-check"><input type="checkbox" checked={form.createAction} disabled={Boolean(form.finalResult)} onChange={event => setForm(previous => ({ ...previous, createAction: event.target.checked }))} />달력에 등록</label>
+                <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
               </div>}
             </div>
 

@@ -59,6 +59,9 @@ public class VisitScheduleService {
                 : seniorRepository.findById(schedule.getSeniorId())
                 .map(Senior::getName)
                 .orElse("어르신");
+        String purpose = schedule.getPurpose() == null || schedule.getPurpose().isBlank()
+                ? seniorName + "님 조치 방문일"
+                : schedule.getPurpose();
         return new VisitScheduleResponse(
                 schedule.getId(),
                 schedule.getSeniorId(),
@@ -66,8 +69,8 @@ public class VisitScheduleService {
                 schedule.getWelfareWorkerId(),
                 schedule.getVisitDate(),
                 schedule.getVisitTime(),
-                seniorName + "님 조치 방문일",
-                null,
+                purpose,
+                schedule.getNote(),
                 schedule.getStatus(),
                 schedule.getCreatedAt()
         );
