@@ -385,7 +385,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_text(senior['name'])} 어르신',
+                  '${_text(senior['name'])}님',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 21,

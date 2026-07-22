@@ -55,10 +55,10 @@ public class VisitScheduleService {
 
     private VisitScheduleResponse toWelfareWorkerResponse(VisitSchedule schedule) {
         String seniorName = schedule.getSeniorId() == null
-                ? "어르신"
+                ? "님"
                 : seniorRepository.findById(schedule.getSeniorId())
                 .map(Senior::getName)
-                .orElse("어르신");
+                .orElse("님");
         return new VisitScheduleResponse(
                 schedule.getId(),
                 schedule.getSeniorId(),

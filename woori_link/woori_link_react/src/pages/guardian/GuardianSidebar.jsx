@@ -245,13 +245,27 @@ function getAlertSeniorName(alert, seniors) {
     String(item.id) === String(seniorId)
   ));
 
-  return senior?.name ?? '담당 어르신';
+  return senior?.name ?? '담당 님';
 }
 
 
 function getAlertAction(alert) {
   const type = getAlertType(alert);
   const seniorId = getAlertSeniorId(alert);
+
+  // SAFETY_ZONE_EXIT에는 SAFETY도 포함되므로 제품 알림보다 먼저 판별한다.
+  if (
+    type.includes('LOCATION')
+    || type.includes('GEOFENCE')
+    || type.includes('SAFETY_ZONE')
+  ) {
+    return {
+      label: '위치 확인',
+      path: seniorId
+        ? `/guardian/seniors?seniorId=${seniorId}#location-map`
+        : '/guardian/seniors#location-map',
+    };
+  }
 
   if (
     type.includes('RECALL')
@@ -281,9 +295,7 @@ function getAlertAction(alert) {
   }
 
   return {
-    label: type.includes('LOCATION') || type.includes('GEOFENCE')
-      ? '위치 확인'
-      : '현황 확인',
+    label: '현황 확인',
 
     path: seniorId
       ? `/guardian/seniors?seniorId=${seniorId}`
@@ -818,10 +830,6 @@ export default function GuardianSidebar({
                         </div>
 
                         <div className="guardian-notification-item__copy">
-                          <strong>
-                            {getAlertSeniorName(alert, seniors)} 어르신
-                          </strong>
-
                           <h3>{getAlertTitle(alert)}</h3>
 
                           {getAlertMessage(alert) && (

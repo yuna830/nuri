@@ -64,6 +64,22 @@
 .welfare-chat__subject p { color: #879289; font-size: 9px; }
 .welfare-chat__subject p { margin: 0; text-align: right; }
 
+.welfare-chat { min-height: 0; overflow: hidden; }
+.welfare-chat__messages {
+  min-height: 0;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-color: #aebcab #eef2ed;
+  scrollbar-width: thin;
+}
+.welfare-chat__messages::-webkit-scrollbar { width: 9px; }
+.welfare-chat__messages::-webkit-scrollbar-track { background: #eef2ed; }
+.welfare-chat__messages::-webkit-scrollbar-thumb {
+  border: 2px solid #eef2ed;
+  border-radius: 999px;
+  background: #aebcab;
+}
+
 .welfare-chat__sources a,
 .welfare-chat__sources > span {
   display: flex;

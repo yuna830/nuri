@@ -1930,7 +1930,7 @@ class _RecallScreenState extends State<RecallScreen> {
             ),
             const SizedBox(height: 10),
             const Text(
-              '어르신이 보유한 제품을 바코드·OCR 기반으로 등록하면 국가기술표준원 제품안전정보센터 리콜 목록과 자동으로 비교합니다.',
+              '님이 보유한 제품을 바코드·OCR 기반으로 등록하면 국가기술표준원 제품안전정보센터 리콜 목록과 자동으로 비교합니다.',
               style: TextStyle(fontSize: 12, color: kTextMuted, height: 1.45),
             ),
             const SizedBox(height: 12),

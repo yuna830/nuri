@@ -19,3 +19,5 @@ psycopg[binary]
 rank-bm25
 
 redis
+
+google-genai

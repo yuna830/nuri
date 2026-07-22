@@ -12,5 +12,5 @@ public class SeniorRegisterRequest {
     private LocalDate birthDate;
     private String address;
     private String gender;
-    private Long guardianId;
+    private String inviteCode;
 }

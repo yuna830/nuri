@@ -12,6 +12,10 @@ from app.core.config import settings
 from app.services.embedding_service import EmbeddingService
 from app.services.qdrant_service import QdrantService
 
+from app.check_in_analysis.router import (
+    router as check_in_analysis_router,
+)
+
 
 app = FastAPI(
     title="Nuri Welfare RAG API",
@@ -33,7 +37,7 @@ app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/api/upload", tags=["upload"])
 app.include_router(public_welfare_router, prefix="/api/public-welfare", tags=["public-welfare"])
 app.include_router(rag_documents.router, prefix="/api/rag-documents", tags=["RAG Documents"])
-
+app.include_router(check_in_analysis_router)
 
 @app.get("/health")
 def health_check():

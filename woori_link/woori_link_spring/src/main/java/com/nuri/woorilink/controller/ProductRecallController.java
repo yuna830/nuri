@@ -1,16 +1,19 @@
 package com.nuri.woorilink.controller;
 
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
 import com.nuri.woorilink.entity.RegisteredProduct;
+import com.nuri.woorilink.service.FcmPushService;
 import com.nuri.woorilink.service.ProductRecallService;
-import com.nuri.woorilink.common.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
@@ -18,6 +21,46 @@ import java.util.List;
 public class ProductRecallController {
 
     private final ProductRecallService productRecallService;
+    private final FcmPushService fcmPushService;
+
+    private boolean isGuardian(AuthenticatedUser user) {
+        if (user == null || user.getRole() == null) return false;
+        return "GUARDIAN".equalsIgnoreCase(user.getRole().replaceFirst("^ROLE_", ""));
+    }
+
+    @PostMapping("/{id}/notifications")
+    public FcmPushService.SendResult sendNotification(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @RequestBody NotificationRequest request
+    ) {
+        if (!isGuardian(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "보호자 계정으로 다시 로그인해 주세요.");
+        }
+        if (request == null || request.message() == null || request.message().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "안내 내용을 입력해 주세요.");
+        }
+
+        RegisteredProduct product = productRecallService.getForGuardian(id, user.getUserId());
+        try {
+            return fcmPushService.sendToSenior(
+                    product.getSeniorId(),
+                    "WOORI 리콜 안내",
+                    request.message().trim(),
+                    Map.of(
+                            "type", "PRODUCT_RECALL",
+                            "productId", String.valueOf(id),
+                            "seniorId", String.valueOf(product.getSeniorId())
+                    )
+            );
+        } catch (java.util.NoSuchElementException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        }
+    }
+
+    public record NotificationRequest(String message) { }
 
     @GetMapping("/senior/{seniorId}")
     public List<ProductRecallResponse> getBySenior(@PathVariable Long seniorId) {
@@ -25,7 +68,9 @@ public class ProductRecallController {
     }
 
     @GetMapping("/recalled")
-    public List<ProductRecallResponse> getRecalled() { return productRecallService.getRecalled(); }
+    public List<ProductRecallResponse> getRecalled() {
+        return productRecallService.getRecalled();
+    }
 
     @GetMapping("/recalled/welfare-worker/{welfareWorkerId}")
     public List<ProductRecallResponse> getRecalledByWelfareWorker(@PathVariable Long welfareWorkerId) {
@@ -38,7 +83,7 @@ public class ProductRecallController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestBody RegisteredProduct product
     ) {
-        if (user == null || !"GUARDIAN".equals(user.getRole())) {
+        if (!isGuardian(user)) {
             throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
         }
         productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
@@ -47,7 +92,9 @@ public class ProductRecallController {
     }
 
     @PostMapping("/refresh")
-    public void refreshAll() { productRecallService.refreshAll(); }
+    public void refreshAll() {
+        productRecallService.refreshAll();
+    }
 
     @PostMapping("/{productId}/recall-check")
     public ProductRecallResponse checkRecall(@PathVariable Long productId) {
@@ -56,7 +103,9 @@ public class ProductRecallController {
     }
 
     @PostMapping("/recall-check/refresh-all")
-    public void refreshAllNewPath() { productRecallService.refreshAll(); }
+    public void refreshAllNewPath() {
+        productRecallService.refreshAll();
+    }
 
     @PatchMapping("/{id}/current-use")
     public RegisteredProduct updateCurrentUseStatus(
@@ -64,19 +113,23 @@ public class ProductRecallController {
             @PathVariable Long id,
             @RequestParam RegisteredProduct.CurrentUseStatus status
     ) {
-        if (user == null || !"GUARDIAN".equals(user.getRole())) {
+        if (!isGuardian(user)) {
             throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
         }
         return productRecallService.updateCurrentUseStatus(id, status, user.getUserId());
     }
 
     @PatchMapping("/{id}/workflow")
-    public RegisteredProduct updateWorkflow(@PathVariable Long id,
-                                            @RequestBody RecallWorkflowUpdateRequest request) {
+    public RegisteredProduct updateWorkflow(
+            @PathVariable Long id,
+            @RequestBody RecallWorkflowUpdateRequest request
+    ) {
         return productRecallService.updateWorkflow(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) { productRecallService.delete(id); }
+    public void delete(@PathVariable Long id) {
+        productRecallService.delete(id);
+    }
 }

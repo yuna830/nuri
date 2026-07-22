@@ -284,13 +284,13 @@ export default function App() {
             ================================================= */}
 
         <Route element={<GuardianProtectedRoute />}>
-          {/* 담당 어르신 전체 요약 홈 */}
+          {/* 담당 님 전체 요약 홈 */}
           <Route
             path="/guardian"
             element={<GuardianHome />}
           />
 
-          {/* 선택한 어르신 상세 현황 */}
+          {/* 선택한 님 상세 현황 */}
           <Route
             path="/guardian/seniors"
             element={<SeniorStatus />}

@@ -54,7 +54,7 @@ const RECOMMENDED_QUESTIONS = [
   '에너지바우처 신청 조건은 무엇인가요?',
   '리콜 제품을 사용 중이면 어떻게 해야 하나요?',
   '도시가스요금 경감 신청에 필요한 서류는 무엇인가요?',
-  '폭염특보가 발생하면 어르신에게 어떤 조치를 해야 하나요?',
+  '폭염특보가 발생하면 님에게 어떤 조치를 해야 하나요?',
 ];
 
 
@@ -475,24 +475,51 @@ function isRecallPending(product) {
 function getRecallCategoryFromText(value) {
   const text = normalizeText(value);
 
+  /*
+   * 전기를 사용하거나 난방·공기 환경과 관련된 제품
+   */
   if (
-    text.includes('전기요')
+    text.includes('가습기')
+    || text.includes('제습기')
+    || text.includes('공기청정기')
+    || text.includes('선풍기')
+    || text.includes('서큘레이터')
+    || text.includes('에어컨')
+    || text.includes('전기요')
     || text.includes('전기매트')
     || text.includes('전기장판')
     || text.includes('히터')
     || text.includes('난로')
     || text.includes('온풍기')
+    || text.includes('전기히터')
+    || text.includes('전기난로')
+    || text.includes('HUMIDIFIER')
+    || text.includes('DEHUMIDIFIER')
+    || text.includes('AIR PURIFIER')
+    || text.includes('FAN')
     || text.includes('HEATER')
     || text.includes('HEATING')
   ) {
     return '전기·난방제품';
   }
 
+  /*
+   * 직류전원장치, 어댑터, 배터리 및 충전 제품
+   */
   if (
-    text.includes('배터리')
+    text.includes('직류전원장치')
+    || text.includes('직류 전원장치')
+    || text.includes('전원장치')
+    || text.includes('전원공급장치')
+    || text.includes('전원 공급 장치')
+    || text.includes('AC/DC')
+    || text.includes('POWER SUPPLY')
+    || text.includes('배터리')
     || text.includes('보조배터리')
     || text.includes('충전기')
+    || text.includes('충전장치')
     || text.includes('어댑터')
+    || text.includes('전지')
     || text.includes('BATTERY')
     || text.includes('CHARGER')
     || text.includes('ADAPTER')
@@ -500,29 +527,92 @@ function getRecallCategoryFromText(value) {
     return '배터리·충전기';
   }
 
+  /*
+   * 주방용품과 일반 생활용품
+   *
+   * 현재 홈 차트에는 의류·신발 카테고리가 없으므로
+   * 신발과 섬유제품도 생활용품으로 집계한다.
+   */
   if (
     text.includes('밥솥')
     || text.includes('전기포트')
     || text.includes('주전자')
     || text.includes('프라이팬')
+    || text.includes('냄비')
+    || text.includes('믹서기')
+    || text.includes('블렌더')
+    || text.includes('토스터')
+    || text.includes('전자레인지')
     || text.includes('조리')
     || text.includes('주방')
+    || text.includes('생활용품')
+
+    || text.includes('신발')
+    || text.includes('운동화')
+    || text.includes('구두')
+    || text.includes('샌들')
+    || text.includes('슬리퍼')
+    || text.includes('부츠')
+    || text.includes('아동용 섬유제품')
+    || text.includes('유아용 섬유제품')
+    || text.includes('섬유제품')
+    || text.includes('의류')
+
+    /*
+     * 현재 등록된 휠라 제품의 제품명에
+     * '신발'이라는 단어가 없어서 임시로 제품명도 처리한다.
+     */
+    || text.includes('휠라 꾸미 라이트')
+    || text.includes('메가리자몽')
+
     || text.includes('KITCHEN')
     || text.includes('COOKER')
+    || text.includes('BLENDER')
+    || text.includes('TOASTER')
+    || text.includes('SHOES')
+    || text.includes('SNEAKERS')
+    || text.includes('SANDAL')
+    || text.includes('SLIPPER')
+    || text.includes('FOOTWEAR')
   ) {
     return '주방·생활용품';
   }
 
+  /*
+   * 의료 및 건강 관련 제품
+   */
   if (
     text.includes('의료')
     || text.includes('혈압')
+    || text.includes('혈압계')
+    || text.includes('체온계')
     || text.includes('안마')
+    || text.includes('마사지')
     || text.includes('건강')
     || text.includes('보행기')
+    || text.includes('휠체어')
+    || text.includes('의료기기')
     || text.includes('MEDICAL')
     || text.includes('HEALTH')
+    || text.includes('MASSAGER')
   ) {
     return '의료·건강용품';
+  }
+
+  /*
+   * 현재 별도 어린이제품 카테고리가 없으므로
+   * 일반 생활용품으로 포함한다.
+   */
+  if (
+    text.includes('완구')
+    || text.includes('장난감')
+    || text.includes('어린이제품')
+    || text.includes('유아용품')
+    || text.includes('TOY')
+    || text.includes('CHILDREN')
+    || text.includes('KIDS')
+  ) {
+    return '주방·생활용품';
   }
 
   return '기타 제품';
@@ -557,7 +647,7 @@ function getSeniorNameByProduct(product, seniors) {
     senior?.name
     ?? product?.seniorName
     ?? product?.senior?.name
-    ?? '담당 어르신'
+    ?? '담당 님'
   );
 }
 
@@ -1025,7 +1115,7 @@ export default function GuardianHome() {
             senior?.name
             ?? alert?.seniorName
             ?? alert?.senior?.name
-            ?? '담당 어르신'
+            ?? '담당 님'
           ),
 
           type: getPriorityTypeLabel(
@@ -1256,11 +1346,11 @@ export default function GuardianHome() {
 
         {loading ? (
           <div className="guardian-dashboard__state">
-            담당 어르신의 상태를 불러오는 중입니다.
+            담당 님의 상태를 불러오는 중입니다.
           </div>
         ) : seniors.length === 0 ? (
           <div className="guardian-dashboard__state">
-            연결된 담당 어르신이 없습니다.
+            연결된 담당 님이 없습니다.
           </div>
         ) : (
           <>
@@ -1273,7 +1363,7 @@ export default function GuardianHome() {
                 </strong>
 
                 <small>
-                  실제 상태 확인이나 조치가 필요한 어르신
+                  실제 상태 확인이나 조치가 필요한 님
                 </small>
               </article>
 
@@ -1297,7 +1387,7 @@ export default function GuardianHome() {
                 </strong>
 
                 <small>
-                  위치 정보가 아직 수신되지 않은 어르신
+                  위치 정보가 아직 수신되지 않은 님
                 </small>
               </article>
             </section>
@@ -1682,7 +1772,7 @@ export default function GuardianHome() {
                               </span>
 
                               <strong>
-                                {getSeniorNameByProduct(product, seniors)} 어르신
+                                {getSeniorNameByProduct(product, seniors)} 님
                               </strong>
                             </div>
 

@@ -59,7 +59,7 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
             _voucherCard(
               title: '에너지바우처',
               icon: Icons.card_giftcard,
-              description: '저소득층 어르신에게 에너지 사용 비용을 지원하는 바우처입니다.',
+              description: '저소득층 님에게 에너지 사용 비용을 지원하는 바우처입니다.',
               applied: s?['energyVoucherApplied'] == true,
               onApply: () => _apply('energyVoucherApplied'),
             ),

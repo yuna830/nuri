@@ -3,6 +3,7 @@ import '../api/auth_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import 'main_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -149,6 +150,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : const Text('로그인'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: _loading
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const RegisterScreen(),
+                                    ),
+                                  ),
+                          child: const Text('초대 코드로 회원가입'),
                         ),
                       ),
                     ],

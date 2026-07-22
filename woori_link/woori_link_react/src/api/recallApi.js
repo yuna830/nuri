@@ -16,3 +16,5 @@ export const updateCurrentUseStatus = (id, status) =>
   api.patch(`/products/${id}/current-use`, null, { ...authConfig(), params: { status } })
 export const updateRecallWorkflow = (id, data) => api.patch(`/products/${id}/workflow`, data, authConfig())
 export const deleteProduct = (id) => api.delete(`/products/${id}`, authConfig())
+export const sendRecallNotification = (id, data) =>
+  api.post(`/products/${id}/notifications`, data, authConfig())

@@ -1,0 +1,27 @@
+{
+    "seniorId":  1,
+    "periodDays":  7,
+    "periodStart":  "2026-07-14T16:09:04.9986927",
+    "periodEnd":  "2026-07-21T16:09:04.9986927",
+    "hasData":  true,
+    "hasClosedData":  true,
+    "requestCount":  6,
+    "closedRequestCount":  6,
+    "respondedCount":  4,
+    "missedCount":  2,
+    "pendingCount":  0,
+    "responseRate":  66.7,
+    "averageResponseMinutes":  11.0,
+    "consecutiveMissedCount":  1,
+    "latestStatus":  "MISSED",
+    "latestRequestedAt":  "2026-07-20T15:47:17.991179",
+    "latestRespondedAt":  null,
+    "riskLevel":  "CAUTION",
+    "riskLabel":  "확인 필요",
+    "riskReasons":  [
+                        "가장 최근에 종료된 안부 요청이 미응답입니다.",
+                        "최근 7일 응답률이 66.7%로 기준인 80%보다 낮습니다.",
+                        "최근 7일 동안 미응답이 2회 확인되었습니다."
+                    ],
+    "calculatedAt":  "2026-07-21T16:09:04.9986927"
+}

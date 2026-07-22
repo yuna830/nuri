@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { guardianLogin, resetGuardianPassword } from '../../api/guardianAuthApi.js';
 import '../../css/guardian/Login.css';
+import '../../css/welfare/Login.css';
 import { saveUser } from '../../utils/auth.js';
 
 const formatPhone = (value) => {
@@ -20,7 +21,9 @@ export default function GuardianLogin() {
   const location = useLocation();
   const registered = location.state?.registered;
 
-  const [form, setForm] = useState({ phone: '', password: '' });
+  const savedPhone = localStorage.getItem('guardianSavedPhone') || '';
+  const [form, setForm] = useState({ phone: savedPhone, password: '' });
+  const [rememberPhone, setRememberPhone] = useState(Boolean(savedPhone));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
@@ -47,6 +50,8 @@ export default function GuardianLogin() {
         setError('보호자 계정으로만 로그인할 수 있습니다.');
         return;
       }
+      if (rememberPhone) localStorage.setItem('guardianSavedPhone', form.phone);
+      else localStorage.removeItem('guardianSavedPhone');
       saveUser(data);
       navigate('/guardian');
     } catch (err) {
@@ -86,29 +91,32 @@ export default function GuardianLogin() {
   };
 
   return (
-    <main className="guardian-login-page">
-      <section className="card guardian-login-card">
-        <header className="guardian-login-header">
-          <h1>WOORI</h1>
-          <p>보호자 서비스</p>
+    <main className="auth-page">
+      <section className="auth-shell">
+        <header className="auth-logo">
+          <div className="auth-logo-title">WOORI</div>
+          <div className="auth-logo-sub">보호자 서비스</div>
         </header>
 
+        <div className="auth-card">
+
         {registered && (
-          <div className="guardian-login-alert guardian-login-alert-success">
+          <div className="auth-alert-success">
             회원가입이 완료되었습니다. 로그인해주세요.
           </div>
         )}
 
         {resetMsg && (
-          <div className="guardian-login-alert guardian-login-alert-success">
+          <div className="auth-alert-success">
             {resetMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="guardian-login-field">
-            <label htmlFor="guardianPhone">전화번호</label>
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="guardianPhone">전화번호</label>
             <input
+              className="auth-input"
               id="guardianPhone"
               type="tel"
               value={form.phone}
@@ -120,9 +128,10 @@ export default function GuardianLogin() {
             />
           </div>
 
-          <div className="guardian-login-field">
-            <label htmlFor="guardianPassword">비밀번호</label>
+          <div className="auth-field" style={{ marginBottom: 20 }}>
+            <label className="auth-label" htmlFor="guardianPassword">비밀번호</label>
             <input
+              className="auth-input"
               id="guardianPassword"
               type="password"
               value={form.password}
@@ -133,23 +142,32 @@ export default function GuardianLogin() {
           </div>
 
           {error && (
-            <div className="guardian-login-alert guardian-login-alert-error">
+            <div className="auth-alert-error">
               {error}
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary guardian-login-button">
+          <label className="auth-remember">
+            <input
+              type="checkbox"
+              checked={rememberPhone}
+              onChange={(e) => setRememberPhone(e.target.checked)}
+            />
+            <span>전화번호 저장</span>
+          </label>
+
+          <button type="submit" disabled={loading} className="btn-primary auth-submit">
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
+        </div>
 
-        <div className="guardian-auth-link-row">
-          <span>계정이 없으신가요?</span>
-          <Link to="/guardian/register">회원가입</Link>
-          <span className="guardian-divider">|</span>
+        <div className="auth-footer">
           <button type="button" className="guardian-text-button" onClick={() => setShowReset(true)}>
             비밀번호 찾기
           </button>
+          <span className="auth-footer-divider" aria-hidden="true">|</span>
+          <Link to="/guardian/register">회원가입</Link>
         </div>
 
         {showReset && (

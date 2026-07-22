@@ -3,6 +3,7 @@ package com.nuri.woorilink.service;
 import com.nuri.woorilink.common.security.JwtTokenProvider;
 import com.nuri.woorilink.dto.GuardianLoginRequest;
 import com.nuri.woorilink.dto.GuardianRegisterRequest;
+import com.nuri.woorilink.dto.GuardianRegisterResponse;
 import com.nuri.woorilink.dto.GuardianPasswordResetRequest;
 import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.entity.Guardian;
@@ -13,9 +14,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.security.SecureRandom;
+
 @Service
 @RequiredArgsConstructor
 public class GuardianAuthService {
+
+    private static final String INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int INVITE_CODE_LENGTH = 8;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private final GuardianRepository guardianRepository;
     private final PasswordEncoder passwordEncoder;
@@ -42,7 +49,7 @@ public class GuardianAuthService {
     }
 
     @Transactional
-    public void register(GuardianRegisterRequest request) {
+    public GuardianRegisterResponse register(GuardianRegisterRequest request) {
         String phone = normalizePhone(request.getPhone());
         if (!StringUtils.hasText(phone)) {
             throw new IllegalArgumentException("전화번호를 입력해주세요.");
@@ -54,13 +61,16 @@ public class GuardianAuthService {
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
         }
 
-        guardianRepository.save(Guardian.builder()
+        Guardian guardian = guardianRepository.save(Guardian.builder()
                 .name(request.getName())
                 .phone(phone)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .relationship(request.getRelationship())
                 .email(request.getEmail())
+                .inviteCode(generateUniqueInviteCode())
                 .build());
+
+        return new GuardianRegisterResponse(guardian.getId(), guardian.getInviteCode());
     }
 
     @Transactional
@@ -85,5 +95,18 @@ public class GuardianAuthService {
 
     private String normalizePhone(String phone) {
         return phone == null ? null : phone.replaceAll("\\D", "");
+    }
+
+    private String generateUniqueInviteCode() {
+        String code;
+        do {
+            StringBuilder builder = new StringBuilder(INVITE_CODE_LENGTH);
+            for (int i = 0; i < INVITE_CODE_LENGTH; i++) {
+                builder.append(INVITE_CODE_CHARS.charAt(
+                        secureRandom.nextInt(INVITE_CODE_CHARS.length())));
+            }
+            code = builder.toString();
+        } while (guardianRepository.existsByInviteCode(code));
+        return code;
     }
 }

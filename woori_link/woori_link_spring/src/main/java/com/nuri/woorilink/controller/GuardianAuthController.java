@@ -2,6 +2,7 @@ package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.dto.GuardianLoginRequest;
 import com.nuri.woorilink.dto.GuardianRegisterRequest;
+import com.nuri.woorilink.dto.GuardianRegisterResponse;
 import com.nuri.woorilink.dto.GuardianPasswordResetRequest;
 import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.service.GuardianAuthService;
@@ -33,9 +34,8 @@ public class GuardianAuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<Void> register(@RequestBody GuardianRegisterRequest request) {
-        guardianAuthService.register(request);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<GuardianRegisterResponse> register(@RequestBody GuardianRegisterRequest request) {
+        return ResponseEntity.ok(guardianAuthService.register(request));
     }
 
     @PostMapping("/reset-password")

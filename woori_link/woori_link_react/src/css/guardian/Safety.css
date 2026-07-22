@@ -102,9 +102,9 @@
 .recall-detail-modal { width:min(570px,100%); }
 .recall-detail-modal header { align-items:flex-start; }
 .recall-detail-heading { min-width:0; }
-.recall-detail-title { display:flex; align-items:center; flex-wrap:wrap; gap:9px; min-width:0; }
-.recall-detail-title h2 { margin:0; font-size:20px; line-height:1.35; }
-.recall-status-badge { display:inline-block; padding:5px 9px; border-radius:999px; background:#f0f1f0; color:#687069; font-size:10px; font-weight:900; }
+.recall-detail-title { display:block; min-width:0; }
+.recall-detail-title h2 { display:inline; margin:0; font-size:20px; line-height:1.35; overflow-wrap:anywhere; }
+.recall-status-badge { display:inline-block; margin-left:9px; padding:5px 9px; border-radius:999px; background:#f0f1f0; color:#687069; font-size:10px; font-weight:900; vertical-align:3px; white-space:nowrap; }
 .recall-detail-modal.state-urgent .recall-status-badge { background:#fff0ed; color:#b94c42; }
 .recall-detail-modal.state-follow-up .recall-status-badge { background:#edf5eb; color:#537153; }
 .recall-detail-modal.state-review .recall-status-badge { background:#fff5df; color:#a86f19; }
@@ -132,9 +132,29 @@
 .stop-confirm-actions { display:grid; grid-template-columns:1fr 1.4fr; gap:8px; margin-top:18px; }
 .stop-confirm-actions button { min-height:42px; border:1px solid #dce5dc; border-radius:9px; background:#fff; color:#617060; font-weight:900; cursor:pointer; }
 .guidance-action,.guardian-product-card__actions .guidance-action { border-color:#8fa78b!important; background:#8fa78b!important; color:#fff!important; }
-.guidance-preview-modal { width:min(500px,100%); }
+.guidance-preview-modal { width:min(560px,100%); }
 .guidance-preview-modal h3 { margin:12px 0 4px; }
 .guidance-recipient { margin:0 0 14px; color:#78847b; font-size:11px; }
+.guidance-channel-picker { min-width:0; margin:12px 0; padding:0; border:0; }
+.guidance-channel-picker legend { margin-bottom:8px; color:#526057; font-size:11px; font-weight:800; }
+.guidance-channel-option { width:100%; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:12px 14px; border:1px solid #e1e7e1; border-radius:9px; background:#fff; color:#526057; cursor:pointer; text-align:left; }
+.guidance-channel-option + .guidance-channel-option { margin-top:8px; }
+.guidance-channel-option.selected { border-color:#91a78c; background:#f4f8f2; }
+.guidance-channel-option.unavailable { opacity:.55; cursor:not-allowed; }
+.guidance-channel-radio { width:16px; height:16px; border:1px solid #aab6ac; border-radius:50%; background:#fff; }
+.guidance-channel-option.selected .guidance-channel-radio { background:#8fa78b; box-shadow:inset 0 0 0 4px #f4f8f2; }
+.guidance-channel-copy { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+.guidance-channel-copy small { color:#829087; font-size:10px; font-weight:500; }
+.guidance-channel-option em { color:#71836e; font-size:10px; font-style:normal; font-weight:800; }
+.guidance-editor { display:flex; flex-direction:column; gap:8px; color:#526057; font-size:11px; font-weight:800; }
+.guidance-editor textarea { min-height:220px; padding:14px; resize:vertical; border:1px solid #dce4dc; border-radius:10px; color:#354238; font:inherit; font-weight:500; line-height:1.65; }
+.guidance-modal-actions { display:grid; grid-template-columns:1fr 1.5fr; gap:8px; margin-top:16px; }
+.guidance-modal-actions button { min-height:44px; border:1px solid #dce4dc; border-radius:9px; background:#fff; color:#607061; font-weight:900; cursor:pointer; }
+.guidance-modal-actions .submit { margin-top:0; }
+.guidance-send-error { margin:10px 0 0; color:#a94f43; font-size:11px; font-weight:700; }
+.guidance-send-result { padding:25px 0 4px; text-align:center; }
+.guidance-send-result > strong { font-size:18px; }
+.guidance-send-result p { color:#708076; }
 .guidance-message-preview { padding:16px; border:1px solid #e1e7e1; border-radius:10px; background:#f8faf7; color:#354238; }
 .guidance-message-preview > strong { display:block; margin-bottom:13px; color:#536c52; }
 .guidance-message-preview b { display:block; margin-top:13px; font-size:11px; }

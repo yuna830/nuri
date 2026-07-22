@@ -112,7 +112,7 @@ export default function SeniorEditModal({ senior, onClose, onSave }) {
 
   return <div className="detail-modal-overlay" onClick={onClose}>
     <div className="detail-modal senior-edit-modal" onClick={e => e.stopPropagation()}>
-      <div className="detail-modal-header"><div><h2>{senior.name} 어르신 정보 수정</h2><p>원본 정보를 수정하면 확인 우선도가 다시 계산됩니다.</p></div><button onClick={onClose}>×</button></div>
+      <div className="detail-modal-header"><div><h2>{senior.name}님 정보 수정</h2><p>원본 정보를 수정하면 확인 우선도가 다시 계산됩니다.</p></div><button onClick={onClose}>×</button></div>
       <div className="edit-modal-tabs">{TABS.map(([value, label]) => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{label}</button>)}</div>
 
       {tab === 'basic' && <div className="detail-modal-form">

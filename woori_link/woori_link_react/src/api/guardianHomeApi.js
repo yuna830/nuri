@@ -251,7 +251,7 @@ async function requestJson(
 
 
 /**
- * 보호자에게 연결된 모든 어르신의 등록 제품을 조회한다.
+ * 보호자에게 연결된 모든 님의 등록 제품을 조회한다.
  *
  * Spring Boot 요청 예시:
  * GET http://localhost:8090/api/registered-products/senior/{seniorId}
@@ -380,12 +380,12 @@ export async function getGuardianRecallProducts(
   }
 
   /*
-   * 일부 어르신의 제품 조회만 실패한 경우에는
+   * 일부 님의 제품 조회만 실패한 경우에는
    * 성공한 결과를 그대로 반환한다.
    */
   if (failedResults.length > 0) {
     console.warn(
-      '일부 어르신의 등록 제품 조회 실패:',
+      '일부 님의 등록 제품 조회 실패:',
       failedResults.map((result) => (
         result.reason?.message
         || result.reason
