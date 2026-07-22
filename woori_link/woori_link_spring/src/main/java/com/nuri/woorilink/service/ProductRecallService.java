@@ -122,6 +122,9 @@ public class ProductRecallService {
                 stopGuidanceWorkerName,
                 product.getStopGuidanceMemo(),
                 product.getGuardianContactStatus(),
+                product.getGuardianContactMethod(),
+                product.getGuardianContactedAt(),
+                product.getGuardianContactMemo(),
                 product.getFollowUpType(),
                 product.getNextActionDate(),
                 product.getFollowUpProgressStatus(),
@@ -279,6 +282,9 @@ public class ProductRecallService {
         if (request.getStopGuidanceWorkerId() != null) product.setStopGuidanceWorkerId(request.getStopGuidanceWorkerId());
         if (request.getStopGuidanceMemo() != null) product.setStopGuidanceMemo(request.getStopGuidanceMemo());
         if (request.getGuardianContactStatus() != null) product.setGuardianContactStatus(request.getGuardianContactStatus());
+        product.setGuardianContactMethod(request.getGuardianContactMethod());
+        product.setGuardianContactedAt(request.getGuardianContactedAt());
+        product.setGuardianContactMemo(request.getGuardianContactMemo());
         product.setFollowUpType(request.getFollowUpType());
         product.setNextActionDate(request.getNextActionDate());
         if (request.getFollowUpProgressStatus() != null) product.setFollowUpProgressStatus(request.getFollowUpProgressStatus());
@@ -293,6 +299,7 @@ public class ProductRecallService {
 
     private void syncRecallVisitSchedule(RegisteredProduct product, RecallWorkflowUpdateRequest request) {
         if (product.getSeniorId() == null || product.getNextActionDate() == null) return;
+        if (!"방문 확인".equals(product.getFollowUpType())) return;
 
         Senior senior = seniorRepository.findById(product.getSeniorId()).orElse(null);
         String seniorName = senior == null || !nonBlank(senior.getName()) ? "어르신" : senior.getName();

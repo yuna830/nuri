@@ -4,6 +4,17 @@ import '../constants.dart';
 import 'http_client.dart';
 
 class CareMonitoringApi {
+  static Future<List<dynamic>> getAlerts(int seniorId) async {
+    final response = await http.get(Uri.parse('$baseUrl/care/seniors/$seniorId/alerts'), headers: await authHeaders());
+    if (response.statusCode != 200) throw Exception('Alert load failed');
+    return jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+  }
+
+  static Future<void> acknowledgeAlert(int alertId) async {
+    final response = await http.patch(Uri.parse('$baseUrl/care/senior-alerts/$alertId'), headers: await authHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Alert update failed');
+  }
+
   static Future<List<dynamic>> getCheckIns(int seniorId) async {
     final response = await http.get(Uri.parse('$baseUrl/care/seniors/$seniorId/check-ins'), headers: await authHeaders());
     if (response.statusCode != 200) throw Exception('Check-in load failed');

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getProductsBySenior, getRecalledProducts, getRecalledProductsByWelfareWorker, updateRecallWorkflow } from '../../api/recallApi'
+import { cancelWelfareNotification, createSeniorNotification, getWelfareNotifications } from '../../api/notificationApi'
 import '../../css/welfare/RecallList.css'
 import { getUser, getUserId } from '../../utils/auth'
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
@@ -23,6 +24,15 @@ const ACTION_STATUS_LABEL = {
   UNREACHABLE: '연락 불가',
   NOT_RECALLED: '등록 공고 일치 없음',
 }
+
+const GUARDIAN_CONTACT_STATUS_LABEL = {
+  UNKNOWN: '미확인',
+  SCHEDULED: '연락 예정',
+  COMPLETED: '연락 완료',
+  UNREACHABLE: '연락 불가',
+}
+
+const GUARDIAN_CONTACT_METHODS = ['전화', '방문', '기타']
 
 function valueOrFallback(value, fallback = '-') {
   return value === null || value === undefined || value === '' ? fallback : value
@@ -154,6 +164,13 @@ export default function RecallList() {
   const [followUpEditing, setFollowUpEditing] = useState(true)
   const [completionOnly, setCompletionOnly] = useState(false)
   const [guidanceForm, setGuidanceForm] = useState({ method: '', target: '', memo: '' })
+  const [seniors, setSeniors] = useState([])
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const [noticeTab, setNoticeTab] = useState('compose')
+  const [noticeForm, setNoticeForm] = useState({ seniorId: '', recipient: 'BOTH', title: '리콜 제품 안내', message: '' })
+  const [sentNotices, setSentNotices] = useState([])
+  const [noticeSaving, setNoticeSaving] = useState(false)
+  const [noticeCancellingId, setNoticeCancellingId] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -168,6 +185,25 @@ export default function RecallList() {
     }
   }
 
+  function openNoticeComposer(product = null) {
+    setNoticeForm({
+      seniorId: product?.seniorId ? String(product.seniorId) : '',
+      recipient: product && !product.guardianId ? 'SENIOR' : 'BOTH',
+      title: '리콜 제품 안내',
+      message: product
+        ? `${valueOrFallback(product.productName, '등록 제품')} 리콜 확인이 필요합니다. 제품 사용을 잠시 중단하고 복지사의 안내를 확인해 주세요.`
+        : '',
+    })
+    setNoticeTab('compose')
+    setNoticeOpen(true)
+    loadSentNotices()
+  }
+
+  async function loadSentNotices() {
+    const response = await getWelfareNotifications().catch(() => ({ data: [] }))
+    setSentNotices(Array.isArray(response.data) ? response.data : [])
+  }
+
   async function load() {
     const welfareWorkerId = getUserId()
     if (!welfareWorkerId) {
@@ -176,20 +212,32 @@ export default function RecallList() {
       return
     }
 
+    const seniorsResponse = await getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
+    const assignedSeniors = Array.isArray(seniorsResponse.data) ? seniorsResponse.data : []
+    setSeniors(assignedSeniors)
+    const seniorMap = new Map(assignedSeniors.map(senior => [String(senior.id), senior]))
+    const enrichProduct = product => {
+      const senior = seniorMap.get(String(product.seniorId))
+      return senior ? {
+        ...product,
+        seniorName: product.seniorName || senior.name,
+        guardianId: product.guardianId ?? senior.guardianId,
+      } : product
+    }
+
     const response = await getRecalledProductsByWelfareWorker(welfareWorkerId).catch(() => null)
     if (Array.isArray(response?.data) && response.data.length > 0) {
-      setProducts(response.data)
+      setProducts(response.data.map(enrichProduct))
       return
     }
 
-    const seniorsResponse = await getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
-    const seniors = Array.isArray(seniorsResponse.data) ? seniorsResponse.data : []
     const productResponses = await Promise.all(
-      seniors.map(senior => getProductsBySenior(senior.id).catch(() => ({ data: [] })))
+      assignedSeniors.map(senior => getProductsBySenior(senior.id).catch(() => ({ data: [] })))
     )
     const recalledProducts = productResponses
       .flatMap(result => Array.isArray(result.data) ? result.data : [])
       .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
+      .map(enrichProduct)
     setProducts(recalledProducts)
   }
 
@@ -207,6 +255,9 @@ export default function RecallList() {
       stopGuidanceWorkerName: product.stopGuidanceWorkerName || '',
       stopGuidanceMemo: product.stopGuidanceMemo || '',
       guardianContactStatus: product.guardianContactStatus || 'UNKNOWN',
+      guardianContactMethod: product.guardianContactMethod || '',
+      guardianContactedAt: product.guardianContactedAt || null,
+      guardianContactMemo: product.guardianContactMemo || '',
       followUpType: product.followUpType || '',
       nextActionDate: product.nextActionDate || '',
       followUpProgressStatus: product.followUpProgressStatus || 'PLANNED',
@@ -227,13 +278,88 @@ export default function RecallList() {
     })
   }
 
+  function workflowPayload(extra = {}) {
+    const draft = { ...form, ...extra }
+    const shouldStampGuardianContact = draft.guardianContactStatus === 'COMPLETED' && !draft.guardianContactedAt
+    return {
+      ...draft,
+      guardianContactedAt: shouldStampGuardianContact ? new Date().toISOString() : draft.guardianContactedAt,
+    }
+  }
+
+  function hasGuardianContactWork(draft = form) {
+    return draft.contactMethod === '보호자 연락' || ['보호자 연락', '보호자 안내'].includes(draft.followUpType)
+  }
+
+  function needsGuardianContactForStep() {
+    return step === 1
+      ? form.contactMethod === '보호자 연락'
+      : ['보호자 연락', '보호자 안내'].includes(form.followUpType)
+  }
+
+  function updateGuardianContactStatus(value) {
+    setForm(previous => ({
+      ...previous,
+      guardianContactStatus: value,
+      guardianContactedAt: value === 'COMPLETED' ? (previous.guardianContactedAt || new Date().toISOString()) : null,
+    }))
+  }
+
+  function updateContactMethod(value) {
+    setForm(previous => {
+      const shouldKeepGuardianContact = value === '보호자 연락' || ['보호자 연락', '보호자 안내'].includes(previous.followUpType)
+      return {
+        ...previous,
+        contactMethod: value,
+        guardianContactStatus: shouldKeepGuardianContact ? previous.guardianContactStatus : 'UNKNOWN',
+        guardianContactMethod: shouldKeepGuardianContact ? previous.guardianContactMethod : '',
+        guardianContactedAt: shouldKeepGuardianContact ? previous.guardianContactedAt : null,
+        guardianContactMemo: shouldKeepGuardianContact ? previous.guardianContactMemo : '',
+      }
+    })
+  }
+
+  function validateGuardianContact() {
+    if (!needsGuardianContactForStep()) return false
+    if (form.guardianContactStatus === 'UNKNOWN') {
+      alert('보호자 연락 상태를 선택해주세요.')
+      return true
+    }
+    if (form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) {
+      alert('보호자 다음 연락일을 입력해주세요.')
+      return true
+    }
+    return false
+  }
+
+  function renderGuardianContactPanel() {
+    return (
+      <section className="recall-guardian-contact-panel">
+        <div className="recall-guardian-contact-panel__header">
+          <strong>보호자 연락 기록</strong>
+          <span>{GUARDIAN_CONTACT_STATUS_LABEL[form.guardianContactStatus] || '미확인'}</span>
+        </div>
+        <fieldset className="recall-choice-group recall-guardian-status-group">
+          <legend>연락 상태 <small>보호자에게 리콜 위험과 필요한 조치를 안내했는지 기록하세요.</small></legend>
+          {Object.entries(GUARDIAN_CONTACT_STATUS_LABEL).map(([value, label]) => (
+            <button key={value} type="button" className={form.guardianContactStatus === value ? 'active' : ''} onClick={() => updateGuardianContactStatus(value)}>{label}</button>
+          ))}
+        </fieldset>
+        <div className="recall-guardian-contact-fields">
+          <label>실제 연락 수단<select value={form.guardianContactMethod ?? ''} onChange={event => setForm(previous => ({ ...previous, guardianContactMethod: event.target.value }))}><option value="">선택</option>{GUARDIAN_CONTACT_METHODS.map(value => <option key={value}>{value}</option>)}</select></label>
+          <label>연락 메모<textarea value={form.guardianContactMemo ?? ''} onChange={event => setForm(previous => ({ ...previous, guardianContactMemo: event.target.value }))} placeholder="통화 내용, 연락 실패 사유, 보호자 요청사항을 기록하세요." /></label>
+        </div>
+        {form.guardianContactedAt && <p className="recall-guardian-contact-time">연락 완료 시각: {formatGuidanceDate(form.guardianContactedAt)}</p>}
+      </section>
+    )
+  }
+
   async function completeStopGuidance() {
     if (!guidanceForm.method) return alert('안내 방법을 선택해주세요.')
     if (!guidanceForm.target) return alert('상담 대상을 선택해주세요.')
     const completedAt = new Date().toISOString()
     const worker = getUser()
-    const guidanceData = {
-      ...form,
+    const guidanceData = workflowPayload({
       stopGuidanceCompleted: true,
       stopGuidanceCompletedAt: completedAt,
       stopGuidanceMethod: guidanceForm.method,
@@ -243,7 +369,7 @@ export default function RecallList() {
       nextActionDate: form.nextActionDate || null,
       finalResult: form.finalResult || null,
       welfareWorkerId: getUserId(),
-    }
+    })
     try {
       await updateRecallWorkflow(selected.id, guidanceData)
       setForm(previous => ({
@@ -271,19 +397,20 @@ export default function RecallList() {
   async function handleActionSave(event) {
     event.preventDefault()
     if (step === 1 && !form.contactMethod) return alert('확인 방법을 먼저 선택해주세요.')
+    if (step === 1 && validateGuardianContact()) return
     if (step === 1 && !useStatusSelected) return alert('제품 사용 상태를 선택해주세요.')
     if (step === 1 && form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted) return alert('사용 중단 안내를 먼저 완료해주세요.')
     if (step === 2 && !form.followUpType) return alert('후속 조치 유형을 선택해주세요.')
+    if (step === 2 && validateGuardianContact()) return
     if (step === 2 && completionOnly && !form.finalResult) return alert('조치 완료 결과를 선택해주세요.')
     if (step === 2 && !form.finalResult && !form.nextActionDate) return alert('다음 조치일을 입력하거나 조치 완료 결과를 선택해주세요.')
     try {
-      await updateRecallWorkflow(selected.id, {
-        ...form,
+      await updateRecallWorkflow(selected.id, workflowPayload({
         followUpProgressStatus: form.finalResult ? 'COMPLETED' : (form.followUpProgressStatus || 'PLANNED'),
         nextActionDate: form.finalResult ? null : (form.nextActionDate || null),
         finalResult: form.finalResult || null,
         welfareWorkerId: getUserId(),
-      })
+      }))
       await load()
       setSelected(null)
     } catch (error) {
@@ -293,16 +420,16 @@ export default function RecallList() {
 
   async function goNext() {
     if (step === 1 && !form.contactMethod) return alert('확인 방법을 먼저 선택해주세요.')
+    if (step === 1 && validateGuardianContact()) return
     if (step === 1 && !useStatusSelected) return alert('제품 사용 상태를 선택해주세요.')
     if (step === 1 && form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted) return alert('사용 중단 안내를 먼저 완료해주세요.')
     if (step === 1) {
       try {
-        await updateRecallWorkflow(selected.id, {
-          ...form,
+        await updateRecallWorkflow(selected.id, workflowPayload({
           nextActionDate: form.nextActionDate || null,
           finalResult: form.finalResult || null,
           welfareWorkerId: getUserId(),
-        })
+        }))
         setSelected(previous => ({ ...previous, ...form }))
         await load()
       } catch (error) {
@@ -313,6 +440,54 @@ export default function RecallList() {
     setStep(previous => Math.min(2, previous + 1))
   }
 
+  async function sendSeniorNotice(event) {
+    event.preventDefault()
+    if (!noticeForm.seniorId) return alert('알림을 받을 어르신을 선택해주세요.')
+    if (!noticeForm.message.trim()) return alert('알림 내용을 입력해주세요.')
+    if (!getUser('WELFARE_WORKER')?.token) return alert('복지사 로그인 정보가 확인되지 않습니다. 복지사로 다시 로그인해주세요.')
+    const target = noticeTargets.find(item => item.id === String(noticeForm.seniorId))
+    const notifySenior = noticeForm.recipient === 'SENIOR' || noticeForm.recipient === 'BOTH'
+    const notifyGuardian = noticeForm.recipient === 'GUARDIAN' || noticeForm.recipient === 'BOTH'
+    if (notifyGuardian && !target?.guardianId) return alert('연결된 보호자가 없는 어르신입니다.')
+    setNoticeSaving(true)
+    try {
+      await createSeniorNotification(noticeForm.seniorId, {
+        title: noticeForm.title.trim() || '복지사 알림',
+        message: noticeForm.message.trim(),
+        notifySenior,
+        notifyGuardian,
+        welfareWorkerId: getUserId('WELFARE_WORKER'),
+      })
+      setNoticeForm(previous => ({ ...previous, message: '' }))
+      await loadSentNotices()
+      setNoticeTab('history')
+      alert('알림을 저장했습니다.')
+    } catch (error) {
+      if (error.response?.status === 403) {
+        alert(`알림 전송 권한이 없습니다.\n\n복지사 ID: ${getUserId('WELFARE_WORKER') || '-'}\n대상 어르신 ID: ${noticeForm.seniorId}\n\n서버에서 이 어르신이 현재 복지사의 담당 대상이 아니라고 판단했습니다. 대상자 목록에서 담당 복지사 배정값을 확인해주세요.`)
+        return
+      }
+      const message = error.response?.data?.message || error.response?.data?.error || error.message
+      alert(`알림을 저장하지 못했습니다.${message ? `\n\n${message}` : ''}`)
+    } finally {
+      setNoticeSaving(false)
+    }
+  }
+
+  async function cancelSentNotice(alertId) {
+    if (!window.confirm('아직 확인하지 않은 알림만 전송취소됩니다. 취소할까요?')) return
+    setNoticeCancellingId(alertId)
+    try {
+      await cancelWelfareNotification(alertId)
+      await loadSentNotices()
+    } catch (error) {
+      const message = error.response?.data?.message || error.response?.data?.error || error.message
+      alert(`전송취소에 실패했습니다.${message ? `\n\n${message}` : ''}`)
+    } finally {
+      setNoticeCancellingId(null)
+    }
+  }
+
   const selectedTab = SUMMARY_FILTERS.find(tab => tab.key === activeTab)
   const summaryFilteredProducts = activeTab === 'ALL'
     ? products
@@ -320,6 +495,21 @@ export default function RecallList() {
   const filteredProducts = detailStage === 'ALL'
     ? summaryFilteredProducts
     : summaryFilteredProducts.filter(product => currentStage(product) === detailStage)
+  const noticeTargets = Array.from(
+    [...seniors, ...products].reduce((map, item) => {
+      const id = item.seniorId ?? item.id
+      if (id) map.set(String(id), {
+        id: String(id),
+        name: item.seniorName || item.name || '어르신 미확인',
+        guardianId: item.guardianId ?? map.get(String(id))?.guardianId ?? null,
+      })
+      return map
+    }, new Map()).values()
+  )
+  const selectedNoticeTarget = noticeTargets.find(target => target.id === String(noticeForm.seniorId))
+  const visibleSentNotices = sentNotices
+    .filter(notice => !noticeForm.seniorId || String(notice.seniorId) === String(noticeForm.seniorId))
+    .slice(0, 6)
 
   const tabCount = tab => tab.key === 'ALL'
     ? products.length
@@ -331,6 +521,8 @@ export default function RecallList() {
   const lastCheckedDate = formatCheckedDate(lastCheckedAt)
   const followUpSaveDisabled = step === 2 && (
     !form.followUpType ||
+    (needsGuardianContactForStep() && form.guardianContactStatus === 'UNKNOWN') ||
+    (needsGuardianContactForStep() && form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) ||
     (completionOnly && !form.finalResult) ||
     (!form.finalResult && !form.nextActionDate)
   )
@@ -339,7 +531,14 @@ export default function RecallList() {
     : completionOnly
       ? '조치 완료 저장'
     : '후속 조치 저장'
-  const hasSavedFollowUp = Boolean(form.followUpType || form.finalResult || form.nextActionDate || form.note)
+  const hasSavedFollowUp = Boolean(form.followUpType || form.finalResult || form.nextActionDate || form.note || form.guardianContactStatus !== 'UNKNOWN')
+  const usageNextDisabled = !form.contactMethod ||
+    !useStatusSelected ||
+    (form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN') ||
+    (form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) ||
+    (form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted)
+  const canSelectUseStatus = Boolean(form.contactMethod) &&
+    (form.contactMethod !== '보호자 연락' || form.guardianContactStatus !== 'UNKNOWN')
 
   return (
     <div>
@@ -378,7 +577,7 @@ export default function RecallList() {
           <table className="data-table recall-table">
             <thead>
               <tr>
-                <th>어르신</th><th>등록 제품</th><th>현재 단계</th><th>다음 조치일</th>
+                <th>어르신</th><th>등록 제품</th><th>현재 단계</th><th>보호자 연락</th><th>다음 조치일</th>
               </tr>
             </thead>
             <tbody>
@@ -408,6 +607,7 @@ export default function RecallList() {
                       )}
                     </td>
                     <td><span className={`recall-state-badge tone-${tone}`}>{stage}</span></td>
+                    <td><span className={`recall-guardian-badge status-${(product.guardianContactStatus || 'UNKNOWN').toLowerCase()}`}>{GUARDIAN_CONTACT_STATUS_LABEL[product.guardianContactStatus] || '미확인'}</span></td>
                     <td>{formatDate(product.nextActionDate)}</td>
                   </tr>
                 )
@@ -416,6 +616,113 @@ export default function RecallList() {
           </table>
         )}
       </div>
+
+      {noticeTargets.length > 0 && (
+        <button
+          type="button"
+          className="recall-notice-fab"
+          aria-label="어르신 앱 알림 작성"
+          onClick={() => openNoticeComposer()}
+        >
+          ✉
+        </button>
+      )}
+
+      {noticeOpen && (
+        <div className="recall-notice-composer-overlay" onMouseDown={event => event.target === event.currentTarget && setNoticeOpen(false)}>
+          <form className="recall-notice-composer" onSubmit={sendSeniorNotice}>
+            <header>
+              <div>
+                <strong>어르신 앱 알림</strong>
+                <span>리콜 안내 기록</span>
+              </div>
+              <button type="button" aria-label="닫기" onClick={() => setNoticeOpen(false)}>×</button>
+            </header>
+            <div className="recall-notice-tabs" role="tablist" aria-label="알림 작성 및 전송 내역">
+              <button type="button" className={noticeTab === 'compose' ? 'active' : ''} onClick={() => setNoticeTab('compose')}>알림 작성</button>
+              <button type="button" className={noticeTab === 'history' ? 'active' : ''} onClick={() => setNoticeTab('history')}>전송 내역</button>
+            </div>
+            {noticeTab === 'compose' && (
+              <section className="recall-notice-pane">
+                <label>
+                  대상 어르신
+                  <select value={noticeForm.seniorId} onChange={event => {
+                    const seniorId = event.target.value
+                    const nextTarget = noticeTargets.find(target => target.id === String(seniorId))
+                    setNoticeForm(previous => ({
+                      ...previous,
+                      seniorId,
+                      recipient: nextTarget?.guardianId ? previous.recipient : 'SENIOR',
+                    }))
+                  }}>
+                    <option value="">선택</option>
+                    {noticeTargets.map(target => <option key={target.id} value={target.id}>{target.name}</option>)}
+                  </select>
+                </label>
+                {noticeForm.seniorId ? (
+                  <>
+                    <section className="recall-notice-target-summary">
+                      <div>
+                        <strong>{selectedNoticeTarget?.name || '어르신 미확인'}</strong>
+                        <span>{selectedNoticeTarget?.guardianId ? '보호자 연결됨' : '보호자 연결 없음'}</span>
+                      </div>
+                    </section>
+                    <fieldset className="recall-notice-recipient">
+                      <legend>수신 대상</legend>
+                      <button type="button" className={noticeForm.recipient === 'BOTH' ? 'active' : ''} disabled={!selectedNoticeTarget?.guardianId} onClick={() => setNoticeForm(previous => ({ ...previous, recipient: 'BOTH' }))}>둘 다</button>
+                      <button type="button" className={noticeForm.recipient === 'SENIOR' ? 'active' : ''} onClick={() => setNoticeForm(previous => ({ ...previous, recipient: 'SENIOR' }))}>어르신</button>
+                      <button type="button" className={noticeForm.recipient === 'GUARDIAN' ? 'active' : ''} disabled={!selectedNoticeTarget?.guardianId} onClick={() => setNoticeForm(previous => ({ ...previous, recipient: 'GUARDIAN' }))}>보호자</button>
+                      {!selectedNoticeTarget?.guardianId && <small>연결된 보호자가 없어 어르신 알림만 보낼 수 있습니다.</small>}
+                    </fieldset>
+                    <label>
+                      제목
+                      <input value={noticeForm.title} maxLength={120} onChange={event => setNoticeForm(previous => ({ ...previous, title: event.target.value }))} />
+                    </label>
+                    <label>
+                      내용
+                      <textarea value={noticeForm.message} maxLength={1000} onChange={event => setNoticeForm(previous => ({ ...previous, message: event.target.value }))} placeholder="어르신 앱 알림함에 남길 내용을 직접 입력하세요." />
+                    </label>
+                    <div className="recall-notice-composer__footer">
+                      <span>{noticeForm.message.length}/1000</span>
+                      <button type="submit" className="btn-primary" disabled={noticeSaving}>{noticeSaving ? '저장 중...' : '전달'}</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="recall-notice-target-empty">대상 어르신을 선택하면 수신 대상과 작성란이 표시됩니다.</div>
+                )}
+              </section>
+            )}
+            {noticeTab === 'history' && <section className="recall-notice-history">
+              <div>
+                <strong>최근 전송</strong>
+                <button type="button" onClick={loadSentNotices}>새로고침</button>
+              </div>
+              {visibleSentNotices.length === 0 ? (
+                <p>전송한 알림이 없습니다.</p>
+              ) : (
+                <ul>
+                  {visibleSentNotices.map(notice => {
+                    const recipient = notice.guardianId ? '보호자' : '어르신'
+                    const unread = notice.status === 'UNREAD'
+                    return (
+                      <li key={notice.id}>
+                        <span>{recipient} · {unread ? '미확인' : '확인됨'}</span>
+                        <strong>{notice.title || '복지사 알림'}</strong>
+                        <p>{notice.message}</p>
+                        {unread && (
+                          <button type="button" disabled={noticeCancellingId === notice.id} onClick={() => cancelSentNotice(notice.id)}>
+                            {noticeCancellingId === notice.id ? '취소 중' : '전송취소'}
+                          </button>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>}
+          </form>
+        </div>
+      )}
 
       {selected && (
         <div className="recall-modal-overlay" onClick={() => setSelected(null)}>
@@ -443,8 +750,8 @@ export default function RecallList() {
                     <small>{recallContact(selected) ? '문의처 확인 후 실제 안내·조치 내용은 아래 업무 단계에서 기록하세요.' : '상세 안내 원문 또는 출처에서 문의처를 확인하세요.'}</small>
                   </div>
                   <div className="recall-action-guide__tools">
+                    <button type="button" className="recall-detail-notice-button" onClick={() => openNoticeComposer(selected)} aria-label="알림 작성">✉</button>
                     <button type="button" onClick={copyRecallContact} disabled={!recallContact(selected)}>문의처 복사</button>
-                    {recallContactHref(selected) && <a href={`tel:${recallContactHref(selected)}`}>전화 걸기</a>}
                   </div>
                 </div>
                 <button type="button" className={`recall-action-guide__toggle ${showRecallDetails ? 'open' : ''}`} onClick={() => setShowRecallDetails(value => !value)}>
@@ -493,12 +800,13 @@ export default function RecallList() {
 
               {step === 1 && <>
                 <div className="recall-usage-layout">
-                <fieldset className="recall-choice-group"><legend>확인 방법</legend>{['전화','보호자 연락','방문','기타'].map(value => <button key={value} type="button" className={form.contactMethod === value ? 'active' : ''} onClick={() => setForm(previous => ({ ...previous, contactMethod: value }))}>{value}</button>)}</fieldset>
-                <fieldset className="recall-choice-group vertical" disabled={!form.contactMethod}><legend>제품 사용 상태 {!form.contactMethod && <small>확인 방법을 먼저 선택해주세요.</small>}</legend>{[['IN_USE','현재 사용 중'],['NOT_IN_USE','보유 중이나 사용하지 않음'],['STOPPED','사용 중단 완료'],['UNKNOWN','확인하지 못함']].map(([value,label]) => <button key={value} type="button" disabled={!form.contactMethod} className={useStatusSelected && form.currentUseStatus === value ? 'active' : ''} onClick={() => { setUseStatusSelected(true); setForm(previous => ({ ...previous, currentUseStatus: value, finalResult: '' })) }}>{label}</button>)}</fieldset>
+                <fieldset className="recall-choice-group"><legend>확인 방법</legend>{['전화','보호자 연락','방문','기타'].map(value => <button key={value} type="button" className={form.contactMethod === value ? 'active' : ''} onClick={() => updateContactMethod(value)}>{value}</button>)}</fieldset>
                 </div>
-                {form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted && <aside className="recall-stop-warning"><strong>사용 중단 안내가 필요합니다.</strong><ul><li>즉시 전원을 끄고 플러그를 분리하도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul><button type="button" className="recall-stop-guidance-btn" onClick={() => setShowStopGuidance(true)}>사용 중단 안내하기</button></aside>}
-                {form.currentUseStatus === 'IN_USE' && form.stopGuidanceCompleted && <aside className="recall-guidance-complete"><strong>사용 중단 안내 완료</strong><p>{formatGuidanceDate(form.stopGuidanceCompletedAt)} · {valueOrFallback(form.stopGuidanceMethod)} · {valueOrFallback(form.stopGuidanceTarget)}</p><p>담당자: {valueOrFallback(form.stopGuidanceWorkerName)}</p><button type="button" onClick={() => setShowStopGuidance(true)}>안내 내용 보기</button></aside>}
-                {form.currentUseStatus === 'UNKNOWN' && <div className="recall-form-grid"><label>다음 연락일<input type="date" value={form.nextActionDate ?? ''} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label></div>}
+                {form.contactMethod === '보호자 연락' && renderGuardianContactPanel()}
+                <fieldset className="recall-choice-group vertical recall-use-status-group" disabled={!canSelectUseStatus}><legend>제품 사용 상태 {!form.contactMethod && <small>확인 방법을 먼저 선택해주세요.</small>}{form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN' && <small>보호자 연락 상태를 먼저 기록해주세요.</small>}</legend>{[['IN_USE','현재 사용 중'],['NOT_IN_USE','보유 중이나 사용하지 않음'],['STOPPED','사용 중단 완료'],['UNKNOWN','확인하지 못함']].map(([value,label]) => <button key={value} type="button" disabled={!canSelectUseStatus} className={useStatusSelected && form.currentUseStatus === value ? 'active' : ''} onClick={() => { setUseStatusSelected(true); setForm(previous => ({ ...previous, currentUseStatus: value, finalResult: '' })) }}>{label}</button>)}</fieldset>
+                {form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted && <aside className="recall-stop-warning"><strong>사용 중단 안내 기록이 필요합니다.</strong><ul><li>즉시 전원을 끄고 플러그를 분리하도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul><button type="button" className="recall-stop-guidance-btn" onClick={() => setShowStopGuidance(true)}>사용 중단 안내 기록</button></aside>}
+                {form.currentUseStatus === 'IN_USE' && form.stopGuidanceCompleted && <aside className="recall-guidance-complete"><strong>사용 중단 안내 기록 완료</strong><p>{formatGuidanceDate(form.stopGuidanceCompletedAt)} · {valueOrFallback(form.stopGuidanceMethod)} · {valueOrFallback(form.stopGuidanceTarget)}</p><p>담당자: {valueOrFallback(form.stopGuidanceWorkerName)}</p><button type="button" onClick={() => setShowStopGuidance(true)}>안내 기록 보기</button></aside>}
+                {(form.currentUseStatus === 'UNKNOWN' || form.guardianContactStatus === 'SCHEDULED') && <div className="recall-form-grid"><label>{form.guardianContactStatus === 'SCHEDULED' ? '보호자 다음 연락일' : '다음 연락일'}<input type="date" value={form.nextActionDate ?? ''} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label></div>}
               </>}
 
               {step === 2 && !followUpEditing && hasSavedFollowUp && (
@@ -509,6 +817,8 @@ export default function RecallList() {
                   </div>
                   <dl>
                     <div><dt>후속 조치</dt><dd>{valueOrFallback(form.followUpType)}</dd></div>
+                    <div><dt>보호자 연락</dt><dd>{GUARDIAN_CONTACT_STATUS_LABEL[form.guardianContactStatus] || '미확인'}{form.guardianContactMethod ? ` · ${form.guardianContactMethod}` : ''}</dd></div>
+                    {form.guardianContactedAt && <div><dt>연락 완료</dt><dd>{formatGuidanceDate(form.guardianContactedAt)}</dd></div>}
                     <div><dt>다음 조치일</dt><dd>{form.finalResult ? '-' : formatDate(form.nextActionDate)}</dd></div>
                     <div><dt>완료 결과</dt><dd>{form.finalResult ? finalResultLabel(form.finalResult) : '진행 중'}</dd></div>
                     <div><dt>담당자 메모</dt><dd>{valueOrFallback(form.note)}</dd></div>
@@ -532,9 +842,19 @@ export default function RecallList() {
               )}
 
               {step === 2 && followUpEditing && !completionOnly && <div className="recall-form-grid">
-                <label>후속 조치 유형<select value={form.followUpType ?? ''} onChange={event => setForm(previous => ({ ...previous, followUpType: event.target.value, guardianContactStatus: ['보호자 연락', '보호자 안내'].includes(event.target.value) ? previous.guardianContactStatus : 'UNKNOWN' }))}><option value="">선택</option>{['어르신 안내','보호자 안내','제조사 문의','사용 중단 재확인','제조사 문의·조치 안내','수리 또는 환불 확인','보호자 연락','방문 확인','기타'].map(value => <option key={value}>{value}</option>)}</select></label>
+                <label>후속 조치 유형<select value={form.followUpType ?? ''} onChange={event => {
+                  const isGuardianFollowUp = ['보호자 연락', '보호자 안내'].includes(event.target.value)
+                  setForm(previous => ({
+                    ...previous,
+                    followUpType: event.target.value,
+                    guardianContactStatus: isGuardianFollowUp ? previous.guardianContactStatus : 'UNKNOWN',
+                    guardianContactMethod: isGuardianFollowUp ? previous.guardianContactMethod : '',
+                    guardianContactedAt: isGuardianFollowUp ? previous.guardianContactedAt : null,
+                    guardianContactMemo: isGuardianFollowUp ? previous.guardianContactMemo : '',
+                  }))
+                }}><option value="">선택</option>{['어르신 안내','보호자 안내','제조사 문의','사용 중단 재확인','제조사 문의·조치 안내','수리 또는 환불 확인','보호자 연락','방문 확인','기타'].map(value => <option key={value}>{value}</option>)}</select></label>
                 <label>다음 조치일<input type="date" value={form.nextActionDate ?? ''} disabled={Boolean(form.finalResult)} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label>
-                {['보호자 연락', '보호자 안내'].includes(form.followUpType) && <label>보호자 연락 상태<select value={form.guardianContactStatus ?? 'UNKNOWN'} onChange={event => setForm(previous => ({ ...previous, guardianContactStatus: event.target.value }))}><option value="UNKNOWN">미확인</option><option value="SCHEDULED">연락 예정</option><option value="COMPLETED">연락 완료</option><option value="UNREACHABLE">연락 불가</option></select></label>}
+                {['보호자 연락', '보호자 안내'].includes(form.followUpType) && renderGuardianContactPanel()}
                 <label className="recall-note-field">담당자 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="확인 및 후속 조치 내용을 기록하세요" /></label>
                 <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
               </div>}
@@ -542,20 +862,20 @@ export default function RecallList() {
 
             <div className="recall-modal-actions">
               {step > 1 && <button type="button" className="btn-outline" onClick={() => setStep(value => value - 1)}>이전</button>}
-              {step < 2 && <button type="button" className="btn-primary" disabled={!form.contactMethod || !useStatusSelected || (form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted)} onClick={goNext}>다음 단계: 후속 조치</button>}
+              {step < 2 && <button type="button" className="btn-primary" disabled={usageNextDisabled} onClick={goNext}>다음 단계: 후속 조치</button>}
               {step === 2 && followUpEditing && <button type="submit" className="btn-primary" disabled={followUpSaveDisabled}>{followUpSaveLabel}</button>}
             </div>
           </form>
           {showStopGuidance && <div className="recall-guidance-overlay" role="dialog" aria-modal="true" aria-label="사용 중단 안내" onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) setShowStopGuidance(false) }}>
             <div className="recall-guidance-dialog" onClick={event => event.stopPropagation()}>
-              <div className="recall-guidance-header"><div><h3>사용 중단 안내</h3><p>실제 안내 후 완료 처리해주세요.</p></div><button type="button" aria-label="닫기" onClick={() => setShowStopGuidance(false)}>×</button></div>
+              <div className="recall-guidance-header"><div><h3>사용 중단 안내 기록</h3><p>실제로 안내한 뒤 기록을 저장해주세요.</p></div><button type="button" aria-label="닫기" onClick={() => setShowStopGuidance(false)}>×</button></div>
               <div className="recall-guidance-body">
                 <ul className="recall-guidance-checklist"><li>즉시 전원을 끄도록 안내</li><li>플러그를 분리하도록 안내</li><li>제품을 다시 사용하지 않도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul>
                 <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['어르신 본인','어르신'],['보호자','보호자']].map(([value,label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
                 <fieldset className="recall-choice-group"><legend>안내 방법</legend>{['전화','방문','보호자 연락'].map(value => <button key={value} type="button" className={guidanceForm.method === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, method: value }))}>{value}</button>)}</fieldset>
                 <label className="recall-guidance-memo">메모<textarea value={guidanceForm.memo ?? ''} onChange={event => setGuidanceForm(previous => ({ ...previous, memo: event.target.value }))} placeholder="안내 내용이나 특이사항을 기록하세요" /></label>
               </div>
-              <div className="recall-guidance-actions"><button type="button" className="btn-outline" onClick={() => setShowStopGuidance(false)}>취소</button><button type="button" className="btn-primary" onClick={completeStopGuidance}>안내 완료</button></div>
+              <div className="recall-guidance-actions"><button type="button" className="btn-outline" onClick={() => setShowStopGuidance(false)}>취소</button><button type="button" className="btn-primary" onClick={completeStopGuidance}>안내 기록 저장</button></div>
             </div>
           </div>}
         </div>

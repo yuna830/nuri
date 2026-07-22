@@ -79,6 +79,11 @@ public class RegisteredProduct {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private GuardianContactStatus guardianContactStatus = GuardianContactStatus.UNKNOWN;
+    private String guardianContactMethod;
+    private LocalDateTime guardianContactedAt;
+
+    @Column(length = 1000)
+    private String guardianContactMemo;
 
     private String followUpType;
     private LocalDate nextActionDate;
