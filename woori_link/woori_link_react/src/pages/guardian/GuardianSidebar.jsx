@@ -13,7 +13,7 @@ import {
   getSeniorsByGuardian,
 } from '../../api/guardianApi.js';
 
-import { getUser } from '../../utils/auth.js';
+import { clearUser, getUser } from '../../utils/auth.js';
 
 import '../../css/guardian/GuardianSidebar.css';
 
@@ -252,6 +252,10 @@ function getAlertSeniorName(alert, seniors) {
 function getAlertAction(alert) {
   const type = getAlertType(alert);
   const seniorId = getAlertSeniorId(alert);
+
+  if (type === 'WELFARE_NOTICE') {
+    return null;
+  }
 
   if (
     type.includes('RECALL')
@@ -523,11 +527,15 @@ export default function GuardianSidebar({
 
 
   const handleAlertAction = async (alert) => {
+    const action = getAlertAction(alert);
+
+    if (!action) {
+      return;
+    }
+
     if (isUnreadAlert(alert)) {
       await handleAcknowledgeAlert(alert);
     }
-
-    const action = getAlertAction(alert);
 
     setNotificationOpen(false);
     navigate(action.path);
@@ -547,15 +555,7 @@ export default function GuardianSidebar({
       return;
     }
 
-    [
-      'user',
-      'token',
-      'accessToken',
-      'guardianId',
-    ].forEach((key) => {
-      sessionStorage.removeItem(key);
-      localStorage.removeItem(key);
-    });
+    clearUser('GUARDIAN');
 
     navigate('/guardian/login', {
       replace: true,
@@ -873,13 +873,15 @@ export default function GuardianSidebar({
                             </span>
                           )}
 
-                          <button
-                            type="button"
-                            className="guardian-notification-item__action-button"
-                            onClick={() => handleAlertAction(alert)}
-                          >
-                            {action.label}
-                          </button>
+                          {action && (
+                            <button
+                              type="button"
+                              className="guardian-notification-item__action-button"
+                              onClick={() => handleAlertAction(alert)}
+                            >
+                              {action.label}
+                            </button>
+                          )}
                         </div>
                       </article>
                     );

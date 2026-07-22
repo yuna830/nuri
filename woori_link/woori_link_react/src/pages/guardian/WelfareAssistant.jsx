@@ -207,7 +207,6 @@ export default function WelfareAssistant() {
       <main className="welfare-assistant-page">
         <header className="welfare-assistant-page__header">
           <div>
-            <span>WOORI GUIDE</span>
             <h1>복지·안전 도우미</h1>
             <p>복지제도와 생활안전 정보를 근거 문서와 함께 안내합니다.</p>
           </div>

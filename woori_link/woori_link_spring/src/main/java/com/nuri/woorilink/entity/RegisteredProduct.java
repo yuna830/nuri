@@ -23,17 +23,18 @@ public class RegisteredProduct {
 
     private Long seniorId;
 
-    @Column(nullable = false)
     private String productName;
     private String productType;
 
     private String manufacturer;
+    private String brandName;
     private String modelNumber;
     private String barcode;
     private String certificationNumber;
     private LocalDate manufacturingDate;
     private String serialNumber;
     private String lotNumber;
+    private String registrationSource;
 
     @Enumerated(EnumType.STRING)
     private RecallDecisionStatus recallDecisionStatus;
@@ -78,6 +79,11 @@ public class RegisteredProduct {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private GuardianContactStatus guardianContactStatus = GuardianContactStatus.UNKNOWN;
+    private String guardianContactMethod;
+    private LocalDateTime guardianContactedAt;
+
+    @Column(length = 1000)
+    private String guardianContactMemo;
 
     private String followUpType;
     private LocalDate nextActionDate;

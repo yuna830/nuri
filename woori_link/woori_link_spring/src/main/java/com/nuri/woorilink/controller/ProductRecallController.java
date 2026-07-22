@@ -4,9 +4,11 @@ import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.service.ProductRecallService;
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -32,7 +34,20 @@ public class ProductRecallController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductRecallResponse register(@RequestBody RegisteredProduct product) {
+    public ProductRecallResponse register(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestBody RegisteredProduct product
+    ) {
+        if (user == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
+        if ("SENIOR".equals(user.getRole())) {
+            product.setSeniorId(user.getUserId());
+        } else if ("GUARDIAN".equals(user.getRole())) {
+            productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
+        } else {
+            throw new IllegalArgumentException("제품을 등록할 수 있는 계정이 아닙니다.");
+        }
         RegisteredProduct saved = productRecallService.register(product);
         return productRecallService.getResponse(saved.getId());
     }
@@ -51,10 +66,14 @@ public class ProductRecallController {
 
     @PatchMapping("/{id}/current-use")
     public RegisteredProduct updateCurrentUseStatus(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Long id,
             @RequestParam RegisteredProduct.CurrentUseStatus status
     ) {
-        return productRecallService.updateCurrentUseStatus(id, status);
+        if (user == null || !"GUARDIAN".equals(user.getRole())) {
+            throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
+        }
+        return productRecallService.updateCurrentUseStatus(id, status, user.getUserId());
     }
 
     @PatchMapping("/{id}/workflow")

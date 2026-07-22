@@ -6,7 +6,7 @@ const DOCUMENT_AI_BASE_URL = (
 ).replace(/\/$/, '');
 
 export const productDocumentAiEnabled = (
-  String(import.meta.env.VITE_PRODUCT_DOCUMENT_AI_ENABLED || 'true').toLowerCase() === 'true'
+  String(import.meta.env.VITE_PRODUCT_LABEL_OCR_ENABLED ?? import.meta.env.VITE_PRODUCT_DOCUMENT_AI_ENABLED ?? 'true').toLowerCase() === 'true'
 );
 
 export async function analyzeProductLabel({ image, seniorId }) {

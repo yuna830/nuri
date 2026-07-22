@@ -1,5 +1,6 @@
 package com.nuri.woorilink.controller;
 
+import com.nuri.woorilink.dto.VisitScheduleResponse;
 import com.nuri.woorilink.entity.VisitSchedule;
 import com.nuri.woorilink.service.VisitScheduleService;
 import lombok.RequiredArgsConstructor;
@@ -16,14 +17,14 @@ public class VisitScheduleController {
     private final VisitScheduleService scheduleService;
 
     @GetMapping("/welfare-worker/{welfareWorkerId}")
-    public List<VisitSchedule> getByWelfareWorker(@PathVariable Long welfareWorkerId) {
+    public List<VisitScheduleResponse> getByWelfareWorker(@PathVariable Long welfareWorkerId) {
         return scheduleService.getByWelfareWorker(welfareWorkerId);
     }
 
     @GetMapping("/welfare-worker/{welfareWorkerId}/month")
-    public List<VisitSchedule> getByMonth(@PathVariable Long welfareWorkerId,
-                                          @RequestParam int year,
-                                          @RequestParam int month) {
+    public List<VisitScheduleResponse> getByMonth(@PathVariable Long welfareWorkerId,
+                                                  @RequestParam int year,
+                                                  @RequestParam int month) {
         return scheduleService.getByMonth(welfareWorkerId, year, month);
     }
 

@@ -27,9 +27,25 @@ public class KcApiClient {
     private static final String DETAIL_URL =
             "http://www.safetykorea.kr/openapi/api/cert/certificationDetail.json";
 
-    public KcLookup lookup(String modelName, String productName, String makerName) {
+    public KcLookup lookup(String certificationNumber, String modelName, String productName, String makerName) {
         String key = config.getRecallApiKey();
         if (!nonBlank(key)) return KcLookup.notChecked();
+
+        String normalizedCertNumber = normalizeCertificationNumber(certificationNumber);
+        if (nonBlank(normalizedCertNumber)) {
+            JsonNode detail = findCertificationDetail(normalizedCertNumber, key);
+            if (detail != null) {
+                return new KcLookup(
+                        "KC 인증 확인",
+                        text(detail, "certNum"),
+                        text(detail, "certState"),
+                        text(detail, "certOrganName"),
+                        text(detail, "productName"),
+                        text(detail, "modelName"),
+                        text(detail, "makerName")
+                );
+            }
+        }
 
         for (SearchTerm term : searchTerms(modelName, productName, makerName)) {
             JsonNode item = findFirstCertification(term.conditionKey(), term.conditionValue(), key);
@@ -47,6 +63,10 @@ public class KcApiClient {
                     firstNonBlank(text(source, "modelName"), text(item, "modelName")),
                     firstNonBlank(text(source, "makerName"), text(item, "makerName"))
             );
+        }
+
+        if (nonBlank(normalizedCertNumber)) {
+            return KcLookup.certNumberDetected(normalizedCertNumber);
         }
 
         return KcLookup.notFound();
@@ -152,6 +172,18 @@ public class KcApiClient {
         return value != null && !value.isBlank();
     }
 
+    private String normalizeCertificationNumber(String value) {
+        if (!nonBlank(value)) return "";
+        String normalized = value
+                .replace('Ç', 'C')
+                .replace('ç', 'C')
+                .replaceAll("\\s+", "")
+                .toUpperCase();
+        normalized = normalized.replaceFirst("^KC(?=R-R-)", "");
+        normalized = normalized.replaceFirst("^KCR(?=-R-)", "R");
+        return normalized;
+    }
+
     private record SearchTerm(String conditionKey, String conditionValue) {}
 
     public record KcLookup(
@@ -165,6 +197,10 @@ public class KcApiClient {
     ) {
         static KcLookup notFound() {
             return new KcLookup("KC 인증 미확인", null, null, null, null, null, null);
+        }
+
+        static KcLookup certNumberDetected(String certNum) {
+            return new KcLookup("KC_CERT_NUMBER_DETECTED", certNum, null, null, null, null, null);
         }
 
         static KcLookup notChecked() {

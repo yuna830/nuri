@@ -1,8 +1,40 @@
 import { useEffect, useState } from 'react'
 import '../../css/welfare/Schedule.css'
-import { getSchedulesByMonth, createSchedule, updateScheduleStatus, deleteSchedule } from '../../api/scheduleApi'
+import { createAction, deleteAction, getActionsByWelfareWorker, updateActionStatus } from '../../api/actionApi'
 import { getUserId } from '../../utils/auth'
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function actionScheduleTitle(action) {
+  const seniorName = action.seniorName || '어르신'
+  const productName = action.productName || ''
+  return productName
+    ? `${seniorName}님 - ${productName} 조치 방문일`
+    : `${seniorName}님 조치 방문일`
+}
+
+function actionToCalendarEvent(action) {
+  return {
+    ...action,
+    visitDate: action.dueDate ? String(action.dueDate).slice(0, 10) : null,
+    visitTime: action.visitTime || '',
+    purpose: actionScheduleTitle(action),
+  }
+}
+
+function dedupeCalendarEvents(events) {
+  const byKey = new Map()
+  for (const event of events) {
+    const key = [
+      event.actionType,
+      event.seniorId,
+      event.productName || event.purpose,
+      event.visitDate,
+    ].join('|')
+    const previous = byKey.get(key)
+    if (!previous || Number(event.id) > Number(previous.id)) byKey.set(key, event)
+  }
+  return Array.from(byKey.values())
+}
 
 export default function Schedule() {
   const welfareWorkerId = getUserId()
@@ -17,8 +49,14 @@ export default function Schedule() {
   useEffect(() => { load() }, [year, month])
 
   async function load() {
-    const r = await getSchedulesByMonth(welfareWorkerId, year, month).catch(() => ({ data: [] }))
-    setSchedules(r.data)
+    const response = await getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-31`
+    const actionSchedules = (Array.isArray(response.data) ? response.data : [])
+      .filter(action => action.dueDate)
+      .map(actionToCalendarEvent)
+      .filter(schedule => schedule.visitDate >= monthStart && schedule.visitDate <= monthEnd)
+    setSchedules(dedupeCalendarEvents(actionSchedules))
   }
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12) } else setMonth(m => m - 1) }
@@ -46,19 +84,27 @@ export default function Schedule() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await createSchedule({ welfareWorkerId: welfareWorkerId, seniorId: Number(form.seniorId), visitDate: selected, visitTime: form.visitTime, purpose: form.purpose, note: form.note })
+    await createAction({
+      welfareWorkerId,
+      seniorId: Number(form.seniorId),
+      actionType: 'VISIT',
+      actionSubject: 'WELFARE_WORKER',
+      status: 'PENDING',
+      dueDate: selected,
+      note: form.note || form.purpose || '방문 조치',
+    })
     await load()
     setShowModal(false)
     setForm({ seniorId: '', visitTime: '', purpose: '', note: '' })
   }
 
   async function handleStatus(id, status) {
-    await updateScheduleStatus(id, status)
+    await updateActionStatus(id, status)
     await load()
   }
 
   async function handleDelete(id) {
-    await deleteSchedule(id)
+    await deleteAction(id)
     await load()
   }
 
@@ -89,7 +135,7 @@ export default function Schedule() {
                   onClick={() => c.curr && setSelected(ds)}>
                   <div className="cell-day">{c.day}</div>
                   {c.curr && getEventsForDay(c.day).slice(0, 2).map(s => (
-                    <div key={s.id} className={`calendar-event ${s.status?.toLowerCase()}`}>{s.purpose || '방문'}</div>
+                    <div key={s.id} className={`calendar-event ${s.status?.toLowerCase()}`}>{s.purpose}</div>
                   ))}
                 </div>
               )
@@ -104,10 +150,10 @@ export default function Schedule() {
           ) : selectedSchedules.map(s => (
             <div className="schedule-item" key={s.id}>
               <div className="schedule-time">{s.visitTime || '시간 미정'}</div>
-              <div className="schedule-body">{s.purpose || '방문'}</div>
-              {s.note && <div className="text-muted" style={{ fontSize: 12, marginBottom: 8 }}>{s.note}</div>}
+              <div className="schedule-body">{s.purpose}</div>
+              {s.productName && <div className="schedule-product">대상 제품: {s.productName}</div>}
               <div className="schedule-actions">
-                {s.status === 'PLANNED' && <button className="btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleStatus(s.id, 'COMPLETED')}>완료</button>}
+                {!['COMPLETED', 'CANCELLED'].includes(s.status) && <button className="btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleStatus(s.id, 'COMPLETED')}>완료</button>}
                 <button className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => handleDelete(s.id)}>삭제</button>
               </div>
             </div>

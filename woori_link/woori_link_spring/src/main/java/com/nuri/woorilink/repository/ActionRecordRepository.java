@@ -15,4 +15,9 @@ public interface ActionRecordRepository extends JpaRepository<ActionRecord, Long
             ActionRecord.ActionType actionType,
             String productName
     );
+    void deleteBySeniorIdAndActionTypeAndNoteContaining(
+            Long seniorId,
+            ActionRecord.ActionType actionType,
+            String note
+    );
 }

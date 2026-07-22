@@ -22,6 +22,7 @@ public class RecallNotice {
     @Column(columnDefinition="text") private String defectDescription;
     @Column(columnDefinition="text") private String hazardDescription;
     @Column(columnDefinition="text") private String consumerAction;
+    @Enumerated(EnumType.STRING) private ActionType actionType;
     private String inquiryTel;
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition="jsonb", nullable=false) @Builder.Default private List<String> imageUrls = new ArrayList<>();
     @Column(columnDefinition="text") private String additionalConditionText;
@@ -33,4 +34,5 @@ public class RecallNotice {
     private String contentHash; private LocalDateTime firstSyncedAt; private LocalDateTime lastSyncedAt;
     @Builder.Default private boolean isActive = true;
     @CreationTimestamp private LocalDateTime createdAt; @UpdateTimestamp private LocalDateTime updatedAt;
+    public enum ActionType { IMMEDIATE_STOP, REPAIR_OR_COLLECTION, EXCHANGE_OR_REFUND, PRODUCT_CHECK_REQUIRED, GENERAL_GUIDANCE }
 }

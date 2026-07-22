@@ -22,6 +22,8 @@ dependencies:
   sensors_plus: ^6.1.1
   speech_to_text: ^7.4.0
   flutter_tts: ^4.0.2
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
 
 dev_dependencies:
   flutter_test:

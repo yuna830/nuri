@@ -207,3 +207,20 @@ export async function disconnectGuardianSenior(
     );
   }
 }
+
+export async function connectGuardianSenior(name, phone) {
+  try {
+    const response = await guardianRelationshipApi.post(
+      '/seniors/guardian/connect',
+      { name: name.trim(), phone: phone.trim() },
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message
+      || error.response?.data?.error
+      || error.response?.data
+      || '어르신을 연결하지 못했습니다.',
+    );
+  }
+}

@@ -133,6 +133,95 @@ public class CareMonitoringService {
     }
     public List<CareAlert> guardianAlerts(Long guardianId) { return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId); }
 
+    public List<CareAlert> seniorAlerts(Long seniorId) { return alertRepository.findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(seniorId); }
+
+    public List<CareAlert> welfareNotices(Long welfareWorkerId) {
+        List<Long> seniorIds = seniorRepository.findByWelfareWorkerId(welfareWorkerId)
+                .stream()
+                .map(Senior::getId)
+                .toList();
+        if (seniorIds.isEmpty()) return List.of();
+        return alertRepository.findBySeniorIdInAndTypeOrderByCreatedAtDesc(
+                seniorIds,
+                CareEvent.EventType.WELFARE_NOTICE
+        );
+    }
+
+    @Transactional
+    public List<CareAlert> createWelfareNotice(Long seniorId, Long welfareWorkerId, String title, String message,
+                                               boolean notifySenior, boolean notifyGuardian) {
+        Senior senior = requireAssignedSenior(seniorId, welfareWorkerId);
+        if (!notifySenior && !notifyGuardian) {
+            throw new IllegalArgumentException("알림 수신 대상을 선택해 주세요.");
+        }
+        if (notifyGuardian && senior.getGuardianId() == null) {
+            throw new IllegalArgumentException("연결된 보호자가 없어 보호자 알림을 보낼 수 없습니다.");
+        }
+        String normalizedTitle = title == null || title.isBlank() ? "복지사 알림" : title.trim();
+        String normalizedMessage = message == null ? "" : message.trim();
+        if (normalizedMessage.isEmpty()) {
+            throw new IllegalArgumentException("알림 내용을 입력해 주세요.");
+        }
+        if (normalizedTitle.length() > 120) {
+            throw new IllegalArgumentException("알림 제목은 120자 이하로 입력해 주세요.");
+        }
+        if (normalizedMessage.length() > 1000) {
+            throw new IllegalArgumentException("알림 내용은 1000자 이하로 입력해 주세요.");
+        }
+
+        java.util.ArrayList<CareAlert> notices = new java.util.ArrayList<>();
+        if (notifySenior) {
+            notices.add(alertRepository.save(buildWelfareNotice(seniorId, null, normalizedTitle, normalizedMessage)));
+        }
+        if (notifyGuardian) {
+            notices.add(alertRepository.save(buildWelfareNotice(seniorId, senior.getGuardianId(), normalizedTitle, normalizedMessage)));
+        }
+        return notices;
+    }
+
+    @Transactional
+    public void cancelWelfareNotice(Long alertId, Long welfareWorkerId) {
+        CareAlert alert = alertRepository.findByIdAndType(alertId, CareEvent.EventType.WELFARE_NOTICE)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        requireAssignedSenior(alert.getSeniorId(), welfareWorkerId);
+        if (alert.getStatus() != CareAlert.AlertStatus.UNREAD) {
+            throw new IllegalStateException("이미 확인한 알림은 전송취소할 수 없습니다.");
+        }
+        alertRepository.delete(alert);
+    }
+
+    private Senior requireAssignedSenior(Long seniorId, Long welfareWorkerId) {
+        Senior senior = seniorRepository.findById(seniorId)
+                .orElseThrow(() -> new IllegalArgumentException("Senior not found: " + seniorId));
+        if (senior.getWelfareWorkerId() == null || !senior.getWelfareWorkerId().equals(welfareWorkerId)) {
+            throw new org.springframework.security.access.AccessDeniedException("You can only notify assigned seniors");
+        }
+        return senior;
+    }
+
+    private CareAlert buildWelfareNotice(Long seniorId, Long guardianId, String title, String message) {
+        return CareAlert.builder()
+                .seniorId(seniorId)
+                .guardianId(guardianId)
+                .type(CareEvent.EventType.WELFARE_NOTICE)
+                .severity(CareAlert.Severity.MEDIUM)
+                .status(CareAlert.AlertStatus.UNREAD)
+                .title(title)
+                .message(message)
+                .build();
+    }
+
+    @Transactional
+    public CareAlert acknowledgeSeniorAlert(Long alertId, Long seniorId) {
+        CareAlert alert = alertRepository.findByIdAndSeniorIdAndGuardianIdIsNull(alertId, seniorId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        if (alert.getStatus() == CareAlert.AlertStatus.UNREAD) {
+            alert.setStatus(CareAlert.AlertStatus.ACKNOWLEDGED);
+            alert.setAcknowledgedAt(LocalDateTime.now());
+        }
+        return alert;
+    }
+
     public List<CheckIn> checkIns(Long seniorId) { return checkInRepository.findBySeniorIdOrderByRequestedAtDesc(seniorId); }
 
     @Transactional
@@ -197,6 +286,7 @@ public class CareMonitoringService {
             case SOS -> "SOS 긴급 호출";
             case SAFETY_RADIUS_EXIT -> "안전반경 이탈";
             case CHECK_IN_MISSED -> "안부 미응답";
+            case WELFARE_NOTICE -> "복지사 알림";
         };
         CareAlert.Severity severity = event.getType() == CareEvent.EventType.SOS || event.getType() == CareEvent.EventType.FALL_DETECTED
                 ? CareAlert.Severity.HIGH : CareAlert.Severity.MEDIUM;
