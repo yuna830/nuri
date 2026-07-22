@@ -10,7 +10,7 @@ class SeniorApi {
       headers: await authHeaders(),
     );
     if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
-    throw Exception('어르신 정보 조회 실패');
+    throw Exception('님 정보 조회 실패');
   }
 
   static Future<Map<String, dynamic>> updateSenior(
@@ -21,6 +21,6 @@ class SeniorApi {
       body: jsonEncode(body),
     );
     if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
-    throw Exception('어르신 정보 수정 실패');
+    throw Exception('님 정보 수정 실패');
   }
 }

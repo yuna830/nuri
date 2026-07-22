@@ -5,6 +5,8 @@ import com.nuri.woorilink.dto.LoginResponse;
 import com.nuri.woorilink.dto.SeniorLoginRequest;
 import com.nuri.woorilink.dto.SeniorRegisterRequest;
 import com.nuri.woorilink.entity.Senior;
+import com.nuri.woorilink.entity.Guardian;
+import com.nuri.woorilink.repository.GuardianRepository;
 import com.nuri.woorilink.repository.SeniorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import org.springframework.util.StringUtils;
 public class SeniorAuthService {
 
     private final SeniorRepository seniorRepository;
+    private final GuardianRepository guardianRepository;
     private final JwtTokenProvider tokenProvider;
 
     public LoginResponse login(SeniorLoginRequest request) {
@@ -64,13 +67,21 @@ public class SeniorAuthService {
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
         }
 
+        String inviteCode = normalizeInviteCode(request.getInviteCode());
+        if (!StringUtils.hasText(inviteCode)) {
+            throw new IllegalArgumentException("보호자 초대 코드를 입력해 주세요.");
+        }
+
+        Guardian guardian = guardianRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 초대 코드입니다."));
+
         Senior senior = Senior.builder()
                 .name(request.getName())
                 .phone(phone)
                 .birthDate(request.getBirthDate())
                 .address(request.getAddress())
                 .gender(request.getGender())
-                .guardianId(request.getGuardianId())
+                .guardianId(guardian.getId())
                 .build();
 
         seniorRepository.save(senior);
@@ -78,5 +89,11 @@ public class SeniorAuthService {
 
     private String normalizePhone(String phone) {
         return phone == null ? null : phone.replaceAll("\\D", "");
+    }
+
+    private String normalizeInviteCode(String inviteCode) {
+        return inviteCode == null
+                ? null
+                : inviteCode.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
     }
 }

@@ -92,10 +92,10 @@ export default function ProductRegistrationModal({
         onSubmit(event);
       }}>
         <header><h2>제품 등록</h2><button type="button" aria-label="닫기" onClick={onClose}>×</button></header>
-        <label>대상 어르신
+        <label>대상 님
           <select required value={form.seniorId} onChange={(event) => setForm({ ...form, seniorId: event.target.value })}>
             <option value="">선택</option>
-            {seniors.map((senior) => <option key={senior.id} value={senior.id}>{senior.name} 어르신</option>)}
+            {seniors.map((senior) => <option key={senior.id} value={senior.id}>{senior.name} 님</option>)}
           </select>
         </label>
 

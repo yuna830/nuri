@@ -75,7 +75,7 @@ function recallHazard(product) {
 function removeGuideNotes(note) {
   return String(note || '')
     .split(/\r?\n/)
-    .filter(line => !line.trim().startsWith('어르신 안내:')
+    .filter(line => !line.trim().startsWith('님 안내:')
       && !line.trim().startsWith('보호자 안내:')
       && !line.trim().startsWith('제조사 문의:'))
     .join('\n')
@@ -545,7 +545,7 @@ export default function RecallList() {
       <div className="recall-page-header">
         <div>
           <h1 className="page-title">리콜 제품 확인 대상</h1>
-          <p className="recall-page-description">어르신이 등록한 제품과 리콜 정보를 대조하고, 실제 사용 여부와 후속 조치를 관리합니다.</p>
+          <p className="recall-page-description">님이 등록한 제품과 리콜 정보를 대조하고, 실제 사용 여부와 후속 조치를 관리합니다.</p>
         </div>
         {lastCheckedDate && <span className="recall-last-checked">마지막 확인: {lastCheckedDate}</span>}
       </div>
@@ -570,7 +570,7 @@ export default function RecallList() {
         {filteredProducts.length === 0 ? (
           <div className="recall-empty-state">
             <strong>{products.length === 0 ? '현재 확인이 필요한 리콜 제품이 없습니다.' : '해당 단계의 제품이 없습니다.'}</strong>
-            <p>어르신이 등록한 제품은 최신 리콜 정보와 자동으로 비교됩니다.</p>
+            <p>님이 등록한 제품은 최신 리콜 정보와 자동으로 비교됩니다.</p>
             <p>새로운 리콜 대상이 확인되면 이 목록에 표시됩니다.</p>
           </div>
         ) : (
@@ -729,7 +729,7 @@ export default function RecallList() {
           <form className="recall-modal" onSubmit={handleActionSave} onClick={event => event.stopPropagation()}>
             <div className="recall-modal-header">
               <div>
-                <h2>{valueOrFallback(selected.seniorName, '어르신 미확인')} 어르신</h2>
+                <h2>{valueOrFallback(selected.seniorName, '이름 미확인')}님</h2>
                 <p>{valueOrFallback(selected.productName)} · {valueOrFallback(selected.modelNumber)} <span>{currentStage({ ...selected, ...form })}</span></p>
               </div>
               <button type="button" className="recall-modal-close" onClick={() => setSelected(null)}>×</button>
@@ -871,7 +871,7 @@ export default function RecallList() {
               <div className="recall-guidance-header"><div><h3>사용 중단 안내 기록</h3><p>실제로 안내한 뒤 기록을 저장해주세요.</p></div><button type="button" aria-label="닫기" onClick={() => setShowStopGuidance(false)}>×</button></div>
               <div className="recall-guidance-body">
                 <ul className="recall-guidance-checklist"><li>즉시 전원을 끄도록 안내</li><li>플러그를 분리하도록 안내</li><li>제품을 다시 사용하지 않도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul>
-                <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['어르신 본인','어르신'],['보호자','보호자']].map(([value,label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
+                <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['님 본인','님'],['보호자','보호자']].map(([value,label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
                 <fieldset className="recall-choice-group"><legend>안내 방법</legend>{['전화','방문','보호자 연락'].map(value => <button key={value} type="button" className={guidanceForm.method === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, method: value }))}>{value}</button>)}</fieldset>
                 <label className="recall-guidance-memo">메모<textarea value={guidanceForm.memo ?? ''} onChange={event => setGuidanceForm(previous => ({ ...previous, memo: event.target.value }))} placeholder="안내 내용이나 특이사항을 기록하세요" /></label>
               </div>

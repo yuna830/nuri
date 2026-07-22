@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import GuardianLayout from './GuardianLayout.jsx';
 import { getSeniorsByGuardian } from '../../api/guardianApi.js';
-import { deleteProduct, getProductsBySenior, registerProduct } from '../../api/recallApi.js';
+import { deleteProduct, getProductsBySenior, registerProduct, sendRecallNotification } from '../../api/recallApi.js';
 import { createAction, getActionsBySenior, updateActionStatus } from '../../api/actionApi.js';
 import { analyzeProductLabel, confirmProductLabelAnalysis, productDocumentAiEnabled } from '../../api/documentAiApi.js';
 import ProductRegistrationModal from './ProductRegistrationModal.jsx';
@@ -56,7 +56,80 @@ const ACTION_UI = {
 };
 function actionUi(product) { return ACTION_UI[product.matchedRecallNotice?.actionType] || ACTION_UI.GENERAL_GUIDANCE; }
 function displayProductName(product) {
-  return product.matchedRecallNotice?.productName || product.productName || '제품명 확인 필요';
+  const name = product.matchedRecallNotice?.productName || product.productName || '제품명 확인 필요';
+  return name
+    .replace(/\s*\(([^)]*)\)/g, (full, content) => /[A-Za-z]/.test(content) && !/[가-힣]/.test(content) ? '' : full)
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+const GUIDANCE_COPY = {
+  IMMEDIATE_STOP: {
+    title: '[제품 사용을 멈춰 주세요]',
+    intro: '등록한 제품이 아래와 같은 이유로 리콜 대상이 되었습니다.',
+    action: '지금부터 이 제품을 사용하지 마세요. 필요한 조치는 제가 확인해서 진행할게요.',
+  },
+  REPAIR_OR_COLLECTION: {
+    title: '[제품 리콜 안내]',
+    intro: '등록한 제품이 아래와 같은 이유로 리콜 대상이 되었습니다.',
+    action: '지금부터 이 제품을 사용하지 마세요. 제가 업체에 수거나 수리를 신청할게요.',
+  },
+  EXCHANGE_OR_REFUND: {
+    title: '[제품 리콜 안내]',
+    intro: '등록한 제품이 아래와 같은 이유로 리콜 대상이 되었습니다.',
+    action: '지금부터 이 제품을 사용하지 마세요. 제가 구입한 곳에 교환이나 환불을 신청할게요.',
+  },
+  PRODUCT_CHECK_REQUIRED: {
+    title: '[제품 정보를 확인해 주세요]',
+    intro: '등록한 제품이 리콜 대상인지 확인하려면 제품 정보가 더 필요합니다.',
+    action: '제품을 버리지 말고 보관해 주세요. 제가 모델번호와 만든 날짜를 확인할게요.',
+  },
+  GENERAL_GUIDANCE: {
+    title: '[제품 리콜 안내]',
+    intro: '등록한 제품이 안전 문제로 리콜 대상이 되었습니다.',
+    action: '지금부터 이 제품을 사용하지 마세요. 제가 필요한 신청을 진행할게요.',
+  },
+};
+
+function currentUseGuidance(product) {
+  if (['STOPPED', 'NOT_IN_USE'].includes(product.currentUseStatus)) {
+    return '지금 사용하지 않고 있다면 그대로 사용하지 말아 주세요.';
+  }
+  if (['DISPOSED', 'NOT_OWNED'].includes(product.currentUseStatus)) {
+    return '이미 버렸거나 가지고 있지 않다면 저에게 알려 주세요.';
+  }
+  return '';
+}
+
+function seniorFriendlyHazard(value) {
+  const text = cleanOfficialText(value);
+  if (!text) return '';
+  if (/장식.*걸려.*넘어|걸려.*넘어.*장식/.test(text)) return '제품의 장식에 발이 걸려 넘어질 수 있습니다.';
+  if (/감전/.test(text)) return '전기에 감전되어 다칠 수 있습니다.';
+  if (/화재|불이 날/.test(text)) return '제품에서 불이 날 수 있습니다.';
+  if (/질식/.test(text)) return '숨을 쉬기 어려워지는 사고가 생길 수 있습니다.';
+  return text
+    .replace(/부상을 입을 수 (?:있음|있습니다)/g, '다칠 수 있습니다')
+    .replace(/상해를 입을 수 (?:있음|있습니다)/g, '다칠 수 있습니다')
+    .replace(/소비자/g, '사용하는 사람')
+    .replace(/악세사리|액세서리/g, '장식');
+}
+
+function buildGuidanceMessage(product) {
+  const copy = GUIDANCE_COPY[product.matchedRecallNotice?.actionType] || GUIDANCE_COPY.GENERAL_GUIDANCE;
+  const handled = ['DISPOSED', 'NOT_OWNED'].includes(product.currentUseStatus);
+  return [
+    copy.title,
+    '',
+    `${product.seniorName} 님, ${copy.intro}`,
+    '',
+    `제품명: ${displayProductName(product)}`,
+    seniorFriendlyHazard(product.hazardDescription),
+    '',
+    handled ? currentUseGuidance(product) : copy.action,
+    !handled && currentUseGuidance(product),
+    product.inquiryTel ? `문의처: ${product.inquiryTel}` : '',
+  ].filter(Boolean).join('\n');
 }
 function productColorState(product) {
   if (product.actionStatus === 'COMPLETED' || product.followUpProgressStatus === 'COMPLETED' || product.finalResult) return 'completed';
@@ -91,6 +164,11 @@ export default function Safety() {
   const [registrationFlowOpen, setRegistrationFlowOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [guidanceTarget, setGuidanceTarget] = useState(null);
+  const [guidanceMessage, setGuidanceMessage] = useState('');
+  const [guidanceChannel, setGuidanceChannel] = useState('APP_PUSH');
+  const [guidanceSending, setGuidanceSending] = useState(false);
+  const [guidanceSent, setGuidanceSent] = useState(false);
+  const [guidanceError, setGuidanceError] = useState('');
   const [checkDetail, setCheckDetail] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [registrationMethod, setRegistrationMethod] = useState('MANUAL');
@@ -158,7 +236,7 @@ export default function Safety() {
     } finally { setRegistering(false); }
   }
   async function analyzeLabel() {
-    if (!form.seniorId || !labelImage) return setError('대상 어르신과 제품 라벨 사진을 선택해 주세요.');
+    if (!form.seniorId || !labelImage) return setError('대상 님과 제품 라벨 사진을 선택해 주세요.');
     setAnalyzing(true); setError('');
     try {
       const response = await analyzeProductLabel({ image: labelImage, seniorId: form.seniorId });
@@ -194,10 +272,56 @@ export default function Safety() {
     if (note == null) return;
     if (existing) await updateActionStatus(existing.id, 'COMPLETED', note);
     else {
-      if (selectedId === 'ALL') return setError('점검을 완료할 어르신을 먼저 선택해 주세요.');
+      if (selectedId === 'ALL') return setError('점검을 완료할 님을 먼저 선택해 주세요.');
       await createAction({ seniorId: Number(selectedId), actionType: check.type, actionSubject: 'GUARDIAN', status: 'COMPLETED', note });
     }
     setCheckDetail(null); await load();
+  }
+
+  function openGuidance(product) {
+    setDetail(null);
+    setGuidanceTarget(product);
+    setGuidanceMessage(buildGuidanceMessage(product));
+    setGuidanceChannel('APP_PUSH');
+    setGuidanceSending(false);
+    setGuidanceSent(false);
+    setGuidanceError('');
+  }
+
+  function closeGuidance() {
+    if (guidanceSending) return;
+    setGuidanceTarget(null);
+    setGuidanceMessage('');
+    setGuidanceChannel('APP_PUSH');
+    setGuidanceSent(false);
+    setGuidanceError('');
+  }
+
+  async function sendGuidance() {
+    if (!guidanceTarget || !guidanceMessage.trim() || guidanceSending || guidanceChannel !== 'APP_PUSH') return;
+    setGuidanceSending(true);
+    setGuidanceError('');
+    try {
+      const response = await sendRecallNotification(guidanceTarget.id, { message: guidanceMessage.trim() });
+      if ((response.data?.successCount ?? 0) < 1) {
+        setGuidanceError('등록된 님 기기의 알림 토큰이 없습니다. 님 앱을 한 번 실행한 뒤 다시 보내 주세요.');
+        return;
+      }
+      setGuidanceSent(true);
+    } catch (error) {
+      const status = error.response?.status;
+      setGuidanceError(
+        error.response?.data?.message
+        || error.response?.data?.detail
+        || (status === 401
+          ? '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.'
+          : status === 403
+            ? '앱 알림 발송 권한을 확인하지 못했습니다.'
+            : '리콜 안내를 보내지 못했습니다.'),
+      );
+    } finally {
+      setGuidanceSending(false);
+    }
   }
 
   return <GuardianLayout activeMenu="safety"><main className="guardian-safety-page">
@@ -212,13 +336,13 @@ export default function Safety() {
         const action = actionUi(product);
         const colorState = productColorState(product);
         return <article className={`guardian-product-card compact state-${colorState}`} key={product.id} onClick={() => setDetail(product)}>
-          <div className="guardian-product-card__top"><div><h3>{product.productName}</h3><p>{product.seniorName} 어르신</p></div><b>{productStatusLabel(product, confirmed, action, colorState)}</b></div>
+          <div className="guardian-product-card__top"><div><h3>{displayProductName(product)}</h3><p>{product.seniorName} 님</p></div><b>{productStatusLabel(product, confirmed, action, colorState)}</b></div>
           <div className="guardian-product-card__compact-meta"><span>{product.modelNumber || '모델번호 확인 필요'}</span><strong>{USE_LABEL[product.currentUseStatus] || '확인 필요'}</strong><i>상세 보기</i></div>
         </article>;
       })}</div>}
     </section>
-    <section className="guardian-safety-section"><div className="guardian-safety-section__heading"><div><h2>생활안전 점검</h2><p>어르신별 안전 항목의 최근 점검 상태를 관리합니다.</p></div></div><div className="guardian-check-list">{CHECKS.map(check => { const record = latestChecks[check.type]; return <button key={check.type} onClick={() => setCheckDetail({ check, record })}><span><i className={record ? record.status.toLowerCase() : 'unchecked'} />{check.label}</span><strong>{record ? CHECK_STATUS[record.status] || '점검 필요' : '미점검'}</strong><small>{record ? formatDate(record.updatedAt || record.createdAt) : '점검 기록 없음'}</small></button>; })}</div></section>
-    {registerOpen && <div className="guardian-safety-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setRegisterOpen(false)}><form className="guardian-safety-modal guardian-product-register-modal" onSubmit={submitProduct}><header><h2>제품 등록</h2><button type="button" onClick={() => setRegisterOpen(false)}>×</button></header><label>대상 어르신<select required value={form.seniorId} onChange={e => setForm({ ...form, seniorId: e.target.value })}><option value="">선택</option>{seniors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>{productDocumentAiEnabled && <div className="registration-method"><button type="button" className={registrationMethod === 'PHOTO' ? 'active' : ''} onClick={() => setRegistrationMethod('PHOTO')}>제품 라벨 사진</button><button type="button" className={registrationMethod === 'MANUAL' ? 'active' : ''} onClick={() => setRegistrationMethod('MANUAL')}>직접 입력</button></div>}{productDocumentAiEnabled && registrationMethod === 'PHOTO' && <section className="label-analysis"><label>제품 라벨 사진<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setLabelImage(e.target.files?.[0] || null); setAnalysis(null); }} /></label><button type="button" className="analyze" disabled={analyzing || !labelImage} onClick={analyzeLabel}>{analyzing ? '분석 중...' : '제품 라벨 분석'}</button>{analysis?.warnings?.length > 0 && <ul>{analysis.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}</section>}<p className="review-notice">분석 결과는 자동 등록되지 않습니다. 제품 라벨과 비교해 직접 확인·수정해 주세요.</p><label>제품명 *<input required value={form.productName} onChange={e => setForm({ ...form, productName: e.target.value })} /></label><label>브랜드<input value={form.brandName} onChange={e => setForm({ ...form, brandName: e.target.value })} /></label><label>모델명·모델번호<input value={form.modelNumber} onChange={e => setForm({ ...form, modelNumber: e.target.value })} />{analysis?.fields?.modelNumber && <small>신뢰도 {Math.round((analysis.fields.modelNumber.confidence || 0) * 100)}% · 근거: {analysis.fields.modelNumber.sourceText || '없음'}</small>}</label><div className="analysis-extra"><label>인증·신고번호<input value={form.certificationNumber} onChange={e => setForm({ ...form, certificationNumber: e.target.value })} /></label><label>바코드<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} /></label><label>제조사 (선택)<input value={form.manufacturer} onChange={e => setForm({ ...form, manufacturer: e.target.value })} /></label>{analysis && <label>제조일자<input value={form.manufacturingDate} onChange={e => setForm({ ...form, manufacturingDate: e.target.value })} /></label>}</div><label>현재 사용 여부 *<select required value={form.currentUseStatus} onChange={e => setForm({ ...form, currentUseStatus: e.target.value })}><option value="IN_USE">사용 중</option><option value="STOPPED">사용 중지</option><option value="DISPOSED">폐기 완료</option><option value="UNKNOWN">확인 필요</option></select></label><button className="submit">확인 후 등록</button></form></div>}
+    <section className="guardian-safety-section"><div className="guardian-safety-section__heading"><div><h2>생활안전 점검</h2><p>님별 안전 항목의 최근 점검 상태를 관리합니다.</p></div></div><div className="guardian-check-list">{CHECKS.map(check => { const record = latestChecks[check.type]; return <button key={check.type} onClick={() => setCheckDetail({ check, record })}><span><i className={record ? record.status.toLowerCase() : 'unchecked'} />{check.label}</span><strong>{record ? CHECK_STATUS[record.status] || '점검 필요' : '미점검'}</strong><small>{record ? formatDate(record.updatedAt || record.createdAt) : '점검 기록 없음'}</small></button>; })}</div></section>
+    {registerOpen && <div className="guardian-safety-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setRegisterOpen(false)}><form className="guardian-safety-modal guardian-product-register-modal" onSubmit={submitProduct}><header><h2>제품 등록</h2><button type="button" onClick={() => setRegisterOpen(false)}>×</button></header><label>대상 님<select required value={form.seniorId} onChange={e => setForm({ ...form, seniorId: e.target.value })}><option value="">선택</option>{seniors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>{productDocumentAiEnabled && <div className="registration-method"><button type="button" className={registrationMethod === 'PHOTO' ? 'active' : ''} onClick={() => setRegistrationMethod('PHOTO')}>제품 라벨 사진</button><button type="button" className={registrationMethod === 'MANUAL' ? 'active' : ''} onClick={() => setRegistrationMethod('MANUAL')}>직접 입력</button></div>}{productDocumentAiEnabled && registrationMethod === 'PHOTO' && <section className="label-analysis"><label>제품 라벨 사진<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setLabelImage(e.target.files?.[0] || null); setAnalysis(null); }} /></label><button type="button" className="analyze" disabled={analyzing || !labelImage} onClick={analyzeLabel}>{analyzing ? '분석 중...' : '제품 라벨 분석'}</button>{analysis?.warnings?.length > 0 && <ul>{analysis.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}</section>}<p className="review-notice">분석 결과는 자동 등록되지 않습니다. 제품 라벨과 비교해 직접 확인·수정해 주세요.</p><label>제품명 *<input required value={form.productName} onChange={e => setForm({ ...form, productName: e.target.value })} /></label><label>브랜드<input value={form.brandName} onChange={e => setForm({ ...form, brandName: e.target.value })} /></label><label>모델명·모델번호<input value={form.modelNumber} onChange={e => setForm({ ...form, modelNumber: e.target.value })} />{analysis?.fields?.modelNumber && <small>신뢰도 {Math.round((analysis.fields.modelNumber.confidence || 0) * 100)}% · 근거: {analysis.fields.modelNumber.sourceText || '없음'}</small>}</label><div className="analysis-extra"><label>인증·신고번호<input value={form.certificationNumber} onChange={e => setForm({ ...form, certificationNumber: e.target.value })} /></label><label>바코드<input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} /></label><label>제조사 (선택)<input value={form.manufacturer} onChange={e => setForm({ ...form, manufacturer: e.target.value })} /></label>{analysis && <label>제조일자<input value={form.manufacturingDate} onChange={e => setForm({ ...form, manufacturingDate: e.target.value })} /></label>}</div><label>현재 사용 여부 *<select required value={form.currentUseStatus} onChange={e => setForm({ ...form, currentUseStatus: e.target.value })}><option value="IN_USE">사용 중</option><option value="STOPPED">사용 중지</option><option value="DISPOSED">폐기 완료</option><option value="UNKNOWN">확인 필요</option></select></label><button className="submit">확인 후 등록</button></form></div>}
     {detail && (() => {
       const evidence = matchedEvidence(detail);
       const missing = asArray(detail.missingFields).map(field => MISSING_LABEL[field]).filter(Boolean);
@@ -234,7 +358,7 @@ export default function Safety() {
                 {confirmed && <span className="recall-status-badge">공식 리콜 대상 · {action.status}</span>}
               </div>
               <p className="recall-product-meta">
-                {detail.seniorName} 어르신
+                {detail.seniorName} 님
                 {detail.modelNumber && <> · 모델번호 {detail.modelNumber}</>}
                 {' · '}{USE_LABEL[detail.currentUseStatus] || '사용 상태 확인 필요'}
               </p>
@@ -248,11 +372,54 @@ export default function Safety() {
           <section className="recall-description"><div><strong>제품 결함</strong><p>{cleanOfficialText(detail.defectDescription) || '공식 공고에서 확인해 주세요.'}</p></div><div><strong>위해 정보</strong><p>{cleanOfficialText(detail.hazardDescription) || '공식 공고에서 확인해 주세요.'}</p></div></section>
           <dl className="recall-meta-list"><div><dt>공표일</dt><dd>{formatDate(detail.publishDate)}</dd></div><div><dt>최근 리콜 조회</dt><dd>{formatDate(detail.lastSuccessfulCheckedAt || detail.lastCheckedAt)}</dd></div><div><dt>공식 출처</dt><dd>{detail.sourceUrl ? <a href={detail.sourceUrl} target="_blank" rel="noreferrer">제품안전정보센터</a> : '-'}</dd></div></dl>
           {detail.stopGuidanceCompleted && <div className="guardian-product-card__completion"><strong>사용 중지 확인 완료</strong><span>{formatDate(detail.stopGuidanceCompletedAt)} · 보호자 {detail.stopGuidanceTarget || ''}</span></div>}
-          {confirmed && <button className="submit guidance-action" onClick={() => setGuidanceTarget(detail)}>{action.button}</button>}
+          {confirmed && <button className="submit guidance-action" onClick={() => openGuidance(detail)}>{action.button}</button>}
         </section>
       </div>;
     })()}
-    {guidanceTarget && (() => { const action = actionUi(guidanceTarget); return <div className="guardian-safety-modal-backdrop"><section className="guardian-safety-modal guidance-preview-modal"><header><h2>{action.button}</h2><button onClick={() => setGuidanceTarget(null)}>×</button></header><span className="recall-status-badge">공식 리콜 대상 · {action.status}</span><h3>{guidanceTarget.productName}</h3><p className="guidance-recipient">안내 대상 · {guidanceTarget.seniorName} 어르신</p><section className="guidance-message-preview"><strong>[WOORI 제품 리콜 안내]</strong><p>등록된 제품이 공식 리콜 대상과 일치했습니다.</p>{guidanceTarget.hazardDescription && <><b>확인된 내용</b><p>{guidanceTarget.hazardDescription}</p></>}<b>필요한 조치</b><p>{guidanceTarget.consumerAction || action.fallback}</p>{guidanceTarget.inquiryTel && <p>문의처 {guidanceTarget.inquiryTel}</p>}</section><p className="guidance-preview-note">공식 소비자 행동요령을 기준으로 생성된 안내 내용입니다.</p><button className="submit" onClick={() => setGuidanceTarget(null)}>안내 내용 확인</button></section></div>; })()}
+    {guidanceTarget && <div className="guardian-safety-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && closeGuidance()}>
+      <section className="guardian-safety-modal guidance-preview-modal">
+        <header><h2>리콜 안내 보내기</h2><button type="button" disabled={guidanceSending} onClick={closeGuidance}>×</button></header>
+        {guidanceSent ? <section className="guidance-send-result">
+          <strong>앱 알림을 보냈습니다.</strong>
+          <p>{guidanceTarget.seniorName} 님의 앱으로 리콜 안내를 전송했습니다.</p>
+          <button type="button" className="submit" onClick={closeGuidance}>확인</button>
+        </section> : <>
+          <h3>{displayProductName(guidanceTarget)}</h3>
+          <p className="guidance-recipient">안내 대상 · {guidanceTarget.seniorName} 님</p>
+                <fieldset className="guidance-channel-picker">
+                  <legend>발송 방법</legend>
+                  <button
+                    type="button"
+                    className={`guidance-channel-option${guidanceChannel === 'APP_PUSH' ? ' selected' : ''}`}
+                    onClick={() => setGuidanceChannel('APP_PUSH')}
+                    disabled={guidanceSending}
+                    aria-pressed={guidanceChannel === 'APP_PUSH'}
+                  >
+                    <span className="guidance-channel-radio" aria-hidden="true" />
+                    <span className="guidance-channel-copy">
+                      <strong>앱 알림</strong>
+                      <small>님 앱으로 전송</small>
+                    </span>
+                    <em>연동됨</em>
+                  </button>
+                  <button type="button" className="guidance-channel-option unavailable" disabled>
+                    <span className="guidance-channel-radio" aria-hidden="true" />
+                    <span className="guidance-channel-copy">
+                      <strong>카카오 알림톡</strong>
+                      <small>카카오톡으로 전송</small>
+                    </span>
+                    <em>연동 준비 중</em>
+                  </button>
+                </fieldset>
+          <label className="guidance-editor">안내 메시지<textarea value={guidanceMessage} onChange={e => setGuidanceMessage(e.target.value)} disabled={guidanceSending} /></label>
+          {guidanceError && <p className="guidance-send-error">{guidanceError}</p>}
+          <div className="guidance-modal-actions">
+            <button type="button" onClick={closeGuidance} disabled={guidanceSending}>취소</button>
+            <button type="button" className="submit" onClick={sendGuidance} disabled={guidanceSending || !guidanceMessage.trim()}>{guidanceSending ? '보내는 중...' : '앱 알림 보내기'}</button>
+          </div>
+        </>}
+      </section>
+    </div>}
     {checkDetail && <div className="guardian-safety-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setCheckDetail(null)}><section className="guardian-safety-modal"><header><h2>{checkDetail.check.label}</h2><button onClick={() => setCheckDetail(null)}>×</button></header><dl className="detail-list"><div><dt>점검 상태</dt><dd>{checkDetail.record ? CHECK_STATUS[checkDetail.record.status] : '미점검'}</dd></div><div><dt>마지막 점검일</dt><dd>{formatDate(checkDetail.record?.updatedAt || checkDetail.record?.createdAt)}</dd></div><div><dt>점검한 사람</dt><dd>{checkDetail.record?.actionSubject === 'GUARDIAN' ? '보호자' : checkDetail.record?.actionSubject === 'WELFARE_WORKER' ? '복지사' : '-'}</dd></div><div><dt>특이사항</dt><dd>{checkDetail.record?.note || '기록 없음'}</dd></div></dl><button className="submit" onClick={() => completeCheck(checkDetail.check)}>점검 완료 처리</button></section></div>}
   </main></GuardianLayout>;
 }

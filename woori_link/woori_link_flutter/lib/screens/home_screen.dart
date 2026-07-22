@@ -507,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final name = _senior?['name'] ?? '어르신';
+    final name = _senior?['name'] ?? '님';
     final address = _senior?['address'] ?? '';
     final riskLevel = _risk?['level'] as String?;
     final riskScore = _risk?['totalScore'] as int?;
@@ -590,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        '안녕하세요, $name 어르신',
+                        '안녕하세요, $name님',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,

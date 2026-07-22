@@ -185,7 +185,7 @@ export default function Dashboard() {
             <div className="dashboard-scroll-area">
               <table className="data-table pending-actions-table">
                 <thead>
-                  <tr><th>유형</th><th>어르신</th><th>메모</th></tr>
+                  <tr><th>유형</th><th>님</th><th>메모</th></tr>
                 </thead>
                 <tbody>
                   {pending.map(a => (

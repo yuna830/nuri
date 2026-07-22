@@ -49,12 +49,12 @@ public class ProductRecallService {
 
     public void validateGuardianAccess(Long guardianId, Long seniorId) {
         if (guardianId == null || seniorId == null) {
-            throw new IllegalArgumentException("보호자와 대상 어르신 정보가 필요합니다.");
+            throw new IllegalArgumentException("보호자와 대상 님 정보가 필요합니다.");
         }
         Senior senior = seniorRepository.findById(seniorId)
-                .orElseThrow(() -> new IllegalArgumentException("대상 어르신을 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("대상 님을 찾을 수 없습니다."));
         if (!guardianId.equals(senior.getGuardianId())) {
-            throw new IllegalArgumentException("연결된 어르신의 제품만 등록할 수 있습니다.");
+            throw new IllegalArgumentException("연결된 님의 제품만 등록할 수 있습니다.");
         }
     }
 
@@ -223,6 +223,13 @@ public class ProductRecallService {
                 .orElseThrow(() -> new IllegalArgumentException("등록 제품을 찾을 수 없습니다: " + productId)));
     }
 
+    public RegisteredProduct getForGuardian(Long productId, Long guardianId) {
+        RegisteredProduct product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Registered product not found: " + productId));
+        validateGuardianAccess(guardianId, product.getSeniorId());
+        return product;
+    }
+
     @Transactional
     public RegisteredProduct checkRecall(Long productId) {
         if (recallSafetyService.enabled()) return recallSafetyService.check(productId);
@@ -302,7 +309,7 @@ public class ProductRecallService {
         if (!"방문 확인".equals(product.getFollowUpType())) return;
 
         Senior senior = seniorRepository.findById(product.getSeniorId()).orElse(null);
-        String seniorName = senior == null || !nonBlank(senior.getName()) ? "어르신" : senior.getName();
+        String seniorName = senior == null || !nonBlank(senior.getName()) ? "님" : senior.getName();
         Long welfareWorkerId = request.getWelfareWorkerId();
         if (welfareWorkerId == null && senior != null) welfareWorkerId = senior.getWelfareWorkerId();
 

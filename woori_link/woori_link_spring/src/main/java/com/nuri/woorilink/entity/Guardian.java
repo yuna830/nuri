@@ -27,6 +27,9 @@ public class Guardian {
     private String relationship;
     private String email;
 
+    @Column(nullable = false, unique = true, length = 8)
+    private String inviteCode;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 }

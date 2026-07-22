@@ -189,7 +189,7 @@ export default function EnergyVoucher() {
       </div>
 
       <div className="info-banner">
-        신청 가능성이 있는 어르신 목록입니다. 실제 자격과 기존 신청 여부를 확인하고, 상담부터 신청 완료까지 지원 상태를 기록하세요.
+        신청 가능성이 있는 님 목록입니다. 실제 자격과 기존 신청 여부를 확인하고, 상담부터 신청 완료까지 지원 상태를 기록하세요.
       </div>
 
       <div className="card">

@@ -250,7 +250,7 @@ export default function SeniorDetail() {
 
         {managementTab === 'products' && (
           products.length === 0 ? (
-            <div className="detail-tab-empty"><strong>등록된 제품이 없습니다.</strong><p>어르신 앱에서 등록한 제품이 이곳에 표시됩니다.</p></div>
+            <div className="detail-tab-empty"><strong>등록된 제품이 없습니다.</strong><p>님 앱에서 등록한 제품이 이곳에 표시됩니다.</p></div>
           ) : (
             <table className="data-table">
               <thead><tr><th>제품명</th><th>제조사·모델명</th><th>등록일</th><th>리콜 상태</th><th>관리</th></tr></thead>

@@ -166,7 +166,7 @@ export default function Schedule() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2>{selected} 일정 등록</h2>
             <form onSubmit={handleSubmit}>
-              <div className="form-group"><label className="form-label">어르신 ID</label><input className="form-input" value={form.seniorId} onChange={e => setForm(p => ({ ...p, seniorId: e.target.value }))} required /></div>
+              <div className="form-group"><label className="form-label">님 ID</label><input className="form-input" value={form.seniorId} onChange={e => setForm(p => ({ ...p, seniorId: e.target.value }))} required /></div>
               <div className="form-group"><label className="form-label">방문 시간</label><input className="form-input" type="time" value={form.visitTime} onChange={e => setForm(p => ({ ...p, visitTime: e.target.value }))} /></div>
               <div className="form-group"><label className="form-label">방문 목적</label><input className="form-input" value={form.purpose} onChange={e => setForm(p => ({ ...p, purpose: e.target.value }))} /></div>
               <div className="form-group"><label className="form-label">메모</label><input className="form-input" value={form.note} onChange={e => setForm(p => ({ ...p, note: e.target.value }))} /></div>

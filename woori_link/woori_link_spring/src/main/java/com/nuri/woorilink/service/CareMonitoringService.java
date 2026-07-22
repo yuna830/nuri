@@ -23,6 +23,7 @@ public class CareMonitoringService {
     private final SafetyZoneRepository safetyZoneRepository;
     private final CareAlertRepository alertRepository;
     private final CheckInRepository checkInRepository;
+    private final CheckInScheduleRepository checkInScheduleRepository;
 
     @Transactional
     public CareEvent reportEvent(Long seniorId, CareEvent.EventType type, Double latitude, Double longitude, String note) {
@@ -224,33 +225,67 @@ public class CareMonitoringService {
 
     public List<CheckIn> checkIns(Long seniorId) { return checkInRepository.findBySeniorIdOrderByRequestedAtDesc(seniorId); }
 
+    /**
+     * 보호자가 수동으로 즉시 안부 확인을 요청한다.
+     *
+     * 수동 요청에도 해당 님에게 설정된
+     * 응답 제한 시간을 적용한다.
+     */
     @Transactional
-    public CheckIn requestCheckIn(Long seniorId) {
-        seniorRepository.findById(seniorId).orElseThrow(() -> new IllegalArgumentException("Senior not found: " + seniorId));
-        return checkInRepository.save(CheckIn.builder().seniorId(seniorId).status(CheckIn.Status.PENDING)
-                .requestedAt(LocalDateTime.now()).build());
+    public CheckIn requestCheckIn(
+            Long seniorId
+    ) {
+        seniorRepository
+                .findById(seniorId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Senior not found: "
+                                        + seniorId
+                        )
+                );
+
+        int timeoutMinutes =
+                checkInScheduleRepository
+                        .findBySeniorId(seniorId)
+                        .map(
+                                CheckInSchedule::getTimeoutMinutes
+                        )
+                        .filter(
+                                value ->
+                                        value >= 5
+                                                && value <= 180
+                        )
+                        .orElse(30);
+
+        return checkInRepository.save(
+                CheckIn.builder()
+                        .seniorId(seniorId)
+                        .status(
+                                CheckIn.Status.PENDING
+                        )
+                        .requestType(
+                                CheckIn.RequestType.MANUAL
+                        )
+                        .scheduledDate(null)
+                        .requestedAt(
+                                LocalDateTime.now()
+                        )
+                        .timeoutMinutes(
+                                timeoutMinutes
+                        )
+                        .build()
+        );
     }
 
     @Transactional
     public CheckIn respondCheckIn(Long checkInId, String message) {
         CheckIn checkIn = checkInRepository.findById(checkInId).orElseThrow(() -> new IllegalArgumentException("Check-in not found: " + checkInId));
-        if (checkIn.getStatus() != CheckIn.Status.PENDING) throw new IllegalStateException("Check-in is already closed");
+        if (checkIn.getStatus() != CheckIn.Status.PENDING)
+            throw new IllegalStateException("Check-in is already closed");
         checkIn.setStatus(CheckIn.Status.RESPONDED);
         checkIn.setRespondedAt(LocalDateTime.now());
         checkIn.setResponseMessage(message);
         return checkIn;
-    }
-
-    @Scheduled(fixedDelayString = "${care.check-in.missed-after-ms:1800000}")
-    @Transactional
-    public void markMissedCheckIns() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
-        for (CheckIn checkIn : checkInRepository.findByStatusAndRequestedAtBefore(CheckIn.Status.PENDING, cutoff)) {
-            checkIn.setStatus(CheckIn.Status.MISSED);
-            if (!eventRepository.existsBySeniorIdAndTypeAndStatus(checkIn.getSeniorId(), CareEvent.EventType.CHECK_IN_MISSED, CareEvent.EventStatus.PENDING)) {
-                reportEvent(checkIn.getSeniorId(), CareEvent.EventType.CHECK_IN_MISSED, null, null, "Check-in response overdue");
-            }
-        }
     }
 
     @Scheduled(fixedDelayString = "${care.alert.reminder-interval-ms:1800000}")

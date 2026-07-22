@@ -258,6 +258,19 @@ function getAlertAction(alert) {
   }
 
   if (
+    type.includes('LOCATION')
+    || type.includes('GEOFENCE')
+    || type.includes('SAFETY_ZONE')
+  ) {
+    return {
+      label: '위치 확인',
+      path: seniorId
+        ? `/guardian/seniors?seniorId=${seniorId}#location-map`
+        : '/guardian/seniors#location-map',
+    };
+  }
+
+  if (
     type.includes('RECALL')
     || type.includes('PRODUCT')
     || type.includes('ELECTRIC')
@@ -285,9 +298,7 @@ function getAlertAction(alert) {
   }
 
   return {
-    label: type.includes('LOCATION') || type.includes('GEOFENCE')
-      ? '위치 확인'
-      : '현황 확인',
+    label: '현황 확인',
 
     path: seniorId
       ? `/guardian/seniors?seniorId=${seniorId}`

@@ -59,6 +59,44 @@ function buildWelfareProfile(senior) {
   };
 }
 
+const SERVICE_INTENTS = [
+  { keywords: ['노인맞춤', '돌봄서비스', '돌봄 서비스'], services: ['노인맞춤돌봄서비스'] },
+  { keywords: ['에너지바우처', '에너지 바우처'], services: ['에너지바우처'] },
+  { keywords: ['전기요금', '전기 요금', '전기 할인'], services: ['전기요금 복지할인'] },
+  { keywords: ['도시가스', '가스요금', '가스 요금'], services: ['도시가스요금 경감'] },
+];
+
+function refineAssessment(assessment, question) {
+  if (!assessment?.candidates?.length) return assessment;
+  const normalizedQuestion = String(question || '').replaceAll(' ', '').toLowerCase();
+  const intent = SERVICE_INTENTS.find((item) => item.keywords.some((keyword) => (
+    normalizedQuestion.includes(keyword.replaceAll(' ', '').toLowerCase())
+  )));
+  let candidates = assessment.candidates;
+  if (intent) {
+    candidates = candidates.filter((candidate) => intent.services.some((service) => (
+      String(candidate.serviceName || '').includes(service)
+    )));
+  } else if (candidates.length > 3) {
+    candidates = [...candidates]
+      .sort((first, second) => {
+        const priority = { CONDITIONS_CONFIRMED: 0, REVIEW_POSSIBLE: 1, INFORMATION_MISSING: 2, LOW_PRIORITY: 3 };
+        return (priority[first.status] ?? 2) - (priority[second.status] ?? 2);
+      })
+      .slice(0, 3);
+  }
+  return { ...assessment, candidates };
+}
+
+function refineSources(sources, assessment) {
+  const serviceNames = assessment?.candidates?.map((candidate) => candidate.serviceName).filter(Boolean) || [];
+  if (!serviceNames.length) return sources;
+  const related = sources.filter((source) => serviceNames.some((name) => (
+    String(source.title || '').replaceAll(' ', '').includes(String(name).replaceAll(' ', ''))
+  )));
+  return related.length ? related : sources.slice(0, 3);
+}
+
 function SourceList({ sources }) {
   if (!sources?.length) return null;
   return (
@@ -90,13 +128,6 @@ function AssessmentResult({ assessment }) {
   return (
     <div className="welfare-assessment">
       <p className="welfare-assessment__summary">{assessment.summary}</p>
-      {!!assessment.profileFacts?.length && (
-        <dl className="welfare-assessment__facts">
-          {assessment.profileFacts.map((fact) => (
-            <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>
-          ))}
-        </dl>
-      )}
       <div className="welfare-assessment__candidates">
         {assessment.candidates?.map((candidate) => (
           <section key={candidate.serviceId} className="welfare-assessment__candidate">
@@ -175,12 +206,13 @@ export default function WelfareAssistant() {
         profile,
         'qa',
       );
+      const assessment = refineAssessment(result.assessment, text);
       setMessages((current) => [...current, {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
         text: result.answer,
-        sources: result.sources,
-        assessment: result.assessment,
+        sources: refineSources(result.sources, assessment),
+        assessment,
       }]);
     } catch (requestError) {
       setError(requestError.message || '답변을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -216,7 +248,7 @@ export default function WelfareAssistant() {
               <select value={selectedSeniorId} onChange={selectSenior} disabled={seniorLoading}>
                 <option value="">일반 질문</option>
                 {seniors.map((senior) => (
-                  <option value={senior.id} key={senior.id}>{senior.name} 어르신</option>
+                  <option value={senior.id} key={senior.id}>{senior.name} 님</option>
                 ))}
               </select>
             </label>
@@ -252,7 +284,7 @@ export default function WelfareAssistant() {
                 <div>
                   <b>{selectedSenior.name?.slice(0, 1) || '어'}</b>
                   <span>
-                    <strong>{selectedSenior.name} 어르신 기준 상담</strong>
+                    <strong>{selectedSenior.name} 님 기준 상담</strong>
                     <small>
                       {selectedSenior.age ? `만 ${selectedSenior.age}세` : '나이 미입력'} · {' '}
                       {selectedSenior.livingAlone === true ? '독거' : selectedSenior.householdType || '가구형태 미입력'}

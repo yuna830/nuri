@@ -104,7 +104,7 @@ function getDisconnectErrorMessage(error) {
 
   if (status === 404) {
     return (
-      '보호자와 어르신의 연결 정보 또는 '
+      '보호자와 님의 연결 정보 또는 '
       + '연결 해제 API를 찾지 못했습니다.'
     );
   }
@@ -126,7 +126,7 @@ function getDisconnectErrorMessage(error) {
 
 
 /**
- * 로그인한 보호자와 선택한 어르신의 연결만 해제한다.
+ * 로그인한 보호자와 선택한 님의 연결만 해제한다.
  *
  * 로그인 정보에 저장된 userId를 보호자 식별값으로 사용한다.
  *
@@ -152,7 +152,7 @@ export async function disconnectGuardianSenior(
     || String(seniorId).trim() === ''
   ) {
     throw new Error(
-      '연결을 해제할 어르신 정보를 찾지 못했습니다.',
+      '연결을 해제할 님 정보를 찾지 못했습니다.',
     );
   }
 
@@ -174,7 +174,7 @@ export async function disconnectGuardianSenior(
   );
 
   console.log(
-    '[보호자-어르신 연결 해제 요청]',
+    '[보호자-님 연결 해제 요청]',
     {
       guardianUserId,
       seniorId,
@@ -191,7 +191,7 @@ export async function disconnectGuardianSenior(
     return response.data;
   } catch (error) {
     console.error(
-      '[보호자-어르신 연결 해제 실패]',
+      '[보호자-님 연결 해제 실패]',
       {
         guardianUserId,
         seniorId,
@@ -220,7 +220,7 @@ export async function connectGuardianSenior(name, phone) {
       error.response?.data?.message
       || error.response?.data?.error
       || error.response?.data
-      || '어르신을 연결하지 못했습니다.',
+      || '님을 연결하지 못했습니다.',
     );
   }
 }
