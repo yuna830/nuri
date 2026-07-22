@@ -26,6 +26,17 @@ public interface CareAlertRepository
             Long seniorId
     );
 
+    /** 보호자에게 연결되지 않은 사용자 본인의 알림을 조회한다. */
+    List<CareAlert> findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(
+            Long seniorId
+    );
+
+    /** 여러 사용자의 특정 종류 알림을 최신순으로 조회한다. */
+    List<CareAlert> findBySeniorIdInAndTypeOrderByCreatedAtDesc(
+            List<Long> seniorIds,
+            CareEvent.EventType type
+    );
+
     /**
      * 일정 시간이 지난 특정 상태의 알림을 조회한다.
      *
@@ -42,6 +53,21 @@ public interface CareAlertRepository
     Optional<CareAlert> findByIdAndGuardianId(
             Long id,
             Long guardianId
+    );
+
+    Optional<CareAlert> findByIdAndSeniorId(
+            Long id,
+            Long seniorId
+    );
+
+    Optional<CareAlert> findByIdAndSeniorIdAndGuardianIdIsNull(
+            Long id,
+            Long seniorId
+    );
+
+    Optional<CareAlert> findByIdAndType(
+            Long id,
+            CareEvent.EventType type
     );
 
     /**

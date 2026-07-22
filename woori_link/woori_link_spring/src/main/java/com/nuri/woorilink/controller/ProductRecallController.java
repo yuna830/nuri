@@ -28,6 +28,11 @@ public class ProductRecallController {
         return "GUARDIAN".equalsIgnoreCase(user.getRole().replaceFirst("^ROLE_", ""));
     }
 
+    private boolean isSenior(AuthenticatedUser user) {
+        if (user == null || user.getRole() == null) return false;
+        return "SENIOR".equalsIgnoreCase(user.getRole().replaceFirst("^ROLE_", ""));
+    }
+
     @PostMapping("/{id}/notifications")
     public FcmPushService.SendResult sendNotification(
             @AuthenticationPrincipal AuthenticatedUser user,
@@ -83,10 +88,16 @@ public class ProductRecallController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestBody RegisteredProduct product
     ) {
-        if (!isGuardian(user)) {
-            throw new IllegalArgumentException("보호자 계정으로 로그인해 주세요.");
+        if (user == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
+        if (isSenior(user)) {
+            product.setSeniorId(user.getUserId());
+        } else if (isGuardian(user)) {
+            productRecallService.validateGuardianAccess(user.getUserId(), product.getSeniorId());
+        } else {
+            throw new IllegalArgumentException("제품을 등록할 수 있는 계정이 아닙니다.");
+        }
         RegisteredProduct saved = productRecallService.register(product);
         return productRecallService.getResponse(saved.getId());
     }

@@ -96,6 +96,7 @@ public class ProductRecallService {
         String inquiryTel = notice == null || !nonBlank(notice.getInquiryTel())
                 ? extractRecallContact(product.getRecallReason())
                 : notice.getInquiryTel();
+        RegisteredProduct.RecallStatus recallStatus = effectiveRecallStatus(product, notice);
 
         return new ProductRecallResponse(
                 product.getId(),
@@ -109,7 +110,7 @@ public class ProductRecallService {
                 product.getBarcode(),
                 product.getCertificationNumber(),
                 product.getRegistrationSource(),
-                product.getRecallStatus(),
+                recallStatus,
                 product.getCurrentUseStatus(),
                 product.getModelMatchStatus(),
                 product.getContactMethod(),
@@ -121,6 +122,9 @@ public class ProductRecallService {
                 stopGuidanceWorkerName,
                 product.getStopGuidanceMemo(),
                 product.getGuardianContactStatus(),
+                product.getGuardianContactMethod(),
+                product.getGuardianContactedAt(),
+                product.getGuardianContactMemo(),
                 product.getFollowUpType(),
                 product.getNextActionDate(),
                 product.getFollowUpProgressStatus(),
@@ -153,6 +157,21 @@ public class ProductRecallService {
                 product.getLastSuccessfulCheckedAt(),
                 product.getLastCheckErrorMessage()
         );
+    }
+
+    private RegisteredProduct.RecallStatus effectiveRecallStatus(RegisteredProduct product, RecallNotice notice) {
+        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.RECALLED
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED
+                || notice != null
+                || product.getMatchedRecallNoticeId() != null
+                || nonBlank(product.getRecallReason())) {
+            return RegisteredProduct.RecallStatus.RECALLED;
+        }
+        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.SAFE
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND) {
+            return RegisteredProduct.RecallStatus.SAFE;
+        }
+        return product.getRecallStatus();
     }
 
     @Transactional
@@ -221,7 +240,17 @@ public class ProductRecallService {
     }
 
     @Transactional
-    public void delete(Long id) { productRepository.deleteById(id); }
+    public void delete(Long id) {
+        RegisteredProduct product = productRepository.findById(id).orElse(null);
+        if (product != null && product.getSeniorId() != null) {
+            actionRecordRepository.deleteBySeniorIdAndActionTypeAndNoteContaining(
+                    product.getSeniorId(),
+                    ActionRecord.ActionType.RECALL,
+                    "제품ID: " + id
+            );
+        }
+        productRepository.deleteById(id);
+    }
 
     @Transactional
     public RegisteredProduct updateCurrentUseStatus(
@@ -260,6 +289,9 @@ public class ProductRecallService {
         if (request.getStopGuidanceWorkerId() != null) product.setStopGuidanceWorkerId(request.getStopGuidanceWorkerId());
         if (request.getStopGuidanceMemo() != null) product.setStopGuidanceMemo(request.getStopGuidanceMemo());
         if (request.getGuardianContactStatus() != null) product.setGuardianContactStatus(request.getGuardianContactStatus());
+        product.setGuardianContactMethod(request.getGuardianContactMethod());
+        product.setGuardianContactedAt(request.getGuardianContactedAt());
+        product.setGuardianContactMemo(request.getGuardianContactMemo());
         product.setFollowUpType(request.getFollowUpType());
         product.setNextActionDate(request.getNextActionDate());
         if (request.getFollowUpProgressStatus() != null) product.setFollowUpProgressStatus(request.getFollowUpProgressStatus());
@@ -274,13 +306,15 @@ public class ProductRecallService {
 
     private void syncRecallVisitSchedule(RegisteredProduct product, RecallWorkflowUpdateRequest request) {
         if (product.getSeniorId() == null || product.getNextActionDate() == null) return;
+        if (!"방문 확인".equals(product.getFollowUpType())) return;
 
         Senior senior = seniorRepository.findById(product.getSeniorId()).orElse(null);
         String seniorName = senior == null || !nonBlank(senior.getName()) ? "님" : senior.getName();
         Long welfareWorkerId = request.getWelfareWorkerId();
         if (welfareWorkerId == null && senior != null) welfareWorkerId = senior.getWelfareWorkerId();
 
-        String purpose = seniorName + "님 리콜 조치 방문일";
+        String productName = nonBlank(product.getProductName()) ? product.getProductName() : "리콜 제품";
+        String purpose = seniorName + "님 - " + productName + " 리콜 조치 방문일";
         boolean exists = visitScheduleRepository.findBySeniorId(product.getSeniorId()).stream()
                 .anyMatch(schedule ->
                         product.getNextActionDate().equals(schedule.getVisitDate()) &&
@@ -293,7 +327,7 @@ public class ProductRecallService {
                 .welfareWorkerId(welfareWorkerId)
                 .visitDate(product.getNextActionDate())
                 .purpose(purpose)
-                .note(product.getProductName() + " 리콜 후속 조치")
+                .note(productName + " 리콜 후속 조치")
                 .status(VisitSchedule.VisitStatus.PLANNED)
                 .build());
     }

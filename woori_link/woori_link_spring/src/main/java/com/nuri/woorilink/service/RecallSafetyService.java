@@ -147,6 +147,8 @@ public class RecallSafetyService {
         product.setLastCheckErrorMessage(null);
 
         fillMissingOfficialFields(product, decision.notice());
+        applyKcStatus(product);
+        applyRecallNoticeKcEvidence(product, decision.notice());
 
         product.setRecallStatus(
                 switch (decision.status()) {
@@ -259,6 +261,12 @@ public class RecallSafetyService {
                 && !notice.getModelNames().isEmpty()) {
             product.setModelNumber(notice.getModelNames().get(0));
         }
+
+        if (isBlank(product.getCertificationNumber())
+                && notice.getCertNumbers() != null
+                && !notice.getCertNumbers().isEmpty()) {
+            product.setCertificationNumber(notice.getCertNumbers().get(0));
+        }
     }
 
     private void applyKcStatus(RegisteredProduct product) {
@@ -276,6 +284,68 @@ public class RecallSafetyService {
         product.setKcCertProductName(lookup.productName());
         product.setKcCertModelName(lookup.modelName());
         product.setKcCertManufacturer(lookup.makerName());
+    }
+
+    private void applyRecallNoticeKcEvidence(
+            RegisteredProduct product,
+            RecallNotice notice
+    ) {
+        if (notice == null
+                || notice.getCertNumbers() == null
+                || notice.getCertNumbers().isEmpty()) {
+            return;
+        }
+
+        if (isKcConfirmed(product.getKcStatus())) {
+            return;
+        }
+
+        String noticeCertNum = notice.getCertNumbers().stream()
+                .filter(certNum -> !isBlank(certNum))
+                .findFirst()
+                .orElse(null);
+        if (isBlank(noticeCertNum)) {
+            return;
+        }
+
+        product.setKcStatus("KC_RECALL_NOTICE_CERT_CONFIRMED");
+        product.setKcCertNum(noticeCertNum);
+        if (isBlank(product.getKcCertProductName())) {
+            product.setKcCertProductName(notice.getProductName());
+        }
+        if (isBlank(product.getKcCertModelName())
+                && notice.getModelNames() != null
+                && !notice.getModelNames().isEmpty()) {
+            product.setKcCertModelName(notice.getModelNames().get(0));
+        }
+        if (isBlank(product.getKcCertManufacturer())) {
+            product.setKcCertManufacturer(firstNonBlank(
+                    notice.getManufacturerName(),
+                    notice.getRecallCompanyName(),
+                    notice.getBrandName()
+            ));
+        }
+    }
+
+    private boolean isKcConfirmed(String status) {
+        if (isBlank(status)) {
+            return false;
+        }
+        String normalized = status.toUpperCase();
+        return normalized.contains("VALID")
+                || normalized.contains("CERTIFIED")
+                || normalized.contains("PASS")
+                || normalized.contains("CONFIRMED")
+                || normalized.contains("확인");
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String legacyReason(

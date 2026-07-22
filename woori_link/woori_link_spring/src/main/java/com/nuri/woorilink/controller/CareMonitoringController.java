@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -71,6 +72,46 @@ public class CareMonitoringController {
     @GetMapping("/seniors/{seniorId}/safety-zone")
     public List<SafetyZone> safetyZones(@PathVariable Long seniorId) { return careMonitoringService.safetyZones(seniorId); }
 
+    @PostMapping("/seniors/{seniorId}/notifications")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<CareAlert> createSeniorNotification(@PathVariable Long seniorId,
+                                                  @RequestBody WelfareNoticeRequest request,
+                                                  @AuthenticationPrincipal AuthenticatedUser user) {
+        return careMonitoringService.createWelfareNotice(
+                seniorId,
+                requireWelfareWorker(user),
+                request.title(),
+                request.message(),
+                request.notifySenior(),
+                request.notifyGuardian()
+        );
+    }
+
+    @GetMapping("/welfare-notices")
+    public List<CareAlert> welfareNotices(@AuthenticationPrincipal AuthenticatedUser user) {
+        return careMonitoringService.welfareNotices(requireWelfareWorker(user));
+    }
+
+    @DeleteMapping("/welfare-notices/{alertId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelWelfareNotice(@PathVariable Long alertId, @AuthenticationPrincipal AuthenticatedUser user) {
+        careMonitoringService.cancelWelfareNotice(alertId, requireWelfareWorker(user));
+    }
+
+    @GetMapping("/seniors/{seniorId}/alerts")
+    public List<CareAlert> seniorAlerts(@PathVariable Long seniorId, Authentication authentication) {
+        Long authenticatedSeniorId = requireSenior(authentication);
+        if (!authenticatedSeniorId.equals(seniorId)) {
+            throw new AccessDeniedException("You can only view your own alerts");
+        }
+        return careMonitoringService.seniorAlerts(authenticatedSeniorId);
+    }
+
+    @PatchMapping("/senior-alerts/{alertId}")
+    public CareAlert acknowledgeSeniorAlert(@PathVariable Long alertId, Authentication authentication) {
+        return careMonitoringService.acknowledgeSeniorAlert(alertId, requireSenior(authentication));
+    }
+
     @GetMapping("/guardians/{guardianId}/alerts")
     public List<CareAlert> guardianAlerts(@PathVariable Long guardianId, Authentication authentication) {
         Long authenticatedGuardianId = requireGuardian(authentication);
@@ -85,6 +126,30 @@ public class CareMonitoringController {
                                  Authentication authentication) {
         return careMonitoringService.acknowledgeAlert(
                 alertId, request.resolved(), requireGuardian(authentication));
+    }
+
+    private Long requireWelfareWorker(AuthenticatedUser user) {
+        if (user == null || !"WELFARE_WORKER".equals(user.getRole())) {
+            throw new AccessDeniedException("Welfare worker authentication is required");
+        }
+        return user.getUserId();
+    }
+    private Long requireWelfareWorker(Authentication authentication) {
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof AuthenticatedUser user)
+                || !"WELFARE_WORKER".equals(user.getRole())) {
+            throw new AccessDeniedException("Welfare worker authentication is required");
+        }
+        return user.getUserId();
+    }
+
+    private Long requireSenior(Authentication authentication) {
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof AuthenticatedUser user)
+                || !"SENIOR".equals(user.getRole())) {
+            throw new AccessDeniedException("Senior authentication is required");
+        }
+        return user.getUserId();
     }
 
     private Long requireGuardian(Authentication authentication) {
@@ -102,4 +167,5 @@ public class CareMonitoringController {
     public record AlertStatusRequest(boolean resolved) { }
     public record FallStatusRequest(CareEvent.EventStatus status) { }
     public record CheckInResponse(String message) { }
+    public record WelfareNoticeRequest(String title, String message, boolean notifySenior, boolean notifyGuardian) { }
 }

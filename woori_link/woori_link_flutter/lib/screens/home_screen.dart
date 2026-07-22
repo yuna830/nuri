@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _senior;
   Map<String, dynamic>? _risk;
   List<dynamic> _actions = [];
+  List<dynamic> _alerts = [];
   bool _loading = true;
   Map<String, dynamic>? _pendingCheckIn;
   Timer? _refreshTimer;
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ActionApi.getActionsBySenior(seniorId),
         CareMonitoringApi.getCheckIns(seniorId),
         ProductApi.getProductsBySenior(seniorId),
+        CareMonitoringApi.getAlerts(seniorId),
       ]);
       if (!mounted) return;
       final products = results[4] as List<dynamic>;
@@ -62,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final r = results[1] as Map<String, dynamic>;
         _risk = r.isNotEmpty ? r : null;
         _actions = _pendingActions(results[2] as List<dynamic>, products);
+        _alerts = results[5] as List<dynamic>;
         final checkIns = results[3] as List<dynamic>;
         final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
         _pendingCheckIn = pending.isEmpty ? null : pending.first;
@@ -377,6 +380,118 @@ class _HomeScreenState extends State<HomeScreen> {
     }).length;
   }
 
+  int get _unreadAlertCount => _alerts.where((item) {
+        if (item is! Map) return false;
+        return '${item['status'] ?? ''}' == 'UNREAD';
+      }).length;
+
+  String _alertDate(Map<String, dynamic> alert) {
+    final raw = '${alert['createdAt'] ?? ''}';
+    final date = DateTime.tryParse(raw);
+    if (date == null) return '';
+    return DateFormat('yyyy.MM.dd HH:mm').format(date);
+  }
+
+  Future<void> _openAlerts() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final alerts = _alerts.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+        return SafeArea(
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.64,
+            minChildSize: 0.36,
+            maxChildSize: 0.9,
+            builder: (context, controller) => Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('알림함', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: '닫기',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: alerts.isEmpty
+                        ? const Center(child: Text('받은 알림이 없습니다.'))
+                        : ListView.separated(
+                            controller: controller,
+                            itemCount: alerts.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final alert = alerts[index];
+                              final unread = '${alert['status'] ?? ''}' == 'UNREAD';
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: unread ? kPrimary.withOpacity(0.08) : Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: unread ? kPrimary.withOpacity(0.25) : kBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text('${alert['title'] ?? '알림'}',
+                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                                        ),
+                                        if (unread)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(20)),
+                                            child: const Text('새 알림', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('${alert['message'] ?? ''}', style: const TextStyle(fontSize: 13, height: 1.45)),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Text(_alertDate(alert), style: const TextStyle(color: kTextMuted, fontSize: 11)),
+                                        const Spacer(),
+                                        if (unread)
+                                          TextButton(
+                                            onPressed: () async {
+                                              final id = alert['id'];
+                                              if (id is int) {
+                                                final navigator = Navigator.of(context);
+                                                await CareMonitoringApi.acknowledgeAlert(id);
+                                                await _load(silent: true);
+                                                if (mounted) navigator.pop();
+                                              }
+                                            },
+                                            child: const Text('읽음'),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _logout() async {
     await AuthService.logout();
     if (!mounted) return;
@@ -434,6 +549,26 @@ class _HomeScreenState extends State<HomeScreen> {
               pinned: true,
               backgroundColor: kPrimary,
               actions: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      tooltip: '알림',
+                      icon: const Icon(Icons.notifications_none),
+                      onPressed: _openAlerts,
+                    ),
+                    if (_unreadAlertCount > 0)
+                      Positioned(
+                        right: 7,
+                        top: 7,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(color: kDanger, borderRadius: BorderRadius.circular(10)),
+                          child: Text('$_unreadAlertCount', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                  ],
+                ),
                 IconButton(
                   tooltip: '로그아웃',
                   icon: const Icon(Icons.logout),

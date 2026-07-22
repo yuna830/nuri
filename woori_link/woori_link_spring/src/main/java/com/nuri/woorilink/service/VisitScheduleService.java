@@ -55,19 +55,25 @@ public class VisitScheduleService {
 
     private VisitScheduleResponse toWelfareWorkerResponse(VisitSchedule schedule) {
         String seniorName = schedule.getSeniorId() == null
-                ? "님"
+                ? null
                 : seniorRepository.findById(schedule.getSeniorId())
                 .map(Senior::getName)
-                .orElse("님");
+                .orElse(null);
+        String displayName = seniorName == null ? "어르신" : seniorName;
+        String purpose = schedule.getPurpose() == null || schedule.getPurpose().isBlank()
+                ? (seniorName == null
+                    ? "어르신 조치 방문일"
+                    : seniorName + "님 조치 방문일")
+                : schedule.getPurpose();
         return new VisitScheduleResponse(
                 schedule.getId(),
                 schedule.getSeniorId(),
-                seniorName,
+                displayName,
                 schedule.getWelfareWorkerId(),
                 schedule.getVisitDate(),
                 schedule.getVisitTime(),
-                seniorName + "님 조치 방문일",
-                null,
+                purpose,
+                schedule.getNote(),
                 schedule.getStatus(),
                 schedule.getCreatedAt()
         );

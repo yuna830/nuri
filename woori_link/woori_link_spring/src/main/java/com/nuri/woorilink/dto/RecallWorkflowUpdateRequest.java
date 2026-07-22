@@ -20,6 +20,9 @@ public class RecallWorkflowUpdateRequest {
     private Long stopGuidanceWorkerId;
     private String stopGuidanceMemo;
     private RegisteredProduct.GuardianContactStatus guardianContactStatus;
+    private String guardianContactMethod;
+    private LocalDateTime guardianContactedAt;
+    private String guardianContactMemo;
     private String followUpType;
     private LocalDate nextActionDate;
     private RegisteredProduct.FollowUpProgressStatus followUpProgressStatus;

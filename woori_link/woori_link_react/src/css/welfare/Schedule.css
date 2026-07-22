@@ -23,6 +23,7 @@
 .schedule-item { background: #fff; border-radius: var(--radius); padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .schedule-time { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 .schedule-body { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.schedule-product { margin: -2px 0 8px; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
 .schedule-actions { display: flex; gap: 6px; }
 
 /* 등록 모달 */

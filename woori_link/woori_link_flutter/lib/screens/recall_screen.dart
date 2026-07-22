@@ -61,6 +61,7 @@ class _RecallScreenState extends State<RecallScreen> {
           _sortNewest(
             (results[1] as List<dynamic>)
                 .where((a) => '${a['actionType'] ?? ''}' == 'RECALL')
+                .where((a) => '${a['status'] ?? ''}' != 'CANCELLED')
                 .toList(),
             'updatedAt',
           ),
@@ -98,86 +99,178 @@ class _RecallScreenState extends State<RecallScreen> {
     final manufacturerCtrl = TextEditingController(text: manufacturer);
     final modelCtrl = TextEditingController(text: modelNumber);
     final certCtrl = TextEditingController(text: certificationNumber);
+    var isSubmitting = false;
+
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('보유 제품 등록'),
-        scrollable: true,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              '모델명/모델번호를 우선 확인해 주세요. 등록하면 제품안전정보센터 리콜 목록과 자동 매칭합니다.',
-              style: TextStyle(fontSize: 12, color: kTextMuted, height: 1.45),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: '상품명/제품명'),
-            ),
-            TextField(
-              controller: manufacturerCtrl,
-              decoration: const InputDecoration(labelText: '제조사'),
-            ),
-            TextField(
-              controller: modelCtrl,
-              decoration: const InputDecoration(labelText: '모델명/모델번호'),
-            ),
-            if (showOcrSummary) ...[
-              const SizedBox(height: 12),
-              _RecognizedInfoBox(
-                label: '자동 인식된 인증번호',
-                value: certificationNumber.trim().isEmpty
-                    ? '인식되지 않음'
-                    : certificationNumber.trim(),
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => PopScope(
+            canPop: !isSubmitting,
+            child: AlertDialog(
+              title: const Text('보유 제품 등록'),
+              scrollable: true,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '모델명/모델번호를 우선 확인해 주세요. 등록하면 제품안전정보센터 리콜 목록과 자동 매칭합니다.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: kTextMuted,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(labelText: '상품명/제품명'),
+                  ),
+                  TextField(
+                    controller: manufacturerCtrl,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(labelText: '제조사'),
+                  ),
+                  TextField(
+                    controller: modelCtrl,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(labelText: '모델명/모델번호'),
+                  ),
+                  if (showOcrSummary) ...[
+                    const SizedBox(height: 12),
+                    _RecognizedInfoBox(
+                      label: '자동 인식된 인증번호',
+                      value: certificationNumber.trim().isEmpty
+                          ? '인식되지 않음'
+                          : certificationNumber.trim(),
+                    ),
+                  ],
+                  if (isSubmitting) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: kPrimary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: kPrimary.withOpacity(0.18)),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '제품 등록 중',
+                            style: TextStyle(
+                              color: kPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          LinearProgressIndicator(),
+                          SizedBox(height: 8),
+                          Text(
+                            '리콜 정보와 KC 번호를 확인하고 있어요. 잠시만 기다려 주세요.',
+                            style: TextStyle(
+                              color: kTextMuted,
+                              fontSize: 11,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-          ElevatedButton(
-            onPressed: () async {
-              final productName = nameCtrl.text.trim();
-              final modelNumber = modelCtrl.text.trim();
-              if (productName.isEmpty && modelNumber.isEmpty && barcode.isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('상품명 또는 모델명을 입력해 주세요.')),
-                );
-                return;
-              }
-              try {
-                final seniorId = await AuthService.getUserId();
-                if (seniorId == null) {
-                  throw Exception('로그인 사용자 정보를 찾지 못했습니다.');
-                }
-                await ProductApi.registerProduct({
-                  'seniorId': seniorId,
-                  'productName':
-                      productName.isNotEmpty ? productName : (modelNumber.isNotEmpty ? modelNumber : barcode),
-                  'manufacturer': manufacturerCtrl.text.trim(),
-                  'modelNumber': modelNumber,
-                  'barcode': barcode,
-                  'certificationNumber': certCtrl.text.trim(),
-                });
-                if (ctx.mounted) Navigator.pop(ctx);
-                await _load();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('제품안전정보센터 리콜 조회가 완료되었습니다.')),
-                );
-              } catch (error) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_shortError(error))),
-                );
-              }
-            },
-            child: const Text('등록'),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                  child: const Text('취소'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final productName = nameCtrl.text.trim();
+                          final modelNumber = modelCtrl.text.trim();
+                          if (productName.isEmpty &&
+                              modelNumber.isEmpty &&
+                              barcode.isEmpty) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('상품명 또는 모델명을 입력해 주세요.')),
+                            );
+                            return;
+                          }
+
+                          if (isSubmitting) return;
+                          setDialogState(() => isSubmitting = true);
+                          try {
+                            final seniorId = await AuthService.getUserId();
+                            if (seniorId == null) {
+                              throw Exception('로그인 사용자 정보를 찾지 못했습니다.');
+                            }
+                            await ProductApi.registerProduct({
+                              'seniorId': seniorId,
+                              'productName': productName.isNotEmpty
+                                  ? productName
+                                  : (modelNumber.isNotEmpty
+                                      ? modelNumber
+                                      : barcode),
+                              'manufacturer': manufacturerCtrl.text.trim(),
+                              'modelNumber': modelNumber,
+                              'barcode': barcode,
+                              'certificationNumber': certCtrl.text.trim(),
+                            });
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            await _load();
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('제품안전정보센터 리콜 조회가 완료되었습니다.'),
+                              ),
+                            );
+                          } catch (error) {
+                            if (ctx.mounted) {
+                              setDialogState(() => isSubmitting = false);
+                            }
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(_shortError(error))),
+                            );
+                          }
+                        },
+                  child: isSubmitting
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text('등록 중'),
+                          ],
+                        )
+                      : const Text('등록'),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
+    nameCtrl.dispose();
+    manufacturerCtrl.dispose();
+    modelCtrl.dispose();
+    certCtrl.dispose();
   }
 
   Future<void> _pickAndRegister() async {
@@ -385,21 +478,48 @@ class _RecallScreenState extends State<RecallScreen> {
   String _guessCertificationNumber(List<String> lines) {
     final text = lines.join(' ');
     final certPatterns = [
-      RegExp(r'(?:K\s*C|I\s*G|G)?\s*([XS]U\s*\d{5,6}\s*[- ]\s*\d{5})', caseSensitive: false),
-      RegExp(r'\bR\s*[- ]\s*R\s*[- ]\s*[A-Z0-9]{2,6}\s*[- ]\s*[A-Z0-9-]{4,}\b', caseSensitive: false),
+      RegExp(
+        r'(?:K\s*[CÇ]|I\s*G|G)?\s*([XS]U\s*\d{5,6}\s*[- ]\s*\d{5})',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:K\s*[CÇ]\s*)?(R\s*[- ]\s*R\s*[- ]\s*[A-Z0-9]{2,6}\s*[- ]\s*[A-Z0-9-]{4,})\b',
+        caseSensitive: false,
+      ),
       RegExp(r'\b[A-Z]{1,3}\s*[- ]\s*[A-Z0-9]{2,6}\s*[- ]\s*[A-Z0-9-]{4,}\b'),
     ];
     for (final pattern in certPatterns) {
       final match = pattern.firstMatch(text);
       if (match == null) continue;
-      final value = match.group(1) ?? match.group(0) ?? '';
-      final normalized = value.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+      final value = _firstMatchedGroup(match);
+      final normalized = _normalizeCertificationNumber(value);
       if (RegExp(r'^[XS]U\d{5,6}-\d{5}$').hasMatch(normalized) ||
           normalized.startsWith('R-R-')) {
         return normalized;
       }
     }
     return '';
+  }
+
+  String _firstMatchedGroup(RegExpMatch match) {
+    for (var index = 1; index <= match.groupCount; index++) {
+      final value = match.group(index);
+      if (value != null && value.trim().isNotEmpty) {
+        return value;
+      }
+    }
+    return match.group(0) ?? '';
+  }
+
+  String _normalizeCertificationNumber(String value) {
+    var normalized = value
+        .replaceAll('Ç', 'C')
+        .replaceAll('ç', 'C')
+        .replaceAll(RegExp(r'\s+'), '')
+        .toUpperCase();
+    normalized = normalized.replaceFirst(RegExp(r'^KC(?=R-R-)'), '');
+    normalized = normalized.replaceFirst(RegExp(r'^KCR(?=-R-)'), 'R');
+    return normalized;
   }
 
   String _guessManufacturer(List<String> lines) {
@@ -627,11 +747,17 @@ class _RecallScreenState extends State<RecallScreen> {
     for (final item in actions) {
       if (item is! Map) continue;
       final action = Map<String, dynamic>.from(item);
+      if (_isDeletedProductAction(action)) continue;
       final key = _recallActionKey(action);
       if (seen.add(key)) result.add(action);
     }
 
     return result;
+  }
+
+  bool _isDeletedProductAction(Map<String, dynamic> action) {
+    final productId = _extractActionProductId('${action['note'] ?? ''}');
+    return productId.isNotEmpty && _productForAction(action) == null;
   }
 
   String _recallActionKey(Map<String, dynamic> action) {
@@ -788,7 +914,7 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   void _showProductDetail(Map<String, dynamic> product) {
-    final status = '${product['recallStatus'] ?? ''}';
+    final status = _effectiveRecallStatus(product);
     final reason = '${product['recallReason'] ?? ''}'.trim();
     final reasonSections = _recallReasonSections(reason);
     final hasRequest = _hasRecallRequest(product);
@@ -1169,8 +1295,23 @@ class _RecallScreenState extends State<RecallScreen> {
       product['kcSafetyStatus'],
       product['certificationStatus'],
     ].where((value) => value != null).join(' ').trim().toUpperCase();
+    final detectedCertNumber = [
+      product['kcCertNum'],
+      product['certificationNumber'],
+    ]
+        .where((value) => value != null)
+        .map((value) => _normalizeCertificationNumber('$value'))
+        .where((value) => _isCertificationNumber(value))
+        .join(' ');
 
-    if (raw.isEmpty) return 'KC 확인 전';
+    if (raw.isEmpty && detectedCertNumber.isEmpty) return 'KC 확인 전';
+    if (raw.contains('KC_RECALL_NOTICE_CERT_CONFIRMED')) {
+      return '리콜 공고 인증번호 확인';
+    }
+    if (raw.contains('KC_CERT_NUMBER_DETECTED') ||
+        detectedCertNumber.isNotEmpty) {
+      return 'KC 번호 인식';
+    }
     if (raw.contains('미확인') ||
         raw.contains('조회 불가') ||
         raw.contains('불가') ||
@@ -1185,6 +1326,7 @@ class _RecallScreenState extends State<RecallScreen> {
     if (raw.contains('VALID') ||
         raw.contains('CERTIFIED') ||
         raw.contains('PASS') ||
+        raw.contains('CONFIRMED') ||
         raw.contains('확인') ||
         raw.contains('적합') ||
         raw.contains('인증 확인')) {
@@ -1194,7 +1336,11 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   Color _kcStatusColor(String status) {
-    if (status == 'KC 인증 확인') return kPrimary;
+    if (status == 'KC 인증 확인' ||
+        status == '리콜 공고 인증번호 확인' ||
+        status == 'KC 번호 인식') {
+      return kPrimary;
+    }
     if (status == 'KC 인증 미확인') return kDanger;
     return kTextMuted;
   }
@@ -1234,7 +1380,7 @@ class _RecallScreenState extends State<RecallScreen> {
       if (certOrganName.isNotEmpty) '인증기관: $certOrganName',
       if (certProductName.isNotEmpty) '인증제품: $certProductName',
       if (certModelName.isNotEmpty) '인증모델: $certModelName',
-      if (certManufacturer.isNotEmpty) '제조사: $certManufacturer',
+      if (certManufacturer.isNotEmpty) '제조사/사업자: $certManufacturer',
     ];
     return Container(
       width: double.infinity,
@@ -1264,7 +1410,7 @@ class _RecallScreenState extends State<RecallScreen> {
                 const SizedBox(height: 4),
                 Text(
                   details.isEmpty
-                      ? '제품안전정보센터 KC 인증정보 API에서 일치하는 인증 정보를 찾지 못했습니다. 인증번호가 있으면 더 정확하게 조회할 수 있습니다.'
+                      ? 'KC 인증정보 API에서 일치하는 인증 정보를 찾지 못했습니다. 리콜 대상 여부는 제품안전정보센터 리콜 공고 기준으로 판단합니다.'
                       : details.join('\n'),
                   style: const TextStyle(
                     color: kTextMuted,
@@ -1623,6 +1769,24 @@ class _RecallScreenState extends State<RecallScreen> {
     return kTextMuted;
   }
 
+  String _effectiveRecallStatus(Map<String, dynamic> product) {
+    final status = '${product['recallStatus'] ?? ''}'.trim();
+    final decisionStatus = '${product['recallDecisionStatus'] ?? ''}'.trim();
+    final reason = '${product['recallReason'] ?? ''}'.trim();
+    final matchedNotice = product['matchedRecallNotice'];
+    final matchedNoticeId = '${product['matchedRecallNoticeId'] ?? ''}'.trim();
+
+    if (status == 'RECALLED' ||
+        decisionStatus == 'RECALL_CONFIRMED' ||
+        reason.isNotEmpty ||
+        matchedNotice != null ||
+        matchedNoticeId.isNotEmpty) {
+      return 'RECALLED';
+    }
+    if (status == 'SAFE' || decisionStatus == 'NO_MATCH_FOUND') return 'SAFE';
+    return status.isEmpty ? 'UNKNOWN' : status;
+  }
+
   String _statusLabel(String? status) {
     if (status == 'RECALLED') return '리콜 대상';
     if (status == 'SAFE') return '리콜 미확인';
@@ -1721,8 +1885,8 @@ class _RecallScreenState extends State<RecallScreen> {
                     _emptyProducts()
                   else
                     ..._products.map((p) {
-                      final status = p['recallStatus'] as String?;
                       final product = Map<String, dynamic>.from(p as Map);
+                      final status = _effectiveRecallStatus(product);
                       final manufacturer = p['manufacturer'] as String?;
                       final hasRequest = _hasRecallRequest(product);
                       return Card(
