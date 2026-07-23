@@ -3,20 +3,37 @@ import 'package:http/http.dart' as http;
 import '../constants.dart';
 
 class AuthApi {
+  static String _connectionMessage() {
+    return '서버에 연결하지 못했습니다. 서버가 켜져 있는지와 API 주소($baseUrl)를 확인해 주세요.';
+  }
+
   static Future<void> register(
     String name,
     String phone,
     String inviteCode,
+    String gender,
+    String birthDate,
+    String address,
+    String detailAddress,
   ) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/senior-auth/register'),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-      body: jsonEncode({
-        'name': name,
-        'phone': phone,
-        'inviteCode': inviteCode,
-      }),
-    );
+    late final http.Response res;
+    try {
+      res = await http.post(
+        Uri.parse('$baseUrl/senior-auth/register'),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+        body: jsonEncode({
+          'name': name,
+          'phone': phone,
+          'inviteCode': inviteCode,
+          'gender': gender,
+          'birthDate': birthDate,
+          'address': address,
+          'detailAddress': detailAddress,
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_connectionMessage());
+    }
 
     if (res.statusCode >= 200 && res.statusCode < 300) return;
 
@@ -28,15 +45,22 @@ class AuthApi {
       throw Exception('회원가입에 실패했습니다. (${res.statusCode})');
     }
   }
-
+  
   static Future<Map<String, dynamic>> login(String name, String phone) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/senior-auth/login'),
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
-      body: jsonEncode({'name': name, 'phone': phone}),
-    );
+    late final http.Response res;
+    try {
+      res = await http.post(
+        Uri.parse('$baseUrl/senior-auth/login'),
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+        body: jsonEncode({'name': name, 'phone': phone}),
+      );
+    } on http.ClientException {
+      throw Exception(_connectionMessage());
+    }
 
-    if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return jsonDecode(utf8.decode(res.bodyBytes));
+    }
 
     try {
       final body = jsonDecode(utf8.decode(res.bodyBytes));

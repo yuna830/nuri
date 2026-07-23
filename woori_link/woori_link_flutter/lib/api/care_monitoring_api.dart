@@ -15,6 +15,21 @@ class CareMonitoringApi {
     if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Alert update failed');
   }
 
+  static Future<void> acknowledgeAllAlerts(int seniorId) async {
+    final response = await http.patch(Uri.parse('$baseUrl/care/seniors/$seniorId/alerts/read-all'), headers: await authHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Alert update failed');
+  }
+
+  static Future<void> deleteAlert(int alertId) async {
+    final response = await http.delete(Uri.parse('$baseUrl/care/senior-alerts/$alertId'), headers: await authHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Alert delete failed');
+  }
+
+  static Future<void> deleteAllAlerts(int seniorId) async {
+    final response = await http.delete(Uri.parse('$baseUrl/care/seniors/$seniorId/alerts'), headers: await authHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Alert delete failed');
+  }
+
   static Future<List<dynamic>> getCheckIns(int seniorId) async {
     final response = await http.get(Uri.parse('$baseUrl/care/seniors/$seniorId/check-ins'), headers: await authHeaders());
     if (response.statusCode != 200) throw Exception('Check-in load failed');

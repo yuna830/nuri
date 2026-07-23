@@ -98,6 +98,7 @@ class _RecallScreenState extends State<RecallScreen> {
     final nameCtrl = TextEditingController(text: productName);
     final manufacturerCtrl = TextEditingController(text: manufacturer);
     final modelCtrl = TextEditingController(text: modelNumber);
+    final barcodeCtrl = TextEditingController(text: barcode);
     final certCtrl = TextEditingController(text: certificationNumber);
     var isSubmitting = false;
 
@@ -138,6 +139,26 @@ class _RecallScreenState extends State<RecallScreen> {
                     enabled: !isSubmitting,
                     decoration: const InputDecoration(labelText: '모델명/모델번호'),
                   ),
+                  TextField(
+                    controller: barcodeCtrl,
+                    enabled: !isSubmitting,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '바코드',
+                      helperText: barcode.isEmpty
+                          ? '제품 바코드 숫자를 직접 입력해도 됩니다.'
+                          : '스캔된 바코드입니다. 값이 다르면 수정해 주세요.',
+                      prefixIcon: const Icon(Icons.qr_code_2),
+                    ),
+                  ),
+                  TextField(
+                    controller: certCtrl,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'KC 인증번호',
+                      helperText: '제품 라벨의 KC 번호가 있으면 리콜 판정이 더 정확해집니다.',
+                    ),
+                  ),
                   if (showOcrSummary) ...[
                     const SizedBox(height: 12),
                     _RecognizedInfoBox(
@@ -145,6 +166,13 @@ class _RecallScreenState extends State<RecallScreen> {
                       value: certificationNumber.trim().isEmpty
                           ? '인식되지 않음'
                           : certificationNumber.trim(),
+                    ),
+                  ],
+                  if (barcode.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _RecognizedInfoBox(
+                      label: '스캔된 바코드',
+                      value: barcode.trim(),
                     ),
                   ],
                   if (isSubmitting) ...[
@@ -197,11 +225,19 @@ class _RecallScreenState extends State<RecallScreen> {
                       : () async {
                           final productName = nameCtrl.text.trim();
                           final modelNumber = modelCtrl.text.trim();
+                          final barcodeValue = _normalizeBarcode(
+                            barcodeCtrl.text,
+                          );
+                          final certNumber = certCtrl.text.trim();
                           if (productName.isEmpty &&
                               modelNumber.isEmpty &&
-                              barcode.isEmpty) {
+                              barcodeValue.isEmpty &&
+                              certNumber.isEmpty) {
                             ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(content: Text('상품명 또는 모델명을 입력해 주세요.')),
+                              const SnackBar(
+                                content:
+                                    Text('제품명, 모델명, 바코드, KC 인증번호 중 하나는 필요합니다.'),
+                              ),
                             );
                             return;
                           }
@@ -213,25 +249,32 @@ class _RecallScreenState extends State<RecallScreen> {
                             if (seniorId == null) {
                               throw Exception('로그인 사용자 정보를 찾지 못했습니다.');
                             }
-                            await ProductApi.registerProduct({
+                            final saved = await ProductApi.registerProduct({
                               'seniorId': seniorId,
                               'productName': productName.isNotEmpty
                                   ? productName
                                   : (modelNumber.isNotEmpty
                                       ? modelNumber
-                                      : barcode),
+                                      : (barcodeValue.isNotEmpty
+                                          ? barcodeValue
+                                          : certNumber)),
                               'manufacturer': manufacturerCtrl.text.trim(),
                               'modelNumber': modelNumber,
-                              'barcode': barcode,
-                              'certificationNumber': certCtrl.text.trim(),
+                              'barcode': barcodeValue,
+                              'certificationNumber': certNumber,
+                              'registrationSource': barcodeValue.isNotEmpty
+                                  ? 'BARCODE_SCAN'
+                                  : (certNumber.isNotEmpty
+                                      ? 'KC_INPUT'
+                                      : 'MANUAL'),
                             });
                             if (ctx.mounted) Navigator.pop(ctx);
                             await _load();
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('제품안전정보센터 리콜 조회가 완료되었습니다.'),
-                              ),
+                              SnackBar(
+                                  content:
+                                      Text(_registrationResultMessage(saved))),
                             );
                           } catch (error) {
                             if (ctx.mounted) {
@@ -270,6 +313,7 @@ class _RecallScreenState extends State<RecallScreen> {
     nameCtrl.dispose();
     manufacturerCtrl.dispose();
     modelCtrl.dispose();
+    barcodeCtrl.dispose();
     certCtrl.dispose();
   }
 
@@ -285,7 +329,14 @@ class _RecallScreenState extends State<RecallScreen> {
       MaterialPageRoute(builder: (_) => const _BarcodeScanScreen()),
     );
     if (barcode == null || barcode.isEmpty || !mounted) return;
-    await _registerByInput(barcode: barcode);
+    final normalized = _normalizeBarcode(barcode);
+    if (normalized.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('바코드 숫자를 읽지 못했습니다. 다시 스캔해 주세요.')),
+      );
+      return;
+    }
+    await _registerByInput(barcode: normalized);
   }
 
   void _showOcrProgressDialog() {
@@ -415,7 +466,8 @@ class _RecallScreenState extends State<RecallScreen> {
             caseSensitive: false,
           );
           final match = pattern.firstMatch(line);
-          final value = _stripKnownLabelPrefix(_cleanOcrValue(match?.group(2) ?? ''));
+          final value =
+              _stripKnownLabelPrefix(_cleanOcrValue(match?.group(2) ?? ''));
           if (_isUsefulOcrValue(value, label)) return value;
         }
       }
@@ -468,9 +520,11 @@ class _RecallScreenState extends State<RecallScreen> {
       productName: cleanedProductName.isNotEmpty
           ? cleanedProductName
           : guessedProductName,
-      manufacturer: manufacturer.isNotEmpty ? manufacturer : guessedManufacturer,
-      modelNumber:
-          cleanedModelNumber.isNotEmpty ? cleanedModelNumber : guessedModelNumber,
+      manufacturer:
+          manufacturer.isNotEmpty ? manufacturer : guessedManufacturer,
+      modelNumber: cleanedModelNumber.isNotEmpty
+          ? cleanedModelNumber
+          : guessedModelNumber,
       certificationNumber: certificationNumber,
     );
   }
@@ -525,7 +579,8 @@ class _RecallScreenState extends State<RecallScreen> {
   String _guessManufacturer(List<String> lines) {
     final joined = lines.join(' ').toUpperCase();
     if (joined.contains('SAMSUNG')) return 'SAMSUNG';
-    final makerPattern = RegExp(r'(?:제조자|제조사|제조원|상호명)\s*[:：]?\s*([가-힣A-Z0-9().,&\s-]{2,40})');
+    final makerPattern =
+        RegExp(r'(?:제조자|제조사|제조원|상호명)\s*[:：]?\s*([가-힣A-Z0-9().,&\s-]{2,40})');
     for (final line in lines) {
       final match = makerPattern.firstMatch(line);
       final value = _cleanOcrValue(match?.group(1) ?? '');
@@ -552,15 +607,14 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   String _findTableValueByPosition(List<_OcrLine> lines, String label) {
-    final labelLine = lines
-        .where((line) => _lineHasLabel(line.text, label))
-        .fold<_OcrLine?>(
-          null,
-          (best, line) {
-            if (best == null) return line;
-            return line.box.left < best.box.left ? line : best;
-          },
-        );
+    final labelLine =
+        lines.where((line) => _lineHasLabel(line.text, label)).fold<_OcrLine?>(
+      null,
+      (best, line) {
+        if (best == null) return line;
+        return line.box.left < best.box.left ? line : best;
+      },
+    );
     if (labelLine == null) return '';
 
     final inlineValue = _valueAfterLabel(labelLine.text, label);
@@ -728,11 +782,42 @@ class _RecallScreenState extends State<RecallScreen> {
     return '${message.substring(0, 140)}...';
   }
 
+  String _normalizeBarcode(String value) {
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String _registrationResultMessage(Map<String, dynamic> product) {
+    final productName = '${product['productName'] ?? '제품'}';
+    final checkStatus = '${product['recallCheckStatus'] ?? ''}';
+    final decision = '${product['recallDecisionStatus'] ?? ''}';
+    final recallStatus = '${product['recallStatus'] ?? ''}';
+    final error = '${product['lastCheckErrorMessage'] ?? ''}'.trim();
+
+    if (checkStatus == 'FAILED') {
+      return error.isEmpty
+          ? '$productName 등록 완료. 리콜 조회는 실패했습니다.'
+          : '$productName 등록 완료. 리콜 조회 실패: ${_shortError(error)}';
+    }
+    if (decision == 'NO_MATCH_FOUND' || recallStatus == 'SAFE') {
+      return '$productName 등록 완료. 현재 리콜 공고와 일치하지 않습니다.';
+    }
+    if (decision == 'RECALL_CONFIRMED' ||
+        decision == 'REVIEW_REQUIRED' ||
+        recallStatus == 'RECALLED') {
+      return '$productName 등록 완료. 리콜 대상입니다. 조치 요청을 확인해 주세요.';
+    }
+    if (recallStatus == 'UNKNOWN') {
+      return '$productName 등록 완료. 리콜 조회 결과를 확인해 주세요.';
+    }
+    return '$productName 등록 완료. 리콜 조회 결과를 확인해 주세요.';
+  }
+
   List<dynamic> _sortNewest(List<dynamic> items, String dateField) {
     final sorted = [...items];
     sorted.sort((a, b) {
       final left = a is Map ? DateTime.tryParse('${a[dateField] ?? ''}') : null;
-      final right = b is Map ? DateTime.tryParse('${b[dateField] ?? ''}') : null;
+      final right =
+          b is Map ? DateTime.tryParse('${b[dateField] ?? ''}') : null;
       final leftTime = left ?? DateTime.fromMillisecondsSinceEpoch(0);
       final rightTime = right ?? DateTime.fromMillisecondsSinceEpoch(0);
       return rightTime.compareTo(leftTime);
@@ -771,8 +856,11 @@ class _RecallScreenState extends State<RecallScreen> {
     final modelNumber = _extractActionModelNumber('${action['note'] ?? ''}');
     if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
 
-    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
-    return 'name:$productName';
+    final productName =
+        _normalizeRecallProductName('${action['productName'] ?? ''}');
+    if (productName.isNotEmpty) return 'name:$productName';
+
+    return 'action:${action['id'] ?? action['createdAt'] ?? ''}';
   }
 
   Map<String, dynamic>? _productForAction(Map<String, dynamic> action) {
@@ -798,7 +886,7 @@ class _RecallScreenState extends State<RecallScreen> {
       }
       if (actionModelNumber.isEmpty &&
           actionProductName.isNotEmpty &&
-          actionProductName == productName) {
+          _sameRecallProductName(actionProductName, productName)) {
         return product;
       }
     }
@@ -855,7 +943,8 @@ class _RecallScreenState extends State<RecallScreen> {
     final date = _actionNextDate(action);
     if (date == null) return false;
     final now = DateTime.now();
-    final tomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final tomorrow =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     return date.year == tomorrow.year &&
         date.month == tomorrow.month &&
         date.day == tomorrow.day;
@@ -874,16 +963,16 @@ class _RecallScreenState extends State<RecallScreen> {
         .whereType<Map>()
         .map((action) => Map<String, dynamic>.from(action))
         .where((action) {
-          final status = _effectiveActionStatus(action);
-          return status != 'COMPLETED' &&
-              status != 'CANCELLED' &&
-              _isTomorrowAction(action);
-        })
-        .toList();
+      final status = _effectiveActionStatus(action);
+      return status != 'COMPLETED' &&
+          status != 'CANCELLED' &&
+          _isTomorrowAction(action);
+    }).toList();
     if (dueTomorrow.isEmpty || !mounted) return;
 
     final fresh = dueTomorrow
-        .where((action) => !_shownTomorrowReminderKeys.contains(_actionReminderKey(action)))
+        .where((action) =>
+            !_shownTomorrowReminderKeys.contains(_actionReminderKey(action)))
         .toList();
     if (fresh.isEmpty) return;
 
@@ -933,101 +1022,118 @@ class _RecallScreenState extends State<RecallScreen> {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: kBorder,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-                Row(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      status == 'RECALLED'
-                          ? Icons.warning_amber
-                          : Icons.inventory_2_outlined,
-                      color: _statusColor(status),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${product['productName'] ?? '제품명 없음'}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: kBorder,
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                     ),
-                    Text(
-                      _statusLabel(status),
-                      style: TextStyle(
-                        color: _statusColor(status),
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          status == 'RECALLED'
+                              ? Icons.warning_amber
+                              : Icons.inventory_2_outlined,
+                          color: _statusColor(status),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${product['productName'] ?? '제품명 없음'}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _statusLabel(status),
+                          style: TextStyle(
+                            color: _statusColor(status),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    _detailLine('제조사', '${product['manufacturer'] ?? '-'}'),
+                    _detailLine('모델명', '${product['modelNumber'] ?? '-'}'),
+                    _detailLine('바코드', '${product['barcode'] ?? '-'}'),
+                    _detailLine('KC 인증번호',
+                        '${product['certificationNumber'] ?? product['kcCertNum'] ?? '-'}'),
+                    _detailLine('등록일', _checkedAtLabel(product['createdAt'])),
+                    _detailLine(
+                        '마지막 조회', _checkedAtLabel(product['lastCheckedAt'])),
+                    const SizedBox(height: 4),
+                    _kcInfoCard(product),
+                    if (reason.isNotEmpty && status == 'RECALLED') ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        '리콜 사유',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      if (reasonSections.isEmpty)
+                        _recallReasonCard('상세 내용', reason)
+                      else
+                        ...reasonSections.entries.map(
+                          (entry) => _recallReasonCard(entry.key, entry.value),
+                        ),
+                    ],
+                    if (reason.isNotEmpty && status != 'RECALLED') ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        status == 'SAFE' ? '조회 결과' : '추가 확인 필요',
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 8),
+                      _recallInfoCard(reason, status),
+                    ],
+                    if (status == 'RECALLED') ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            if (hasRequest) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        '이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
+                              );
+                              setState(() => _selectedTab = 1);
+                            } else {
+                              _requestRecallAction(product);
+                            }
+                          },
+                          icon: Icon(hasRequest
+                              ? Icons.check_circle_outline
+                              : Icons.support_agent),
+                          label: Text(hasRequest ? '요청 내역 보기' : '리콜 조치 요청'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: hasRequest ? kTextMuted : kDanger,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 16),
-                _detailLine('제조사', '${product['manufacturer'] ?? '-'}'),
-                _detailLine('모델명', '${product['modelNumber'] ?? '-'}'),
-                _detailLine('등록일', _checkedAtLabel(product['createdAt'])),
-                _detailLine('마지막 조회', _checkedAtLabel(product['lastCheckedAt'])),
-                const SizedBox(height: 4),
-                _kcInfoCard(product),
-                if (reason.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    '리콜 사유',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  if (reasonSections.isEmpty)
-                    _recallReasonCard('상세 내용', reason)
-                  else
-                    ...reasonSections.entries.map(
-                      (entry) => _recallReasonCard(entry.key, entry.value),
-                    ),
-                ],
-                if (status == 'RECALLED') ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        if (hasRequest) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
-                          );
-                          setState(() => _selectedTab = 1);
-                        } else {
-                          _requestRecallAction(product);
-                        }
-                      },
-                      icon: Icon(hasRequest
-                          ? Icons.check_circle_outline
-                          : Icons.support_agent),
-                      label: Text(hasRequest ? '요청 내역 보기' : '리콜 조치 요청'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: hasRequest ? kTextMuted : kDanger,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-        ),
           ),
         ),
       ),
@@ -1055,107 +1161,109 @@ class _RecallScreenState extends State<RecallScreen> {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: kBorder,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-                Row(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.assignment_turned_in_outlined,
-                        color: kDanger),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        '리콜 조치 요청 상세',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: kBorder,
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                     ),
-                    Text(
-                      _actionStatusLabel(status),
-                      style: TextStyle(
-                        color: _actionStatusColor(status),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _detailLine('제품명', '${action['productName'] ?? '-'}'),
-                if (modelNumber.isNotEmpty) _detailLine('모델명', modelNumber),
-                _detailLine('요청 상태', _actionStatusLabel(status)),
-                _detailLine('요청일', _checkedAtLabel(action['createdAt'])),
-                if (scheduleLabel.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: kPrimary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: kPrimary.withOpacity(0.18)),
-                    ),
-                    child: Row(
+                    Row(
                       children: [
-                        const Icon(Icons.event_available, color: kPrimaryDark),
-                        const SizedBox(width: 10),
-                        Expanded(
+                        const Icon(Icons.assignment_turned_in_outlined,
+                            color: kDanger),
+                        const SizedBox(width: 8),
+                        const Expanded(
                           child: Text(
-                            scheduleLabel,
-                            style: const TextStyle(
-                              color: kPrimaryDark,
-                              fontSize: 14,
+                            '리콜 조치 요청 상세',
+                            style: TextStyle(
+                              fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
+                        Text(
+                          _actionStatusLabel(status),
+                          style: TextStyle(
+                            color: _actionStatusColor(status),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
-                if (requestMemo.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    '요청 내용',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: kPrimary.withOpacity(0.07),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: kPrimary.withOpacity(0.14)),
-                    ),
-                    child: Text(
-                      requestMemo,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.45,
-                        color: kTextMuted,
+                    const SizedBox(height: 16),
+                    _detailLine('제품명', '${action['productName'] ?? '-'}'),
+                    if (modelNumber.isNotEmpty) _detailLine('모델명', modelNumber),
+                    _detailLine('요청 상태', _actionStatusLabel(status)),
+                    _detailLine('요청일', _checkedAtLabel(action['createdAt'])),
+                    if (scheduleLabel.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: kPrimary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: kPrimary.withOpacity(0.18)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_available,
+                                color: kPrimaryDark),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                scheduleLabel,
+                                style: const TextStyle(
+                                  color: kPrimaryDark,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ],
+                    ],
+                    if (requestMemo.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        '요청 내용',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: kPrimary.withOpacity(0.07),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: kPrimary.withOpacity(0.14)),
+                        ),
+                        child: Text(
+                          requestMemo,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: kTextMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
           ),
         ),
       ),
@@ -1215,13 +1323,25 @@ class _RecallScreenState extends State<RecallScreen> {
     return match?.group(1)?.trim() ?? '';
   }
 
+  String _normalizeRecallProductName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\uBCA0\uD130\uB9AC', '\uBC30\uD130\uB9AC')
+        .replaceAll(RegExp(r'[^0-9a-z\uAC00-\uD7A3]+'), '');
+  }
+
+  bool _sameRecallProductName(String left, String right) {
+    final normalizedLeft = _normalizeRecallProductName(left);
+    final normalizedRight = _normalizeRecallProductName(right);
+    return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
+  }
+
   Map<String, String> _recallReasonSections(String reason) {
     if (reason.trim().isEmpty) return {};
 
-    final normalized = reason
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .trim();
+    final normalized =
+        reason.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
     final labels = ['제품 결함', '위해 정보', '소비자 행동요령', '문의처'];
     final matches = <({String label, int start, int valueStart})>[];
 
@@ -1240,9 +1360,8 @@ class _RecallScreenState extends State<RecallScreen> {
     final sections = <String, String>{};
     for (var i = 0; i < matches.length; i++) {
       final current = matches[i];
-      final end = i + 1 < matches.length
-          ? matches[i + 1].start
-          : normalized.length;
+      final end =
+          i + 1 < matches.length ? matches[i + 1].start : normalized.length;
       final value = normalized
           .substring(current.valueStart, end)
           .trim()
@@ -1284,6 +1403,29 @@ class _RecallScreenState extends State<RecallScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _recallInfoCard(String content, String status) {
+    final color = status == 'REVIEW' ? kWarning : kPrimary;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Text(
+        content,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          height: 1.45,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1431,6 +1573,23 @@ class _RecallScreenState extends State<RecallScreen> {
     return _findRecallRequest(product) != null;
   }
 
+  int _unrequestedRecalledProductCount() {
+    return _products.where((item) {
+      if (item is! Map) return false;
+      final product = Map<String, dynamic>.from(item);
+      return _effectiveRecallStatus(product) == 'RECALLED' &&
+          !_hasRecallRequest(product);
+    }).length;
+  }
+
+  int _activeRecallRequestCount() {
+    return _actions.where((item) {
+      if (item is! Map) return false;
+      final status = _effectiveActionStatus(Map<String, dynamic>.from(item));
+      return status == 'PENDING' || status == 'IN_PROGRESS';
+    }).length;
+  }
+
   Map<String, dynamic>? _findRecallRequest(Map<String, dynamic> product) {
     final productId = '${product['id'] ?? ''}'.trim();
     final productName = '${product['productName'] ?? ''}'.trim();
@@ -1453,7 +1612,7 @@ class _RecallScreenState extends State<RecallScreen> {
       if (modelNumber.isEmpty &&
           actionModelNumber.isEmpty &&
           productName.isNotEmpty &&
-          actionProductName == productName) {
+          _sameRecallProductName(actionProductName, productName)) {
         return action;
       }
     }
@@ -1468,7 +1627,8 @@ class _RecallScreenState extends State<RecallScreen> {
     final reason = '${product['recallReason'] ?? ''}';
     if (_hasRecallRequest(product)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
+        const SnackBar(
+            content: Text('이미 리콜 조치 요청 내역이 있는 제품입니다. 요청 내역을 확인해 주세요.')),
       );
       setState(() => _selectedTab = 1);
       return;
@@ -1569,7 +1729,8 @@ class _RecallScreenState extends State<RecallScreen> {
     if (RegExp(r'직류\s*전원\s*장치|전원\s*장치|어댑터|충전기').hasMatch(joined)) {
       return '직류전원장치';
     }
-    if (RegExp(r'\bEP-[A-Z0-9-]+\b', caseSensitive: false).hasMatch(modelNumber)) {
+    if (RegExp(r'\bEP-[A-Z0-9-]+\b', caseSensitive: false)
+        .hasMatch(modelNumber)) {
       return '직류전원장치';
     }
     for (final line in lines) {
@@ -1581,8 +1742,7 @@ class _RecallScreenState extends State<RecallScreen> {
           _isBadProductNameValue(value)) {
         continue;
       }
-      if (RegExp(r'가습기|충전기|전원\s*장치|배터리|선풍기|히터|난방|전기|조명|램프')
-          .hasMatch(value)) {
+      if (RegExp(r'가습기|충전기|전원\s*장치|배터리|선풍기|히터|난방|전기|조명|램프').hasMatch(value)) {
         return value;
       }
     }
@@ -1607,11 +1767,12 @@ class _RecallScreenState extends State<RecallScreen> {
 
   String _guessModelNumber(List<String> lines) {
     final allText = lines.join(' ');
-    final chargerModel = RegExp(r'\bEP\s*[- ]\s*[A-Z0-9]{2,}\b', caseSensitive: false)
-        .firstMatch(allText)
-        ?.group(0)
-        ?.replaceAll(RegExp(r'\s+'), '')
-        .toUpperCase();
+    final chargerModel =
+        RegExp(r'\bEP\s*[- ]\s*[A-Z0-9]{2,}\b', caseSensitive: false)
+            .firstMatch(allText)
+            ?.group(0)
+            ?.replaceAll(RegExp(r'\s+'), '')
+            .toUpperCase();
     if (chargerModel != null && chargerModel.length >= 5) return chargerModel;
 
     final labelValue = _findValueByTextLabels(lines, ['모 델 명', '모델명', '모델번호']);
@@ -1620,10 +1781,10 @@ class _RecallScreenState extends State<RecallScreen> {
     }
 
     final preferredLines = [
-      ...lines.where((line) =>
-          RegExp(r'모델|model', caseSensitive: false).hasMatch(line)),
-      ...lines.where((line) =>
-          !RegExp(r'모델|model', caseSensitive: false).hasMatch(line)),
+      ...lines.where(
+          (line) => RegExp(r'모델|model', caseSensitive: false).hasMatch(line)),
+      ...lines.where(
+          (line) => !RegExp(r'모델|model', caseSensitive: false).hasMatch(line)),
     ];
 
     final modelPattern = RegExp(
@@ -1733,14 +1894,16 @@ class _RecallScreenState extends State<RecallScreen> {
               ListTile(
                 leading: const Icon(Icons.qr_code_scanner, color: kPrimary),
                 title: const Text('바코드 스캔'),
-                subtitle: const Text('바코드 값을 등록 보조 정보로 불러옵니다.'),
+                subtitle:
+                    const Text('QR/바코드는 제품안전정보센터 공고에 코드가 공개된 제품만 자동 매칭됩니다.'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _scanBarcode();
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.document_scanner_outlined, color: kPrimary),
+                leading: const Icon(Icons.document_scanner_outlined,
+                    color: kPrimary),
                 title: const Text('제품 라벨 OCR'),
                 subtitle: const Text('사진에서 상품명·제조사·모델명을 읽습니다.'),
                 onTap: () {
@@ -1766,6 +1929,8 @@ class _RecallScreenState extends State<RecallScreen> {
 
   Color _statusColor(String? status) {
     if (status == 'RECALLED') return kDanger;
+    if (status == 'REVIEW') return kWarning;
+    if (status == 'SAFE') return kPrimary;
     return kTextMuted;
   }
 
@@ -1776,20 +1941,33 @@ class _RecallScreenState extends State<RecallScreen> {
     final matchedNotice = product['matchedRecallNotice'];
     final matchedNoticeId = '${product['matchedRecallNoticeId'] ?? ''}'.trim();
 
+    if (decisionStatus == 'NO_MATCH_FOUND' ||
+        status == 'SAFE' ||
+        _isNoMatchRecallReason(reason)) {
+      return 'SAFE';
+    }
     if (status == 'RECALLED' ||
         decisionStatus == 'RECALL_CONFIRMED' ||
+        decisionStatus == 'REVIEW_REQUIRED' ||
         reason.isNotEmpty ||
         matchedNotice != null ||
         matchedNoticeId.isNotEmpty) {
       return 'RECALLED';
     }
-    if (status == 'SAFE' || decisionStatus == 'NO_MATCH_FOUND') return 'SAFE';
     return status.isEmpty ? 'UNKNOWN' : status;
+  }
+
+  bool _isNoMatchRecallReason(String reason) {
+    if (reason.isEmpty) return false;
+    return reason.contains('일치하는 항목을 찾지 못') ||
+        reason.contains('리콜 공고에서 입력한 제품 식별정보와 일치') ||
+        reason.contains('등록된 리콜 공고에서 입력한 제품 식별정보와 일치');
   }
 
   String _statusLabel(String? status) {
     if (status == 'RECALLED') return '리콜 대상';
     if (status == 'SAFE') return '리콜 미확인';
+    if (status == 'REVIEW') return '추가 확인';
     return '확인중';
   }
 
@@ -1800,42 +1978,42 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   Future<void> _deleteProduct(Map<String, dynamic> product) async {
-  final id = int.tryParse('${product['id'] ?? ''}');
-  if (id == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('삭제할 제품 정보를 찾지 못했습니다.')),
+    final id = int.tryParse('${product['id'] ?? ''}');
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제할 제품 정보를 찾지 못했습니다.')),
+      );
+      return;
+    }
+
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('제품 삭제'),
+        content: Text('${product['productName'] ?? '제품'} 을(를) 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
     );
-    return;
+
+    if (yes != true) return;
+
+    await ProductApi.deleteProduct(id);
+    await _load();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('제품이 삭제되었습니다.')),
+    );
   }
-
-  final yes = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('제품 삭제'),
-      content: Text('${product['productName'] ?? '제품'} 을(를) 삭제하시겠습니까?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('취소'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('삭제'),
-        ),
-      ],
-    ),
-  );
-
-  if (yes != true) return;
-
-  await ProductApi.deleteProduct(id);
-  await _load();
-
-  if (!mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('제품이 삭제되었습니다.')),
-  );
-}
 
   @override
   Widget build(BuildContext context) {
@@ -1909,7 +2087,8 @@ class _RecallScreenState extends State<RecallScreen> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         crossAxisAlignment:
@@ -1959,6 +2138,10 @@ class _RecallScreenState extends State<RecallScreen> {
                                               .toString()
                                               .isNotEmpty)
                                             '모델명 ${p['modelNumber']}',
+                                          if ((p['barcode'] ?? '')
+                                              .toString()
+                                              .isNotEmpty)
+                                            '바코드 ${p['barcode']}',
                                         ].join(' · '),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -2030,31 +2213,35 @@ class _RecallScreenState extends State<RecallScreen> {
                 ],
               ),
       ),
-      floatingActionButton: _selectedTab == 1 ? null : Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'cam',
-            onPressed: _scanBarcode,
-            backgroundColor: Colors.white,
-            foregroundColor: kPrimary,
-            child: const Icon(Icons.qr_code_scanner),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: 'add',
-            onPressed: _openRegisterOptions,
-            backgroundColor: kPrimary,
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
-        ],
-      ),
+      floatingActionButton: _selectedTab == 1
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'cam',
+                  onPressed: _scanBarcode,
+                  backgroundColor: Colors.white,
+                  foregroundColor: kPrimary,
+                  child: const Icon(Icons.qr_code_scanner),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton(
+                  heroTag: 'add',
+                  onPressed: _openRegisterOptions,
+                  backgroundColor: kPrimary,
+                  child: const Icon(Icons.add, color: Colors.white),
+                ),
+              ],
+            ),
     );
   }
 
   Widget _recallFlowCard() {
     final recalledCount = _products
-        .where((p) => p is Map && p['recallStatus'] == 'RECALLED')
+        .where((p) =>
+            p is Map &&
+            _effectiveRecallStatus(Map<String, dynamic>.from(p)) == 'RECALLED')
         .length;
 
     return Card(
@@ -2094,7 +2281,7 @@ class _RecallScreenState extends State<RecallScreen> {
             ),
             const SizedBox(height: 10),
             const Text(
-              '님이 보유한 제품을 바코드·OCR 기반으로 등록하면 국가기술표준원 제품안전정보센터 리콜 목록과 자동으로 비교합니다.',
+              '보유 제품을 바코드·OCR로 등록하면 제품안전정보센터 리콜 공고와 자동 비교합니다. 바코드 매칭은 공고에 바코드가 공개된 제품만 가능합니다.',
               style: TextStyle(fontSize: 12, color: kTextMuted, height: 1.45),
             ),
             const SizedBox(height: 12),
@@ -2157,17 +2344,22 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   Widget _actionRequestsCard() {
+    final unrequestedCount = _unrequestedRecalledProductCount();
+    final activeRequestCount = _activeRecallRequestCount();
+
     if (_actions.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
-            children: const [
-              Icon(Icons.assignment_outlined, color: kTextMuted),
-              SizedBox(width: 12),
+            children: [
+              const Icon(Icons.assignment_outlined, color: kTextMuted),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '아직 신청한 리콜 조치 요청이 없습니다.',
+                  unrequestedCount > 0
+                      ? '리콜 대상 제품 중 아직 조치 요청을 보내지 않은 제품이 $unrequestedCount건 있습니다.'
+                      : '아직 신청한 리콜 조치 요청이 없습니다.',
                   style: TextStyle(
                     fontSize: 13,
                     color: kTextMuted,
@@ -2180,17 +2372,6 @@ class _RecallScreenState extends State<RecallScreen> {
         ),
       );
     }
-
-    final pendingCount = _actions.where((item) {
-      if (item is! Map) return false;
-      return _effectiveActionStatus(Map<String, dynamic>.from(item)) ==
-          'PENDING';
-    }).length;
-    final progressCount = _actions.where((item) {
-      if (item is! Map) return false;
-      return _effectiveActionStatus(Map<String, dynamic>.from(item)) ==
-          'IN_PROGRESS';
-    }).length;
 
     return Card(
       child: Padding(
@@ -2228,7 +2409,7 @@ class _RecallScreenState extends State<RecallScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '미조치 $pendingCount건 · 조치 중 $progressCount건',
+              '미조치 $unrequestedCount건 · 요청/진행 중 $activeRequestCount건',
               style: const TextStyle(
                 color: kTextMuted,
                 fontSize: 12,
@@ -2322,8 +2503,7 @@ class _RecallScreenState extends State<RecallScreen> {
                             const SizedBox(height: 4),
                             Text(
                               [
-                                if (modelNumber.isNotEmpty)
-                                  '모델명 $modelNumber',
+                                if (modelNumber.isNotEmpty) '모델명 $modelNumber',
                                 '요청일 ${_checkedAtLabel(action['createdAt'])}',
                                 if (scheduleLabel.isNotEmpty) scheduleLabel,
                               ].join(' · '),
@@ -2363,7 +2543,7 @@ class _RecallScreenState extends State<RecallScreen> {
   }
 
   String _actionStatusLabel(String status) {
-    if (status == 'PENDING') return '미조치';
+    if (status == 'PENDING') return '요청 접수';
     if (status == 'IN_PROGRESS') return '조치 중';
     if (status == 'COMPLETED') return '조치 완료';
     if (status == 'CANCELLED') return '취소';
@@ -2387,7 +2567,7 @@ class _RecallScreenState extends State<RecallScreen> {
           const Text('등록된 제품이 없습니다.', style: TextStyle(color: kTextMuted)),
           const SizedBox(height: 8),
           const Text(
-            '상품명·제조사·모델명을 등록하면 제품안전정보센터에서 리콜 여부를 바로 확인합니다.',
+            '상품명·제조사·모델명 또는 KC 번호를 등록하면 리콜 여부를 확인합니다. 바코드는 제품안전정보센터 공고에 공개된 경우에만 자동 매칭됩니다.',
             textAlign: TextAlign.center,
             style: TextStyle(color: kTextMuted, fontSize: 12),
           ),
@@ -2422,7 +2602,8 @@ class _RecallScreenState extends State<RecallScreen> {
             const SizedBox(height: 8),
             Text(
               _loadError ?? '잠시 후 다시 시도해 주세요.',
-              style: const TextStyle(color: kTextMuted, fontSize: 12, height: 1.4),
+              style:
+                  const TextStyle(color: kTextMuted, fontSize: 12, height: 1.4),
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(

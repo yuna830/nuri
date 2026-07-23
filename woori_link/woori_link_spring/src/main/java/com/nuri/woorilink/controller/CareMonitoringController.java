@@ -112,6 +112,32 @@ public class CareMonitoringController {
         return careMonitoringService.acknowledgeSeniorAlert(alertId, requireSenior(authentication));
     }
 
+    @PatchMapping("/seniors/{seniorId}/alerts/read-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void acknowledgeAllSeniorAlerts(@PathVariable Long seniorId, Authentication authentication) {
+        Long authenticatedSeniorId = requireSenior(authentication);
+        if (!authenticatedSeniorId.equals(seniorId)) {
+            throw new AccessDeniedException("You can only update your own alerts");
+        }
+        careMonitoringService.acknowledgeAllSeniorAlerts(authenticatedSeniorId);
+    }
+
+    @DeleteMapping("/senior-alerts/{alertId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteSeniorAlert(@PathVariable Long alertId, Authentication authentication) {
+        careMonitoringService.deleteSeniorAlert(alertId, requireSenior(authentication));
+    }
+
+    @DeleteMapping("/seniors/{seniorId}/alerts")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAllSeniorAlerts(@PathVariable Long seniorId, Authentication authentication) {
+        Long authenticatedSeniorId = requireSenior(authentication);
+        if (!authenticatedSeniorId.equals(seniorId)) {
+            throw new AccessDeniedException("You can only delete your own alerts");
+        }
+        careMonitoringService.deleteAllSeniorAlerts(authenticatedSeniorId);
+    }
+
     @GetMapping("/guardians/{guardianId}/alerts")
     public List<CareAlert> guardianAlerts(@PathVariable Long guardianId, Authentication authentication) {
         Long authenticatedGuardianId = requireGuardian(authentication);

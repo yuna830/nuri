@@ -13,7 +13,8 @@ import 'chat_screen.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onTabSelected, this.onRecallRequestsSelected});
+  const HomeScreen(
+      {super.key, this.onTabSelected, this.onRecallRequestsSelected});
 
   final ValueChanged<int>? onTabSelected;
   final VoidCallback? onRecallRequestsSelected;
@@ -25,7 +26,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _senior;
   Map<String, dynamic>? _risk;
-  List<dynamic> _actions = [];
+  List<dynamic> _products = [];
+  List<dynamic> _recallActions = [];
   List<dynamic> _alerts = [];
   bool _loading = true;
   Map<String, dynamic>? _pendingCheckIn;
@@ -36,7 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _load();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
   }
 
   @override
@@ -48,70 +51,137 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _load({bool silent = false}) async {
     try {
       final seniorId = await AuthService.getUserId();
-      if (seniorId == null) return;
-      final results = await Future.wait([
-        SeniorApi.getSenior(seniorId),
-        RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
-        ActionApi.getActionsBySenior(seniorId),
-        CareMonitoringApi.getCheckIns(seniorId),
-        ProductApi.getProductsBySenior(seniorId),
-        CareMonitoringApi.getAlerts(seniorId),
-      ]);
+      if (seniorId == null) {
+        await _redirectToLogin();
+        return;
+      }
+
+      final senior = await SeniorApi.getSenior(seniorId);
       if (!mounted) return;
-      final products = results[4] as List<dynamic>;
+      final seniorName = '${senior['name'] ?? ''}'.trim();
+      if (senior.isEmpty || seniorName.isEmpty) {
+        await _redirectToLogin();
+        return;
+      }
+
+      final risk = await _loadOptional<Map<String, dynamic>>(
+        'risk',
+        () async => await RiskApi.getLatestRisk(seniorId) ?? <String, dynamic>{},
+        <String, dynamic>{},
+      );
+      final results = await Future.wait<List<dynamic>>([
+        _loadOptional<List<dynamic>>(
+          'actions',
+          () => ActionApi.getActionsBySenior(seniorId),
+          <dynamic>[],
+        ),
+        _loadOptional<List<dynamic>>(
+          'check-ins',
+          () => CareMonitoringApi.getCheckIns(seniorId),
+          <dynamic>[],
+        ),
+        _loadOptional<List<dynamic>>(
+          'products',
+          () => ProductApi.getProductsBySenior(seniorId),
+          <dynamic>[],
+        ),
+        _loadOptional<List<dynamic>>(
+          'alerts',
+          () => CareMonitoringApi.getAlerts(seniorId),
+          <dynamic>[],
+        ),
+      ]);
+
+      if (!mounted) return;
+      final allActions = results[0];
+      final checkIns = results[1];
+      final products = results[2];
+      final alerts = results[3];
+      final recallActions = _dedupeRecallActions(
+        allActions
+            .where((a) => a is Map && '${a['actionType'] ?? ''}' == 'RECALL')
+            .where((a) => '${(a as Map)['status'] ?? ''}' != 'CANCELLED')
+            .toList(),
+        products,
+      );
+
       setState(() {
-        _senior = results[0] as Map<String, dynamic>;
-        final r = results[1] as Map<String, dynamic>;
-        _risk = r.isNotEmpty ? r : null;
-        _actions = _pendingActions(results[2] as List<dynamic>, products);
-        _alerts = results[5] as List<dynamic>;
-        final checkIns = results[3] as List<dynamic>;
-        final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
+        _senior = senior;
+        _risk = risk.isNotEmpty ? risk : null;
+        _products = products;
+        _recallActions = recallActions;
+        final pending = checkIns
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .where((item) => item['status'] == 'PENDING')
+            .toList();
+        _alerts = alerts;
         _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
       _showTomorrowVisitReminders();
-    } catch (_) {
-      if (!silent && mounted) setState(() => _loading = false);
+    } catch (error) {
+      if (!mounted) return;
+      if (!silent) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '홈 정보를 불러오지 못했습니다. ${error.toString().replaceFirst('Exception: ', '')}',
+            ),
+          ),
+        );
+      }
     }
   }
 
-  List<dynamic> _pendingActions(List<dynamic> actions, List<dynamic> products) {
-    final visible = <Map<String, dynamic>>[];
+  Future<T> _loadOptional<T>(
+    String label,
+    Future<T> Function() loader,
+    T fallback,
+  ) async {
+    try {
+      return await loader();
+    } catch (error) {
+      debugPrint('Home optional load failed ($label): $error');
+      return fallback;
+    }
+  }
+
+  Future<void> _redirectToLogin() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
+
+  List<dynamic> _dedupeRecallActions(
+      List<dynamic> actions, List<dynamic> products) {
     final recallByKey = <String, Map<String, dynamic>>{};
 
     for (final item in actions) {
       if (item is! Map) continue;
       final action = Map<String, dynamic>.from(item);
-      final type = '${action['actionType'] ?? ''}';
-      final status = type == 'RECALL'
-          ? _effectiveRecallStatus(action, products)
-          : '${action['status'] ?? 'PENDING'}';
-      if (status != 'PENDING' && status != 'IN_PROGRESS') continue;
-
-      final product = type == 'RECALL'
-          ? _productForRecallAction(action, products)
-          : null;
+      final status = _effectiveRecallStatus(action, products);
+      final product = _productForRecallAction(action, products);
       final nextActionDate = '${product?['nextActionDate'] ?? ''}'.trim();
       final normalized = {
         ...action,
         'status': status,
         if (nextActionDate.isNotEmpty) '_nextActionDate': nextActionDate,
       };
-      if (type == 'RECALL') {
-        final key = _recallActionKey(normalized, products);
-        final previous = recallByKey[key];
-        if (previous == null || _isNewer(normalized, previous)) {
-          recallByKey[key] = normalized;
-        }
-      } else {
-        visible.add(normalized);
+      final key = _recallActionKey(normalized, products);
+      final previous = recallByKey[key];
+      if (previous == null || _isNewer(normalized, previous)) {
+        recallByKey[key] = normalized;
       }
     }
 
-    visible.addAll(recallByKey.values);
-    visible.sort((a, b) => _actionDate(b).compareTo(_actionDate(a)));
-    return visible;
+    final result = recallByKey.values.toList();
+    result.sort((a, b) => _actionDate(b).compareTo(_actionDate(a)));
+    return result;
   }
 
   String _recallActionKey(Map<String, dynamic> action, List<dynamic> products) {
@@ -126,7 +196,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final modelNumber = _extractActionModelNumber(note);
     if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
 
-    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
+    final productName =
+        _normalizeRecallProductName('${action['productName'] ?? ''}');
     if (productName.isNotEmpty) return productName;
 
     return '${action['id'] ?? action['createdAt'] ?? ''}';
@@ -137,11 +208,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   DateTime _actionDate(Map<String, dynamic> action) {
-    return DateTime.tryParse('${action['updatedAt'] ?? action['createdAt'] ?? ''}') ??
+    return DateTime.tryParse(
+            '${action['updatedAt'] ?? action['createdAt'] ?? ''}') ??
         DateTime.fromMillisecondsSinceEpoch(0);
   }
 
-  String _effectiveRecallStatus(Map<String, dynamic> action, List<dynamic> products) {
+  String _effectiveRecallStatus(
+      Map<String, dynamic> action, List<dynamic> products) {
     final product = _productForRecallAction(action, products);
     if (product == null) return '${action['status'] ?? 'PENDING'}';
 
@@ -163,7 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${action['status'] ?? 'PENDING'}';
   }
 
-  Map<String, dynamic>? _productForRecallAction(Map<String, dynamic> action, List<dynamic> products) {
+  Map<String, dynamic>? _productForRecallAction(
+      Map<String, dynamic> action, List<dynamic> products) {
     final actionProductName = '${action['productName'] ?? ''}'.trim();
     final actionNote = '${action['note'] ?? ''}';
     final actionProductId = _extractActionProductId(actionNote);
@@ -172,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final item in products) {
       if (item is! Map) continue;
       final product = Map<String, dynamic>.from(item);
-      if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
+      if (_effectiveProductRecallStatus(product) != 'RECALLED') continue;
       final productId = '${product['id'] ?? ''}'.trim();
       final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
       if (actionProductId.isNotEmpty && actionProductId == productId) {
@@ -188,14 +262,65 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final item in products) {
       if (item is! Map) continue;
       final product = Map<String, dynamic>.from(item);
-      if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
+      if (_effectiveProductRecallStatus(product) != 'RECALLED') continue;
       final productName = '${product['productName'] ?? ''}'.trim();
-      if (actionProductName.isNotEmpty && actionProductName == productName) {
+      if (actionProductName.isNotEmpty &&
+          _sameRecallProductName(actionProductName, productName)) {
         return product;
       }
     }
 
     return null;
+  }
+
+  bool _hasRecallRequest(Map<String, dynamic> product) {
+    for (final item in _recallActions) {
+      if (item is! Map) continue;
+      if (_recallActionMatchesProduct(
+          Map<String, dynamic>.from(item), product)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _recallActionMatchesProduct(
+      Map<String, dynamic> action, Map<String, dynamic> product) {
+    final productId = '${product['id'] ?? ''}'.trim();
+    final productName = '${product['productName'] ?? ''}'.trim();
+    final modelNumber = '${product['modelNumber'] ?? ''}'.trim();
+    final actionProductName = '${action['productName'] ?? ''}'.trim();
+    final actionNote = '${action['note'] ?? ''}';
+    final actionProductId = _extractActionProductId(actionNote);
+    final actionModelNumber = _extractActionModelNumber(actionNote);
+
+    if (productId.isNotEmpty && actionProductId == productId) return true;
+    if (modelNumber.isNotEmpty && actionModelNumber == modelNumber) return true;
+    return modelNumber.isEmpty &&
+        actionModelNumber.isEmpty &&
+        productName.isNotEmpty &&
+        _sameRecallProductName(actionProductName, productName);
+  }
+
+  int _unrequestedRecalledProductCount() {
+    return _products.where((item) {
+      if (item is! Map) return false;
+      final product = Map<String, dynamic>.from(item);
+      return _effectiveProductRecallStatus(product) == 'RECALLED' &&
+          !_hasRecallRequest(product);
+    }).length;
+  }
+
+  int _activeRecallRequestCount() {
+    return _recallActions.where((item) {
+      if (item is! Map) return false;
+      final status = '${item['status'] ?? ''}';
+      return status == 'PENDING' || status == 'IN_PROGRESS';
+    }).length;
+  }
+
+  int _recallStatusTotalCount() {
+    return _unrequestedRecalledProductCount() + _activeRecallRequestCount();
   }
 
   String _extractActionModelNumber(String note) {
@@ -206,6 +331,50 @@ class _HomeScreenState extends State<HomeScreen> {
   String _extractActionProductId(String note) {
     final match = RegExp(r'제품ID:\s*([0-9]+)').firstMatch(note);
     return match?.group(1)?.trim() ?? '';
+  }
+
+  String _effectiveProductRecallStatus(Map<String, dynamic> product) {
+    final status = '${product['recallStatus'] ?? ''}'.trim();
+    final decisionStatus = '${product['recallDecisionStatus'] ?? ''}'.trim();
+    final reason = '${product['recallReason'] ?? ''}'.trim();
+    final matchedNotice = product['matchedRecallNotice'];
+    final matchedNoticeId = '${product['matchedRecallNoticeId'] ?? ''}'.trim();
+
+    if (decisionStatus == 'NO_MATCH_FOUND' ||
+        status == 'SAFE' ||
+        _isNoMatchRecallReason(reason)) {
+      return 'SAFE';
+    }
+    if (status == 'RECALLED' ||
+        decisionStatus == 'RECALL_CONFIRMED' ||
+        decisionStatus == 'REVIEW_REQUIRED' ||
+        reason.isNotEmpty ||
+        matchedNotice != null ||
+        matchedNoticeId.isNotEmpty) {
+      return 'RECALLED';
+    }
+    return status.isEmpty ? 'UNKNOWN' : status;
+  }
+
+  bool _isNoMatchRecallReason(String reason) {
+    if (reason.isEmpty) return false;
+    return reason.contains('일치하는 항목을 찾지 못') ||
+        reason.contains('리콜 공고에서 입력한 제품 식별정보와 일치') ||
+        reason.contains('등록된 리콜 공고에서 입력한 제품 식별정보와 일치');
+  }
+
+  String _normalizeRecallProductName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\uBCA0\uD130\uB9AC', '\uBC30\uD130\uB9AC')
+        .replaceAll(RegExp(r'[^0-9a-z\uAC00-\uD7A3]+'), '');
+  }
+
+  bool _sameRecallProductName(String left, String right) {
+    final normalizedLeft = _normalizeRecallProductName(left);
+    final normalizedRight = _normalizeRecallProductName(right);
+    return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
   }
 
   Future<void> _respondToCheckIn() async {
@@ -248,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _actionStatusLabel(String? status) {
-    if (status == 'PENDING') return '미조치';
+    if (status == 'PENDING') return '요청 접수';
     if (status == 'IN_PROGRESS') return '조치 진행 중';
     if (status == 'COMPLETED') return '조치 완료';
     if (status == 'CANCELLED') return '취소됨';
@@ -319,7 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final date = _actionNextDate(action);
     if (date == null) return false;
     final now = DateTime.now();
-    final tomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final tomorrow =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     return date.year == tomorrow.year &&
         date.month == tomorrow.month &&
         date.day == tomorrow.day;
@@ -328,23 +498,24 @@ class _HomeScreenState extends State<HomeScreen> {
   String _actionReminderKey(Map<String, dynamic> action) {
     final id = '${action['id'] ?? ''}'.trim();
     if (id.isNotEmpty) return id;
-    return '${action['actionType'] ?? ''}:${action['productName'] ?? ''}:${action['dueDate'] ?? action['_nextActionDate'] ?? ''}';
+    return '${action['actionType'] ?? ''}:'
+        '${action['productName'] ?? ''}:'
+        '${action['dueDate'] ?? action['_nextActionDate'] ?? ''}';
   }
 
   void _showTomorrowVisitReminders() {
     if (_senior?['recallReminderEnabled'] == false) return;
 
-    final fresh = _actions
+    final fresh = _recallActions
         .whereType<Map>()
         .map((action) => Map<String, dynamic>.from(action))
         .where((action) {
-          final status = '${action['status'] ?? 'PENDING'}';
-          return status != 'COMPLETED' &&
-              status != 'CANCELLED' &&
-              _isTomorrowAction(action) &&
-              !_shownTomorrowReminderKeys.contains(_actionReminderKey(action));
-        })
-        .toList();
+      final status = '${action['status'] ?? 'PENDING'}';
+      return status != 'COMPLETED' &&
+          status != 'CANCELLED' &&
+          _isTomorrowAction(action) &&
+          !_shownTomorrowReminderKeys.contains(_actionReminderKey(action));
+    }).toList();
     if (fresh.isEmpty || !mounted) return;
 
     for (final action in fresh) {
@@ -373,13 +544,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  int _actionCountByStatus(String status) {
-    return _actions.where((item) {
-      if (item is! Map) return false;
-      return '${item['status'] ?? ''}' == status;
-    }).length;
-  }
-
   int get _unreadAlertCount => _alerts.where((item) {
         if (item is! Map) return false;
         return '${item['status'] ?? ''}' == 'UNREAD';
@@ -396,97 +560,221 @@ class _HomeScreenState extends State<HomeScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      clipBehavior: Clip.antiAlias,
       builder: (context) {
-        final alerts = _alerts.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-        return SafeArea(
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.64,
-            minChildSize: 0.36,
-            maxChildSize: 0.9,
-            builder: (context, controller) => Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        final alerts = _alerts
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final unreadCount = alerts
+                .where((alert) => '${alert['status'] ?? ''}' == 'UNREAD')
+                .length;
+            Future<void> refreshAlerts() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null) return;
+              final nextAlerts = await CareMonitoringApi.getAlerts(seniorId);
+              if (!mounted) return;
+              setState(() => _alerts = nextAlerts);
+              setSheetState(() {
+                alerts
+                  ..clear()
+                  ..addAll(nextAlerts
+                      .whereType<Map>()
+                      .map((item) => Map<String, dynamic>.from(item)));
+              });
+            }
+
+            Future<void> markAllRead() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null || unreadCount == 0) return;
+              await CareMonitoringApi.acknowledgeAllAlerts(seniorId);
+              await refreshAlerts();
+            }
+
+            Future<void> deleteAlert(Map<String, dynamic> alert) async {
+              final id = alert['id'];
+              if (id is! int) return;
+              await CareMonitoringApi.deleteAlert(id);
+              await refreshAlerts();
+            }
+
+            Future<void> deleteAllAlerts() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null || alerts.isEmpty) return;
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('알림 전체 삭제'),
+                  content: const Text('알림함의 모든 알림을 삭제할까요?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('취소'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              await CareMonitoringApi.deleteAllAlerts(seniorId);
+              await refreshAlerts();
+            }
+
+            return SafeArea(
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.68,
+                minChildSize: 0.36,
+                maxChildSize: 0.9,
+                builder: (context, controller) => Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('알림함', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: '닫기',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
+                      Row(
+                        children: [
+                          const Text('알림함',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w800)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: unreadCount == 0 ? null : markAllRead,
+                            child: const Text('전체 읽음'),
+                          ),
+                          IconButton(
+                            tooltip: '전체 삭제',
+                            icon: const Icon(Icons.delete_sweep_outlined),
+                            onPressed: alerts.isEmpty ? null : deleteAllAlerts,
+                          ),
+                          IconButton(
+                            tooltip: '닫기',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: alerts.isEmpty
+                            ? const Center(child: Text('받은 알림이 없습니다.'))
+                            : ListView.separated(
+                                controller: controller,
+                                itemCount: alerts.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final alert = alerts[index];
+                                  final unread =
+                                      '${alert['status'] ?? ''}' == 'UNREAD';
+                                  return Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: unread
+                                              ? kPrimary.withOpacity(0.45)
+                                              : kBorder),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                  '${alert['title'] ?? '알림'}',
+                                                  style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w800)),
+                                            ),
+                                            if (unread)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3),
+                                                decoration: BoxDecoration(
+                                                    color: kPrimary,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            20)),
+                                                child: const Text('새 알림',
+                                                    style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800)),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text('${alert['message'] ?? ''}',
+                                            style: const TextStyle(
+                                                fontSize: 13, height: 1.45)),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Text(_alertDate(alert),
+                                                style: const TextStyle(
+                                                    color: kTextMuted,
+                                                    fontSize: 11)),
+                                            const Spacer(),
+                                            if (unread)
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final id = alert['id'];
+                                                  if (id is int) {
+                                                    await CareMonitoringApi
+                                                        .acknowledgeAlert(id);
+                                                    await refreshAlerts();
+                                                  }
+                                                },
+                                                child: const Text('읽음'),
+                                              ),
+                                            IconButton(
+                                              tooltip: '삭제',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  color: kTextMuted),
+                                              onPressed: () =>
+                                                  deleteAlert(alert),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: alerts.isEmpty
-                        ? const Center(child: Text('받은 알림이 없습니다.'))
-                        : ListView.separated(
-                            controller: controller,
-                            itemCount: alerts.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final alert = alerts[index];
-                              final unread = '${alert['status'] ?? ''}' == 'UNREAD';
-                              return Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: unread ? kPrimary.withOpacity(0.08) : Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: unread ? kPrimary.withOpacity(0.25) : kBorder),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text('${alert['title'] ?? '알림'}',
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                                        ),
-                                        if (unread)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(20)),
-                                            child: const Text('새 알림', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('${alert['message'] ?? ''}', style: const TextStyle(fontSize: 13, height: 1.45)),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Text(_alertDate(alert), style: const TextStyle(color: kTextMuted, fontSize: 11)),
-                                        const Spacer(),
-                                        if (unread)
-                                          TextButton(
-                                            onPressed: () async {
-                                              final id = alert['id'];
-                                              if (id is int) {
-                                                final navigator = Navigator.of(context);
-                                                await CareMonitoringApi.acknowledgeAlert(id);
-                                                await _load(silent: true);
-                                                if (mounted) navigator.pop();
-                                              }
-                                            },
-                                            child: const Text('읽음'),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -562,9 +850,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         right: 7,
                         top: 7,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(color: kDanger, borderRadius: BorderRadius.circular(10)),
-                          child: Text('$_unreadAlertCount', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: kDanger,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Text('$_unreadAlertCount',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800)),
                         ),
                       ),
                   ],
@@ -600,7 +895,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 4),
                       Text(
                         address,
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 13),
                       ),
                     ],
                   ),
@@ -623,7 +919,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 const Text('오늘의 위험도',
                                     style: TextStyle(
-                                        fontSize: 15, fontWeight: FontWeight.w700)),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700)),
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -685,17 +982,23 @@ class _HomeScreenState extends State<HomeScreen> {
                           _checkItem(
                             '기상특보 확인',
                             _risk?['weatherRisk'] == true,
-                            _risk?['weatherRisk'] == true ? '⚠️ 특보 발효 중' : '이상 없음',
+                            _risk?['weatherRisk'] == true
+                                ? '⚠️ 특보 발효 중'
+                                : '이상 없음',
                           ),
                           _checkItem(
                             '리콜 제품 확인',
                             _risk?['recallRisk'] == true,
-                            _risk?['recallRisk'] == true ? '⚠️ 리콜 제품 있음' : '이상 없음',
+                            _risk?['recallRisk'] == true
+                                ? '⚠️ 리콜 제품 있음'
+                                : '이상 없음',
                           ),
                           _checkItem(
                             '에너지바우처',
                             _risk?['voucherUnapplied'] == true,
-                            _risk?['voucherUnapplied'] == true ? '❌ 미신청' : '신청 완료',
+                            _risk?['voucherUnapplied'] == true
+                                ? '정보 확인 필요'
+                                : '신청 현황 확인',
                           ),
                         ],
                       ),
@@ -704,10 +1007,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
 
                   // 대기 중인 서비스
-                  if (_actions.isNotEmpty) ...[
+                  if (_recallStatusTotalCount() > 0) ...[
                     InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: widget.onRecallRequestsSelected,
+                      onTap: _unrequestedRecalledProductCount() > 0
+                          ? () => widget.onTabSelected?.call(2)
+                          : widget.onRecallRequestsSelected,
                       child: Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -737,7 +1042,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         const Text(
-                                          '조치가 필요한 요청',
+                                          '리콜 조치 현황',
                                           style: TextStyle(
                                             fontSize: 17,
                                             fontWeight: FontWeight.w800,
@@ -745,7 +1050,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '미조치 ${_actionCountByStatus('PENDING')}건 · 진행 중 ${_actionCountByStatus('IN_PROGRESS')}건',
+                                          '미조치 ${_unrequestedRecalledProductCount()}건 · '
+                                          '요청/진행 중 ${_activeRecallRequestCount()}건',
                                           style: const TextStyle(
                                             color: kTextMuted,
                                             fontSize: 12,
@@ -765,7 +1071,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
-                                      '${_actions.length}건',
+                                      '${_recallStatusTotalCount()}건',
                                       style: const TextStyle(
                                         color: kDanger,
                                         fontSize: 12,
@@ -776,7 +1082,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               ),
                               const SizedBox(height: 14),
-                              ..._actions.take(2).map((a) {
+                              ..._recallActions.take(2).map((a) {
                                 final action =
                                     Map<String, dynamic>.from(a as Map);
                                 final title = _actionTitle(action);
@@ -882,9 +1188,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Row(
                                   children: [
                                     Text(
-                                      _actions.length > 2
-                                          ? '외 ${_actions.length - 2}건 더 있음'
-                                          : '자세한 진행 상태를 확인할 수 있어요',
+                                      _recallActions.length > 2
+                                          ? '외 ${_recallActions.length - 2}건 더 있음'
+                                          : _unrequestedRecalledProductCount() >
+                                                  0
+                                              ? '리콜 대상 제품에서 조치 요청을 보낼 수 있어요'
+                                              : '자세한 진행 상태를 확인할 수 있어요',
                                       style: const TextStyle(
                                         color: kTextMuted,
                                         fontSize: 12,
@@ -892,9 +1201,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                     const Spacer(),
-                                    const Text(
-                                      '요청 내역 보기',
-                                      style: TextStyle(
+                                    Text(
+                                      _unrequestedRecalledProductCount() > 0
+                                          ? '보유 제품 보기'
+                                          : '요청 내역 보기',
+                                      style: const TextStyle(
                                         color: kPrimaryDark,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
@@ -916,26 +1227,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                   ],
-
-                  // 복지 서비스 타일
-                  const Text('복지 서비스',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 12),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.4,
-                    children: [
-                      _serviceTile(context, Icons.bolt, '에너지바우처', kWarning, tabIndex: 1),
-                      _serviceTile(context, Icons.warning_amber, '리콜 확인', kDanger, tabIndex: 2),
-                      _serviceTile(context, Icons.chat_bubble_outline, '상담 챗봇', kPrimary),
-                      _serviceTile(context, Icons.sos, 'SOS 신고', kDanger, tabIndex: 3),
-                    ],
-                  ),
                   const SizedBox(height: 24),
                 ]),
               ),
@@ -957,53 +1248,18 @@ class _HomeScreenState extends State<HomeScreen> {
             size: 20,
           ),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const Spacer(),
           Text(status,
               style: TextStyle(
-                  fontSize: 12,
-                  color: isWarning ? kDanger : kTextMuted)),
+                  fontSize: 12, color: isWarning ? kDanger : kTextMuted)),
         ],
       ),
     );
   }
 
-  Widget _serviceTile(
-      BuildContext context, IconData icon, String label, Color color,
-      {int? tabIndex}) {
-    return GestureDetector(
-      onTap: () {
-        if (tabIndex != null) {
-          widget.onTabSelected?.call(tabIndex);
-          return;
-        }
-        if (label == '상담 챗봇') {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ChatScreen()),
-          );
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 26),
-            const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    color: color, fontSize: 13, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _RobotFaceIcon extends StatelessWidget {

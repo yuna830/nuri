@@ -4,6 +4,8 @@ import { cancelWelfareNotification, createSeniorNotification, getWelfareNotifica
 import '../../css/welfare/RecallList.css'
 import { getUser, getUserId } from '../../utils/auth'
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
+import { getActionsByWelfareWorker } from '../../api/actionApi'
+import { filterProductsByRecallRequests } from '../../utils/recallRequestFilter'
 
 const USE_STATUS_LABEL = {
   UNKNOWN: '미확인',
@@ -224,10 +226,12 @@ export default function RecallList() {
         guardianId: product.guardianId ?? senior.guardianId,
       } : product
     }
+    const actionsResponse = await getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
+    const recallRequests = Array.isArray(actionsResponse.data) ? actionsResponse.data : []
 
     const response = await getRecalledProductsByWelfareWorker(welfareWorkerId).catch(() => null)
     if (Array.isArray(response?.data) && response.data.length > 0) {
-      setProducts(response.data.map(enrichProduct))
+      setProducts(filterProductsByRecallRequests(response.data.map(enrichProduct), recallRequests))
       return
     }
 
@@ -238,7 +242,7 @@ export default function RecallList() {
       .flatMap(result => Array.isArray(result.data) ? result.data : [])
       .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
       .map(enrichProduct)
-    setProducts(recalledProducts)
+    setProducts(filterProductsByRecallRequests(recalledProducts, recallRequests))
   }
 
   function openModal(product) {

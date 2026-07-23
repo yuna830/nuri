@@ -229,6 +229,30 @@ public class CareMonitoringService {
         return alert;
     }
 
+    @Transactional
+    public void acknowledgeAllSeniorAlerts(Long seniorId) {
+        LocalDateTime now = LocalDateTime.now();
+        for (CareAlert alert : alertRepository.findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(seniorId)) {
+            if (alert.getStatus() == CareAlert.AlertStatus.UNREAD) {
+                alert.setStatus(CareAlert.AlertStatus.ACKNOWLEDGED);
+                alert.setAcknowledgedAt(now);
+                alertRepository.save(alert);
+            }
+        }
+    }
+
+    @Transactional
+    public void deleteSeniorAlert(Long alertId, Long seniorId) {
+        CareAlert alert = alertRepository.findByIdAndSeniorIdAndGuardianIdIsNull(alertId, seniorId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        alertRepository.delete(alert);
+    }
+
+    @Transactional
+    public void deleteAllSeniorAlerts(Long seniorId) {
+        alertRepository.deleteAll(alertRepository.findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(seniorId));
+    }
+
     public List<CheckIn> checkIns(Long seniorId) { return checkInRepository.findBySeniorIdOrderByRequestedAtDesc(seniorId); }
 
     /**

@@ -1,6 +1,7 @@
 package com.nuri.woorilink.common.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,6 +26,9 @@ public class SecurityConfig {
 
     private final JwtTokenProvider tokenProvider;
 
+    @Value("#{'${app.cors.allowed-origin-patterns:http://localhost:*}'.split(',')}")
+    private List<String> allowedOriginPatterns;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -42,6 +46,7 @@ public class SecurityConfig {
                             "/api/guardian-auth/**",
                             "/api/senior-auth/**",
                             "/api/welfare-facilities/**",
+                            "/api/health",
                             "/api/alerts/fall",
                             "/api/actions/**"
                     ).permitAll()
@@ -59,10 +64,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://10.0.2.2:5173"
-        ));
+        config.setAllowedOriginPatterns(allowedOriginPatterns.stream()
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
