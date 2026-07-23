@@ -17,6 +17,7 @@ import { getHighRisk, assessAll } from '../../api/riskApi'
 import { getActionsByWelfareWorker } from '../../api/actionApi'
 import { getProductsBySenior, getRecalledProductsByWelfareWorker } from '../../api/recallApi'
 import { getUserId } from '../../utils/auth'
+import { filterProductsByRecallRequests } from '../../utils/recallRequestFilter'
 
 const ACTION_STATUS_LABEL = {
   RECALL: '리콜 조치 예정',
@@ -42,13 +43,22 @@ export default function Dashboard() {
       getSeniorsByWelfareWorker(welfareWorkerId).then(r => setSeniors(r.data)).catch(err => {
         console.error(err.response?.status, err.response?.data)
       })
+      let recallRequests = []
       getActionsByWelfareWorker(welfareWorkerId)
-        .then(r => setPending(r.data.filter(action => action.status === 'PENDING')))
+        .then(r => {
+          const actions = Array.isArray(r.data) ? r.data : []
+          recallRequests = actions
+          setPending(actions.filter(action => action.status === 'PENDING'))
+        })
         .catch(() => {})
       getRecalledProductsByWelfareWorker(welfareWorkerId)
         .then(async r => {
+          if (recallRequests.length === 0) {
+            const actionsResponse = await getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
+            recallRequests = Array.isArray(actionsResponse.data) ? actionsResponse.data : []
+          }
           if (Array.isArray(r.data) && r.data.length > 0) {
-            setRecalled(r.data)
+            setRecalled(filterProductsByRecallRequests(r.data, recallRequests))
             return
           }
           const seniorsResponse = await getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
@@ -56,9 +66,10 @@ export default function Dashboard() {
           const productResponses = await Promise.all(
             seniors.map(senior => getProductsBySenior(senior.id).catch(() => ({ data: [] })))
           )
-          setRecalled(productResponses
+          const recalledProducts = productResponses
             .flatMap(result => Array.isArray(result.data) ? result.data : [])
-            .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED')))
+            .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
+          setRecalled(filterProductsByRecallRequests(recalledProducts, recallRequests))
         })
         .catch(() => {})
     }
@@ -129,7 +140,7 @@ export default function Dashboard() {
           <div className="value">{energySupportCandidates.length}</div>
         </div>
         <div className="stat-card danger" onClick={() => navigate('/welfare/recalled')}>
-          <div className="label">리콜 제품 보유</div>
+          <div className="label">리콜 조치 요청</div>
           <div className="value">{recalled.length}</div>
         </div>
       </div>

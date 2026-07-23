@@ -11,7 +11,8 @@ final String baseUrl =
         : (
             kIsWeb
                 ? 'http://localhost:8090/api'
-                : 'http://10.0.2.2:8090/api'
+                : 'http://172.29.123.214:8090/api'
+                //: 'http://10.0.2.2:8090/api'
           );
 
 
@@ -28,7 +29,8 @@ final String fallServerBaseUrl =
         : (
             kIsWeb
                 ? 'http://localhost:8000'
-                : 'http://10.0.2.2:8000'
+                : 'http://172.29.123.214:8000'
+                //: 'http://10.0.2.2:8000'
           );
 
 

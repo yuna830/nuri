@@ -48,32 +48,55 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _load({bool silent = false}) async {
     try {
       final seniorId = await AuthService.getUserId();
-      if (seniorId == null) return;
-      final results = await Future.wait([
-        SeniorApi.getSenior(seniorId),
-        RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}),
-        ActionApi.getActionsBySenior(seniorId),
-        CareMonitoringApi.getCheckIns(seniorId),
-        ProductApi.getProductsBySenior(seniorId),
-        CareMonitoringApi.getAlerts(seniorId),
-      ]);
+      if (seniorId == null) {
+        await _redirectToLogin();
+        return;
+      }
+
+      final senior = await SeniorApi.getSenior(seniorId);
       if (!mounted) return;
-      final products = results[4] as List<dynamic>;
+      final seniorName = '${senior['name'] ?? ''}'.trim();
+      if (senior.isEmpty || seniorName.isEmpty) {
+        await _redirectToLogin();
+        return;
+      }
+
+      final results = await Future.wait([
+        RiskApi.getLatestRisk(seniorId).then((r) => r ?? {}).catchError((_) => <String, dynamic>{}),
+        ActionApi.getActionsBySenior(seniorId).catchError((_) => <dynamic>[]),
+        CareMonitoringApi.getCheckIns(seniorId).catchError((_) => <dynamic>[]),
+        ProductApi.getProductsBySenior(seniorId).catchError((_) => <dynamic>[]),
+        CareMonitoringApi.getAlerts(seniorId).catchError((_) => <dynamic>[]),
+      ]);
+
+      if (!mounted) return;
+      final products = results[3] as List<dynamic>;
       setState(() {
-        _senior = results[0] as Map<String, dynamic>;
-        final r = results[1] as Map<String, dynamic>;
+        _senior = senior;
+        final r = results[0] as Map<String, dynamic>;
         _risk = r.isNotEmpty ? r : null;
-        _actions = _pendingActions(results[2] as List<dynamic>, products);
-        _alerts = results[5] as List<dynamic>;
-        final checkIns = results[3] as List<dynamic>;
+        _actions = _pendingActions(results[1] as List<dynamic>, products);
+        _alerts = results[4] as List<dynamic>;
+        final checkIns = results[2] as List<dynamic>;
         final pending = checkIns.cast<Map<String, dynamic>>().where((item) => item['status'] == 'PENDING').toList();
         _pendingCheckIn = pending.isEmpty ? null : pending.first;
         _loading = false;
       });
       _showTomorrowVisitReminders();
     } catch (_) {
-      if (!silent && mounted) setState(() => _loading = false);
+      if (!silent) {
+        await _redirectToLogin();
+      }
     }
+  }
+
+  Future<void> _redirectToLogin() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   List<dynamic> _pendingActions(List<dynamic> actions, List<dynamic> products) {
@@ -126,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final modelNumber = _extractActionModelNumber(note);
     if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
 
-    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
+    final productName = _normalizeRecallProductName('${action['productName'] ?? ''}');
     if (productName.isNotEmpty) return productName;
 
     return '${action['id'] ?? action['createdAt'] ?? ''}';
@@ -190,7 +213,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final product = Map<String, dynamic>.from(item);
       if ('${product['recallStatus'] ?? ''}' != 'RECALLED') continue;
       final productName = '${product['productName'] ?? ''}'.trim();
-      if (actionProductName.isNotEmpty && actionProductName == productName) {
+      if (actionProductName.isNotEmpty &&
+          _sameRecallProductName(actionProductName, productName)) {
         return product;
       }
     }
@@ -206,6 +230,20 @@ class _HomeScreenState extends State<HomeScreen> {
   String _extractActionProductId(String note) {
     final match = RegExp(r'제품ID:\s*([0-9]+)').firstMatch(note);
     return match?.group(1)?.trim() ?? '';
+  }
+
+  String _normalizeRecallProductName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\uBCA0\uD130\uB9AC', '\uBC30\uD130\uB9AC')
+        .replaceAll(RegExp(r'[^0-9a-z\uAC00-\uD7A3]+'), '');
+  }
+
+  bool _sameRecallProductName(String left, String right) {
+    final normalizedLeft = _normalizeRecallProductName(left);
+    final normalizedRight = _normalizeRecallProductName(right);
+    return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
   }
 
   Future<void> _respondToCheckIn() async {
@@ -396,97 +434,180 @@ class _HomeScreenState extends State<HomeScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      clipBehavior: Clip.antiAlias,
       builder: (context) {
         final alerts = _alerts.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-        return SafeArea(
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.64,
-            minChildSize: 0.36,
-            maxChildSize: 0.9,
-            builder: (context, controller) => Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final unreadCount = alerts.where((alert) => '${alert['status'] ?? ''}' == 'UNREAD').length;
+            Future<void> refreshAlerts() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null) return;
+              final nextAlerts = await CareMonitoringApi.getAlerts(seniorId);
+              if (!mounted) return;
+              setState(() => _alerts = nextAlerts);
+              setSheetState(() {
+                alerts
+                  ..clear()
+                  ..addAll(nextAlerts.whereType<Map>().map((item) => Map<String, dynamic>.from(item)));
+              });
+            }
+
+            Future<void> markAllRead() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null || unreadCount == 0) return;
+              await CareMonitoringApi.acknowledgeAllAlerts(seniorId);
+              await refreshAlerts();
+            }
+
+            Future<void> deleteAlert(Map<String, dynamic> alert) async {
+              final id = alert['id'];
+              if (id is! int) return;
+              await CareMonitoringApi.deleteAlert(id);
+              await refreshAlerts();
+            }
+
+            Future<void> deleteAllAlerts() async {
+              final seniorId = await AuthService.getUserId();
+              if (seniorId == null || alerts.isEmpty) return;
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('알림 전체 삭제'),
+                  content: const Text('알림함의 모든 알림을 삭제할까요?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('취소'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              await CareMonitoringApi.deleteAllAlerts(seniorId);
+              await refreshAlerts();
+            }
+
+            return SafeArea(
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.68,
+                minChildSize: 0.36,
+                maxChildSize: 0.9,
+                builder: (context, controller) => Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('알림함', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: '닫기',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
+                      Row(
+                        children: [
+                          const Text('알림함', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: unreadCount == 0 ? null : markAllRead,
+                            child: const Text('전체 읽음'),
+                          ),
+                          IconButton(
+                            tooltip: '전체 삭제',
+                            icon: const Icon(Icons.delete_sweep_outlined),
+                            onPressed: alerts.isEmpty ? null : deleteAllAlerts,
+                          ),
+                          IconButton(
+                            tooltip: '닫기',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: alerts.isEmpty
+                            ? const Center(child: Text('받은 알림이 없습니다.'))
+                            : ListView.separated(
+                                controller: controller,
+                                itemCount: alerts.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final alert = alerts[index];
+                                  final unread = '${alert['status'] ?? ''}' == 'UNREAD';
+                                  return Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: unread ? kPrimary.withOpacity(0.45) : kBorder),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text('${alert['title'] ?? '알림'}',
+                                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                                            ),
+                                            if (unread)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(20)),
+                                                child: const Text('새 알림', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text('${alert['message'] ?? ''}', style: const TextStyle(fontSize: 13, height: 1.45)),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Text(_alertDate(alert), style: const TextStyle(color: kTextMuted, fontSize: 11)),
+                                            const Spacer(),
+                                            if (unread)
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final id = alert['id'];
+                                                  if (id is int) {
+                                                    await CareMonitoringApi.acknowledgeAlert(id);
+                                                    await refreshAlerts();
+                                                  }
+                                                },
+                                                child: const Text('읽음'),
+                                              ),
+                                            IconButton(
+                                              tooltip: '삭제',
+                                              visualDensity: VisualDensity.compact,
+                                              icon: const Icon(Icons.delete_outline, color: kTextMuted),
+                                              onPressed: () => deleteAlert(alert),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: alerts.isEmpty
-                        ? const Center(child: Text('받은 알림이 없습니다.'))
-                        : ListView.separated(
-                            controller: controller,
-                            itemCount: alerts.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final alert = alerts[index];
-                              final unread = '${alert['status'] ?? ''}' == 'UNREAD';
-                              return Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: unread ? kPrimary.withOpacity(0.08) : Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: unread ? kPrimary.withOpacity(0.25) : kBorder),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text('${alert['title'] ?? '알림'}',
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                                        ),
-                                        if (unread)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(20)),
-                                            child: const Text('새 알림', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text('${alert['message'] ?? ''}', style: const TextStyle(fontSize: 13, height: 1.45)),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Text(_alertDate(alert), style: const TextStyle(color: kTextMuted, fontSize: 11)),
-                                        const Spacer(),
-                                        if (unread)
-                                          TextButton(
-                                            onPressed: () async {
-                                              final id = alert['id'];
-                                              if (id is int) {
-                                                final navigator = Navigator.of(context);
-                                                await CareMonitoringApi.acknowledgeAlert(id);
-                                                await _load(silent: true);
-                                                if (mounted) navigator.pop();
-                                              }
-                                            },
-                                            child: const Text('읽음'),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

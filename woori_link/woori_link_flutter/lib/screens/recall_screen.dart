@@ -771,8 +771,10 @@ class _RecallScreenState extends State<RecallScreen> {
     final modelNumber = _extractActionModelNumber('${action['note'] ?? ''}');
     if (modelNumber.isNotEmpty) return 'model:${modelNumber.toLowerCase()}';
 
-    final productName = '${action['productName'] ?? ''}'.trim().toLowerCase();
-    return 'name:$productName';
+    final productName = _normalizeRecallProductName('${action['productName'] ?? ''}');
+    if (productName.isNotEmpty) return 'name:$productName';
+
+    return 'action:${action['id'] ?? action['createdAt'] ?? ''}';
   }
 
   Map<String, dynamic>? _productForAction(Map<String, dynamic> action) {
@@ -798,7 +800,7 @@ class _RecallScreenState extends State<RecallScreen> {
       }
       if (actionModelNumber.isEmpty &&
           actionProductName.isNotEmpty &&
-          actionProductName == productName) {
+          _sameRecallProductName(actionProductName, productName)) {
         return product;
       }
     }
@@ -1215,6 +1217,20 @@ class _RecallScreenState extends State<RecallScreen> {
     return match?.group(1)?.trim() ?? '';
   }
 
+  String _normalizeRecallProductName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\uBCA0\uD130\uB9AC', '\uBC30\uD130\uB9AC')
+        .replaceAll(RegExp(r'[^0-9a-z\uAC00-\uD7A3]+'), '');
+  }
+
+  bool _sameRecallProductName(String left, String right) {
+    final normalizedLeft = _normalizeRecallProductName(left);
+    final normalizedRight = _normalizeRecallProductName(right);
+    return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
+  }
+
   Map<String, String> _recallReasonSections(String reason) {
     if (reason.trim().isEmpty) return {};
 
@@ -1453,7 +1469,7 @@ class _RecallScreenState extends State<RecallScreen> {
       if (modelNumber.isEmpty &&
           actionModelNumber.isEmpty &&
           productName.isNotEmpty &&
-          actionProductName == productName) {
+          _sameRecallProductName(actionProductName, productName)) {
         return action;
       }
     }

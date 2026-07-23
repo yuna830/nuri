@@ -8,10 +8,19 @@ class AuthService {
   static const _keyRole = 'role';
 
   static Future<void> saveSession(Map<String, dynamic> data) async {
-    await _storage.write(key: _keyToken, value: data['token']);
-    await _storage.write(key: _keyUserId, value: data['userId'].toString());
-    await _storage.write(key: _keyName, value: data['name'] ?? '');
-    await _storage.write(key: _keyRole, value: data['role'] ?? '');
+    final token = data['token']?.toString().trim() ?? '';
+    final userId = data['userId']?.toString().trim() ?? '';
+    final role = data['role']?.toString().trim() ?? '';
+
+    if (token.isEmpty || userId.isEmpty || int.tryParse(userId) == null || role != 'SENIOR') {
+      await logout();
+      throw Exception('로그인 정보가 올바르지 않습니다. 다시 로그인해 주세요.');
+    }
+
+    await _storage.write(key: _keyToken, value: token);
+    await _storage.write(key: _keyUserId, value: userId);
+    await _storage.write(key: _keyName, value: data['name']?.toString() ?? '');
+    await _storage.write(key: _keyRole, value: role);
   }
 
   static Future<String?> getToken() async {
@@ -27,12 +36,20 @@ class AuthService {
     return await _storage.read(key: _keyName);
   }
 
+  static Future<String?> getRole() async {
+    return await _storage.read(key: _keyRole);
+  }
+
   static Future<void> logout() async {
     await _storage.deleteAll();
   }
 
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
-    return token != null && token.isNotEmpty;
+    final userId = await getUserId();
+    final role = await getRole();
+    final valid = token != null && token.isNotEmpty && userId != null && role == 'SENIOR';
+    if (!valid) await logout();
+    return valid;
   }
 }
