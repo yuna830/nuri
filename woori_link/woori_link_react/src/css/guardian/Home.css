@@ -107,6 +107,134 @@
   line-height: 1.5;
 }
 
+/* =========================================================
+   심각한 기상특보 배너
+   ========================================================= */
+
+.guardian-weather-alert {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  margin-top: 16px;
+  padding: 15px 18px;
+
+  border: 1px solid #e8c89d;
+  border-radius: 13px;
+  background: #fff9ef;
+
+  box-shadow: 0 4px 14px rgba(111, 80, 32, 0.04);
+}
+
+
+.guardian-weather-alert__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  border-radius: 50%;
+  background: #d39845;
+
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+
+.guardian-weather-alert__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+
+.guardian-weather-alert__copy strong {
+  display: block;
+
+  color: #754e1e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+.guardian-weather-alert__copy p {
+  margin: 4px 0 0;
+
+  color: #8a6c44;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+
+.guardian-weather-alert__navigation {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 34px;
+  padding: 4px 6px 4px 13px;
+
+  border: 1px solid #ead7b8;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+
+.guardian-weather-alert__navigation span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 36px;
+
+  color: #906b36;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+.guardian-weather-alert__navigation button {
+  display: inline-flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+
+  width: 26px;
+  height: 26px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+  background: #f4e6cc;
+
+  color: #8c652d;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+
+.guardian-weather-alert__navigation button:hover {
+  background: #ead5ae;
+  transform: translateX(1px);
+}
+
+
+.guardian-weather-alert__navigation button:focus-visible {
+  outline: 2px solid #c69449;
+  outline-offset: 2px;
+}
+
 
 /* =========================================================
    중간 60% / 40%
@@ -115,8 +243,7 @@
 .guardian-dashboard-middle {
   display: grid;
   grid-template-columns:
-    minmax(0, 3fr)
-    minmax(350px, 2fr);
+    minmax(0, 3fr) minmax(350px, 2fr);
   align-items: stretch;
   gap: 17px;
 
@@ -125,7 +252,7 @@
 
 
 .guardian-dashboard-panel {
-  height: 310px;
+  height: 250px;
   overflow: hidden;
 
   border: 1px solid #e1e7e1;
@@ -174,7 +301,7 @@
 }
 
 
-.guardian-dashboard-panel__heading > span {
+.guardian-dashboard-panel__heading>span {
   flex-shrink: 0;
 
   padding: 4px 9px;
@@ -191,25 +318,24 @@
 .guardian-panel-link-button {
   flex-shrink: 0;
 
-  min-height: 34px;
-  padding: 0 10px;
+  padding: 2px 0;
 
-  border: 1px solid #dde6dc;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 0;
+  background: transparent;
 
-  color: #698067;
+  color: #72876f;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
 
   cursor: pointer;
 }
 
-
 .guardian-panel-link-button:hover {
-  border-color: #a9bda7;
-  background: #f3f7f2;
+  background: transparent;
+  color: #4f6b4d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 
@@ -251,10 +377,35 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5ca transparent;
 }
 
+
+.guardian-priority-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+
+.guardian-priority-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+.guardian-priority-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5ca;
+}
+
+
+.guardian-priority-list::-webkit-scrollbar-thumb:hover {
+  background: #aebdac;
+}
 
 .guardian-priority-item {
   display: flex;
@@ -262,10 +413,74 @@
   justify-content: space-between;
   gap: 20px;
 
-  min-height: 72px;
-  padding: 9px 21px;
+  min-height: 61px;
+  padding: 0 21px;
 
   border-bottom: 1px solid #edf1ed;
+
+  transition: background-color 0.15s ease;
+}
+
+
+.guardian-priority-item:hover {
+  background: #fafcfa;
+}
+
+.guardian-priority-item__copy {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  min-width: 0;
+}
+
+.guardian-priority-item__indicator {
+  flex-shrink: 0;
+
+  width: 8px;
+  height: 8px;
+
+  border-radius: 999px;
+  background: #aeb8b0;
+}
+
+
+.guardian-priority-item__indicator--urgent {
+  background: #c96a60;
+}
+
+
+.guardian-priority-item__indicator--check-in {
+  background: #d6a449;
+}
+
+
+.guardian-priority-item__indicator--location {
+  background: #88a185;
+}
+
+
+.guardian-priority-item__indicator--recall {
+  background: #9a83aa;
+}
+
+
+.guardian-priority-item__indicator--safety {
+  background: #c5904a;
+}
+
+
+.guardian-priority-item__indicator--weather {
+  background: #6f91ad;
+}
+
+.guardian-priority-item__time {
+  flex-shrink: 0;
+
+  color: #89958c;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 
@@ -275,96 +490,21 @@
 
 
 .guardian-priority-item__copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
   min-width: 0;
 }
 
-
-.guardian-priority-item__labels {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-
-.guardian-priority-item__labels span {
-  padding: 3px 7px;
-
-  border-radius: 999px;
-  background: #fff0ed;
-
-  color: #b64d44;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-
-.guardian-priority-item__labels strong {
-  color: #68756b;
-  font-size: 11px;
-}
-
-
 .guardian-priority-item h3 {
-  margin: 5px 0 0;
+  margin: 0;
 
   color: #2e3b31;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.4;
   font-weight: 900;
 }
-
-
-.guardian-priority-item p {
-  display: -webkit-box;
-
-  margin: 3px 0 0;
-
-  overflow: hidden;
-
-  color: #78847b;
-  font-size: 11px;
-  line-height: 1.55;
-
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-
-.guardian-priority-item small {
-  display: block;
-
-  margin-top: 4px;
-
-  color: #a0aaa2;
-  font-size: 10px;
-}
-
-
-.guardian-priority-item > button {
-  flex-shrink: 0;
-
-  min-height: 37px;
-  padding: 0 12px;
-
-  border: 1px solid #8fa88c;
-  border-radius: 9px;
-  background: #8fa88c;
-
-  color: #ffffff;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 900;
-
-  cursor: pointer;
-}
-
-
-.guardian-priority-item > button:hover {
-  border-color: #7d997a;
-  background: #7d997a;
-}
-
 
 /* =========================================================
    리콜 가로 막대그래프
@@ -384,55 +524,15 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  justify-content: center;
 
-  padding: 21px 20px 22px;
+  padding: 18px 20px 20px;
 }
 
 
 .guardian-recall-chart--modal {
   padding: 0;
 }
-
-
-.guardian-recall-chart__title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-
-  margin-bottom: 19px;
-}
-
-
-.guardian-recall-chart__title > div {
-  min-width: 0;
-}
-
-
-.guardian-recall-chart__title strong {
-  color: #344138;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-
-.guardian-recall-chart__title p {
-  margin: 5px 0 0;
-
-  color: #98a29b;
-  font-size: 9px;
-  line-height: 1.5;
-}
-
-
-.guardian-recall-chart__title > span {
-  flex-shrink: 0;
-
-  color: #7c8980;
-  font-size: 10px;
-  font-weight: 800;
-}
-
 
 .guardian-recall-chart__list {
   display: flex;
@@ -441,8 +541,7 @@
 }
 
 
-.guardian-recall-chart--home
-.guardian-recall-chart__list {
+.guardian-recall-chart--home .guardian-recall-chart__list {
   flex: 1;
   justify-content: center;
 }
@@ -488,11 +587,9 @@
   min-width: 0;
 
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    #98b195 0%,
-    #789775 100%
-  );
+  background: linear-gradient(90deg,
+      #98b195 0%,
+      #789775 100%);
 
   box-shadow: inset 0 0 0 1px rgba(86, 119, 82, 0.08);
 
@@ -500,19 +597,17 @@
 }
 
 
-.guardian-recall-chart__row--empty
-.guardian-recall-chart__track {
+.guardian-recall-chart__row--empty .guardian-recall-chart__track {
   background: #f2f4f1;
 }
 
 
-.guardian-recall-chart__row--empty
-.guardian-recall-chart__label {
+.guardian-recall-chart__row--empty .guardian-recall-chart__label {
   color: #9da69f;
 }
 
 
-.guardian-recall-chart__row > strong {
+.guardian-recall-chart__row>strong {
   color: #506055;
   font-size: 10px;
   font-weight: 900;
@@ -521,7 +616,7 @@
 }
 
 
-.guardian-recall-chart__row--empty > strong {
+.guardian-recall-chart__row--empty>strong {
   color: #a4aca6;
 }
 
@@ -748,7 +843,7 @@
 }
 
 
-.guardian-recall-modal__section-heading > span {
+.guardian-recall-modal__section-heading>span {
   flex-shrink: 0;
 
   padding: 4px 8px;
@@ -834,7 +929,7 @@
 }
 
 
-.guardian-recall-product-item > button {
+.guardian-recall-product-item>button {
   flex-shrink: 0;
 
   min-height: 35px;
@@ -914,8 +1009,7 @@
 .guardian-rag-panel {
   display: grid;
   grid-template-columns:
-    minmax(260px, 0.34fr)
-    minmax(0, 0.66fr);
+    minmax(260px, 0.34fr) minmax(0, 0.66fr);
   gap: 28px;
 
   margin-top: 18px;
@@ -1050,14 +1144,14 @@
 }
 
 
-.guardian-rag-suggestions > span {
+.guardian-rag-suggestions>span {
   color: #909b93;
   font-size: 10px;
   font-weight: 800;
 }
 
 
-.guardian-rag-suggestions > div {
+.guardian-rag-suggestions>div {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
@@ -1146,7 +1240,7 @@
 }
 
 
-.guardian-rag-answer > p {
+.guardian-rag-answer>p {
   margin: 12px 0 0;
 
   color: #3f4d42;
@@ -1164,7 +1258,7 @@
 }
 
 
-.guardian-rag-sources > strong {
+.guardian-rag-sources>strong {
   display: block;
 
   margin-bottom: 8px;
@@ -1174,7 +1268,7 @@
 }
 
 
-.guardian-rag-sources > div {
+.guardian-rag-sources>div {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1238,7 +1332,10 @@
     grid-template-columns: 1fr;
   }
 
-  .guardian-dashboard-panel { height: auto; min-height: 340px; }
+  .guardian-dashboard-panel {
+    height: auto;
+    min-height: 340px;
+  }
 
 
   .guardian-rag-panel {
@@ -1264,6 +1361,21 @@
     grid-template-columns: 1fr;
   }
 
+  .guardian-weather-alert {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+
+  .guardian-weather-alert__copy {
+    flex: 1 1 calc(100% - 50px);
+  }
+
+
+  .guardian-weather-alert__navigation {
+    margin-left: 44px;
+  }
+
 
   .guardian-priority-item {
     align-items: flex-start;
@@ -1271,7 +1383,7 @@
   }
 
 
-  .guardian-priority-item > button {
+  .guardian-priority-item>button {
     width: 100%;
   }
 
@@ -1302,7 +1414,7 @@
   }
 
 
-  .guardian-recall-product-item > button {
+  .guardian-recall-product-item>button {
     width: 100%;
   }
 
@@ -1360,7 +1472,7 @@
   }
 
 
-  .guardian-rag-suggestions > div {
+  .guardian-rag-suggestions>div {
     flex-direction: column;
   }
 

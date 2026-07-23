@@ -10,6 +10,8 @@ import {
 
 import {
   getGuardianAlerts,
+  getGuardianTodayCheckInSummary,
+  getGuardianUrgentSummary,
   getLatestLocation,
   getLatestRisk,
   getSeniorsByGuardian,
@@ -29,14 +31,10 @@ import GuardianLayout from './GuardianLayout.jsx';
 import '../../css/guardian/Home.css';
 
 
-const UNREAD_STATUSES = [
-  'NEW',
+const ACTIVE_ALERT_STATUSES = [
   'UNREAD',
-  'OPEN',
-  'PENDING',
-  'IN_PROGRESS',
+  'ACKNOWLEDGED',
 ];
-
 
 const COMPLETED_ACTION_STATUSES = [
   'COMPLETED',
@@ -54,7 +52,7 @@ const RECOMMENDED_QUESTIONS = [
   '에너지바우처 신청 조건은 무엇인가요?',
   '리콜 제품을 사용 중이면 어떻게 해야 하나요?',
   '도시가스요금 경감 신청에 필요한 서류는 무엇인가요?',
-  '폭염특보가 발생하면 님에게 어떤 조치를 해야 하나요?',
+  '폭염특보가 발생하면 어르신에게 어떤 조치를 해야 하나요?',
 ];
 
 
@@ -220,8 +218,8 @@ function getAlertType(alert) {
 }
 
 
-function isUnreadAlert(alert) {
-  return UNREAD_STATUSES.includes(
+function isActiveAlert(alert) {
+  return ACTIVE_ALERT_STATUSES.includes(
     normalizeText(alert?.status),
   );
 }
@@ -242,26 +240,75 @@ function isRecallAlert(alert) {
   );
 }
 
+function isSameLocalDate(value, targetDate = new Date()) {
+  if (!value) {
+    return false;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return (
+    date.getFullYear() === targetDate.getFullYear()
+    && date.getMonth() === targetDate.getMonth()
+    && date.getDate() === targetDate.getDate()
+  );
+}
+
+
+function isCheckInAlert(alert) {
+  const type = getAlertType(alert);
+
+  const text = normalizeText([
+    getAlertTitle(alert),
+    getAlertMessage(alert),
+  ].join(' '));
+
+  return (
+    type.includes('CHECK_IN')
+    || type.includes('CHECKIN')
+    || type.includes('NO_RESPONSE')
+    || type.includes('AI_CHECK')
+    || text.includes('안부')
+    || text.includes('미응답')
+    || text.includes('응답하지')
+  );
+}
 
 function getPriorityTypeLabel(type) {
   const normalizedType = normalizeText(type);
 
   if (
-    normalizedType.includes('CHECK')
+    normalizedType.includes('FALL')
+    || normalizedType.includes('SOS')
+    || normalizedType.includes('EMERGENCY')
+  ) {
+    return '긴급';
+  }
+
+  if (
+    normalizedType.includes('CHECK_IN')
+    || normalizedType.includes('CHECKIN')
+    || normalizedType.includes('CHECK')
+    || normalizedType.includes('NO_RESPONSE')
     || normalizedType.includes('AI')
   ) {
     return '안부';
   }
 
-  if (normalizedType.includes('LOCATION')) {
-    return '위치';
-  }
-
   if (
     normalizedType.includes('GEOFENCE')
     || normalizedType.includes('ZONE')
+    || normalizedType.includes('SAFETY_RADIUS')
   ) {
     return '안전구역';
+  }
+
+  if (normalizedType.includes('LOCATION')) {
+    return '위치';
   }
 
   if (
@@ -278,6 +325,8 @@ function getPriorityTypeLabel(type) {
   if (
     normalizedType.includes('ELECTRIC')
     || normalizedType.includes('GAS')
+    || normalizedType.includes('FIRE')
+    || normalizedType.includes('SMOKE')
     || normalizedType.includes('SAFETY')
   ) {
     return '생활안전';
@@ -286,6 +335,317 @@ function getPriorityTypeLabel(type) {
   return '상태';
 }
 
+function getPriorityText(item) {
+  return normalizeText([
+    item?.type,
+    item?.rawType,
+    item?.title,
+    item?.description,
+  ].join(' '));
+}
+
+function getPriorityTypeClass(item) {
+  if (item?.type === '긴급') {
+    return 'urgent';
+  }
+
+  if (item?.type === '안부') {
+    return 'check-in';
+  }
+
+  if (
+    item?.type === '위치'
+    || item?.type === '안전구역'
+  ) {
+    return 'location';
+  }
+
+  if (item?.type === '리콜') {
+    return 'recall';
+  }
+
+  if (item?.type === '생활안전') {
+    return 'safety';
+  }
+
+  if (item?.type === '기상') {
+    return 'weather';
+  }
+
+  return 'default';
+}
+
+function getWeatherTargetNames(targets) {
+  const names = targets
+    .map((item) => item.seniorName)
+    .filter(Boolean);
+
+  if (names.length === 0) {
+    return '연결된 어르신';
+  }
+
+  if (names.length === 1) {
+    return `${names[0]} 님`;
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} 님, ${names[1]} 님`;
+  }
+
+  return `${names[0]} 님 외 ${names.length - 1}명`;
+}
+
+
+function getWeatherAlertTitle(targets) {
+  const alertNames = [
+    ...new Set(
+      targets
+        .map((item) => item.alertName)
+        .filter(Boolean),
+    ),
+  ];
+
+  if (alertNames.length === 1) {
+    return `${alertNames[0]} 발효 중`;
+  }
+
+  return '심각한 기상특보 발효 중';
+}
+
+function getPriorityScore(item) {
+  const text = getPriorityText(item);
+
+  /*
+   * 1순위: 즉시 확인이 필요한 긴급 사건
+   */
+  if (
+    item?.type === '긴급'
+    || text.includes('FALL_SUSPECTED')
+    || text.includes('FALL_DETECTED')
+    || text.includes('SOS')
+    || text.includes('EMERGENCY')
+    || text.includes('낙상')
+    || text.includes('긴급 호출')
+  ) {
+    return 600;
+  }
+
+  /*
+   * 2순위: 전기·가스·화재·연기 등 생활안전 위험
+   */
+  if (
+    item?.type === '생활안전'
+    || text.includes('GAS')
+    || text.includes('FIRE')
+    || text.includes('SMOKE')
+    || text.includes('가스 냄새')
+    || text.includes('가스 누출')
+    || text.includes('타는 냄새')
+    || text.includes('화재')
+    || text.includes('연기')
+  ) {
+    return 500;
+  }
+
+  /*
+   * 3순위: 심각한 기상 위험
+   */
+  if (
+    item?.type === '기상'
+    || text.includes('WEATHER')
+    || text.includes('기상특보')
+    || text.includes('폭염경보')
+    || text.includes('한파경보')
+  ) {
+    return 400;
+  }
+
+  /*
+   * 4순위: 안부 미응답
+   */
+  if (
+    item?.type === '안부'
+    || text.includes('CHECK_IN_MISSED')
+    || text.includes('NO_RESPONSE')
+    || text.includes('안부')
+    || text.includes('미응답')
+  ) {
+    return 300;
+  }
+
+  /*
+   * 5순위: 미조치 리콜
+   */
+  if (
+    item?.type === '리콜'
+    || text.includes('RECALL')
+    || text.includes('리콜')
+  ) {
+    return 200;
+  }
+
+  /*
+   * 6순위: 안전구역 이탈
+   */
+  if (
+    item?.type === '안전구역'
+    || text.includes('SAFETY_RADIUS_EXIT')
+    || text.includes('안전구역')
+  ) {
+    return 150;
+  }
+
+  /*
+   * 7순위: 실제 위치 이상
+   */
+  if (
+    item?.type === '위치'
+    && !text.includes('위치 정보가 수신되지 않았습니다')
+  ) {
+    return 100;
+  }
+
+  /*
+   * 최하위: 위치 미수신·권한 미설정 등 연동 문제
+   */
+  if (
+    item?.type === '위치'
+    || text.includes('위치 정보가 수신되지 않았습니다')
+  ) {
+    return 10;
+  }
+
+  return 50;
+}
+
+
+function getPriorityTimeValue(value) {
+  if (!value) {
+    return 0;
+  }
+
+  const time = new Date(value).getTime();
+
+  return Number.isNaN(time)
+    ? 0
+    : time;
+}
+
+function getPriorityDisplayTitle(item) {
+  const seniorName = item?.seniorName ?? '담당 어르신';
+
+  const rawType = normalizeText(item?.rawType);
+
+  const text = normalizeText([
+    item?.title,
+    item?.description,
+  ].join(' '));
+
+  if (
+    rawType.includes('FALL_SUSPECTED')
+    || text.includes('낙상 의심')
+  ) {
+    return `${seniorName} 님의 낙상 의심`;
+  }
+
+  if (
+    rawType.includes('FALL_DETECTED')
+    || text.includes('낙상 감지')
+  ) {
+    return `${seniorName} 님의 낙상 감지`;
+  }
+
+  if (
+    rawType.includes('SOS')
+    || text.includes('SOS')
+  ) {
+    return `${seniorName} 님의 SOS 호출`;
+  }
+
+  if (
+    rawType.includes('CHECK_IN_MISSED')
+    || text.includes('안부 미응답')
+    || text.includes('미응답')
+  ) {
+    return `${seniorName} 님이 안부 미응답`;
+  }
+
+  if (
+    item?.type === '위치'
+    && text.includes('위치 정보가 수신되지 않았습니다')
+  ) {
+    return `${seniorName} 님의 위치 정보 미수신`;
+  }
+
+  if (
+    item?.type === '위치'
+    || text.includes('위치 이상')
+  ) {
+    return `${seniorName} 님의 위치 이상`;
+  }
+
+  if (
+    item?.type === '안전구역'
+    || rawType.includes('SAFETY_RADIUS_EXIT')
+  ) {
+    return `${seniorName} 님의 안전구역 이탈`;
+  }
+
+  if (item?.type === '리콜') {
+    return `${seniorName} 님의 리콜 조치 필요`;
+  }
+
+  if (item?.type === '생활안전') {
+    return `${seniorName} 님의 생활안전 확인 필요`;
+  }
+
+  if (item?.type === '기상') {
+    return `${seniorName} 님의 기상 위험 확인 필요`;
+  }
+
+  return `${seniorName} 님의 ${item?.title ?? '상태 확인 필요'}`;
+}
+
+function getPriorityStatusLabel(item) {
+  const status = normalizeText(
+    item?.alertStatus,
+  );
+
+  if (status === 'UNREAD') {
+    return '신규';
+  }
+
+  if (status === 'ACKNOWLEDGED') {
+    return '확인 중';
+  }
+
+  if (item?.source === 'risk') {
+    return '확인 필요';
+  }
+
+  return '';
+}
+
+
+function getPriorityStatusClass(item) {
+  const status = normalizeText(
+    item?.alertStatus,
+  );
+
+  if (status === 'UNREAD') {
+    return 'new';
+  }
+
+  if (status === 'ACKNOWLEDGED') {
+    return 'checking';
+  }
+
+  if (item?.source === 'risk') {
+    return 'required';
+  }
+
+  return '';
+}
 
 function hasNoLocationData(location) {
   if (!location) {
@@ -647,7 +1007,7 @@ function getSeniorNameByProduct(product, seniors) {
     senior?.name
     ?? product?.seniorName
     ?? product?.senior?.name
-    ?? '담당 님'
+    ?? '담당 어르신'
   );
 }
 
@@ -735,6 +1095,23 @@ export default function GuardianHome() {
   const [seniorStates, setSeniorStates] = useState({});
   const [registeredProducts, setRegisteredProducts] = useState([]);
 
+  const [todayCheckInSummary, setTodayCheckInSummary] = useState({
+    seniorCountWithMissed: 0,
+    requestCount: 0,
+    respondedCount: 0,
+    missedCount: 0,
+  });
+
+  const [urgentSummary, setUrgentSummary] = useState({
+    totalCount: 0,
+    fallCount: 0,
+    sosCount: 0,
+    lifeSafetyCount: 0,
+    severeWeatherCount: 0,
+    consecutiveMissedCheckInCount: 0,
+  });
+  const [weatherTargetIndex, setWeatherTargetIndex] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [recallLoadError, setRecallLoadError] = useState('');
@@ -746,7 +1123,6 @@ export default function GuardianHome() {
   const [ragSources, setRagSources] = useState([]);
   const [ragLoading, setRagLoading] = useState(false);
   const [ragError, setRagError] = useState('');
-
 
   useEffect(() => {
     let cancelled = false;
@@ -760,9 +1136,13 @@ export default function GuardianHome() {
         const [
           seniorResult,
           alertResult,
+          checkInSummaryResult,
+          urgentSummaryResult,
         ] = await Promise.allSettled([
           getSeniorsByGuardian(),
           getGuardianAlerts(),
+          getGuardianTodayCheckInSummary(),
+          getGuardianUrgentSummary(),
         ]);
 
         if (seniorResult.status === 'rejected') {
@@ -785,6 +1165,72 @@ export default function GuardianHome() {
 
         setSeniors(seniorList);
         setAlerts(alertList);
+
+        if (checkInSummaryResult.status === 'fulfilled') {
+          const checkInData = (
+            checkInSummaryResult.value.data
+            ?? {}
+          );
+
+          setTodayCheckInSummary({
+            seniorCountWithMissed: Number(
+              checkInData.seniorCountWithMissed ?? 0,
+            ),
+            requestCount: Number(
+              checkInData.requestCount ?? 0,
+            ),
+            respondedCount: Number(
+              checkInData.respondedCount ?? 0,
+            ),
+            missedCount: Number(
+              checkInData.missedCount ?? 0,
+            ),
+          });
+        } else {
+          setTodayCheckInSummary({
+            seniorCountWithMissed: 0,
+            requestCount: 0,
+            respondedCount: 0,
+            missedCount: 0,
+          });
+        }
+
+        if (urgentSummaryResult.status === 'fulfilled') {
+          const urgentData = (
+            urgentSummaryResult.value.data
+            ?? {}
+          );
+
+          setUrgentSummary({
+            totalCount: Number(
+              urgentData.totalCount ?? 0,
+            ),
+            fallCount: Number(
+              urgentData.fallCount ?? 0,
+            ),
+            sosCount: Number(
+              urgentData.sosCount ?? 0,
+            ),
+            lifeSafetyCount: Number(
+              urgentData.lifeSafetyCount ?? 0,
+            ),
+            severeWeatherCount: Number(
+              urgentData.severeWeatherCount ?? 0,
+            ),
+            consecutiveMissedCheckInCount: Number(
+              urgentData.consecutiveMissedCheckInCount ?? 0,
+            ),
+          });
+        } else {
+          setUrgentSummary({
+            totalCount: 0,
+            fallCount: 0,
+            sosCount: 0,
+            lifeSafetyCount: 0,
+            severeWeatherCount: 0,
+            consecutiveMissedCheckInCount: 0,
+          });
+        }
 
         const stateResults = await Promise.all(
           seniorList.map(async (senior) => {
@@ -894,10 +1340,9 @@ export default function GuardianHome() {
   }, [recallModalOpen]);
 
 
-  const unreadAlerts = useMemo(() => (
-    alerts.filter(isUnreadAlert)
+  const activeAlerts = useMemo(() => (
+    alerts.filter(isActiveAlert)
   ), [alerts]);
-
 
   const seniorSummaries = useMemo(() => (
     seniors.map((senior) => {
@@ -919,19 +1364,19 @@ export default function GuardianHome() {
 
       const riskActionItems = locationDataMissing
         ? [
-            ...assessedRiskActionItems.filter((item) => (
-              item.type !== '위치'
-              && item.type !== '안전구역'
-            )),
-            {
-              type: '위치',
-              title: '위치 정보가 수신되지 않았습니다.',
-              description: '기기의 위치 권한과 연동 상태를 확인해주세요.',
-            },
-          ]
+          ...assessedRiskActionItems.filter((item) => (
+            item.type !== '위치'
+            && item.type !== '안전구역'
+          )),
+          {
+            type: '위치',
+            title: '위치 정보가 수신되지 않았습니다.',
+            description: '기기의 위치 권한과 연동 상태를 확인해주세요.',
+          },
+        ]
         : assessedRiskActionItems;
 
-      const seniorUnreadAlerts = unreadAlerts.filter(
+      const seniorActiveAlerts = activeAlerts.filter(
         (alert) => (
           String(getAlertSeniorId(alert))
           === String(senior.id)
@@ -942,34 +1387,99 @@ export default function GuardianHome() {
         senior,
         state,
         riskActionItems,
-        seniorUnreadAlerts,
+        seniorActiveAlerts,
 
         needsAttention: (
           riskActionItems.length > 0
-          || seniorUnreadAlerts.length > 0
+          || seniorActiveAlerts.length > 0
         ),
       };
     })
   ), [
     seniors,
     seniorStates,
-    unreadAlerts,
+    activeAlerts,
   ]);
 
+  const severeWeatherTargets = useMemo(() => (
+    seniorSummaries
+      .filter((summary) => (
+        summary.state.risk?.weatherRisk === true
+      ))
+      .map((summary) => {
+        const risk = summary.state.risk ?? {};
 
-  const attentionSeniorCount = useMemo(() => (
-    seniorSummaries.filter((item) => (
-      item.needsAttention
-    )).length
+        return {
+          seniorId: summary.senior.id,
+          seniorName: summary.senior.name,
+
+          alertName: (
+            risk.weatherAlertName
+            ?? risk.weatherWarningName
+            ?? risk.weatherType
+            ?? '심각한 기상특보'
+          ),
+
+          description: (
+            risk.weatherDescription
+            ?? risk.weatherMessage
+            ?? ''
+          ),
+
+          issuedAt: (
+            risk.weatherIssuedAt
+            ?? risk.assessedAt
+            ?? null
+          ),
+        };
+      })
   ), [seniorSummaries]);
 
+  // const severeWeatherTargets = useMemo(() => (
+  //   [
+  //     {
+  //       seniorId: 1,
+  //       seniorName: '최숙희',
+  //       alertName: '폭염경보',
+  //       description: '서울특별시 동작구 폭염경보',
+  //       issuedAt: new Date().toISOString(),
+  //     },
+  //     {
+  //       seniorId: 2,
+  //       seniorName: '박철수',
+  //       alertName: '폭염경보',
+  //       description: '서울특별시 관악구 폭염경보',
+  //       issuedAt: new Date().toISOString(),
+  //     },
+  //     {
+  //       seniorId: 3,
+  //       seniorName: '임성호',
+  //       alertName: '호우경보',
+  //       description: '서울특별시 강남구 호우경보',
+  //       issuedAt: new Date().toISOString(),
+  //     },
+  //   ]
+  // ), []);
 
-  const locationSetupNeededCount = useMemo(() => (
-    seniorSummaries.filter((item) => (
-      hasNoLocationData(item.state.location)
-    )).length
-  ), [seniorSummaries]);
+  const currentWeatherTarget = (
+    severeWeatherTargets[weatherTargetIndex]
+    ?? severeWeatherTargets[0]
+    ?? null
+  );
 
+  useEffect(() => {
+    if (severeWeatherTargets.length === 0) {
+      setWeatherTargetIndex(0);
+      return;
+    }
+
+    if (weatherTargetIndex >= severeWeatherTargets.length) {
+      setWeatherTargetIndex(0);
+    }
+  }, [
+    severeWeatherTargets,
+    weatherTargetIndex,
+  ]);
 
   const recalledProducts = useMemo(() => (
     registeredProducts.filter(isRecalledProduct)
@@ -1099,13 +1609,15 @@ export default function GuardianHome() {
 
 
   const priorityItems = useMemo(() => {
-    const alertItems = unreadAlerts.map(
+    const alertItems = activeAlerts.map(
       (alert, index) => {
         const seniorId = getAlertSeniorId(alert);
 
         const senior = seniors.find((item) => (
           String(item.id) === String(seniorId)
         ));
+
+        const rawType = getAlertType(alert);
 
         return {
           id: `alert-${createAlertKey(alert, index)}`,
@@ -1115,16 +1627,18 @@ export default function GuardianHome() {
             senior?.name
             ?? alert?.seniorName
             ?? alert?.senior?.name
-            ?? '담당 님'
+            ?? '담당 어르신'
           ),
 
-          type: getPriorityTypeLabel(
-            getAlertType(alert),
-          ),
+          type: getPriorityTypeLabel(rawType),
+          rawType,
 
           title: getAlertTitle(alert),
           description: getAlertMessage(alert),
           time: getTimestamp(alert),
+
+          source: 'alert',
+          alertStatus: normalizeText(alert?.status),
         };
       },
     );
@@ -1144,10 +1658,16 @@ export default function GuardianHome() {
 
             seniorId: summary.senior.id,
             seniorName: summary.senior.name,
+
             type: riskItem.type,
+            rawType: '',
+
             title: riskItem.title,
             description: riskItem.description ?? '',
             time: summary.state.risk?.assessedAt,
+
+            source: 'risk',
+            alertStatus: '',
           });
         },
       );
@@ -1159,27 +1679,65 @@ export default function GuardianHome() {
       ...alertItems,
       ...riskItems,
     ].forEach((item) => {
+      /*
+       * 동일한 어르신에게 같은 유형과 같은 제목으로
+       * 생성된 항목은 한 번만 표시한다.
+       */
       const key = [
-        item.seniorId,
+        item.seniorId ?? 'unknown',
         item.type,
-        item.title,
+        normalizeText(item.title),
       ].join('-');
 
-      if (!uniqueMap.has(key)) {
+      const existingItem = uniqueMap.get(key);
+
+      if (!existingItem) {
+        uniqueMap.set(key, item);
+        return;
+      }
+
+      /*
+       * 중복 항목이면 더 최근 데이터를 남긴다.
+       */
+      const existingTime = getPriorityTimeValue(
+        existingItem.time,
+      );
+
+      const currentTime = getPriorityTimeValue(
+        item.time,
+      );
+
+      if (currentTime > existingTime) {
         uniqueMap.set(key, item);
       }
     });
 
     return [...uniqueMap.values()]
-      .sort((first, second) => (
-        new Date(second.time ?? 0).getTime()
-        - new Date(first.time ?? 0).getTime()
-      ))
-      .slice(0, 5);
+      .sort((first, second) => {
+        const priorityDifference = (
+          getPriorityScore(second)
+          - getPriorityScore(first)
+        );
+
+        /*
+         * 위험 등급이 다르면 위험도가 높은 항목을 먼저 표시한다.
+         */
+        if (priorityDifference !== 0) {
+          return priorityDifference;
+        }
+
+        /*
+         * 같은 위험 등급이면 최신 발생 항목을 먼저 표시한다.
+         */
+        return (
+          getPriorityTimeValue(second.time)
+          - getPriorityTimeValue(first.time)
+        );
+      })
   }, [
     seniors,
     seniorSummaries,
-    unreadAlerts,
+    activeAlerts,
   ]);
 
 
@@ -1249,6 +1807,17 @@ export default function GuardianHome() {
     navigate('/guardian/safety');
   };
 
+  const handleNextWeatherTarget = () => {
+    if (severeWeatherTargets.length <= 1) {
+      return;
+    }
+
+    setWeatherTargetIndex((currentIndex) => (
+      (currentIndex + 1)
+      % severeWeatherTargets.length
+    ));
+  };
+
 
   const renderRecallChart = (variant = 'home') => (
     <div
@@ -1257,17 +1826,6 @@ export default function GuardianHome() {
         `guardian-recall-chart--${variant}`,
       ].join(' ')}
     >
-      <div className="guardian-recall-chart__title">
-        <div>
-          <strong>
-            리콜 제품 종류
-          </strong>
-        </div>
-
-        <span>
-          총 {totalRecallCategoryCount}건
-        </span>
-      </div>
 
       <div
         className="guardian-recall-chart__list"
@@ -1346,51 +1904,129 @@ export default function GuardianHome() {
 
         {loading ? (
           <div className="guardian-dashboard__state">
-            담당 님의 상태를 불러오는 중입니다.
+            담당 어르신의 상태를 불러오는 중입니다.
           </div>
         ) : seniors.length === 0 ? (
           <div className="guardian-dashboard__state">
-            연결된 담당 님이 없습니다.
+            연결된 담당 어르신이 없습니다.
           </div>
         ) : (
           <>
             <section className="guardian-dashboard-summary">
               <article className="guardian-dashboard-summary__card">
-                <span>확인 필요</span>
+                <span>
+                  오늘 안부 미응답
+                </span>
 
                 <strong>
-                  {attentionSeniorCount}명
+                  {todayCheckInSummary.seniorCountWithMissed}명
                 </strong>
 
                 <small>
-                  실제 상태 확인이나 조치가 필요한 님
+                  오늘 요청 {todayCheckInSummary.requestCount}건 · 응답 {todayCheckInSummary.respondedCount}건 · 미응답 {todayCheckInSummary.missedCount}건
                 </small>
               </article>
 
               <article className="guardian-dashboard-summary__card">
-                <span>리콜 확인 필요</span>
+                <span>
+                  리콜 조치 필요
+                </span>
 
                 <strong>
                   {recallPendingCount}건
                 </strong>
 
                 <small>
-                  사용 여부 또는 조치 완료 확인 필요
+                  사용 중지 또는 조치 완료 확인이 필요한 제품
                 </small>
               </article>
 
               <article className="guardian-dashboard-summary__card">
-                <span>위치 연동 필요</span>
+                <span>
+                  긴급 확인
+                </span>
 
                 <strong>
-                  {locationSetupNeededCount}명
+                  {urgentSummary.totalCount}건
                 </strong>
 
                 <small>
-                  위치 정보가 아직 수신되지 않은 님
+                  {urgentSummary.totalCount > 0
+                    ? [
+                      urgentSummary.fallCount > 0
+                        ? `낙상 ${urgentSummary.fallCount}건`
+                        : null,
+
+                      urgentSummary.sosCount > 0
+                        ? `SOS ${urgentSummary.sosCount}건`
+                        : null,
+
+                      urgentSummary.lifeSafetyCount > 0
+                        ? `생활안전 ${urgentSummary.lifeSafetyCount}건`
+                        : null,
+
+                      urgentSummary.severeWeatherCount > 0
+                        ? `기상특보 ${urgentSummary.severeWeatherCount}건`
+                        : null,
+
+                      urgentSummary.consecutiveMissedCheckInCount > 0
+                        ? `연속 미응답 ${urgentSummary.consecutiveMissedCheckInCount}건`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                    : '현재 즉시 확인이 필요한 위험이 없습니다.'}
                 </small>
               </article>
             </section>
+
+            {currentWeatherTarget && (
+              <section
+                className="guardian-weather-alert"
+                role="alert"
+              >
+                <div
+                  className="guardian-weather-alert__icon"
+                  aria-hidden="true"
+                >
+                  !
+                </div>
+
+                <div className="guardian-weather-alert__copy">
+                  <strong>
+                    {currentWeatherTarget.alertName
+                      ?? '심각한 기상특보'} 발효 중
+                  </strong>
+
+                  <p>
+                    {currentWeatherTarget.seniorName} 님의 최근 위치 지역에
+                    {' '}
+                    {currentWeatherTarget.alertName
+                      ?? '심각한 기상특보'}가 발효되었습니다.
+                    {' '}
+                    안부와 실내 안전 상태를 확인해 주세요.
+                  </p>
+                </div>
+
+                <div className="guardian-weather-alert__navigation">
+                  <span>
+                    {severeWeatherTargets.length === 1
+                      ? '1명'
+                      : `${weatherTargetIndex + 1}/${severeWeatherTargets.length}`}
+                  </span>
+
+                  {severeWeatherTargets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleNextWeatherTarget}
+                      aria-label="다음 기상특보 대상 어르신 보기"
+                    >
+                      &gt;
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
 
             <section className="guardian-dashboard-middle">
               <article className="guardian-dashboard-panel guardian-priority-panel">
@@ -1416,65 +2052,35 @@ export default function GuardianHome() {
                   </div>
                 ) : (
                   <div className="guardian-priority-list">
-                    {priorityItems.map((item) => {
-                      const action = getPriorityAction(
-                        item,
-                      );
-                      const isLocationMissing = (
-                        item.type === '위치'
-                        && item.title === '위치 정보가 수신되지 않았습니다.'
-                      );
+                    {priorityItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="guardian-priority-item"
+                      >
+                        <div className="guardian-priority-item__copy">
+                          <span
+                            className={[
+                              'guardian-priority-item__indicator',
+                              `guardian-priority-item__indicator--${getPriorityTypeClass(item)}`,
+                            ].join(' ')}
+                            aria-hidden="true"
+                          />
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="guardian-priority-item"
-                        >
-                          <div className="guardian-priority-item__copy">
-                            {!isLocationMissing && (
-                              <div className="guardian-priority-item__labels">
-                                <span>
-                                  {item.type}
-                                </span>
-
-                                <strong>
-                                  {item.seniorName}
-                                </strong>
-                              </div>
-                            )}
-
-                            <h3>
-                              {isLocationMissing
-                                ? `${item.seniorName} 님의 ${item.title}`
-                                : item.title}
-                            </h3>
-
-                            {item.description && (
-                              <p>
-                                {item.description}
-                              </p>
-                            )}
-
-                            {!isLocationMissing && (
-                              <small>
-                                {formatDateTime(item.time)}
-                              </small>
-                            )}
-                          </div>
-
-                          {!isLocationMissing && (
-                            <button
-                              type="button"
-                              onClick={() => (
-                                handlePriorityAction(item)
-                              )}
-                            >
-                              {action.label}
-                            </button>
-                          )}
+                          <h3>
+                            {getPriorityDisplayTitle(item)}
+                          </h3>
                         </div>
-                      );
-                    })}
+
+                        {item.time && (
+                          <time
+                            className="guardian-priority-item__time"
+                            dateTime={item.time}
+                          >
+                            {formatDateTime(item.time)}
+                          </time>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </article>
@@ -1482,7 +2088,7 @@ export default function GuardianHome() {
               <article className="guardian-dashboard-panel guardian-recall-panel">
                 <div className="guardian-dashboard-panel__heading">
                   <div>
-                    <h2>리콜·생활안전 현황</h2>
+                    <h2>리콜 발생 제품 유형</h2>
                   </div>
 
                   <button

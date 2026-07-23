@@ -23,6 +23,7 @@ import GuardianSafety from './pages/guardian/Safety.jsx';
 import GuardianWelfareAssistant from './pages/guardian/WelfareAssistant.jsx';
 import GuardianLogin from './pages/guardian/Login.jsx';
 import GuardianRegister from './pages/guardian/Register.jsx';
+import GuardianMyPage from './pages/guardian/MyPage.jsx';
 
 /* =========================================================
    복지사 페이지
@@ -302,6 +303,10 @@ export default function App() {
           <Route
             path="/guardian/welfare"
             element={<GuardianWelfareAssistant />}
+          />
+          <Route
+            path="/guardian/mypage"
+            element={<GuardianMyPage />}
           />
         </Route>
       </Routes>

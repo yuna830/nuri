@@ -1,0 +1,1112 @@
+.guardian-mypage {
+  width: min(1220px, calc(100% - 44px));
+  margin: 0 auto;
+  padding: 38px 0 60px;
+  box-sizing: border-box;
+}
+
+.guardian-mypage>header {
+  margin-bottom: 24px;
+}
+
+.guardian-mypage header h1 {
+  margin: 0;
+  color: #26322a;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -.045em;
+}
+
+.guardian-mypage header p {
+  margin: 7px 0 0;
+  color: #7b857d;
+  font-size: 14px;
+}
+
+.guardian-mypage__grid {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: 22px;
+}
+
+.guardian-mypage__sections {
+  display: grid;
+  gap: 22px;
+}
+
+.guardian-mypage__two-column {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: 22px;
+}
+
+.guardian-mypage__card {
+  background: #fff;
+  border: 1px solid #e2e7e1;
+  border-radius: 24px;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(45, 60, 49, .06);
+}
+
+.guardian-mypage__card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.guardian-mypage__card-title h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.guardian-mypage__card-title span {
+  color: #78906f;
+  background: #eef4eb;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.guardian-mypage__card label {
+  display: block;
+  margin: 15px 0;
+  font-weight: 700;
+  color: #4c584f;
+}
+
+.guardian-profile-row {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+  gap: 16px;
+}
+
+.guardian-profile-row--address {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);
+}
+
+.guardian-mypage__card input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border: 1px solid #dce3dc;
+  border-radius: 12px;
+  font: inherit;
+}
+
+.guardian-address-search {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 8px;
+  align-items: end;
+}
+
+.guardian-address-search button {
+  width: auto;
+  height: 49px;
+  padding: 0 14px;
+}
+
+.guardian-mypage__card {
+  position: relative;
+}
+
+.guardian-address-results {
+  position: absolute;
+  z-index: 20;
+  right: 30px;
+  left: 30px;
+  max-height: 360px;
+  margin-top: -5px;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid #dce3dc;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(45, 60, 49, .14);
+}
+
+.guardian-mypage__card .guardian-address-results button {
+  width: 100%;
+  padding: 15px 16px;
+  border: 0;
+  border-bottom: 1px solid #edf0ed;
+  border-radius: 0;
+  background: #fff;
+  color: #465148;
+  text-align: left;
+}
+
+.guardian-mypage__card .guardian-address-results button:last-child {
+  border-bottom: 0;
+}
+
+.guardian-mypage__card .guardian-address-results button:hover {
+  background: #f5f8f4;
+}
+
+.guardian-address-results strong,
+.guardian-address-results span {
+  display: block;
+}
+
+.guardian-address-results span {
+  margin-top: 4px;
+  color: #889189;
+  font-size: 12px;
+}
+
+.guardian-mypage__card button {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 15px;
+  background: #93a88b;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guardian-mypage__card button.secondary {
+  margin-top: 10px;
+  background: #fff;
+  color: #647160;
+  border: 1px solid #ccd6ca;
+}
+
+.guardian-mypage__card button.danger {
+  background: #fff4f2;
+  color: #ad5549;
+  border: 1px solid #edccc7;
+}
+
+.guardian-invite-card {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  text-align: center;
+}
+
+.guardian-invite-card .guardian-mypage__card-title {
+  margin-bottom: 0;
+}
+
+/* 보호자 정보 저장 / 계정 탈퇴 버튼 */
+.guardian-profile-actions {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 7fr) minmax(0, 3fr);
+  gap: 10px;
+  margin-top: 3px;
+}
+
+.guardian-profile-actions .guardian-mypage__save-button {
+  width: 100%;
+  height: 56px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #93a88b;
+  border-radius: 12px;
+  background: #93a88b;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guardian-profile-actions .guardian-mypage__save-button:hover:not(:disabled) {
+  border-color: #839b7b;
+  background: #839b7b;
+}
+
+.guardian-mypage__card .guardian-profile-actions__delete {
+  width: 100%;
+  height: 56px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e4c5c0;
+  border-radius: 12px;
+  background: #fff8f6;
+  color: #a9574c;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.guardian-mypage__card .guardian-profile-actions__delete:hover:not(:disabled) {
+  border-color: #dbaea7;
+  background: #fff0ed;
+  color: #9c4c42;
+}
+
+.guardian-profile-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guardian-invite-card strong {
+  display: block;
+  margin: 34px 0 26px;
+  color: #41503f;
+  font-size: 34px;
+  letter-spacing: 7px;
+}
+
+.guardian-invite-card dl {
+  margin: 0;
+  text-align: left;
+}
+
+.guardian-invite-card dl div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 11px 0;
+  border-bottom: 0;
+}
+
+.guardian-invite-card dt {
+  color: #7b857d;
+  font-size: 14px;
+}
+
+.guardian-invite-card dd {
+  margin: 0;
+  color: #26322a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.guardian-invite-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.guardian-invite-card__actions button {
+  width: 100%;
+  height: 56px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.guardian-mypage__card.guardian-invite-card button.secondary {
+  margin-top: 0;
+  border: 1px solid #ccd6ca;
+  background: #ffffff;
+  color: #647160;
+}
+
+.guardian-mypage__message {
+  position: fixed;
+  z-index: 300;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 14px 22px;
+  background: #52634e;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(31, 43, 29, 0.18);
+  color: #fff;
+  font-weight: 700;
+  animation: guardian-message-in 0.2s ease-out;
+}
+
+@keyframes guardian-message-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.guardian-mypage__loading {
+  padding: 50px;
+  text-align: center;
+}
+
+/* 알림 설정 */
+.guardian-notification-settings {
+  display: grid;
+  grid-template-columns: repeat(2,
+      minmax(0, 1fr));
+  column-gap: 30px;
+  row-gap: 0;
+}
+
+.guardian-notification-setting {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-sizing: border-box;
+  padding: 18px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.guardian-notification-setting__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.guardian-notification-setting__copy strong {
+  color: #405044;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.guardian-notification-setting__copy p {
+  margin: 0;
+  color: #858f87;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+
+/* 토글 버튼 */
+.guardian-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.guardian-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.guardian-toggle__track {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 28px;
+  box-sizing: border-box;
+  border: 1px solid #d5dcd5;
+  border-radius: 999px;
+  background: #dfe4df;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.guardian-toggle__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(44, 56, 47, 0.2);
+  transition: transform 0.18s ease;
+}
+
+.guardian-toggle--enabled .guardian-toggle__track {
+  border-color: #91a889;
+  background: #91a889;
+}
+
+.guardian-toggle--enabled .guardian-toggle__thumb {
+  transform: translateX(20px);
+}
+
+.guardian-toggle:hover .guardian-toggle__track {
+  border-color: #aab8a8;
+}
+
+.guardian-toggle input:focus-visible+.guardian-toggle__track {
+  outline: 3px solid rgba(145, 168, 137, 0.22);
+  outline-offset: 3px;
+}
+
+.guardian-toggle input:disabled+.guardian-toggle__track {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guardian-toggle--saving {
+  cursor: wait;
+}
+
+.guardian-mypage__card h3 {
+  margin: 28px 0 8px;
+}
+
+.guardian-account-delete {
+  justify-self: end;
+  border: 0;
+  background: transparent;
+  color: #a35c53;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.guardian-mypage__modal {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(25, 34, 27, .45);
+}
+
+.guardian-mypage__modal>form,
+.guardian-mypage__modal>div {
+  width: min(440px, 100%);
+  box-sizing: border-box;
+  padding: 28px;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.guardian-mypage__modal h2 {
+  margin: 0 0 18px;
+  font-size: 21px;
+}
+
+.guardian-mypage__modal label {
+  display: block;
+  margin: 14px 0;
+  font-weight: 700;
+}
+
+.guardian-mypage__modal input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 7px;
+  padding: 12px;
+  border: 1px solid #dce3dc;
+  border-radius: 10px;
+}
+
+.guardian-mypage__modal>form>div:last-child,
+.guardian-mypage__modal>div>div {
+  display: flex;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.guardian-mypage__modal button {
+  flex: 1;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #93a88b;
+  color: #fff;
+  font-weight: 800;
+}
+
+.guardian-mypage__modal button.secondary {
+  background: #f2f4f1;
+  color: #59635b;
+}
+
+.guardian-mypage__modal button.danger {
+  background: #b85f52;
+}
+
+/* =========================================================
+ * 초대 코드 카드 - 연결된 어르신 관리
+ * ========================================================= */
+
+.guardian-mypage__card .guardian-invite-card__senior-button {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 10px;
+
+  width: calc(100% + 20px);
+  min-height: 48px;
+  box-sizing: border-box;
+
+  margin: 0 -10px;
+  padding: 11px 10px;
+
+  border: 0;
+  border-top: 1px solid #edf0ed;
+  border-bottom: 1px solid #edf0ed;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #4b574e;
+
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:hover {
+  background: #f3f5f3;
+  color: #4b574e;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:active {
+  background: #eef1ee;
+  color: #4b574e;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:focus {
+  color: #4b574e;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:focus:not(:focus-visible) {
+  outline: none;
+  background: transparent;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:focus-visible {
+  outline: 3px solid rgba(145, 168, 137, 0.2);
+  outline-offset: 2px;
+  background: #f3f5f3;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button>span {
+  color: #7b857d;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button>strong {
+  margin: 0;
+  color: #26322a;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button svg {
+  width: 18px;
+  height: 18px;
+
+  fill: none;
+  stroke: #a0a8a1;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  transition:
+    stroke 0.16s ease,
+    transform 0.16s ease;
+}
+
+.guardian-mypage__card .guardian-invite-card__senior-button:hover svg,
+.guardian-mypage__card .guardian-invite-card__senior-button:focus-visible svg {
+  stroke: #667268;
+  transform: translateX(2px);
+}
+
+
+/* =========================================================
+ * 연결된 어르신 관리 모달
+ * ========================================================= */
+
+.guardian-senior-management-overlay {
+  position: fixed;
+  z-index: 500;
+  inset: 0;
+
+  display: grid;
+  place-items: center;
+
+  box-sizing: border-box;
+  padding: 24px;
+
+  background: rgba(28, 37, 30, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+.guardian-senior-management-modal {
+  display: flex;
+
+  width: min(760px,
+      100%);
+  max-height: calc(100vh - 48px);
+
+  flex-direction: column;
+  overflow: hidden;
+
+  border: 1px solid #e1e6e1;
+  border-radius: 22px;
+
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(32, 43, 34, 0.2);
+}
+
+.guardian-senior-management-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 28px 30px 20px;
+}
+
+.guardian-senior-management-modal__header>div>span {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #78906f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.guardian-senior-management-modal__header h2 {
+  margin: 0;
+
+  color: #26322a;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.guardian-senior-management-modal__header p {
+  margin: 8px 0 0;
+
+  color: #7e8981;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.guardian-senior-management-modal__close {
+  display: grid;
+
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+
+  place-items: center;
+  padding: 0;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: transparent;
+  color: #6f7b72;
+
+  cursor: pointer;
+}
+
+.guardian-senior-management-modal__close:hover {
+  background: #f2f5f1;
+}
+
+.guardian-senior-management-modal__close svg {
+  width: 22px;
+  height: 22px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.guardian-senior-management-modal__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 0 30px;
+  padding: 13px 16px;
+
+  border: 1px solid #e4e9e3;
+  border-radius: 12px;
+
+  background: #f7f9f6;
+}
+
+.guardian-senior-management-modal__summary span {
+  color: #69756c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.guardian-senior-management-modal__summary strong {
+  color: #405044;
+  font-size: 14px;
+}
+
+.guardian-senior-management-modal__content {
+  min-height: 0;
+  padding: 20px 30px;
+  overflow-y: auto;
+}
+
+.guardian-senior-management-list {
+  display: grid;
+  gap: 12px;
+}
+
+.guardian-senior-management-item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    275px
+    92px;
+  align-items: center;
+  column-gap: 14px;
+
+  padding: 17px;
+
+  border: 1px solid #e2e7e2;
+  border-radius: 14px;
+
+  background: #ffffff;
+}
+
+/* 이름과 연결일 영역 */
+.guardian-senior-management-item__profile {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.guardian-senior-management-item__avatar {
+  display: grid;
+
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+
+  place-items: center;
+
+  border-radius: 50%;
+  background: #edf3eb;
+
+  color: #6d8368;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.guardian-senior-management-item__profile>div:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.guardian-senior-management-item__profile strong {
+  overflow: hidden;
+
+  color: #334038;
+  font-size: 15px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guardian-senior-management-item__profile span {
+  color: #858f87;
+  font-size: 12px;
+}
+
+/* 관계 라벨 + 선택창을 오른쪽 정렬 */
+.guardian-senior-management-item__relationship {
+  display: grid;
+  grid-template-columns:
+    36px
+    225px;
+  align-items: center;
+  justify-self: end;
+  gap: 14px;
+
+  width: 275px;
+  margin: 0;
+}
+
+.guardian-senior-management-item__relationship > span {
+  justify-self: end;
+
+  color: #536057;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.guardian-senior-management-item__relationship select {
+  width: 225px;
+  height: 42px;
+  box-sizing: border-box;
+
+  padding: 0 11px;
+
+  border: 1px solid #d9e0d9;
+  border-radius: 9px;
+  outline: none;
+
+  background: #ffffff;
+  color: #3e4a41;
+
+  font: inherit;
+  font-size: 13px;
+}
+
+.guardian-senior-management-item__relationship select:focus {
+  border-color: #9eb09a;
+  box-shadow: 0 0 0 3px rgba(145, 168, 137, 0.14);
+}
+
+
+/* 연결 해제 버튼을 행 오른쪽 끝에 고정 */
+.guardian-senior-management-item__actions {
+  display: block;
+  width: 92px;
+  justify-self: end;
+}
+
+.guardian-senior-management-item__actions button {
+  width: 92px;
+  height: 42px;
+  box-sizing: border-box;
+
+  padding: 0 8px;
+
+  border: 1px solid #e6c5c0;
+  border-radius: 9px;
+
+  background: #fff6f4;
+  color: #aa594e;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.guardian-senior-management-item__actions button:hover {
+  border-color: #849c7c;
+  background: #849c7c;
+}
+
+.guardian-senior-management-item__actions button.danger {
+  border-color: #e6c5c0;
+  background: #fff6f4;
+  color: #aa594e;
+}
+
+.guardian-senior-management-item__actions button.danger:hover {
+  border-color: #dcaea7;
+  background: #fff0ed;
+}
+
+.guardian-senior-management-item__actions button:hover:not(:disabled) {
+  border-color: #dcaea7;
+  background: #fff0ed;
+}
+
+.guardian-senior-management-item__actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.guardian-senior-management-modal__empty {
+  padding: 46px 20px;
+
+  border: 1px dashed #d9e1d8;
+  border-radius: 14px;
+
+  background: #fafbfa;
+  text-align: center;
+}
+
+.guardian-senior-management-modal__empty strong {
+  display: block;
+
+  color: #435047;
+  font-size: 15px;
+}
+
+.guardian-senior-management-modal__empty p {
+  margin: 8px 0 0;
+
+  color: #849087;
+  font-size: 12px;
+}
+
+.guardian-senior-management-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+
+  padding: 16px 30px 24px;
+
+  border-top: 1px solid #edf0ed;
+}
+
+.guardian-senior-management-modal__footer button {
+  min-width: 96px;
+  height: 42px;
+
+  padding: 0 18px;
+
+  border: 1px solid #d6ddd5;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #5e6b61;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.guardian-senior-management-modal__footer button:hover {
+  background: #f4f7f3;
+}
+
+
+/* 연결 해제 확인 모달을 관리 모달 위에 표시 */
+.guardian-mypage__modal--disconnect {
+  z-index: 600;
+}
+
+@media (max-width: 850px) {
+  .guardian-senior-management-item {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .guardian-senior-management-item__relationship {
+    grid-template-columns:
+      52px
+      minmax(0, 1fr);
+
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .guardian-senior-management-item__relationship > span {
+    justify-self: start;
+  }
+
+  .guardian-senior-management-item__relationship select {
+    width: 100%;
+  }
+
+  .guardian-senior-management-item__actions {
+    width: 100%;
+  }
+
+  .guardian-senior-management-item__actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 800px) {
+  .guardian-mypage {
+    width: calc(100% - 32px);
+    padding: 24px 0 40px;
+  }
+
+  .guardian-mypage__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-mypage__two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-profile-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .guardian-senior-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-notification-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-notification-setting {
+    min-height: 76px;
+  }
+
+  .guardian-profile-actions {
+    grid-template-columns:
+      minmax(0, 2fr) minmax(120px, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .guardian-senior-management-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .guardian-senior-management-modal {
+    width: 100%;
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .guardian-senior-management-modal__header {
+    padding: 22px 20px 17px;
+  }
+
+  .guardian-senior-management-modal__summary {
+    margin: 0 20px;
+  }
+
+  .guardian-senior-management-modal__content {
+    padding: 16px 20px;
+  }
+
+  .guardian-senior-management-modal__footer {
+    padding: 14px 20px 20px;
+  }
+
+  .guardian-senior-management-item__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .guardian-profile-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-mypage__card .guardian-profile-actions__delete {
+    height: 50px;
+  }
+}

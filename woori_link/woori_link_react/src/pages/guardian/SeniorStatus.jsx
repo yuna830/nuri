@@ -260,50 +260,6 @@ function getRiskView(level) {
 }
 
 
-function getRiskReasons(risk) {
-  if (!risk) {
-    return [];
-  }
-
-  const reasons = [];
-
-  if (
-    risk.aiNoResponse
-    || risk.checkInRisk
-  ) {
-    reasons.push(
-      '최근 안부 응답 미확인',
-    );
-  }
-
-  if (risk.weatherRisk) {
-    reasons.push(
-      '심각한 기상특보',
-    );
-  }
-
-  if (
-    risk.recallRisk
-    || risk.recallUsageUnknown
-  ) {
-    reasons.push(
-      '리콜 제품 확인 필요',
-    );
-  }
-
-  if (
-    risk.safetyRisk
-    || risk.safetyInspectionOverdue
-  ) {
-    reasons.push(
-      '전기·가스 안전 확인 필요',
-    );
-  }
-
-  return reasons;
-}
-
-
 function getCheckInText(checkIn) {
   if (!checkIn) {
     return '기록 없음';
@@ -434,23 +390,6 @@ function formatPercent(value) {
 
   return `${Number(value).toFixed(1)}%`;
 }
-
-
-function formatMinutes(value) {
-  if (
-    value == null
-    || Number.isNaN(Number(value))
-  ) {
-    return '-';
-  }
-
-  const minutes = Number(value);
-
-  return Number.isInteger(minutes)
-    ? `${minutes}분`
-    : `${minutes.toFixed(1)}분`;
-}
-
 
 function formatCheckInDateTime(
   value,
@@ -668,58 +607,6 @@ function getHealthCautionText(
 }
 
 
-function getCareSupportView(
-  senior,
-) {
-  const primary = (
-    senior?.longTermCare === true
-      ? (
-        senior?.longTermCareGrade
-          ? `장기요양 ${senior.longTermCareGrade}등급`
-          : '장기요양 대상'
-      )
-      : senior?.longTermCare === false
-        ? '장기요양 대상 아님'
-        : '장기요양 정보 미확인'
-  );
-
-  return {
-    primary,
-  };
-}
-
-
-function getWelfareSummary(
-  senior,
-) {
-  const eligible = [
-    senior?.energyVoucherEligible,
-    senior?.electricityDiscountEligible,
-    senior?.gasDiscountEligible,
-  ].filter(
-    (value) => value === true,
-  ).length;
-
-  const completed = [
-    senior?.energyVoucherApplied,
-    senior?.electricityDiscountApplied,
-    senior?.gasDiscountApplied,
-  ].filter(
-    (value) => value === true,
-  ).length;
-
-  if (eligible > 0) {
-    return `신청 가능성 ${eligible}건`;
-  }
-
-  if (completed > 0) {
-    return `확인 완료 ${completed}건`;
-  }
-
-  return '정보 확인 필요';
-}
-
-
 function getLongTermCareText(
   value,
 ) {
@@ -734,50 +621,6 @@ function getLongTermCareText(
   return '미확인';
 }
 
-
-function getEnergyVoucherText(
-  senior,
-) {
-  if (
-    senior?.energyVoucherEligible
-    === false
-  ) {
-    return '대상 아님';
-  }
-
-  if (
-    senior?.energyVoucherEligible
-    == null
-  ) {
-    return '자격 확인 중';
-  }
-
-  if (
-    senior?.energyVoucherApplied
-    === true
-  ) {
-    return '신청 완료';
-  }
-
-  return '미신청 확인';
-}
-
-
-function buildAddress(
-  senior,
-) {
-  return (
-    [
-      senior?.address,
-      senior?.detailAddress,
-    ]
-      .filter(Boolean)
-      .join(' ')
-    || '주소 미등록'
-  );
-}
-
-
 function getAlertSeniorId(
   alert,
 ) {
@@ -786,20 +629,6 @@ function getAlertSeniorId(
     ?? alert?.senior?.id
     ?? alert?.targetSeniorId
     ?? null
-  );
-}
-
-
-function isZoneEnabled(
-  zone,
-) {
-  if (!zone) {
-    return false;
-  }
-
-  return (
-    zone.enabled == null
-    || zone.enabled === true
   );
 }
 
@@ -815,6 +644,241 @@ function getZoneRadius(
   );
 }
 
+function getLocationSummary(
+  senior,
+  location,
+) {
+  if (!location) {
+    return {
+      primary: '현재 위치 미수신',
+      secondary: (
+        senior?.address
+          ? '등록 주소 기준'
+          : '등록 주소 없음'
+      ),
+    };
+  }
+
+  const address = String(
+    location.address
+    ?? location.roadAddress
+    ?? location.placeName
+    ?? senior?.address
+    ?? '',
+  ).trim();
+
+  const shortAddress = address
+    ? address
+      .split(/\s+/)
+      .slice(-2)
+      .join(' ')
+    : '최근 위치 수신';
+
+  return {
+    primary: shortAddress,
+    secondary: formatDateTime(
+      getTimestamp(location),
+    ),
+  };
+}
+
+
+function getCheckInStatusSummary(
+  checkIn,
+  analysis,
+) {
+  const status = String(
+    checkIn?.status ?? '',
+  ).toUpperCase();
+
+  const consecutiveMissedCount = Number(
+    analysis?.consecutiveMissedCount
+    ?? analysis?.consecutiveNoResponseCount
+    ?? 0,
+  );
+
+  const missedCount = Number(
+    analysis?.missedCount ?? 0,
+  );
+
+  if (consecutiveMissedCount > 0) {
+    return {
+      primary: `연속 미응답 ${consecutiveMissedCount}회`,
+      secondary: checkIn
+        ? `최근 요청 ${formatDateTime(getTimestamp(checkIn))}`
+        : '최근 요청 정보 없음',
+      dangerous: true,
+    };
+  }
+
+  if (
+    status === 'MISSED'
+    || status === 'NO_RESPONSE'
+  ) {
+    return {
+      primary: '최근 안부 미응답',
+      secondary: checkIn
+        ? `최근 요청 ${formatDateTime(getTimestamp(checkIn))}`
+        : '최근 요청 정보 없음',
+      dangerous: true,
+    };
+  }
+
+  if (missedCount > 0) {
+    return {
+      primary: `누적 미응답 ${missedCount}회`,
+      secondary: checkIn
+        ? `최근 요청 ${formatDateTime(getTimestamp(checkIn))}`
+        : '최근 요청 정보 없음',
+      dangerous: true,
+    };
+  }
+
+  if (
+    status === 'PENDING'
+    || status === 'WAITING'
+  ) {
+    return {
+      primary: '응답 대기 중',
+      secondary: checkIn
+        ? `요청 ${formatDateTime(getTimestamp(checkIn))}`
+        : '최근 요청 정보 없음',
+      dangerous: false,
+    };
+  }
+
+  if (
+    status === 'RESPONDED'
+    || status === 'COMPLETED'
+    || status === 'SUCCESS'
+    || status === 'CONFIRMED'
+  ) {
+    return {
+      primary: '최근 안부 응답 완료',
+      secondary: formatDateTime(
+        getTimestamp(checkIn),
+      ),
+      dangerous: false,
+    };
+  }
+
+  return {
+    primary: '안부 기록 없음',
+    secondary: '최근 요청 정보 없음',
+    dangerous: false,
+  };
+}
+
+
+function getProductSafetySummary(
+  risk,
+) {
+  if (risk?.recallRisk === true) {
+    return {
+      primary: '리콜 조치 필요',
+      secondary: '사용 중인 리콜 제품 확인 필요',
+      dangerous: true,
+    };
+  }
+
+  if (
+    risk?.recallUsageUnknown === true
+  ) {
+    return {
+      primary: '리콜 사용 여부 확인 필요',
+      secondary: '제품 사용 상태를 확인해 주세요',
+      dangerous: true,
+    };
+  }
+
+  return {
+    primary: '조치 필요 없음',
+    secondary: '현재 확인된 리콜 위험 없음',
+    dangerous: false,
+  };
+}
+
+
+function getSafetyZoneSummary(
+  zone,
+) {
+  if (!zone) {
+    return {
+      primary: '안전구역 미설정',
+      secondary: '안전구역을 등록해 주세요',
+      dangerous: false,
+    };
+  }
+
+  const zoneName = (
+    zone.name
+    ?? zone.zoneName
+    ?? zone.label
+    ?? '안전구역'
+  );
+
+  const radius = getZoneRadius(zone);
+
+  return {
+    primary: zoneName,
+    secondary: radius
+      ? `반경 ${radius}m`
+      : '반경 정보 없음',
+    dangerous: false,
+  };
+}
+
+
+function getHeroRiskLabels({
+  risk,
+  fallEvents,
+  careLoading,
+  checkIn,
+  checkInAnalysis,
+}) {
+  const labels = [];
+
+  if (risk?.weatherRisk === true) {
+    labels.push(
+      risk.weatherAlertName
+      ?? '심각한 기상특보',
+    );
+  }
+
+  const fallStatus = getFallStatusText(
+    fallEvents,
+    careLoading,
+  );
+
+  if (
+    !careLoading
+    && [
+      '낙상 감지',
+      '낙상 의심',
+    ].includes(fallStatus)
+  ) {
+    labels.push(fallStatus);
+  }
+
+  const checkInStatus =
+    getCheckInStatusSummary(
+      checkIn,
+      checkInAnalysis,
+    );
+
+  if (checkInStatus.dangerous) {
+    labels.push('안부 미응답');
+  }
+
+  if (
+    risk?.recallRisk === true
+    || risk?.recallUsageUnknown === true
+  ) {
+    labels.push('리콜 확인 필요');
+  }
+
+  return labels;
+}
 
 export default function SeniorStatus() {
   const [
@@ -1362,43 +1426,43 @@ export default function SeniorStatus() {
     risk?.level,
   );
 
-  const riskReasons = getRiskReasons(
-    risk,
-  );
-
   const checkInAnalysisView =
     getCheckInAnalysisView(
       care.checkInAnalysis
         ?.riskLevel,
     );
 
-  const unreadAlertCount =
-    care.alerts.filter(
-      (alert) => (
-        [
-          'NEW',
-          'UNREAD',
-          'OPEN',
-          'PENDING',
-          'IN_PROGRESS',
-        ].includes(
-          String(
-            alert?.status ?? '',
-          ).toUpperCase(),
-        )
-      ),
-    ).length;
+  const locationSummary =
+    getLocationSummary(
+      selectedSenior,
+      care.location,
+    );
 
-  const zoneEnabled =
-    isZoneEnabled(
+  const checkInStatusSummary =
+    getCheckInStatusSummary(
+      care.checkIn,
+      care.checkInAnalysis,
+    );
+
+  const productSafetySummary =
+    getProductSafetySummary(
+      risk,
+    );
+
+  const safetyZoneSummary =
+    getSafetyZoneSummary(
       care.zone,
     );
 
-  const zoneRadius =
-    getZoneRadius(
-      care.zone,
-    );
-
+  const heroRiskLabels =
+    getHeroRiskLabels({
+      risk,
+      fallEvents: care.fallEvents,
+      careLoading,
+      checkIn: care.checkIn,
+      checkInAnalysis:
+        care.checkInAnalysis,
+    });
 
   /*
    * 다른 님 선택
@@ -1542,7 +1606,7 @@ export default function SeniorStatus() {
                 +
               </span>
 
-              님 연결
+              어르신 연결
             </button>
 
             {seniors.map(
@@ -1601,7 +1665,7 @@ export default function SeniorStatus() {
                   </span>
 
                   <h2>
-                    님 연결
+                    어르신 연결
                   </h2>
                 </div>
 
@@ -2155,7 +2219,9 @@ export default function SeniorStatus() {
               <div
                 className="guardian-senior-hero__top"
               >
-                <div>
+                <div
+                  className="guardian-senior-hero__identity"
+                >
                   <div
                     className="guardian-senior-hero__title"
                   >
@@ -2177,25 +2243,17 @@ export default function SeniorStatus() {
                     </span>
                   </div>
 
-                  <p
-                    className="guardian-senior-hero__phone"
-                  >
-                    {formatPhone(
-                      selectedSenior.phone,
-                    )}
-                  </p>
-
-                  {riskReasons.length
-                    > 0
-                    && (
-                      <p
-                        className="guardian-senior-hero__description"
-                      >
-                        {riskReasons.join(
-                          ' · ',
-                        )}
-                      </p>
-                    )}
+                  {heroRiskLabels.length > 0 ? (
+                    <p className="guardian-senior-hero__risk-text">
+                      {heroRiskLabels.join(' · ')}
+                    </p>
+                  ) : (
+                    <p
+                      className="guardian-senior-hero__safe-message"
+                    >
+                      현재 확인된 긴급 위험 항목이 없습니다.
+                    </p>
+                  )}
                 </div>
 
                 <div
@@ -2225,87 +2283,79 @@ export default function SeniorStatus() {
               <div
                 className="guardian-senior-hero__information"
               >
-                <button
-                  type="button"
-                  className="guardian-senior-hero__information-button"
-                  onClick={() => (
-                    setFallDetailOpen(
-                      true,
-                    )
-                  )}
+                <div
+                  className="guardian-senior-hero__summary-item"
                 >
                   <span>
-                    낙상 상태
+                    최근 위치
                   </span>
 
                   <strong>
-                    {getFallStatusText(
-                      care.fallEvents,
-                      careLoading,
-                    )}
+                    {locationSummary.primary}
                   </strong>
-                </button>
 
-                <button
-                  type="button"
-                  className="guardian-senior-hero__information-button"
-                  onClick={() => (
-                    setSummaryDetail(
-                      'health',
-                    )
-                  )}
+                  <small>
+                    {locationSummary.secondary}
+                  </small>
+                </div>
+
+                <div
+                  className={[
+                    'guardian-senior-hero__summary-item',
+                    checkInStatusSummary.dangerous
+                      ? 'guardian-senior-hero__summary-item--danger'
+                      : '',
+                  ].filter(Boolean).join(' ')}
                 >
                   <span>
-                    건강 주의
+                    안부 상태
                   </span>
 
                   <strong>
-                    {getHealthCautionText(
-                      selectedSenior,
-                      risk,
-                    )}
+                    {checkInStatusSummary.primary}
                   </strong>
-                </button>
 
-                <button
-                  type="button"
-                  className="guardian-senior-hero__information-button"
-                  onClick={() => (
-                    setSummaryDetail(
-                      'care',
-                    )
-                  )}
+                  <small>
+                    {checkInStatusSummary.secondary}
+                  </small>
+                </div>
+
+                <div
+                  className={[
+                    'guardian-senior-hero__summary-item',
+                    productSafetySummary.dangerous
+                      ? 'guardian-senior-hero__summary-item--danger'
+                      : '',
+                  ].filter(Boolean).join(' ')}
                 >
                   <span>
-                    돌봄·지원
+                    제품 안전
                   </span>
 
                   <strong>
-                    {getCareSupportView(
-                      selectedSenior,
-                    ).primary}
+                    {productSafetySummary.primary}
                   </strong>
-                </button>
 
-                <button
-                  type="button"
-                  className="guardian-senior-hero__information-button"
-                  onClick={() => (
-                    setSummaryDetail(
-                      'welfare',
-                    )
-                  )}
+                  <small>
+                    {productSafetySummary.secondary}
+                  </small>
+                </div>
+
+                <div
+                  className="guardian-senior-hero__summary-item"
                 >
                   <span>
-                    맞춤 복지
+                    안전구역
                   </span>
 
                   <strong>
-                    {getWelfareSummary(
-                      selectedSenior,
-                    )}
+                    {safetyZoneSummary.primary}
                   </strong>
-                </button>
+
+                  <small>
+                    {safetyZoneSummary.secondary}
+                  </small>
+                </div>
               </div>
             </section>
 
@@ -2366,9 +2416,7 @@ export default function SeniorStatus() {
                         'guardian-ai-checkin__request-button',
                         'guardian-ai-checkin__request-button--secondary',
                       ].join(' ')}
-                      disabled={
-                        !selectedSeniorId
-                      }
+                      disabled={!selectedSeniorId}
                       onClick={() => {
                         setCheckInScheduleOpen(true);
                       }}
@@ -2437,39 +2485,32 @@ export default function SeniorStatus() {
                       </button>
                     </div>
                   ) : (
-                    <>
-                      <div className="guardian-ai-checkin__analysis-row">
-                        <strong>
-                          AI 안부 분석
-                        </strong>
+                    <div className="guardian-ai-checkin__analysis-row">
+                      <strong>
+                        AI 안부 분석
+                      </strong>
 
-                        <p className="guardian-ai-checkin__insight-summary">
-                          {checkInInsight.summary}
-                        </p>
+                      <p className="guardian-ai-checkin__insight-summary">
+                        {checkInInsight.summary}
 
-                        {care.checkInAnalysis?.summarySource && (
-                          <small className="guardian-ai-checkin__source">
-                            {String(
-                              care.checkInAnalysis.summarySource,
-                            ).toUpperCase() === 'GEMINI'
-                              ? 'AI 생성 안내'
-                              : '기본 안내'}
-                          </small>
-                        )}
-                      </div>
-
-                      {checkInInsight.action && (
-                        <div className="guardian-ai-checkin__recommended-action">
-                          <strong>
-                            권장 조치
-                          </strong>
-
-                          <span>
+                        {checkInInsight.action && (
+                          <>
+                            {' '}
                             {checkInInsight.action}
-                          </span>
-                        </div>
+                          </>
+                        )}
+                      </p>
+
+                      {care.checkInAnalysis?.summarySource && (
+                        <small className="guardian-ai-checkin__source">
+                          {String(
+                            care.checkInAnalysis.summarySource,
+                          ).toUpperCase() === 'GEMINI'
+                            ? 'AI 생성 안내'
+                            : '기본 안내'}
+                        </small>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2499,12 +2540,7 @@ export default function SeniorStatus() {
                         </small>
                       </div>
 
-                      <dl
-                        className={[
-                          'guardian-ai-checkin__metrics',
-                          'guardian-ai-checkin__metrics--compact',
-                        ].join(' ')}
-                      >
+                      <dl className="guardian-ai-checkin__metrics">
                         <div>
                           <dt>
                             전체 요청
@@ -2539,22 +2575,12 @@ export default function SeniorStatus() {
                           </dd>
 
                           <small>
-                            {Number(care.checkInAnalysis.responseRate) < 80
+                            {Number(
+                              care.checkInAnalysis.responseRate,
+                            ) < 80
                               ? '기준인 80% 미달'
                               : '기준인 80% 이상'}
                           </small>
-                        </div>
-
-                        <div>
-                          <dt>
-                            평균 응답 시간
-                          </dt>
-
-                          <dd>
-                            {formatMinutes(
-                              care.checkInAnalysis.averageResponseMinutes,
-                            )}
-                          </dd>
                         </div>
 
                         <div>
@@ -2583,7 +2609,6 @@ export default function SeniorStatus() {
                           </small>
                         </div>
                       </dl>
-
                     </>
                   )}
                 </div>

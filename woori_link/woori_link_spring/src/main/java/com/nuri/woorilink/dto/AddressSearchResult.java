@@ -6,6 +6,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class AddressSearchResult {
+    private String placeName;
     private String address;
     private String roadAddress;
     private String jibunAddress;

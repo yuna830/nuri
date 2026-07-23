@@ -244,6 +244,7 @@ public class SeniorService {
         }
 
         senior.setGuardianId(guardianId);
+        senior.setGuardianLinkedAt(java.time.LocalDateTime.now());
         return seniorRepository.save(senior);
     }
 
@@ -325,6 +326,8 @@ public class SeniorService {
         }
 
         senior.setGuardianId(null);
+        senior.setGuardianRelationship(null);
+        senior.setGuardianLinkedAt(null);
         seniorRepository.save(senior);
     }
 }
