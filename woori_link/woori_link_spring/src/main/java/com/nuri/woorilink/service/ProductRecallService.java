@@ -97,14 +97,16 @@ public class ProductRecallService {
                 ? extractRecallContact(product.getRecallReason())
                 : notice.getInquiryTel();
         RegisteredProduct.RecallStatus recallStatus = effectiveRecallStatus(product, notice);
+        String displayProductName = displayProductName(product, notice);
+        String displayManufacturer = displayManufacturer(product, notice);
 
         return new ProductRecallResponse(
                 product.getId(),
                 product.getSeniorId(),
                 senior == null ? null : senior.getName(),
                 senior == null ? null : senior.getAge(),
-                nonBlank(product.getProductName()) ? product.getProductName() : "제품명 확인 필요",
-                product.getManufacturer(),
+                displayProductName,
+                displayManufacturer,
                 product.getBrandName(),
                 product.getModelNumber(),
                 product.getBarcode(),
@@ -160,18 +162,86 @@ public class ProductRecallService {
     }
 
     private RegisteredProduct.RecallStatus effectiveRecallStatus(RegisteredProduct product, RecallNotice notice) {
+        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.SAFE
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND) {
+            return RegisteredProduct.RecallStatus.SAFE;
+        }
         if (product.getRecallStatus() == RegisteredProduct.RecallStatus.RECALLED
                 || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.RECALL_CONFIRMED
+                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.REVIEW_REQUIRED
                 || notice != null
                 || product.getMatchedRecallNoticeId() != null
                 || nonBlank(product.getRecallReason())) {
             return RegisteredProduct.RecallStatus.RECALLED;
         }
-        if (product.getRecallStatus() == RegisteredProduct.RecallStatus.SAFE
-                || product.getRecallDecisionStatus() == RegisteredProduct.RecallDecisionStatus.NO_MATCH_FOUND) {
-            return RegisteredProduct.RecallStatus.SAFE;
-        }
         return product.getRecallStatus();
+    }
+
+    private String displayProductName(RegisteredProduct product, RecallNotice notice) {
+        String officialProductName = notice == null
+                ? null
+                : cleanOfficialProductName(notice.getProductName());
+        if (nonBlank(officialProductName)
+                && (!nonBlank(product.getProductName())
+                || looksLikeBarcodeName(product.getProductName(), product.getBarcode()))) {
+            return officialProductName;
+        }
+        return nonBlank(product.getProductName())
+                ? product.getProductName()
+                : "제품명 확인 필요";
+    }
+
+    private String displayManufacturer(RegisteredProduct product, RecallNotice notice) {
+        if (nonBlank(product.getManufacturer())) {
+            return product.getManufacturer();
+        }
+        if (notice == null) {
+            return null;
+        }
+        return firstNonBlank(
+                notice.getManufacturerName(),
+                notice.getRecallCompanyName(),
+                notice.getBrandName()
+        );
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (nonBlank(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private boolean looksLikeBarcodeName(String productName, String barcode) {
+        if (!nonBlank(productName)) {
+            return false;
+        }
+        String normalizedName = productName.replaceAll("[\\s-]", "");
+        String normalizedBarcode = nonBlank(barcode)
+                ? barcode.replaceAll("[\\s-]", "")
+                : "";
+        return normalizedName.matches("\\d{8,14}")
+                || (nonBlank(normalizedBarcode)
+                && normalizedName.equals(normalizedBarcode));
+    }
+
+    private String cleanOfficialProductName(String productName) {
+        if (!nonBlank(productName)) {
+            return null;
+        }
+        String trimmed = productName.trim();
+        int open = trimmed.indexOf('(');
+        int close = trimmed.endsWith(")") ? trimmed.length() - 1 : -1;
+        if (open > 0 && close > open) {
+            String before = trimmed.substring(0, open).trim();
+            String inside = trimmed.substring(open + 1, close).trim();
+            if (before.equals(inside)) {
+                return before;
+            }
+        }
+        return trimmed;
     }
 
     @Transactional
@@ -428,6 +498,8 @@ public class ProductRecallService {
 
     private List<String> buildRecallSearchTerms(RegisteredProduct product) {
         Set<String> terms = new LinkedHashSet<>();
+        addIfNotBlank(terms, product.getBarcode());
+        addIfNotBlank(terms, product.getCertificationNumber());
         addIfNotBlank(terms, product.getModelNumber());
         addIfNotBlank(terms, product.getProductName());
 

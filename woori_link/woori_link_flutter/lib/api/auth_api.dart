@@ -7,11 +7,14 @@ class AuthApi {
     return '서버에 연결하지 못했습니다. 서버가 켜져 있는지와 API 주소($baseUrl)를 확인해 주세요.';
   }
 
-
   static Future<void> register(
     String name,
     String phone,
     String inviteCode,
+    String gender,
+    String birthDate,
+    String address,
+    String detailAddress,
   ) async {
     late final http.Response res;
     try {
@@ -22,6 +25,10 @@ class AuthApi {
           'name': name,
           'phone': phone,
           'inviteCode': inviteCode,
+          'gender': gender,
+          'birthDate': birthDate,
+          'address': address,
+          'detailAddress': detailAddress,
         }),
       );
     } on http.ClientException {
@@ -51,7 +58,9 @@ class AuthApi {
       throw Exception(_connectionMessage());
     }
 
-    if (res.statusCode == 200) return jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return jsonDecode(utf8.decode(res.bodyBytes));
+    }
 
     try {
       final body = jsonDecode(utf8.decode(res.bodyBytes));

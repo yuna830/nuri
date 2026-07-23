@@ -19,7 +19,9 @@ class SeniorApi {
       throw Exception(_connectionMessage());
     }
     if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes));
-    throw Exception('님 정보 조회 실패');
+    throw Exception(
+      '님 정보 조회 실패 (${res.statusCode}): ${utf8.decode(res.bodyBytes)}',
+    );
   }
 
   static Future<Map<String, dynamic>> updateSenior(

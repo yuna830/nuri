@@ -12,11 +12,33 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _birthDateController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _detailAddressController = TextEditingController();
   final _inviteCodeController = TextEditingController();
+  String? _gender;
   bool _loading = false;
   String? _error;
 
   Future<void> _register() async {
+    if (_gender == null) {
+      setState(() => _error = '성별을 선택해 주세요.');
+      return;
+    }
+    if (_birthDateController.text.trim().isEmpty) {
+      setState(() => _error = '생년월일을 입력해 주세요.');
+      return;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      setState(() => _error = '주소를 입력해 주세요.');
+      return;
+    }
+    final birthDate = _normalizeDate(_birthDateController.text);
+    if (birthDate == null) {
+      setState(() => _error = '생년월일은 1945-03-01 형식으로 입력해 주세요.');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -27,6 +49,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _nameController.text.trim(),
         _phoneController.text.trim(),
         _inviteCodeController.text.trim().toUpperCase(),
+        _gender ?? '',
+        birthDate,
+        _addressController.text.trim(),
+        _detailAddressController.text.trim(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,10 +68,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  String? _normalizeDate(String value) {
+    final cleaned = value.trim().replaceAll('.', '-').replaceAll('/', '-');
+    final match = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(cleaned);
+    if (match == null) return null;
+    final year = match.group(1)!;
+    final month = match.group(2)!.padLeft(2, '0');
+    final day = match.group(3)!.padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _birthDateController.dispose();
+    _addressController.dispose();
+    _detailAddressController.dispose();
     _inviteCodeController.dispose();
     super.dispose();
   }
@@ -71,6 +110,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
               labelText: '전화번호',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            value: _gender,
+            items: const [
+              DropdownMenuItem(value: 'M', child: Text('남성')),
+              DropdownMenuItem(value: 'F', child: Text('여성')),
+            ],
+            onChanged: (value) => setState(() => _gender = value),
+            decoration: const InputDecoration(
+              labelText: '성별',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _birthDateController,
+            keyboardType: TextInputType.datetime,
+            decoration: const InputDecoration(
+              labelText: '생년월일',
+              hintText: '예: 1945-03-01',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _addressController,
+            decoration: const InputDecoration(
+              labelText: '주소',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _detailAddressController,
+            decoration: const InputDecoration(
+              labelText: '상세주소',
+              hintText: '동/호수 등',
               border: OutlineInputBorder(),
             ),
           ),

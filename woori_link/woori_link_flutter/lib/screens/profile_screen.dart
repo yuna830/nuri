@@ -82,8 +82,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _genderLabel(dynamic value) {
     final gender = '${value ?? ''}'.toUpperCase();
-    if (gender == 'M' || gender == 'MALE' || gender == '남') return '남성';
-    if (gender == 'F' || gender == 'FEMALE' || gender == '여') return '여성';
+    if (gender == 'M' || gender == 'MALE' || gender == '남' || gender == '남성') {
+      return '남성';
+    }
+    if (gender == 'F' || gender == 'FEMALE' || gender == '여' || gender == '여성') {
+      return '여성';
+    }
     return _text(value);
   }
 
@@ -149,41 +153,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final nameCtrl = TextEditingController(text: _text(senior['name'], fallback: ''));
     final phoneCtrl = TextEditingController(text: _text(senior['phone'], fallback: ''));
+    final birthDateCtrl =
+        TextEditingController(text: _text(senior['birthDate'], fallback: ''));
     final addressCtrl = TextEditingController(text: _text(senior['address'], fallback: ''));
     final detailAddressCtrl =
         TextEditingController(text: _text(senior['detailAddress'], fallback: ''));
+    String? gender = _normalizeGender(senior['gender']);
 
     final shouldSave = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('내 정보 수정'),
-        scrollable: true,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _editField(nameCtrl, '이름'),
-            const SizedBox(height: 10),
-            _editField(phoneCtrl, '전화번호', keyboardType: TextInputType.phone),
-            const SizedBox(height: 10),
-            _editField(addressCtrl, '주소'),
-            const SizedBox(height: 10),
-            _editField(detailAddressCtrl, '상세주소'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('내 정보 수정'),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _editField(nameCtrl, '이름'),
+              const SizedBox(height: 10),
+              _editField(phoneCtrl, '전화번호', keyboardType: TextInputType.phone),
+              const SizedBox(height: 10),
+              _editField(
+                birthDateCtrl,
+                '생년월일',
+                keyboardType: TextInputType.datetime,
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: gender,
+                items: const [
+                  DropdownMenuItem(value: 'M', child: Text('남성')),
+                  DropdownMenuItem(value: 'F', child: Text('여성')),
+                ],
+                onChanged: (value) => setDialogState(() => gender = value),
+                decoration: InputDecoration(
+                  labelText: '성별',
+                  filled: true,
+                  fillColor: kBg,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _editField(addressCtrl, '주소'),
+              const SizedBox(height: 10),
+              _editField(detailAddressCtrl, '상세주소'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('저장'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('저장'),
-          ),
-        ],
       ),
     );
 
     if (shouldSave != true) return;
+    final birthDate = _normalizeDate(birthDateCtrl.text);
+    if (birthDateCtrl.text.trim().isNotEmpty && birthDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('생년월일은 1945-03-01 형식으로 입력해 주세요.')),
+      );
+      return;
+    }
 
     try {
       setState(() => _saving = true);
@@ -193,6 +229,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final updated = await SeniorApi.updateSenior(id, {
         'name': nameCtrl.text.trim(),
         'phone': phoneCtrl.text.trim(),
+        'birthDate': birthDate,
+        'gender': gender,
         'address': addressCtrl.text.trim(),
         'detailAddress': detailAddressCtrl.text.trim(),
       });
@@ -213,6 +251,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SnackBar(content: Text('내 정보를 수정하지 못했습니다.')),
       );
     }
+  }
+
+  String? _normalizeGender(dynamic value) {
+    final gender = '${value ?? ''}'.trim().toUpperCase();
+    if (gender == 'M' || gender == 'MALE' || gender == '남성') return 'M';
+    if (gender == 'F' || gender == 'FEMALE' || gender == '여성') return 'F';
+    return null;
+  }
+
+  String? _normalizeDate(String value) {
+    final cleaned = value.trim().replaceAll('.', '-').replaceAll('/', '-');
+    if (cleaned.isEmpty) return null;
+    final match = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(cleaned);
+    if (match == null) return null;
+    final year = match.group(1)!;
+    final month = match.group(2)!.padLeft(2, '0');
+    final day = match.group(3)!.padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   Widget _editField(
@@ -330,9 +386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoRow('소득 구분', _incomeLabel(senior['incomeLevel'])),
               _InfoRow('독거 여부', senior['livingAlone'] == true ? '독거' : '해당 없음'),
               _InfoRow('주거 형태', _text(senior['housingType'])),
-              _InfoRow('에너지바우처', senior['energyVoucherApplied'] == true ? '신청 완료' : '미신청'),
-              _InfoRow('전기요금 할인', senior['electricityDiscountApplied'] == true ? '신청 완료' : '미신청'),
-              _InfoRow('가스요금 할인', senior['gasDiscountApplied'] == true ? '신청 완료' : '미신청'),
+              _InfoRow('에너지 복지', '에너지 탭에서 입력·신청 현황 확인'),
             ]),
             const SizedBox(height: 18),
             _sectionTitle('앱 설정'),

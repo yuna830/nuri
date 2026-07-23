@@ -157,7 +157,7 @@ public class RecallSafetyService {
                     case NO_MATCH_FOUND ->
                             RegisteredProduct.RecallStatus.SAFE;
                     case REVIEW_REQUIRED ->
-                            RegisteredProduct.RecallStatus.UNKNOWN;
+                            RegisteredProduct.RecallStatus.RECALLED;
                 }
         );
 
@@ -246,9 +246,21 @@ public class RecallSafetyService {
             return;
         }
 
-        if (isBlank(product.getProductName())
-                && !isBlank(notice.getProductName())) {
-            product.setProductName(notice.getProductName());
+        String officialProductName = cleanOfficialProductName(notice.getProductName());
+        if ((isBlank(product.getProductName())
+                || looksLikeBarcodeName(product.getProductName(), product.getBarcode()))
+                && !isBlank(officialProductName)) {
+            product.setProductName(officialProductName);
+        }
+
+        String officialManufacturer = firstNonBlank(
+                notice.getManufacturerName(),
+                notice.getRecallCompanyName(),
+                notice.getBrandName()
+        );
+        if (isBlank(product.getManufacturer())
+                && !isBlank(officialManufacturer)) {
+            product.setManufacturer(officialManufacturer);
         }
 
         if (isBlank(product.getBrandName())
@@ -342,7 +354,7 @@ public class RecallSafetyService {
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (!isBlank(value)) {
-                return value;
+                return value.trim();
             }
         }
         return null;
@@ -454,6 +466,36 @@ public class RecallSafetyService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean looksLikeBarcodeName(String productName, String barcode) {
+        if (isBlank(productName)) {
+            return false;
+        }
+        String normalizedName = productName.replaceAll("[\\s-]", "");
+        String normalizedBarcode = isBlank(barcode)
+                ? ""
+                : barcode.replaceAll("[\\s-]", "");
+        return normalizedName.matches("\\d{8,14}")
+                || (!normalizedBarcode.isBlank()
+                && normalizedName.equals(normalizedBarcode));
+    }
+
+    private String cleanOfficialProductName(String productName) {
+        if (isBlank(productName)) {
+            return null;
+        }
+        String trimmed = productName.trim();
+        int open = trimmed.indexOf('(');
+        int close = trimmed.endsWith(")") ? trimmed.length() - 1 : -1;
+        if (open > 0 && close > open) {
+            String before = trimmed.substring(0, open).trim();
+            String inside = trimmed.substring(open + 1, close).trim();
+            if (before.equals(inside)) {
+                return before;
+            }
+        }
+        return trimmed;
     }
 
     private String safe(String value) {

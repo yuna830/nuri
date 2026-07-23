@@ -3,7 +3,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'home_screen.dart';
 import 'energy_voucher_screen.dart';
 import 'recall_screen.dart';
-import 'sos_screen.dart';
 import 'profile_screen.dart';
 import '../services/care_monitoring_service.dart';
 import '../services/fcm_service.dart';
@@ -79,26 +78,42 @@ class _MainScreenState extends State<MainScreen> {
           key: ValueKey('recall-$_recallInitialTab'),
           initialTab: _recallInitialTab,
         ),
-        const SosScreen(),
         const ProfileScreen(),
       ];
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = _currentIndex.clamp(0, _screens.length - 1).toInt();
+
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.bolt_outlined), activeIcon: Icon(Icons.bolt), label: '에너지'),
-          BottomNavigationBarItem(icon: Icon(Icons.warning_amber_outlined), activeIcon: Icon(Icons.warning_amber), label: '리콜'),
-          BottomNavigationBarItem(icon: Icon(Icons.sos_outlined), activeIcon: Icon(Icons.sos), label: 'SOS'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: '내 정보'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: '홈',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bolt_outlined),
+            activeIcon: Icon(Icons.bolt),
+            label: '에너지',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.warning_amber_outlined),
+            activeIcon: Icon(Icons.warning_amber),
+            label: '리콜',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: '내 정보',
+          ),
         ],
       ),
     );

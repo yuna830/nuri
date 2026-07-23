@@ -54,6 +54,11 @@ public class ActionRecordService {
 
     @Transactional
     public ActionRecord create(ActionRecord record) {
+        if (record.getWelfareWorkerId() == null && record.getSeniorId() != null) {
+            seniorRepository.findById(record.getSeniorId())
+                    .map(Senior::getWelfareWorkerId)
+                    .ifPresent(record::setWelfareWorkerId);
+        }
         return actionRecordRepository.save(record);
     }
 
