@@ -113,6 +113,8 @@ export default function Schedule() {
 
   return (
     <div>
+      <h1 className="page-title">방문 일정</h1>
+
       <div className="schedule-toolbar">
         <div className="month-nav">
           <button onClick={prevMonth}>‹</button>

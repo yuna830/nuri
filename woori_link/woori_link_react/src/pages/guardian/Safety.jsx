@@ -26,7 +26,6 @@ import {
 import {
   createAction,
   getActionsBySenior,
-  updateActionStatus,
 } from '../../api/actionApi.js';
 
 import {
@@ -51,23 +50,126 @@ const USE_LABEL = {
 const CHECKS = [
   {
     type: 'ELECTRIC_CHECK',
-    label: '전기 안전',
+    label: '전기설비 안전',
+
+    description:
+      '전기설비 이상 징후와 전문기관 점검 지원 여부를 확인합니다.',
+
+    questions: [
+      '차단기가 반복해서 내려갑니다.',
+      '콘센트나 전선에 손상·그을림이 있습니다.',
+      '타는 냄새가 나거나 과열되는 부분이 있습니다.',
+      '전기설비가 오래되어 안전한지 잘 모르겠습니다.',
+    ],
+
+    supportTitle:
+      '전기설비 점검 지원',
+
+    supportDescription:
+      '취약가구에 해당하거나 전기설비 이상이 있는 경우 전문기관의 방문 점검과 응급조치 지원 여부를 확인할 수 있습니다.',
+
+    requestLabel:
+      '전기설비 지원 확인 요청',
   },
+
   {
     type: 'GAS_CHECK',
-    label: '가스 안전',
+    label: '가스시설 안전',
+
+    description:
+      '가스시설의 이상 징후와 시설 개선 지원 여부를 확인합니다.',
+
+    questions: [
+      '평소와 다른 가스 냄새가 납니다.',
+      '가스 배관이나 연결부에 손상이 보입니다.',
+      '가스레인지 불꽃 상태가 평소와 다릅니다.',
+      '가스시설이 오래되어 안전한지 잘 모르겠습니다.',
+    ],
+
+    supportTitle:
+      '가스시설 점검·개선 지원',
+
+    supportDescription:
+      '지역과 대상 조건에 따라 노후 배관, 밸브, 가스 연결부 점검과 시설 개선 지원 여부를 확인할 수 있습니다.',
+
+    requestLabel:
+      '가스시설 지원 확인 요청',
   },
+
   {
     type: 'FIRE_CHECK',
-    label: '화재·소방',
+    label: '화재예방 환경',
+
+    description:
+      '주택 화재 위험과 방문 안전점검·소방시설 지원 여부를 확인합니다.',
+
+    questions: [
+      '소화기가 없거나 사용 가능한 상태인지 모르겠습니다.',
+      '화재감지기 설치 여부를 모르겠습니다.',
+      '멀티탭이나 콘센트를 여러 개 연결해 사용하고 있습니다.',
+      '대피 통로 주변에 물건이 쌓여 있습니다.',
+      '응급안전안심서비스 이용 여부를 확인하고 싶습니다.',
+    ],
+
+    supportTitle:
+      '화재예방 안전 지원',
+
+    supportDescription:
+      '지역에 따라 소방서 방문 안전점검, 소화기·화재감지기 보급, 응급안전안심서비스 지원 여부를 확인할 수 있습니다.',
+
+    requestLabel:
+      '화재예방 지원 확인 요청',
   },
+
   {
     type: 'HEATING_CHECK',
-    label: '난방기기',
+    label: '난방·주거환경',
+
+    description:
+      '난방 취약 문제와 에너지효율 개선 지원 여부를 확인합니다.',
+
+    questions: [
+      '난방이 제대로 되지 않습니다.',
+      '보일러나 난방기기가 오래되었습니다.',
+      '창문이나 벽에서 찬바람이 심하게 들어옵니다.',
+      '난방비 부담으로 난방을 충분히 사용하지 못합니다.',
+      '전기장판이나 난방기기의 전선이 손상되었습니다.',
+    ],
+
+    supportTitle:
+      '난방·에너지효율 개선 지원',
+
+    supportDescription:
+      '대상 조건에 따라 보일러, 단열, 창호, 바닥과 냉난방 환경 개선 지원 여부를 확인할 수 있습니다.',
+
+    requestLabel:
+      '난방환경 지원 확인 요청',
   },
+
   {
     type: 'FALL_CHECK',
-    label: '욕실·낙상 위험',
+    label: '낙상예방 주거환경',
+
+    description:
+      '낙상 위험 징후와 주거환경 개선 지원 여부를 확인합니다.',
+
+    questions: [
+      '최근 6개월 안에 넘어진 적이 있습니다.',
+      '걸을 때 벽이나 가구를 잡아야 합니다.',
+      '화장실 바닥이 미끄럽다고 느낍니다.',
+      '집 안에 높은 문턱이나 단차가 있습니다.',
+      '밤에 화장실로 가는 길이 어둡습니다.',
+      '집 안에 이동을 방해하는 물건이 있습니다.',
+    ],
+
+    supportTitle:
+      '낙상예방 주거환경 지원',
+
+    supportDescription:
+      '지역과 대상 조건에 따라 안전손잡이, 미끄럼 방지, 문턱 개선, 조명과 이동환경 개선 지원 여부를 확인할 수 있습니다.',
+
+    requestLabel:
+      '주거환경 지원 확인 요청',
   },
 ];
 
@@ -235,6 +337,68 @@ function cleanOfficialText(value) {
     .join('\n');
 }
 
+function compactConsumerAction(
+  value,
+  inquiryTel,
+) {
+  const text =
+    cleanOfficialText(value);
+
+  if (!text) {
+    return '';
+  }
+
+  const lines =
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  const result = [];
+
+  if (
+    lines.some((line) => (
+      /사용.*중지|사용을 중지/.test(line)
+    ))
+  ) {
+    result.push(
+      '제품 사용을 즉시 중지해 주세요.',
+    );
+  }
+
+  const returnLine =
+    lines.find((line) => (
+      /반납|회수|수거|교환|환불|수선/.test(line)
+    ));
+
+  if (returnLine) {
+    if (/택배.*반납|택배 반납/.test(returnLine)) {
+      result.push(
+        '홈페이지 또는 앱의 안내에 따라 택배로 반납해 주세요.',
+      );
+    } else if (/수거|회수/.test(returnLine)) {
+      result.push(
+        '판매처나 고객센터에 제품 수거를 신청해 주세요.',
+      );
+    } else if (/교환|환불/.test(returnLine)) {
+      result.push(
+        '판매처에 교환 또는 환불을 신청해 주세요.',
+      );
+    } else if (/수선|수리/.test(returnLine)) {
+      result.push(
+        '판매처나 고객센터에 수선을 신청해 주세요.',
+      );
+    } else {
+      result.push(returnLine);
+    }
+  }
+
+  if (result.length === 0) {
+    return text;
+  }
+
+  return result.join('\n');
+}
 
 function formatDate(value) {
   if (!value) {
@@ -442,57 +606,46 @@ function seniorFriendlyHazard(value) {
 
 
 function buildGuidanceMessage(product) {
-  const copy = (
-    GUIDANCE_COPY[
-    product.matchedRecallNotice?.actionType
-    ]
-    || GUIDANCE_COPY.GENERAL_GUIDANCE
-  );
+  const productName =
+    displayProductName(product);
 
-  const handled = [
-    'DISPOSED',
-    'NOT_OWNED',
-  ].includes(
-    product.currentUseStatus,
-  );
-
-  return [
-    copy.title,
-
-    '',
-
-    (
-      `${product.seniorName} 님, `
-      + copy.intro
-    ),
-
-    '',
-
-    (
-      `제품명: ${displayProductName(product)}`
-    ),
-
+  const hazard =
     seniorFriendlyHazard(
       product.hazardDescription,
-    ),
+    );
 
+  const action =
+    compactRecallAction(product);
+
+  return [
+    '[리콜 제품 안내]',
     '',
-
-    handled
-      ? currentUseGuidance(product)
-      : copy.action,
-
-    !handled
-    && currentUseGuidance(product),
-
+    `${product.seniorName} 님이 등록한 제품이 리콜 대상에 해당합니다.`,
+    '',
+    `제품명: ${productName}`,
+    hazard
+      ? `위험 내용: ${hazard}`
+      : '',
+    '',
+    action,
+    '',
     product.inquiryTel
       ? `문의처: ${product.inquiryTel}`
       : '',
   ]
-    .filter(Boolean)
+    .filter((line, index, array) => {
+      if (line !== '') {
+        return true;
+      }
+
+      return (
+        index > 0
+        && index < array.length - 1
+        && array[index - 1] !== ''
+      );
+    })
     .join('\n');
 }
-
 
 function productColorState(product) {
   if (
@@ -619,6 +772,115 @@ function compactActionMessage(product) {
   );
 }
 
+function summarizeOfficialAction(value) {
+  if (!value) {
+    return '';
+  }
+
+  const text =
+    cleanOfficialText(value);
+
+  if (
+    /택배.*반납|택배 반납/.test(text)
+  ) {
+    return (
+      '공식 안내에 따라 제품을 택배로 반납해 주세요.'
+    );
+  }
+
+  if (
+    /수거|회수/.test(text)
+  ) {
+    return (
+      '판매처나 고객센터에 제품 수거를 신청해 주세요.'
+    );
+  }
+
+  if (
+    /수선|수리/.test(text)
+  ) {
+    return (
+      '판매처나 고객센터에 수선 또는 수리를 신청해 주세요.'
+    );
+  }
+
+  if (
+    /교환.*환불|환불.*교환/.test(text)
+  ) {
+    return (
+      '판매처에 교환 또는 환불을 신청해 주세요.'
+    );
+  }
+
+  if (/교환/.test(text)) {
+    return (
+      '판매처에 제품 교환을 신청해 주세요.'
+    );
+  }
+
+  if (/환불/.test(text)) {
+    return (
+      '판매처에 환불을 신청해 주세요.'
+    );
+  }
+
+  if (/폐기/.test(text)) {
+    return (
+      '공식 안내에 따라 제품을 폐기해 주세요.'
+    );
+  }
+
+  return (
+    '공식 안내에서 후속 조치 방법을 확인해 주세요.'
+  );
+}
+
+function compactRecallAction(product) {
+  const type =
+    product.matchedRecallNotice?.actionType;
+
+  const officialAction =
+    product.consumerAction;
+
+  switch (type) {
+    case 'IMMEDIATE_STOP':
+      return (
+        '제품 사용을 즉시 중지해 주세요.\n'
+        + (
+          summarizeOfficialAction(
+            officialAction,
+          )
+          || '공식 안내에서 후속 조치 방법을 확인해 주세요.'
+        )
+      );
+
+    case 'REPAIR_OR_COLLECTION':
+      return (
+        '제품 사용을 중지해 주세요.\n'
+        + '판매처나 고객센터에 수거 또는 수선을 신청해 주세요.'
+      );
+
+    case 'EXCHANGE_OR_REFUND':
+      return (
+        '제품 사용을 중지해 주세요.\n'
+        + '판매처에 교환 또는 환불을 신청해 주세요.'
+      );
+
+    case 'PRODUCT_CHECK_REQUIRED':
+      return (
+        '제품을 사용하지 말고 보관해 주세요.\n'
+        + '모델번호와 제조일자를 추가로 확인해 주세요.'
+      );
+
+    default:
+      return (
+        summarizeOfficialAction(
+          officialAction,
+        )
+        || '공식 리콜 조치 내용을 확인해 주세요.'
+      );
+  }
+}
 
 export default function Safety() {
   const [
@@ -707,18 +969,23 @@ export default function Safety() {
   ] = useState(null);
 
   const [
-    checkResult,
-    setCheckResult,
-  ] = useState('NORMAL');
+    supportAnswers,
+    setSupportAnswers,
+  ] = useState([]);
 
   const [
-    checkNote,
-    setCheckNote,
+    supportRequesting,
+    setSupportRequesting,
+  ] = useState(false);
+
+  const [
+    supportRequestError,
+    setSupportRequestError,
   ] = useState('');
 
   const [
-    checkSaving,
-    setCheckSaving,
+    checkRequesting,
+    setCheckRequesting,
   ] = useState(false);
 
   const [
@@ -806,8 +1073,14 @@ export default function Safety() {
                   ).map(
                     (item) => ({
                       ...item,
+
+                      seniorId:
+                        item.seniorId
+                        ?? senior.id,
+
                       seniorName:
-                        senior.name,
+                        item.seniorName
+                        ?? senior.name,
                     }),
                   ),
 
@@ -971,13 +1244,6 @@ export default function Safety() {
         showAllProducts,
         visibleProducts,
       ],
-    );
-
-
-  const hiddenProductCount =
-    Math.max(
-      visibleProducts.length - 3,
-      0,
     );
 
 
@@ -1156,14 +1422,14 @@ export default function Safety() {
     ).length;
 
 
-  const totalCheckCount =
+  const totalSupportCount =
     selectedId === 'ALL'
       ? seniors.length
       * CHECKS.length
       : CHECKS.length;
 
 
-  const completedCheckCount =
+  const supportProgressCount =
     selectedId === 'ALL'
       ? CHECKS.reduce(
         (
@@ -1179,7 +1445,7 @@ export default function Safety() {
           ).filter(
             (item) => (
               item.record?.status
-              === 'COMPLETED'
+              === 'IN_PROGRESS'
             ),
           ).length
         ),
@@ -1190,15 +1456,56 @@ export default function Safety() {
           latestChecks[
             check.type
           ]?.status
-          === 'COMPLETED'
+          === 'IN_PROGRESS'
         ),
       ).length;
 
 
-  const requiredCheckCount =
+  const supportCompletedCount =
+    selectedId === 'ALL'
+      ? CHECKS.reduce(
+        (
+          total,
+          check,
+        ) => (
+          total
+          + (
+            allCheckOverview[
+            check.type
+            ]
+            ?? []
+          ).filter(
+            (item) => (
+              [
+                'COMPLETED',
+                'CANCELLED',
+              ].includes(
+                item.record?.status,
+              )
+            ),
+          ).length
+        ),
+        0,
+      )
+      : CHECKS.filter(
+        (check) => (
+          [
+            'COMPLETED',
+            'CANCELLED',
+          ].includes(
+            latestChecks[
+              check.type
+            ]?.status,
+          )
+        ),
+      ).length;
+
+
+  const supportNeedCount =
     Math.max(
-      totalCheckCount
-      - completedCheckCount,
+      totalSupportCount
+      - supportProgressCount
+      - supportCompletedCount,
       0,
     );
 
@@ -1466,9 +1773,7 @@ export default function Safety() {
     check,
     record,
   ) {
-    if (
-      selectedId === 'ALL'
-    ) {
+    if (selectedId === 'ALL') {
       setCheckOverviewTarget(
         check,
       );
@@ -1481,94 +1786,167 @@ export default function Safety() {
       record,
     });
 
-    setCheckResult(
-      record?.status
-        === 'IN_PROGRESS'
-        ? 'NEEDS_ACTION'
-        : 'NORMAL',
-    );
-
-    setCheckNote(
-      record?.note
-      || '',
-    );
-
+    setSupportAnswers([]);
+    setSupportRequestError('');
     setError('');
   }
 
+  function toggleSupportAnswer(
+    answer,
+  ) {
+    setSupportAnswers(
+      (current) => (
+        current.includes(answer)
+          ? current.filter(
+            (item) => item !== answer,
+          )
+          : [
+            ...current,
+            answer,
+          ]
+      ),
+    );
+  }
 
-  async function saveCheckResult() {
+  async function requestSafetySupport() {
     if (
       !checkDetail
       || selectedId === 'ALL'
-      || checkSaving
+      || supportRequesting
     ) {
       return;
     }
 
-    setCheckSaving(true);
+    if (
+      checkDetail.record?.status
+      === 'IN_PROGRESS'
+    ) {
+      return;
+    }
+
+    setSupportRequesting(true);
+    setSupportRequestError('');
     setError('');
 
-    const status =
-      checkResult
-        === 'NEEDS_ACTION'
-        ? 'IN_PROGRESS'
-        : 'COMPLETED';
+    const selectedSigns =
+      supportAnswers.length > 0
+        ? supportAnswers
+          .map(
+            (answer) => `- ${answer}`,
+          )
+          .join('\n')
+        : '- 위험 징후를 정확히 확인하기 어려움';
 
-    const note =
-      checkNote.trim()
-      || (
-        checkResult
-          === 'NEEDS_ACTION'
-          ? '조치가 필요합니다.'
-          : '이상 없음'
-      );
+    const note = [
+      '[생활안전 지원 확인 요청]',
+      `분야: ${checkDetail.check.label}`,
+      '',
+      '확인된 위험 징후',
+      selectedSigns,
+      '',
+      '요청 내용',
+      (
+        '담당 복지사가 지원 대상 여부와 '
+        + '전문기관 연계 필요성을 확인해 주세요.'
+      ),
+    ].join('\n');
 
     try {
-      if (
-        checkDetail.record
-      ) {
-        await updateActionStatus(
-          checkDetail.record.id,
-          status,
-          note,
-        );
-      } else {
-        await createAction({
-          seniorId:
-            Number(
-              selectedId,
-            ),
+      await createAction({
+        seniorId:
+          Number(
+            selectedId,
+          ),
 
-          actionType:
-            checkDetail.check.type,
+        actionType:
+          checkDetail.check.type,
 
-          actionSubject:
-            'GUARDIAN',
+        actionSubject:
+          'GUARDIAN',
 
-          status,
-          note,
-        });
-      }
+        status:
+          'IN_PROGRESS',
+
+        note,
+      });
 
       setCheckDetail(null);
-      setCheckNote('');
-      setCheckResult('NORMAL');
+      setSupportAnswers([]);
 
       await load();
-    } catch (saveError) {
-      setError(
-        saveError
+    } catch (requestError) {
+      const message =
+        requestError
           .response
           ?.data
           ?.message
-        || '생활안전 점검 결과를 저장하지 못했습니다.',
+        || '생활안전 지원 확인을 요청하지 못했습니다.';
+
+      setSupportRequestError(
+        message,
       );
     } finally {
-      setCheckSaving(false);
+      setSupportRequesting(false);
     }
   }
 
+  async function requestCheckToWorker() {
+    if (
+      !checkDetail
+      || selectedId === 'ALL'
+      || checkRequesting
+    ) {
+      return;
+    }
+
+    if (
+      checkDetail.record?.status
+      === 'IN_PROGRESS'
+    ) {
+      return;
+    }
+
+    setCheckRequesting(true);
+    setError('');
+
+    try {
+      await createAction({
+        seniorId:
+          Number(
+            selectedId,
+          ),
+
+        actionType:
+          checkDetail.check.type,
+
+        actionSubject:
+          'GUARDIAN',
+
+        status:
+          'IN_PROGRESS',
+
+        note:
+          (
+            '[복지사 점검 요청] '
+            + `${checkDetail.check.label} 확인을 요청합니다.`
+          ),
+      });
+
+      setCheckDetail(null);
+
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError
+          .response
+          ?.data
+          ?.message
+        || '복지사에게 점검을 요청하지 못했습니다.',
+      );
+    } finally {
+      setCheckRequesting(false);
+    }
+  }
 
   function openGuidance(
     product,
@@ -1654,15 +2032,24 @@ export default function Safety() {
       const status =
         sendError.response?.status;
 
+      const responseData =
+        sendError.response?.data;
+
+      console.error(
+        '[리콜 앱 알림 발송 실패]',
+        {
+          status,
+          responseData,
+          productId:
+            guidanceTarget?.id,
+          seniorId:
+            guidanceTarget?.seniorId,
+        },
+      );
+
       setGuidanceError(
-        sendError
-          .response
-          ?.data
-          ?.message
-        || sendError
-          .response
-          ?.data
-          ?.detail
+        responseData?.message
+        || responseData?.detail
         || (
           status === 401
             ? (
@@ -1671,8 +2058,8 @@ export default function Safety() {
             )
             : status === 403
               ? (
-                '앱 알림 발송 권한을 '
-                + '확인하지 못했습니다.'
+                '현재 보호자 계정과 대상 어르신의 '
+                + '연결 관계를 확인하지 못했습니다.'
               )
               : (
                 '리콜 안내를 보내지 못했습니다.'
@@ -1979,7 +2366,7 @@ export default function Safety() {
                 >
                   {showAllProducts
                     ? '접기'
-                    : `+ ${hiddenProductCount}개 더보기`}
+                    : '전체 보기'}
                 </button>
               )}
             </>
@@ -1990,33 +2377,40 @@ export default function Safety() {
           <div className="guardian-safety-section__heading guardian-check-heading">
             <div>
               <h2>
-                생활안전 점검
+                생활안전 지원
               </h2>
 
               <p>
                 {selectedId === 'ALL'
                   ? (
-                    '어르신별 전기·가스·화재 안전 점검 현황을 확인하세요.'
+                    '어르신별 안전 위험과 공공 점검·지원 서비스 진행 상태를 확인하세요.'
                   )
                   : (
-                    `${selectedSenior?.name || ''} 님의 최근 생활안전 점검 상태를 확인하세요.`
+                    `${selectedSenior?.name || ''} 님의 안전 위험과 지원 요청 진행 상태를 확인하세요.`
                   )}
               </p>
             </div>
 
             <div className="guardian-check-summary">
               <span>
-                점검 완료
+                지원 확인
                 {' '}
-                {completedCheckCount}
-                개
+                {supportNeedCount}
+                건
               </span>
 
               <span>
-                확인 필요
+                요청 진행
                 {' '}
-                {requiredCheckCount}
-                개
+                {supportProgressCount}
+                건
+              </span>
+
+              <span>
+                처리 완료
+                {' '}
+                {supportCompletedCount}
+                건
               </span>
             </div>
           </div>
@@ -2035,68 +2429,119 @@ export default function Safety() {
                   ]
                   ?? [];
 
-                const completedPeopleCount =
+                const progressPeopleCount =
                   overviewRows.filter(
                     (item) => (
                       item.record?.status
-                      === 'COMPLETED'
+                      === 'IN_PROGRESS'
                     ),
                   ).length;
 
-                const requiredPeopleCount =
+                const completedPeopleCount =
+                  overviewRows.filter(
+                    (item) => (
+                      [
+                        'COMPLETED',
+                        'CANCELLED',
+                      ].includes(
+                        item.record?.status,
+                      )
+                    ),
+                  ).length;
+
+                const supportNeedPeopleCount =
                   Math.max(
                     overviewRows.length
+                    - progressPeopleCount
                     - completedPeopleCount,
                     0,
                   );
 
-                const statusLabel =
-                  selectedId === 'ALL'
-                    ? (
-                      requiredPeopleCount > 0
-                        ? `확인 필요 ${requiredPeopleCount}명`
-                        : '전체 점검 완료'
-                    )
-                    : (
-                      record
-                        ? (
-                          CHECK_STATUS[
-                          record.status
-                          ]
-                          || '점검 필요'
-                        )
-                        : '미점검'
+                let statusLabel;
+                let statusDescription;
+                let statusClass;
+
+                if (selectedId === 'ALL') {
+                  if (progressPeopleCount > 0) {
+                    statusLabel =
+                      `요청 진행 ${progressPeopleCount}명`;
+
+                    statusDescription =
+                      `지원 확인 ${supportNeedPeopleCount}명`;
+
+                    statusClass =
+                      'requested';
+                  } else if (
+                    supportNeedPeopleCount > 0
+                  ) {
+                    statusLabel =
+                      `지원 확인 ${supportNeedPeopleCount}명`;
+
+                    statusDescription =
+                      '복지사 요청 가능';
+
+                    statusClass =
+                      'unchecked';
+                  } else {
+                    statusLabel =
+                      '전체 처리 완료';
+
+                    statusDescription =
+                      `처리 완료 ${completedPeopleCount}명`;
+
+                    statusClass =
+                      'completed';
+                  }
+                } else if (!record) {
+                  statusLabel =
+                    '지원 여부 확인 필요';
+
+                  statusDescription =
+                    '복지사 요청 가능';
+
+                  statusClass =
+                    'unchecked';
+                } else if (
+                  record.status
+                  === 'IN_PROGRESS'
+                ) {
+                  statusLabel =
+                    '복지사 확인 요청';
+
+                  statusDescription =
+                    '요청 진행 중';
+
+                  statusClass =
+                    'requested';
+                } else if (
+                  [
+                    'COMPLETED',
+                    'CANCELLED',
+                  ].includes(
+                    record.status,
+                  )
+                ) {
+                  statusLabel =
+                    '처리 완료';
+
+                  statusDescription =
+                    formatDate(
+                      record.updatedAt
+                      || record.createdAt,
                     );
 
-                const statusDescription =
-                  selectedId === 'ALL'
-                    ? (
-                      `점검 완료 ${completedPeopleCount}명`
-                    )
-                    : (
-                      record
-                        ? formatDate(
-                          record.updatedAt
-                          || record.createdAt,
-                        )
-                        : '점검 기록 없음'
-                    );
+                  statusClass =
+                    'completed';
+                } else {
+                  statusLabel =
+                    '지원 확인 필요';
 
-                const statusClass =
-                  selectedId === 'ALL'
-                    ? (
-                      requiredPeopleCount > 0
-                        ? 'unchecked'
-                        : 'completed'
-                    )
-                    : (
-                      record
-                        ? String(
-                          record.status
-                          ?? '',
-                        ).toLowerCase()
-                        : 'unchecked'
-                    );
+                  statusDescription =
+                    '복지사 확인 필요';
+
+                  statusClass =
+                    'danger';
+                }
 
                 return (
                   <button
@@ -2271,9 +2716,7 @@ export default function Safety() {
                   </div>
 
                   <p>
-                    {cleanOfficialText(
-                      detail.consumerAction,
-                    ) || action.fallback}
+                    {compactRecallAction(detail)}
                   </p>
 
                   {detail.inquiryTel && (
@@ -2436,16 +2879,13 @@ export default function Safety() {
         {guidanceTarget && (
           <div
             className="guardian-safety-modal-backdrop"
-            onMouseDown={
-              (event) => {
-                if (
-                  event.target
-                  === event.currentTarget
-                ) {
-                  closeGuidance();
-                }
+            onMouseDown={(event) => {
+              if (
+                event.target === event.currentTarget
+              ) {
+                closeGuidance();
               }
-            }
+            }}
           >
             <section
               className={[
@@ -2453,24 +2893,22 @@ export default function Safety() {
                 'guidance-preview-modal',
               ].join(' ')}
             >
-              <header>
+              <header className="guidance-preview-header">
                 <h2>
-                  리콜 안내 보내기
+                  {displayProductName(
+                    guidanceTarget,
+                  )}
                 </h2>
 
                 <button
                   type="button"
-                  disabled={
-                    guidanceSending
-                  }
-                  onClick={
-                    closeGuidance
-                  }
+                  disabled={guidanceSending}
+                  onClick={closeGuidance}
+                  aria-label="리콜 안내 닫기"
                 >
                   ×
                 </button>
               </header>
-
 
               {guidanceSent ? (
                 <section className="guidance-send-result">
@@ -2487,21 +2925,13 @@ export default function Safety() {
                   <button
                     type="button"
                     className="submit"
-                    onClick={
-                      closeGuidance
-                    }
+                    onClick={closeGuidance}
                   >
                     확인
                   </button>
                 </section>
               ) : (
                 <>
-                  <h3>
-                    {displayProductName(
-                      guidanceTarget,
-                    )}
-                  </h3>
-
                   <p className="guidance-recipient">
                     안내 대상
                     {' · '}
@@ -2509,7 +2939,6 @@ export default function Safety() {
                     {' '}
                     님
                   </p>
-
 
                   <fieldset className="guidance-channel-picker">
                     <legend>
@@ -2520,8 +2949,7 @@ export default function Safety() {
                       type="button"
                       className={[
                         'guidance-channel-option',
-                        guidanceChannel
-                          === 'APP_PUSH'
+                        guidanceChannel === 'APP_PUSH'
                           ? 'selected'
                           : '',
                       ]
@@ -2532,12 +2960,9 @@ export default function Safety() {
                           'APP_PUSH',
                         );
                       }}
-                      disabled={
-                        guidanceSending
-                      }
+                      disabled={guidanceSending}
                       aria-pressed={
-                        guidanceChannel
-                        === 'APP_PUSH'
+                        guidanceChannel === 'APP_PUSH'
                       }
                     >
                       <span
@@ -2551,7 +2976,7 @@ export default function Safety() {
                         </strong>
 
                         <small>
-                          님 앱으로 전송
+                          어르신 앱으로 전송
                         </small>
                       </span>
 
@@ -2559,7 +2984,6 @@ export default function Safety() {
                         연동됨
                       </em>
                     </button>
-
 
                     <button
                       type="button"
@@ -2590,27 +3014,19 @@ export default function Safety() {
                     </button>
                   </fieldset>
 
-
                   <label className="guidance-editor">
                     안내 메시지
 
                     <textarea
-                      value={
-                        guidanceMessage
-                      }
-                      onChange={
-                        (event) => {
-                          setGuidanceMessage(
-                            event.target.value,
-                          );
-                        }
-                      }
-                      disabled={
-                        guidanceSending
-                      }
+                      value={guidanceMessage}
+                      onChange={(event) => {
+                        setGuidanceMessage(
+                          event.target.value,
+                        );
+                      }}
+                      disabled={guidanceSending}
                     />
                   </label>
-
 
                   {guidanceError && (
                     <p className="guidance-send-error">
@@ -2618,16 +3034,11 @@ export default function Safety() {
                     </p>
                   )}
 
-
                   <div className="guidance-modal-actions">
                     <button
                       type="button"
-                      onClick={
-                        closeGuidance
-                      }
-                      disabled={
-                        guidanceSending
-                      }
+                      onClick={closeGuidance}
+                      disabled={guidanceSending}
                     >
                       취소
                     </button>
@@ -2635,9 +3046,7 @@ export default function Safety() {
                     <button
                       type="button"
                       className="submit"
-                      onClick={
-                        sendGuidance
-                      }
+                      onClick={sendGuidance}
                       disabled={
                         guidanceSending
                         || !guidanceMessage.trim()
@@ -2773,37 +3182,34 @@ export default function Safety() {
         {checkDetail && (
           <div
             className="guardian-safety-modal-backdrop"
-            onMouseDown={
-              (event) => {
-                if (
-                  event.target
-                  === event.currentTarget
-                  && !checkSaving
-                ) {
-                  setCheckDetail(null);
-                }
+            onMouseDown={(event) => {
+              if (
+                event.target
+                === event.currentTarget
+                && !supportRequesting
+              ) {
+                setCheckDetail(null);
               }
-            }
+            }}
           >
-            <section className="guardian-safety-modal guardian-check-modal">
-              <header>
-                <div>
+            <section className="guardian-safety-modal guardian-support-modal">
+              <header className="guardian-support-modal__header">
+                <div className="guardian-support-modal__title-row">
                   <h2>
                     {checkDetail.check.label}
                   </h2>
 
-                  <p>
+                  <span>
                     {selectedSenior?.name}
                     {' '}
                     님
-                  </p>
+                  </span>
                 </div>
 
                 <button
                   type="button"
-                  disabled={
-                    checkSaving
-                  }
+                  disabled={supportRequesting}
+                  aria-label="생활안전 지원 닫기"
                   onClick={() => {
                     setCheckDetail(null);
                   }}
@@ -2812,147 +3218,197 @@ export default function Safety() {
                 </button>
               </header>
 
-              {checkDetail.record && (
-                <div className="guardian-check-current-record">
+              <section className="guardian-support-status">
+                {!checkDetail.record ? (
+                  <>
+                    <strong>
+                      지원 여부 확인 필요
+                    </strong>
+
+                    <p>
+                      위험 징후를 선택하고 담당 복지사에게
+                      지원 확인을 요청할 수 있습니다.
+                    </p>
+                  </>
+                ) : checkDetail.record.status
+                  === 'IN_PROGRESS' ? (
+                  <>
+                    <strong className="requested">
+                      복지사 확인 요청 중
+                    </strong>
+
+                    <p>
+                      담당 복지사가 지원 대상 여부와
+                      기관 연계 필요성을 확인하고 있습니다.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <strong className="completed">
+                      처리 완료
+                    </strong>
+
+                    <p>
+                      최근 처리일
+                      {' '}
+                      {formatDate(
+                        checkDetail.record.updatedAt
+                        || checkDetail.record.createdAt,
+                      )}
+                    </p>
+                  </>
+                )}
+              </section>
+
+              <section className="guardian-support-question">
+                <div className="guardian-support-question__heading">
+                  <div>
+                    <strong>
+                      해당하는 내용이 있나요?
+                    </strong>
+
+                    <p>
+                      전문적인 안전 판정이 아니라
+                      눈에 보이는 징후나 불편사항만 선택해 주세요.
+                    </p>
+                  </div>
+
                   <span>
-                    최근 점검
+                    복수 선택 가능
                   </span>
-
-                  <strong>
-                    {CHECK_STATUS[
-                      checkDetail
-                        .record
-                        .status
-                    ] || '점검 필요'}
-                  </strong>
-
-                  <small>
-                    {formatDate(
-                      checkDetail
-                        .record
-                        .updatedAt
-                      || checkDetail
-                        .record
-                        .createdAt,
-                    )}
-                  </small>
                 </div>
+
+                <div className="guardian-support-question__list">
+                  {checkDetail.check.questions.map(
+                    (question) => {
+                      const selected =
+                        supportAnswers.includes(
+                          question,
+                        );
+
+                      return (
+                        <button
+                          type="button"
+                          key={question}
+                          className={
+                            selected
+                              ? 'selected'
+                              : ''
+                          }
+                          onClick={() => {
+                            toggleSupportAnswer(
+                              question,
+                            );
+                          }}
+                          disabled={
+                            supportRequesting
+                            || checkDetail.record?.status
+                            === 'IN_PROGRESS'
+                          }
+                        >
+                          <span
+                            className="guardian-support-checkbox"
+                            aria-hidden="true"
+                          >
+                            {selected
+                              ? '✓'
+                              : ''}
+                          </span>
+
+                          <span>
+                            {question}
+                          </span>
+                        </button>
+                      );
+                    },
+                  )}
+
+                  <button
+                    type="button"
+                    className={
+                      supportAnswers.includes(
+                        '잘 모르겠으며 현장 확인이 필요합니다.',
+                      )
+                        ? 'selected'
+                        : ''
+                    }
+                    onClick={() => {
+                      toggleSupportAnswer(
+                        '잘 모르겠으며 현장 확인이 필요합니다.',
+                      );
+                    }}
+                    disabled={
+                      supportRequesting
+                      || checkDetail.record?.status
+                      === 'IN_PROGRESS'
+                    }
+                  >
+                    <span
+                      className="guardian-support-checkbox"
+                      aria-hidden="true"
+                    >
+                      {supportAnswers.includes(
+                        '잘 모르겠으며 현장 확인이 필요합니다.',
+                      )
+                        ? '✓'
+                        : ''}
+                    </span>
+
+                    <span>
+                      잘 모르겠으며 현장 확인이 필요합니다.
+                    </span>
+                  </button>
+                </div>
+              </section>
+
+              <section className="guardian-support-program">
+                <strong>
+                  {checkDetail.check.supportTitle}
+                </strong>
+
+                <p>
+                  {checkDetail.check.supportDescription}
+                </p>
+
+                <small>
+                  지역, 예산과 대상 조건에 따라 지원 여부가 달라질 수 있습니다.
+                </small>
+              </section>
+
+              {supportRequestError && (
+                <p className="guardian-support-error">
+                  {supportRequestError}
+                </p>
               )}
 
-              <fieldset className="guardian-check-result-picker">
-                <legend>
-                  점검 결과
-                </legend>
-
-                <div>
-                  <button
-                    type="button"
-                    className={
-                      checkResult
-                        === 'NORMAL'
-                        ? 'selected normal'
-                        : ''
-                    }
-                    onClick={() => {
-                      setCheckResult(
-                        'NORMAL',
-                      );
-                    }}
-                    disabled={
-                      checkSaving
-                    }
-                  >
-                    <strong>
-                      양호
-                    </strong>
-
-                    <span>
-                      위험하거나 수리가 필요한 부분이 없습니다.
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={
-                      checkResult
-                        === 'NEEDS_ACTION'
-                        ? 'selected danger'
-                        : ''
-                    }
-                    onClick={() => {
-                      setCheckResult(
-                        'NEEDS_ACTION',
-                      );
-                    }}
-                    disabled={
-                      checkSaving
-                    }
-                  >
-                    <strong>
-                      조치 필요
-                    </strong>
-
-                    <span>
-                      수리, 교체 또는 추가 확인이 필요합니다.
-                    </span>
-                  </button>
-                </div>
-              </fieldset>
-
-              <label className="guardian-check-note">
-                점검 내용 및 특이사항
-
-                <textarea
-                  value={
-                    checkNote
-                  }
-                  onChange={
-                    (event) => {
-                      setCheckNote(
-                        event.target.value,
-                      );
-                    }
-                  }
-                  placeholder={
-                    checkResult
-                      === 'NEEDS_ACTION'
-                      ? '발견한 문제와 필요한 조치를 입력해 주세요.'
-                      : '점검한 내용이 있다면 입력해 주세요.'
-                  }
-                  disabled={
-                    checkSaving
-                  }
-                />
-              </label>
-
-              <div className="guardian-check-modal-actions">
+              <div className="guardian-support-modal__actions">
                 <button
                   type="button"
                   onClick={() => {
                     setCheckDetail(null);
                   }}
-                  disabled={
-                    checkSaving
-                  }
+                  disabled={supportRequesting}
                 >
-                  취소
+                  닫기
                 </button>
 
                 <button
                   type="button"
                   className="submit"
-                  onClick={
-                    saveCheckResult
-                  }
+                  onClick={requestSafetySupport}
                   disabled={
-                    checkSaving
+                    supportRequesting
+                    || checkDetail.record?.status
+                    === 'IN_PROGRESS'
+                    || supportAnswers.length === 0
                   }
                 >
-                  {checkSaving
-                    ? '저장 중...'
-                    : checkDetail.record
-                      ? '점검 기록 수정'
-                      : '점검 결과 저장'}
+                  {supportRequesting
+                    ? '요청 중...'
+                    : checkDetail.record?.status
+                      === 'IN_PROGRESS'
+                      ? '복지사 확인 요청 중'
+                      : checkDetail.check.requestLabel}
                 </button>
               </div>
             </section>

@@ -45,11 +45,6 @@ const RAG_QUERY_PATH = (
   || '/chat'
 );
 
-const RAG_STREAM_PATH = (
-  import.meta.env.VITE_RAG_STREAM_PATH
-  || `${RAG_QUERY_PATH}/stream`
-);
-
 
 /**
  * 로그인 과정에서 저장된 토큰을 가져온다.
@@ -250,64 +245,6 @@ async function requestJson(
 }
 
 
-/**
- * 보호자에게 연결된 모든 님의 등록 제품을 조회한다.
- *
- * Spring Boot 요청 예시:
- * GET http://localhost:8090/api/registered-products/senior/{seniorId}
- */
-async function requestEventStream(url, body, timeout = 90000) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
-      body,
-      credentials: 'include',
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const responseBody = await readResponseBody(response);
-      throw new Error(getErrorMessage(responseBody, response.status, '복지·안전 도우미 질문'));
-    }
-    if (!response.body) throw new Error('스트리밍 응답을 읽을 수 없습니다.');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-      const events = buffer.split('\n\n');
-      buffer = events.pop() || '';
-
-      for (const eventBlock of events) {
-        const eventName = eventBlock.match(/^event:\s*(.+)$/m)?.[1]?.trim();
-        const dataText = eventBlock.match(/^data:\s*(.+)$/m)?.[1];
-        if (!dataText) continue;
-        const eventData = JSON.parse(dataText);
-        if (eventName === 'result') return eventData;
-        if (eventName === 'error') throw new Error(eventData.message || '요청에 실패했습니다.');
-      }
-
-      if (done) break;
-    }
-    throw new Error('복지·안전 도우미 응답이 완료되지 않았습니다.');
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('복지·안전 도우미 질문 중 서버 응답 시간이 초과되었습니다.');
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-
 export async function getGuardianRecallProducts(
   seniorIds = [],
 ) {
@@ -427,27 +364,35 @@ export async function askGuardianRag(
   }
 
   const requestUrl = (
-    `${RAG_API_BASE_URL}${RAG_STREAM_PATH}`
+    `${RAG_API_BASE_URL}${RAG_QUERY_PATH}`
   );
 
-  const response = await requestEventStream(
+  const response = await requestJson(
     requestUrl,
-    JSON.stringify({
+    {
+      method: 'POST',
+
+      body: JSON.stringify({
         question: trimmedQuestion,
         mode,
         audience: 'guardian',
         profile,
+
         history: history.map((message) => ({
           role: message.role,
           text: message.text,
         })),
+
         limit: 5,
 
         // 이전 RAG 서버와의 하위 호환 필드
         role: 'GUARDIAN',
         topK: 5,
-    }),
-    90000,
+      }),
+
+      timeout: 90000,
+      requestName: '복지·안전 도우미 질문',
+    },
   );
 
   const data = (

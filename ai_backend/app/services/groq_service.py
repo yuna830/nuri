@@ -11,9 +11,18 @@ logger = logging.getLogger(__name__)
 
 class GroqService:
     def __init__(self):
+        groq_api_key = settings.groq_api_key.strip()
+
+        logger.info(
+            "Groq client initialization: prefix=%s, length=%d, model=%s",
+            groq_api_key[:4],
+            len(groq_api_key),
+            settings.groq_model,
+        )
+
         self.llm = ChatGroq(
             model=settings.groq_model,
-            api_key=settings.groq_api_key,
+            groq_api_key=groq_api_key,
             temperature=0.1,
             max_tokens=1000,
             timeout=settings.groq_timeout_seconds,
@@ -79,24 +88,62 @@ class GroqService:
 
         started_at = time.perf_counter()
         try:
-            response = self.llm.invoke(prompt)
-            return self._sanitize_answer(response.content.strip(), mode, profile)
+            if audience == "guardian":
+                llm = self.llm.bind(
+                    max_tokens=350,
+                )
+            else:
+                llm = self.llm
+
+            response = llm.invoke(prompt)
+
+            answer = self._sanitize_answer(
+                response.content.strip(),
+                mode,
+                profile,
+            )
+
+            return self._sanitize_guardian_answer(
+                answer=answer,
+                audience=audience,
+            )
         finally:
             logger.info("RAG Groq generation completed in %.3fs", time.perf_counter() - started_at)
 
     def _build_rules(self, mode: str, audience: str) -> str:
         audience_rules = {
             "guardian": """
-                [대상 사용자]
-                - 질문자는 보호자다. 대상자(어르신)에게 직접 말하지 않고, 보호자에게 설명하듯 답한다.
-                - 보호자가 이해하기 쉽게 쉬운 말로 설명한다.
-                - 행정 용어는 풀어서 설명한다.
-                - 핵심 내용만 3~5문장 이내로 짧게 요약한다.
-                - 세부 지원 항목은 2~3개만 대표로 언급하고 나열하지 않는다.
-                - 다음 행동을 짧게 안내한다.
-                - 확정적으로 대상이라고 말하지 말고, 주민센터, 복지로 또는 담당 기관 확인이 필요하다고 안내한다.
-                """,
-                        "worker": """
+                [보호자용 답변 형식 - 반드시 준수]
+                - 질문자는 보호자다. 대상자에게 직접 말하지 않고 보호자에게 설명한다.
+                - 쉬운 표현을 사용하고 행정 용어는 풀어서 설명한다.
+                - 전체 답변은 공백을 포함해 500자 이내로 작성한다.
+                - 답변은 최대 3개 문단으로 작성한다.
+                - 첫 문단에서는 질문의 핵심 결론을 바로 설명한다.
+                - 두 번째 문단에서는 대상 조건과 필요 서류를 요약한다.
+                - 세 번째 문단에서는 신청 기관 또는 다음 행동만 안내한다.
+                - 같은 의미를 반복하지 않는다.
+                - 검색 문서에 있는 문장을 그대로 길게 옮기지 않는다.
+                - 문서 제목, 문서 작성 연도, 출처 목록은 본문에서 반복하지 않는다.
+                - 출처는 화면의 근거 문서 영역에서 별도로 표시되므로 본문에 작성하지 않는다.
+                - 확정적인 자격 판정은 하지 않는다.
+                - 마지막에는 담당 기관에서 확인해야 한다는 안내를 한 문장으로 작성한다.
+                - 사용자가 대상, 조건, 필요 서류, 준비물처럼 전체 목록을 요청하면 검색 문서에서 확인된 항목을 빠짐없이 안내한다.
+                - 전체 목록을 요청한 경우에는 글머리표를 사용해 한눈에 구분되도록 작성한다.
+                - 각 항목의 세부 설명은 길게 풀지 않고 한 줄로 작성한다.
+                - 사용자가 일반적인 요약만 요청하면 핵심 항목을 중심으로 짧게 설명한다.
+                - 목록을 임의로 3개로 제한하지 않는다.
+                - 검색 문서에 없는 서류나 조건은 추측해서 추가하지 않는다.
+
+                [보호자용 답변 예시]
+                도시가스요금 경감은 기초생활수급자, 차상위계층,
+                장애 정도가 심한 장애인 등에게 적용될 수 있습니다.
+
+                신청할 때는 도시가스 고객번호, 계약자 정보,
+                자격을 확인할 수 있는 서류가 필요할 수 있습니다.
+
+                정확한 대상 여부와 제출 서류는 관할 도시가스사에 확인해 주세요.
+            """,
+            "worker": """
                 [대상 사용자]
                 - 질문자는 담당 복지사다. 답변은 복지사에게 보고하듯 작성한다.
                 - 대상자는 복지사가 관리하는 인물이므로 절대 대상자에게 직접 말하지 않는다. ("안녕하세요 ○○님" 금지)
@@ -304,6 +351,61 @@ class GroqService:
             sanitized = sanitized.replace(phrase, replacement)
 
         sanitized = re.sub(r"독거 여부가 아니므로\s*", "독거 여부는 아니요이며 ", sanitized)
+
+        return sanitized
+
+    def _sanitize_guardian_answer(
+        self,
+        answer: str,
+        audience: str,
+    ) -> str:
+        if audience != "guardian":
+            return answer
+
+        sanitized = answer.strip()
+
+        # 과도한 빈 줄 정리
+        sanitized = re.sub(
+            r"\n{3,}",
+            "\n\n",
+            sanitized,
+        )
+
+        # 모델이 제목용 마크다운을 생성한 경우 제거
+        sanitized = re.sub(
+            r"^\s*#{1,6}\s*",
+            "",
+            sanitized,
+            flags=re.MULTILINE,
+        )
+
+        # 굵은 글씨 기호 제거
+        sanitized = sanitized.replace("**", "")
+
+        # 보호자 화면에서 지나치게 긴 답변 방지
+        max_chars = 650
+
+        if len(sanitized) > max_chars:
+            shortened = sanitized[:max_chars]
+
+            last_sentence_index = max(
+                shortened.rfind("."),
+                shortened.rfind("다."),
+                shortened.rfind("요."),
+            )
+
+            if last_sentence_index >= 300:
+                shortened = shortened[: last_sentence_index + 1]
+
+            sanitized = shortened.rstrip()
+
+            if not sanitized.endswith((".", "다.", "요.")):
+                sanitized += "…"
+
+            sanitized += (
+                "\n\n정확한 대상 여부와 제출 서류는 "
+                "관할 도시가스사 또는 주민센터에서 확인해 주세요."
+            )
 
         return sanitized
 

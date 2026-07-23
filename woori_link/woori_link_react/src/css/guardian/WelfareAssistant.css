@@ -1,1 +1,1424 @@
-.welfare-assistant-page{width:min(1280px,calc(100% - 48px));margin:0 auto;padding:38px 0 48px;color:#243128}.welfare-assistant-page__header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px}.welfare-assistant-page__header span{color:#8ca187;font-size:10px;font-weight:900;letter-spacing:.14em}.welfare-assistant-page__header h1{margin:5px 0 4px;font-size:29px;letter-spacing:-.045em}.welfare-assistant-page__header p{margin:0;color:#849087;font-size:13px}.welfare-assistant-page__header button{height:40px;padding:0 16px;border:1px solid #dce5dc;border-radius:10px;background:#fff;color:#637462;font-weight:800;cursor:pointer}.welfare-assistant-shell{display:grid;grid-template-columns:300px minmax(0,1fr);height:calc(100vh - 190px);min-height:620px;overflow:hidden;border:1px solid #e1e7e1;border-radius:18px;background:#fff;box-shadow:0 9px 28px rgba(31,49,35,.06)}.welfare-assistant-guide{display:flex;flex-direction:column;padding:25px 20px;border-right:1px solid #e7ece7;background:#f8faf7}.welfare-assistant-guide__intro i{display:grid;width:42px;height:42px;margin-bottom:17px;place-items:center;border-radius:13px;background:#91a78d;color:#fff;font-style:normal;font-weight:900}.welfare-assistant-guide__intro strong{font-size:16px}.welfare-assistant-guide__intro p{margin:7px 0 20px;color:#8a958d;font-size:11px}.welfare-assistant-guide__suggestions{display:flex;flex-direction:column;gap:9px}.welfare-assistant-guide__suggestions button{display:flex;align-items:center;gap:11px;width:100%;padding:13px;border:1px solid #e1e7e0;border-radius:11px;background:#fff;text-align:left;cursor:pointer}.welfare-assistant-guide__suggestions button:hover{border-color:#a9bca6;background:#f3f7f1}.welfare-assistant-guide__suggestions b{display:grid;flex:0 0 31px;height:31px;place-items:center;border-radius:9px;background:#edf3eb;color:#70866d}.welfare-assistant-guide__suggestions span{display:flex;min-width:0;flex-direction:column;gap:3px}.welfare-assistant-guide__suggestions strong{font-size:11px}.welfare-assistant-guide__suggestions small{overflow:hidden;color:#929c94;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.welfare-assistant-guide__notice{margin:auto 0 0;padding:13px;border-radius:9px;background:#eef3ec;color:#768475;font-size:9px;line-height:1.6}.welfare-chat{display:flex;min-width:0;flex-direction:column;background:#fff}.welfare-chat__messages{flex:1;overflow-y:auto;padding:28px 32px}.welfare-chat__message{display:flex;align-items:flex-start;gap:10px;margin-bottom:21px}.welfare-chat__message>div{max-width:min(720px,82%);padding:14px 17px;border-radius:6px 16px 16px 16px;background:#f2f5f1}.welfare-chat__message p{margin:0;color:#465349;font-size:13px;line-height:1.75;white-space:pre-wrap}.welfare-chat__message--user{justify-content:flex-end}.welfare-chat__message--user>div{border-radius:16px 6px 16px 16px;background:#8fa78b}.welfare-chat__message--user p{color:#fff}.welfare-chat__avatar{display:grid;flex:0 0 32px;height:32px;place-items:center;border-radius:10px;background:#91a78d;color:#fff;font-size:11px;font-weight:900}.welfare-chat__sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid #dde5dc}.welfare-chat__sources strong{flex-basis:100%;color:#71816f;font-size:9px}.welfare-chat__sources a,.welfare-chat__sources span{padding:5px 8px;border-radius:6px;background:#fff;color:#637861;font-size:9px;text-decoration:none}.welfare-chat__typing{display:flex!important;align-items:center;gap:5px}.welfare-chat__typing i{width:6px;height:6px;border-radius:50%;background:#8ea18b;animation:welfare-dot 1.1s infinite}.welfare-chat__typing i:nth-child(2){animation-delay:.15s}.welfare-chat__typing i:nth-child(3){animation-delay:.3s}.welfare-chat__typing span{margin-left:6px;color:#859087;font-size:10px}@keyframes welfare-dot{0%,70%,100%{opacity:.3;transform:translateY(0)}35%{opacity:1;transform:translateY(-3px)}}.welfare-chat__error{margin:0 32px 10px;padding:10px 12px;border-radius:8px;background:#fff1ee;color:#ad4b42;font-size:11px}.welfare-chat__composer{display:flex;align-items:flex-end;gap:10px;margin:0 32px;padding:8px 8px 8px 15px;border:1px solid #dce5dc;border-radius:13px;background:#fff;box-shadow:0 4px 17px rgba(30,48,34,.06)}.welfare-chat__composer:focus-within{border-color:#9db29a}.welfare-chat__composer textarea{flex:1;min-height:38px;max-height:110px;padding:9px 0;border:0;outline:0;resize:none;color:#344139;font:inherit;font-size:12px}.welfare-chat__composer button{display:grid;flex:0 0 39px;height:39px;place-items:center;border:0;border-radius:10px;background:#8fa78b;color:#fff;font-size:20px;cursor:pointer}.welfare-chat__composer button:disabled{background:#ccd6ca;cursor:default}.welfare-chat__caption{padding:9px 32px 18px;color:#9aa39c;font-size:9px;text-align:center}@media(max-width:900px){.welfare-assistant-page{width:min(100% - 24px,1280px);padding-top:24px}.welfare-assistant-shell{grid-template-columns:1fr;height:auto;min-height:calc(100vh - 170px)}.welfare-assistant-guide{border-right:0;border-bottom:1px solid #e7ece7}.welfare-assistant-guide__suggestions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.welfare-assistant-guide__notice{margin-top:16px}.welfare-chat__messages{min-height:420px;padding:22px 16px}.welfare-chat__composer{margin:0 16px}.welfare-chat__caption{padding-inline:16px}}@media(max-width:560px){.welfare-assistant-page__header{align-items:flex-start;flex-direction:column;gap:14px}.welfare-assistant-guide__suggestions{grid-template-columns:1fr}.welfare-chat__message>div{max-width:88%}}
+.welfare-assistant-page {
+    width: min(1220px, calc(100% - 64px));
+    margin: 0 auto;
+    padding: 36px 0 52px;
+    color: #243128;
+}
+
+.welfare-assistant-page__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.welfare-assistant-page__header h1 {
+    margin: 0 0 6px;
+    color: #243128;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.045em;
+}
+
+.welfare-assistant-page__header p {
+    margin: 0;
+    color: #849087;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.55;
+}
+
+.welfare-assistant-page__actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 9px;
+}
+
+.welfare-assistant-page__actions label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.welfare-assistant-page__actions label>span {
+    color: #788c75;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.welfare-assistant-page__actions select {
+    width: 165px;
+    height: 39px;
+    padding: 0 34px 0 12px;
+    border: 1px solid #dce5dc;
+    border-radius: 9px;
+    outline: none;
+    background: #fff;
+    color: #4d5d50;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.welfare-assistant-page__actions select:focus {
+    border-color: #9db29a;
+}
+
+.welfare-assistant-page__actions button {
+    height: 39px;
+    padding: 0 14px;
+    border: 1px solid #dce5dc;
+    border-radius: 9px;
+    background: #fff;
+    color: #637462;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.welfare-assistant-page__actions button:hover {
+    border-color: #a8baa5;
+    background: #f6f9f5;
+}
+
+.welfare-section-label {
+    display: block;
+    margin-bottom: 5px;
+    color: #7f947b;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
+
+/* =========================
+   전체 좌우 레이아웃
+========================= */
+
+.welfare-main-layout {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1.45fr) minmax(360px, 0.85fr);
+    align-items: stretch;
+    gap: 20px;
+}
+
+.welfare-main-layout__benefits {
+    min-width: 0;
+    height: 100%;
+}
+
+
+/* =========================
+   맞춤 혜택 영역
+========================= */
+
+.welfare-benefits {
+    min-width: 0;
+    height: 100%;
+    padding: 19px 20px;
+    border: 1px solid #e1e7e1;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(31, 49, 35, 0.045);
+}
+
+.welfare-benefits__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 17px;
+    margin-bottom: 14px;
+}
+
+.welfare-benefits__header h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    letter-spacing: -0.035em;
+}
+
+.welfare-benefits__header p {
+    margin: 0;
+    color: #7d8980;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.welfare-benefits__profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 155px;
+    padding: 8px 9px;
+    border: 1px solid #e2e8e1;
+    border-radius: 10px;
+    background: #f8faf7;
+}
+
+.welfare-benefits__profile>b {
+    display: grid;
+    flex: 0 0 31px;
+    height: 31px;
+    place-items: center;
+    border-radius: 9px;
+    background: #92a88e;
+    color: #fff;
+    font-size: 11px;
+}
+
+.welfare-benefits__profile>span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.welfare-benefits__profile strong {
+    color: #344238;
+    font-size: 10px;
+}
+
+.welfare-benefits__profile small {
+    color: #89948b;
+    font-size: 8px;
+}
+
+
+/* =========================
+   혜택 요약 카드
+========================= */
+
+.welfare-benefit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.welfare-benefit-card {
+    display: flex;
+    min-width: 0;
+    min-height: 104px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 13px 14px;
+    border: 1px solid #e0e7df;
+    border-radius: 10px;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
+}
+
+.welfare-benefit-card:hover {
+    border-color: #a9bca6;
+    box-shadow: 0 6px 16px rgba(40, 58, 43, 0.065);
+    transform: translateY(-1px);
+}
+
+.welfare-benefit-card--selected {
+    border-color: #91a98d;
+    background: #f6f9f5;
+    box-shadow: 0 0 0 2px rgba(145, 169, 141, 0.1);
+}
+
+.welfare-benefit-card:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.welfare-benefit-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 7px;
+}
+
+.welfare-benefit-card__icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 8px;
+    background: #edf3eb;
+    color: #70866d;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.welfare-benefit-card>strong {
+    margin-bottom: 4px;
+    color: #2f3d33;
+    font-size: 11px;
+}
+
+.welfare-benefit-card>small {
+    margin-top: 10px;
+    color: #88948a;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+.welfare-benefit-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 21px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 7px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.welfare-benefit-status--confirmed {
+    background: #e6f2e7;
+    color: #4f7a55;
+}
+
+.welfare-benefit-status--review {
+    background: #fff1d7;
+    color: #9a6a22;
+}
+
+.welfare-benefit-status--missing {
+    background: #f3eee4;
+    color: #857054;
+}
+
+.welfare-benefit-status--low {
+    background: #f1f2f1;
+    color: #7e8780;
+}
+
+.welfare-benefit-status--applied {
+    background: #e8eef8;
+    color: #506a91;
+}
+
+/* =========================
+   전체 어르신 혜택 현황
+========================= */
+
+.welfare-benefits--overview {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+}
+
+.welfare-overview-count {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #edf3eb;
+    color: #5f735d;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.welfare-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.welfare-overview-card {
+    min-width: 0;
+    padding: 15px;
+    border: 1px solid #e0e7df;
+    border-radius: 12px;
+    outline: 0;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.welfare-overview-card:hover {
+    border-color: #a8baa5;
+    background: #fafcf9;
+}
+
+.welfare-overview-card--selected {
+    border-color: #91a98d;
+    background: #f6f9f5;
+    box-shadow: 0 0 0 2px rgba(145, 169, 141, 0.1);
+}
+
+/* 전체 현황 선택 상세 */
+
+.welfare-overview-detail {
+    margin-top: 12px;
+    padding: 15px;
+    border: 1px solid #e1e7e0;
+    border-radius: 12px;
+    background: #f8faf7;
+}
+
+.welfare-overview-detail__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.welfare-overview-detail__header>div {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.welfare-overview-detail__icon {
+    display: grid;
+    flex: 0 0 35px;
+    height: 35px;
+    place-items: center;
+    border-radius: 10px;
+    background: #8fa58b;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.welfare-overview-detail__header small {
+    display: block;
+    margin-bottom: 2px;
+    color: #869289;
+    font-size: 8px;
+}
+
+.welfare-overview-detail__header h3 {
+    margin: 0;
+    color: #2e3b32;
+    font-size: 15px;
+}
+
+.welfare-overview-detail__header>span {
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: #edf3eb;
+    color: #647762;
+    font-size: 8px;
+    font-weight: 800;
+}
+
+.welfare-overview-detail__columns {
+    display: grid;
+    gap: 10px;
+    transition:
+        grid-template-columns 0.2s ease;
+}
+
+.welfare-overview-status-row {
+    display: flex;
+    min-width: 0;
+    min-height: 72px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid #e1e7e0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.welfare-overview-status-row__label {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    padding-right: 14px;
+    border-right: 1px solid #e6ebe5;
+    white-space: nowrap;
+}
+
+.welfare-overview-status-row__label>span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.welfare-overview-status-row--completed .welfare-overview-status-row__label>span {
+    background: #6f9871;
+}
+
+.welfare-overview-status-row--required .welfare-overview-status-row__label>span {
+    background: #d39a4f;
+}
+
+.welfare-overview-status-row__label strong {
+    color: #465448;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.welfare-overview-status-row__label b {
+    color: #647163;
+    font-size: 10px;
+}
+
+.welfare-overview-status-row__names {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.welfare-overview-status-row__names button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #425044;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.welfare-overview-status-row__names button::after {
+    margin-left: 6px;
+    color: #b3bcb4;
+    content: '·';
+}
+
+.welfare-overview-status-row__names button:last-child::after {
+    content: '';
+    margin-left: 0;
+}
+
+.welfare-overview-status-row__names button:hover {
+    color: #668063;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.welfare-overview-status-row__empty {
+    color: #939d95;
+    font-size: 9px;
+}
+
+.welfare-overview-people__empty {
+    margin: 0;
+    padding: 14px 8px;
+    color: #939d95;
+    font-size: 8px;
+    text-align: center;
+}
+
+.welfare-overview-card__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.welfare-overview-card__icon {
+    display: grid;
+    flex: 0 0 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 9px;
+    background: #edf3eb;
+    color: #70866d;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.welfare-overview-card__header>div {
+    min-width: 0;
+}
+
+.welfare-overview-card__header strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #2f3d33;
+    font-size: 13px;
+}
+
+.welfare-overview-card__header p {
+    overflow: hidden;
+    margin: 0;
+    color: #879188;
+    font-size: 10px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.welfare-overview-card__status {
+    margin-top: 14px;
+    padding-top: 11px;
+    border-top: 1px solid #e8ece7;
+}
+
+.welfare-overview-card__status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 27px;
+}
+
+.welfare-overview-card__status-row span {
+    color: #77837a;
+    font-size: 10px;
+}
+
+.welfare-overview-card__status-row strong {
+    font-size: 12px;
+}
+
+.welfare-overview-card__status-row strong.completed {
+    color: #547b59;
+}
+
+.welfare-overview-card__status-row strong.required {
+    color: #9a6a22;
+}
+
+.welfare-overview-selection-guide {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: #f5f8f4;
+    color: #68766c;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: center;
+}
+
+/* =========================
+   혜택 상세
+========================= */
+
+.welfare-benefit-detail {
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid #e1e7e0;
+    border-radius: 12px;
+    background: #f8faf7;
+}
+
+.welfare-benefit-detail__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.welfare-benefit-detail__header>div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.welfare-benefit-detail__icon {
+    display: grid;
+    flex: 0 0 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 10px;
+    background: #8fa58b;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.welfare-benefit-detail__header small {
+    display: block;
+    margin-bottom: 2px;
+    color: #87938a;
+    font-size: 10px;
+    line-height: 1.3;
+}
+
+.welfare-benefit-detail__header h3 {
+    margin: 0;
+    color: #2e3b32;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.welfare-benefit-detail__reason {
+    margin: 9px 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #fff;
+    color: #59675d;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.welfare-benefit-detail__conditions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.welfare-benefit-detail__condition {
+    min-width: 0;
+    padding: 12px 13px;
+    border: 1px solid #e1e7e0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.welfare-benefit-detail__condition>header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+}
+
+.welfare-benefit-detail__condition>header span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.welfare-benefit-detail__condition--matched>header span {
+    background: #6f9871;
+}
+
+.welfare-benefit-detail__condition--missing>header span {
+    background: #d39a4f;
+}
+
+.welfare-benefit-detail__condition--conflict>header span {
+    background: #c96d64;
+}
+
+.welfare-benefit-detail__condition strong {
+    color: #465448;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.welfare-benefit-detail__condition ul {
+    margin: 0;
+    padding-left: 16px;
+    color: #647168;
+}
+
+.welfare-benefit-detail__condition li {
+    margin: 4px 0;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.welfare-benefit-detail__condition p {
+    margin: 0;
+    color: #8b958d;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.welfare-benefit-detail__guide {
+    margin-top: 10px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    background: #eef3ec;
+}
+
+.welfare-benefit-detail__guide strong {
+    color: #526351;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.welfare-benefit-detail__guide p {
+    margin: 5px 0 0;
+    color: #69776c;
+    font-size: 10px;
+    line-height: 1.55;
+}
+
+.welfare-benefit-detail__ask {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 35px;
+    margin-top: 9px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 8px;
+    background: #899f85;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.welfare-benefit-detail__ask:hover {
+    background: #7f967b;
+}
+
+.welfare-benefit-detail__ask span {
+    font-size: 14px;
+}
+
+.welfare-benefits__notice {
+    max-width: 620px;
+    margin: 12px auto 0;
+    color: #7d8980;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.6;
+    text-align: center;
+}
+
+
+/* =========================
+   혜택 로딩·오류
+========================= */
+
+.welfare-benefits__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    min-height: 180px;
+    border: 1px dashed #dbe4da;
+    border-radius: 11px;
+    background: #fafcf9;
+}
+
+.welfare-benefits__loading strong {
+    color: #4b5b4e;
+    font-size: 12px;
+}
+
+.welfare-benefits__loading p {
+    margin: 4px 0 0;
+    color: #879189;
+    font-size: 10px;
+}
+
+.welfare-benefits__spinner {
+    width: 22px;
+    height: 22px;
+    border: 3px solid #dfe8dd;
+    border-top-color: #89a085;
+    border-radius: 50%;
+    animation: welfare-spin 0.8s linear infinite;
+}
+
+@keyframes welfare-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.welfare-benefits__error {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fff1ee;
+    color: #ad4b42;
+    font-size: 10px;
+}
+
+.welfare-benefits--empty {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 180px;
+}
+
+.welfare-benefits-empty__icon {
+    display: grid;
+    flex: 0 0 47px;
+    height: 47px;
+    place-items: center;
+    border-radius: 13px;
+    background: #91a78d;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.welfare-benefits--empty h2 {
+    margin: 0 0 5px;
+    font-size: 17px;
+}
+
+.welfare-benefits--empty p {
+    max-width: 500px;
+    margin: 0;
+    color: #7e8a81;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+
+/* =========================
+   오른쪽 채팅 카드
+========================= */
+
+.welfare-chat-section {
+    display: flex;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+    border: 1px solid #e1e7e1;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(31, 49, 35, 0.045);
+}
+
+.welfare-chat-section__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    gap: 12px;
+    padding: 16px 16px 13px;
+    border-bottom: 1px solid #e6ebe5;
+}
+
+.welfare-chat-section__header h2 {
+    margin: 0 0 3px;
+    font-size: 16px;
+    letter-spacing: -0.035em;
+}
+
+.welfare-chat-section__header p {
+    margin: 0;
+    color: #818d84;
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.welfare-chat-section__subject {
+    padding: 6px 8px;
+    border-radius: 999px;
+    background: #edf3eb;
+    color: #637861;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.welfare-chat-layout {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+
+/* =========================
+   추천 질문 칩
+========================= */
+
+.welfare-chat-quick-questions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e7ece7;
+    background: #f8faf7;
+}
+
+.welfare-chat-quick-questions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 0 8px;
+
+    border: 1px solid #dfe7de;
+    border-radius: 999px;
+    background: #fff;
+
+    color: #627461;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.welfare-chat-quick-questions button b {
+    flex: 0 0 auto;
+    color: #71866e;
+    font-size: 10px;
+}
+
+.welfare-chat-quick-questions button:hover {
+    border-color: #9fb29b;
+    background: #eef4ec;
+}
+
+.welfare-chat-quick-questions button:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+
+/* =========================
+   채팅 본문
+========================= */
+
+.welfare-chat {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    background: #fff;
+}
+
+.welfare-chat__messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 15px 14px;
+}
+
+.welfare-chat__message {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin-bottom: 13px;
+}
+
+.welfare-chat__message>div {
+    max-width: 87%;
+    padding: 10px 12px;
+    border-radius: 5px 13px 13px 13px;
+    background: #f2f5f1;
+}
+
+.welfare-chat__message p {
+    margin: 0;
+    color: #465349;
+    font-size: 11px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+}
+
+.welfare-chat__message--user {
+    justify-content: flex-end;
+}
+
+.welfare-chat__message--user>div {
+    border-radius: 13px 5px 13px 13px;
+    background: #8fa78b;
+}
+
+.welfare-chat__message--user p {
+    color: #fff;
+}
+
+.welfare-chat__avatar {
+    display: grid;
+    flex: 0 0 27px;
+    height: 27px;
+    place-items: center;
+    border-radius: 8px;
+    background: #91a78d;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+}
+
+
+/* =========================
+   근거 문서
+========================= */
+
+.welfare-chat__sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid #dde5dc;
+}
+
+.welfare-chat__sources>strong {
+    flex-basis: 100%;
+    color: #71816f;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.welfare-chat__sources>a,
+.welfare-chat__sources>span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border: 1px solid #e2e7e1;
+    border-radius: 7px;
+    background: #fff;
+    color: #637861;
+    font-size: 10px;
+    line-height: 1.4;
+    text-decoration: none;
+}
+
+.welfare-chat__sources>a:hover {
+    border-color: #a7b9a4;
+    background: #f5f8f4;
+}
+
+.welfare-chat__sources small {
+    color: #929c94;
+    font-size: 9px;
+}
+
+
+/* 맞춤 혜택 상세 근거 문서 */
+
+.welfare-chat__sources--compact {
+    display: block;
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8e1;
+}
+
+.welfare-benefit-detail__source-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.welfare-benefit-detail__source-header>span {
+    color: #68776b;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.welfare-benefit-detail__source-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 8px;
+    outline: 0;
+    background: #edf3eb;
+    color: #5f735d;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.welfare-benefit-detail__source-button:hover {
+    background: #e2ebe0;
+    color: #40543e;
+}
+
+.welfare-benefit-detail__source-button:focus-visible {
+    outline: 2px solid #9caf98;
+    outline-offset: 2px;
+}
+
+.welfare-benefit-detail__source-list {
+    display: grid;
+    grid-template-columns: repeat(3,
+            minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.welfare-benefit-detail__source-list>a,
+.welfare-benefit-detail__source-list>span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 9px;
+    border: 1px solid #e0e7df;
+    border-radius: 8px;
+    background: #fff;
+    color: #566657;
+    text-decoration: none;
+}
+
+.welfare-benefit-detail__source-list>a:hover {
+    border-color: #a7b9a4;
+    background: #f5f8f4;
+}
+
+.welfare-benefit-detail__source-list strong {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.welfare-benefit-detail__source-list small {
+    color: #929c94;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+/* =========================
+   채팅 로딩
+========================= */
+
+.welfare-chat__typing {
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+}
+
+.welfare-chat__typing i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #8ea18b;
+    animation: welfare-dot 1.1s infinite;
+}
+
+.welfare-chat__typing i:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.welfare-chat__typing i:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.welfare-chat__typing span {
+    margin-left: 4px;
+    color: #859087;
+    font-size: 8px;
+}
+
+@keyframes welfare-dot {
+
+    0%,
+    70%,
+    100% {
+        opacity: 0.3;
+        transform: translateY(0);
+    }
+
+    35% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
+}
+
+
+/* =========================
+   오류 및 입력창
+========================= */
+
+.welfare-chat__error {
+    flex: 0 0 auto;
+    margin: 0 13px 7px;
+    padding: 8px 9px;
+    border-radius: 7px;
+    background: #fff1ee;
+    color: #ad4b42;
+    font-size: 8px;
+}
+
+.welfare-chat__composer {
+    display: flex;
+    align-items: flex-end;
+    flex: 0 0 auto;
+    gap: 7px;
+    margin: 0 13px;
+    padding: 6px 6px 6px 10px;
+    border: 1px solid #dce5dc;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 4px 13px rgba(30, 48, 34, 0.05);
+}
+
+.welfare-chat__composer:focus-within {
+    border-color: #9db29a;
+}
+
+.welfare-chat__composer textarea {
+    flex: 1;
+    min-height: 31px;
+    max-height: 90px;
+    padding: 7px 0;
+    border: 0;
+    outline: 0;
+    resize: none;
+    color: #344139;
+    font: inherit;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.welfare-chat__composer button {
+    display: grid;
+    flex: 0 0 32px;
+    height: 32px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: #8fa78b;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.welfare-chat__composer button:disabled {
+    background: #ccd6ca;
+    cursor: default;
+}
+
+.welfare-chat__caption {
+    flex: 0 0 auto;
+    padding: 9px 14px 12px;
+    color: #7f8b82;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.5;
+    text-align: center;
+}
+
+
+/* =========================
+   반응형
+========================= */
+
+@media (max-width: 1180px) {
+    .welfare-main-layout {
+        grid-template-columns:
+            minmax(0, 1.4fr) minmax(330px, 0.9fr);
+    }
+
+    .welfare-benefit-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .welfare-benefit-card {
+        min-height: auto;
+    }
+
+    .welfare-overview-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1020px) {
+    .welfare-main-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .welfare-chat-section {
+        position: static;
+        height: 560px;
+        min-height: 0;
+    }
+
+    .welfare-benefit-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 800px) {
+    .welfare-assistant-page {
+        width: min(100% - 24px, 1380px);
+        padding-top: 22px;
+    }
+
+    .welfare-assistant-page__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .welfare-assistant-page__actions {
+        width: 100%;
+    }
+
+    .welfare-assistant-page__actions label {
+        flex: 1;
+    }
+
+    .welfare-assistant-page__actions select {
+        width: 100%;
+    }
+
+    .welfare-benefits__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .welfare-benefits__profile {
+        width: 100%;
+    }
+
+    .welfare-benefit-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .welfare-benefit-detail__conditions {
+        grid-template-columns: 1fr;
+    }
+
+    .welfare-chat-section {
+        height: 520px;
+    }
+
+    .welfare-benefit-detail__source-list {
+        grid-template-columns: 1fr;
+    }
+
+    .welfare-overview-detail__columns {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 560px) {
+    .welfare-assistant-page__actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .welfare-benefits {
+        padding: 16px 14px;
+    }
+
+    .welfare-benefits--empty {
+        align-items: flex-start;
+    }
+
+    .welfare-chat-section__header {
+        flex-direction: column;
+        padding: 14px;
+    }
+
+    .welfare-chat-quick-questions {
+        padding: 9px 10px;
+    }
+
+    .welfare-chat__message>div {
+        max-width: 90%;
+    }
+}

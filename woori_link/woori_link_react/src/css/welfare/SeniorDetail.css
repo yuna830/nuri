@@ -536,9 +536,9 @@
 }
 
 .detail-title-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 18px;
 }
 
@@ -547,6 +547,9 @@
 }
 
 .detail-title-back {
+  position: absolute;
+  right: 100%;
+  margin-right: 10px;
   width: 32px;
   height: 32px;
   padding: 0;

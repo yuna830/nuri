@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
@@ -16,12 +17,7 @@ import {
   regenerateGuardianInviteCode,
   updateGuardianNotifications,
   updateGuardianProfile,
-  updateGuardianSeniorRelationship,
 } from '../../api/guardianApi.js';
-
-import {
-  disconnectGuardianSenior,
-} from '../../api/guardianRelationshipApi.js';
 
 import {
   searchAddresses,
@@ -32,16 +28,6 @@ import {
 } from '../../utils/auth.js';
 
 import '../../css/guardian/MyPage.css';
-
-
-const RELATIONSHIPS = [
-  '자녀',
-  '배우자',
-  '형제·자매',
-  '친척',
-  '생활지원사',
-  '기타',
-];
 
 
 const ALERT_SETTINGS = [
@@ -195,30 +181,148 @@ function getAddressTitle(item) {
   );
 }
 
+function getInviteCodeStatus(
+  expiresAt,
+) {
+  if (!expiresAt) {
+    return '발급 필요';
+  }
 
-function CloseIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  );
+  const expiresDate =
+    new Date(expiresAt);
+
+  if (
+    Number.isNaN(
+      expiresDate.getTime(),
+    )
+  ) {
+    return '확인 필요';
+  }
+
+  const now = new Date();
+
+  if (
+    expiresDate.getTime()
+    < now.getTime()
+  ) {
+    return '만료됨';
+  }
+
+  const remainingDays =
+    Math.ceil(
+      (
+        expiresDate.getTime()
+        - now.getTime()
+      )
+      / (
+        1000
+        * 60
+        * 60
+        * 24
+      ),
+    );
+
+  if (remainingDays <= 3) {
+    return '만료 임박';
+  }
+
+  return '사용 가능';
 }
 
+const SENIOR_REQUIRED_INFORMATION = [
+  {
+    key: 'age',
+    label: '나이',
+    isFilled: (senior) => (
+      senior?.age !== null
+      && senior?.age !== undefined
+      && senior?.age !== ''
+    ),
+  },
+  {
+    key: 'householdType',
+    label: '가구 유형',
+    isFilled: (senior) => (
+      Boolean(
+        String(
+          senior?.householdType ?? '',
+        ).trim(),
+      )
+    ),
+  },
+  {
+    key: 'livingAlone',
+    label: '독거 여부',
+    isFilled: (senior) => (
+      typeof senior?.livingAlone
+      === 'boolean'
+    ),
+  },
+  {
+    key: 'incomeLevel',
+    label: '소득 정보',
+    isFilled: (senior) => {
+      const value = String(
+        senior?.incomeLevel ?? '',
+      ).trim();
 
-function ArrowIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
+      return (
+        value !== ''
+        && value !== 'NONE'
+        && value !== 'UNKNOWN'
+      );
+    },
+  },
+  {
+    key: 'basicBenefit',
+    label: '기초생활보장 수급 여부',
+    isFilled: (senior) => (
+      typeof senior?.livelihoodBenefit
+      === 'boolean'
+      || typeof senior?.medicalBenefit
+      === 'boolean'
+      || typeof senior?.housingBenefit
+      === 'boolean'
+      || typeof senior?.educationBenefit
+      === 'boolean'
+    ),
+  },
+  {
+    key: 'energyVoucherApplied',
+    label: '에너지바우처 신청 여부',
+    isFilled: (senior) => (
+      typeof senior?.energyVoucherApplied
+      === 'boolean'
+    ),
+  },
+  {
+    key: 'electricityDiscountApplied',
+    label: '전기요금 할인 신청 여부',
+    isFilled: (senior) => (
+      typeof senior?.electricityDiscountApplied
+      === 'boolean'
+    ),
+  },
+  {
+    key: 'gasDiscountApplied',
+    label: '도시가스 경감 신청 여부',
+    isFilled: (senior) => (
+      typeof senior?.gasDiscountApplied
+      === 'boolean'
+    ),
+  },
+];
+
+
+function getSeniorMissingInformation(
+  senior,
+) {
+  return SENIOR_REQUIRED_INFORMATION
+    .filter((item) => (
+      !item.isFilled(senior)
+    ))
+    .map((item) => item.label);
 }
-
 
 export default function GuardianMyPage() {
   const navigate = useNavigate();
@@ -261,16 +365,6 @@ export default function GuardianMyPage() {
   ] = useState(false);
 
   const [
-    disconnecting,
-    setDisconnecting,
-  ] = useState(false);
-
-  const [
-    relationshipSavingId,
-    setRelationshipSavingId,
-  ] = useState(null);
-
-  const [
     message,
     setMessage,
   ] = useState('');
@@ -281,16 +375,6 @@ export default function GuardianMyPage() {
   ] = useState('success');
 
   const [
-    seniorsModalOpen,
-    setSeniorsModalOpen,
-  ] = useState(false);
-
-  const [
-    disconnectTarget,
-    setDisconnectTarget,
-  ] = useState(null);
-
-  const [
     addressResults,
     setAddressResults,
   ] = useState([]);
@@ -299,6 +383,45 @@ export default function GuardianMyPage() {
     addressSearching,
     setAddressSearching,
   ] = useState(false);
+
+  const seniorInformationSummary = useMemo(() => {
+    const seniorItems = seniors.map((senior) => {
+      const missingInformation =
+        getSeniorMissingInformation(
+          senior,
+        );
+
+      return {
+        ...senior,
+        missingInformation,
+        missingCount:
+          missingInformation.length,
+        completed:
+          missingInformation.length === 0,
+      };
+    });
+
+    const incompleteSeniors =
+      seniorItems.filter(
+        (senior) => !senior.completed,
+      );
+
+    const completedSeniors =
+      seniorItems.filter(
+        (senior) => senior.completed,
+      );
+
+    return {
+      totalCount: seniorItems.length,
+      incompleteCount:
+        incompleteSeniors.length,
+      completedCount:
+        completedSeniors.length,
+      seniors: seniorItems,
+      incompleteSeniors,
+      completedSeniors,
+    };
+  }, [seniors]);
 
 
   function showMessage(
@@ -371,40 +494,6 @@ export default function GuardianMyPage() {
       cancelled = true;
     };
   }, []);
-
-
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key !== 'Escape') {
-        return;
-      }
-
-      if (
-        disconnectTarget
-        || disconnecting
-      ) {
-        return;
-      }
-
-      setSeniorsModalOpen(false);
-    }
-
-    document.addEventListener(
-      'keydown',
-      handleKeyDown,
-    );
-
-    return () => {
-      document.removeEventListener(
-        'keydown',
-        handleKeyDown,
-      );
-    };
-  }, [
-    disconnectTarget,
-    disconnecting,
-  ]);
-
 
   async function saveProfile(event) {
     event.preventDefault();
@@ -563,151 +652,6 @@ export default function GuardianMyPage() {
       );
     } finally {
       setNotificationSavingKey('');
-    }
-  }
-
-
-  async function changeRelationship(
-    seniorId,
-    relationship,
-  ) {
-    if (relationshipSavingId) {
-      return;
-    }
-
-    const previousSenior =
-      seniors.find(
-        (senior) => (
-          String(senior.id)
-          === String(seniorId)
-        ),
-      );
-
-    setRelationshipSavingId(
-      seniorId,
-    );
-
-    setSeniors(
-      (current) => (
-        current.map(
-          (senior) => (
-            String(senior.id)
-              === String(seniorId)
-              ? {
-                ...senior,
-                guardianRelationship:
-                  relationship,
-              }
-              : senior
-          ),
-        )
-      ),
-    );
-
-    try {
-      const response =
-        await updateGuardianSeniorRelationship(
-          seniorId,
-          relationship,
-        );
-
-      setSeniors(
-        (current) => (
-          current.map(
-            (senior) => (
-              String(senior.id)
-                === String(seniorId)
-                ? {
-                  ...senior,
-                  ...(response?.data ?? {
-                    guardianRelationship:
-                      relationship,
-                  }),
-                }
-                : senior
-            ),
-          )
-        ),
-      );
-
-      showMessage(
-        '어르신과의 관계를 저장했습니다.',
-      );
-    } catch (error) {
-      if (previousSenior) {
-        setSeniors(
-          (current) => (
-            current.map(
-              (senior) => (
-                String(senior.id)
-                  === String(seniorId)
-                  ? previousSenior
-                  : senior
-              ),
-            )
-          ),
-        );
-      }
-
-      showMessage(
-        getErrorMessage(
-          error,
-          '관계 정보를 저장하지 못했습니다.',
-        ),
-        'error',
-      );
-    } finally {
-      setRelationshipSavingId(null);
-    }
-  }
-
-
-  async function confirmDisconnect() {
-    if (
-      !disconnectTarget?.id
-      || disconnecting
-    ) {
-      return;
-    }
-
-    const target =
-      disconnectTarget;
-
-    setDisconnecting(true);
-
-    try {
-      await disconnectGuardianSenior(
-        target.id,
-      );
-
-      setSeniors(
-        (current) => (
-          current.filter(
-            (senior) => (
-              String(senior.id)
-              !== String(
-                target.id,
-              )
-            ),
-          )
-        ),
-      );
-
-      showMessage(
-        `${target.name} 님과의 연결을 해제했습니다.`,
-      );
-
-      setDisconnectTarget(null);
-    } catch (error) {
-      showMessage(
-        getErrorMessage(
-          error,
-          '어르신과의 연결을 해제하지 못했습니다.',
-        ),
-        'error',
-      );
-    } finally {
-      setDisconnecting(false);
     }
   }
 
@@ -932,35 +876,22 @@ export default function GuardianMyPage() {
           <div className="guardian-mypage__sections">
             <div className="guardian-mypage__two-column">
               <form
-                className="guardian-mypage__card"
+                className="guardian-mypage__card guardian-profile-card"
                 onSubmit={saveProfile}
               >
-                <div className="guardian-mypage__card-title">
-                  <h2>
-                    보호자 기본 정보
-                  </h2>
-
-                  <span>
-                    계정 정보
-                  </span>
-                </div>
-
                 <div className="guardian-profile-row">
                   <label>
                     이름
 
                     <input
                       type="text"
-                      value={
-                        profile.name ?? ''
-                      }
+                      value={profile.name ?? ''}
                       disabled={profileSaving}
                       onChange={(event) => {
                         setProfile(
                           (current) => ({
                             ...current,
-                            name:
-                              event.target.value,
+                            name: event.target.value,
                           }),
                         );
                       }}
@@ -972,16 +903,13 @@ export default function GuardianMyPage() {
 
                     <input
                       type="email"
-                      value={
-                        profile.email ?? ''
-                      }
+                      value={profile.email ?? ''}
                       disabled={profileSaving}
                       onChange={(event) => {
                         setProfile(
                           (current) => ({
                             ...current,
-                            email:
-                              event.target.value,
+                            email: event.target.value,
                           }),
                         );
                       }}
@@ -1146,10 +1074,6 @@ export default function GuardianMyPage() {
                   <h2>
                     초대 코드 관리
                   </h2>
-
-                  <span>
-                    어르신과 연결
-                  </span>
                 </div>
 
                 <strong className="guardian-invite-card__code">
@@ -1159,9 +1083,7 @@ export default function GuardianMyPage() {
 
                 <dl>
                   <div>
-                    <dt>
-                      유효 기간
-                    </dt>
+                    <dt>유효 기간</dt>
 
                     <dd>
                       {profile.inviteCodeExpiresAt
@@ -1171,28 +1093,35 @@ export default function GuardianMyPage() {
                         : '-'}
                     </dd>
                   </div>
+
+                  <div>
+                    <dt>코드 상태</dt>
+
+                    <dd
+                      className={[
+                        'guardian-invite-card__status',
+
+                        getInviteCodeStatus(
+                          profile.inviteCodeExpiresAt,
+                        ) === '사용 가능'
+                          ? 'guardian-invite-card__status--active'
+                          : '',
+
+                        getInviteCodeStatus(
+                          profile.inviteCodeExpiresAt,
+                        ) === '만료 임박'
+                          ? 'guardian-invite-card__status--warning'
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      {getInviteCodeStatus(
+                        profile.inviteCodeExpiresAt,
+                      )}
+                    </dd>
+                  </div>
                 </dl>
-
-                <button
-                  type="button"
-                  className="guardian-invite-card__senior-button"
-                  onClick={() => {
-                    setSeniorsModalOpen(
-                      true,
-                    );
-                  }}
-                >
-                  <span>
-                    연결된 어르신 관리
-                  </span>
-
-                  <strong>
-                    {seniors.length}
-                    명
-                  </strong>
-
-                  <ArrowIcon />
-                </button>
 
                 <div className="guardian-invite-card__actions">
                   <button
@@ -1218,6 +1147,156 @@ export default function GuardianMyPage() {
                 </div>
               </section>
             </div>
+
+            <section className="guardian-mypage__card guardian-senior-information-card">
+              <div className="guardian-mypage__card-title">
+                <div>
+                  <h2>
+                    연결된 어르신 정보
+                  </h2>
+
+                  <p>
+                    복지 혜택 확인에 필요한 어르신 정보를 관리합니다.
+                  </p>
+                </div>
+
+                <span>
+                  정보 관리
+                </span>
+              </div>
+
+              {seniorInformationSummary.totalCount === 0 ? (
+                <div className="guardian-senior-information-empty">
+                  <strong>
+                    연결된 어르신이 없습니다.
+                  </strong>
+
+                  <p>
+                    초대 코드를 전달해 어르신 계정과 먼저 연결해 주세요.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="guardian-senior-information-summary">
+                    <article>
+                      <span>
+                        연결된 어르신
+                      </span>
+
+                      <strong>
+                        {seniorInformationSummary.totalCount}명
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>
+                        정보 입력 완료
+                      </span>
+
+                      <strong className="complete">
+                        {seniorInformationSummary.completedCount}명
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>
+                        정보 보완 필요
+                      </span>
+
+                      <strong className="required">
+                        {seniorInformationSummary.incompleteCount}명
+                      </strong>
+                    </article>
+                  </div>
+
+                  <div className="guardian-senior-information-list">
+                    {seniorInformationSummary.seniors.map(
+                      (senior) => (
+                        <article
+                          key={senior.id}
+                          className={[
+                            'guardian-senior-information-item',
+                            senior.completed
+                              ? 'guardian-senior-information-item--complete'
+                              : 'guardian-senior-information-item--required',
+                          ].join(' ')}
+                        >
+                          <div className="guardian-senior-information-item__person">
+                            <span>
+                              {senior.name?.slice(0, 1)
+                                || '어'}
+                            </span>
+
+                            <div>
+                              <strong>
+                                {senior.name || '이름 미확인'} 님
+                              </strong>
+
+                              <small>
+                                {senior.guardianRelationship
+                                  || '관계 미설정'}
+                              </small>
+                            </div>
+                          </div>
+
+                          <div className="guardian-senior-information-item__status">
+                            {senior.completed ? (
+                              <>
+                                <strong className="complete">
+                                  정보 입력 완료
+                                </strong>
+
+                                <small>
+                                  복지 혜택 검토에 필요한 정보가 입력되어 있습니다.
+                                </small>
+                              </>
+                            ) : (
+                              <>
+                                <strong className="required">
+                                  {senior.missingCount}개 항목 보완 필요
+                                </strong>
+
+                                <small>
+                                  {senior.missingInformation
+                                    .slice(0, 3)
+                                    .join(' · ')}
+
+                                  {senior.missingCount > 3
+                                    ? ` 외 ${senior.missingCount - 3}개`
+                                    : ''}
+                                </small>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="guardian-senior-information-item__actions">
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => {
+                                navigate(
+                                  `/guardian/seniors?seniorId=${senior.id}`,
+                                );
+                              }}
+                            >
+                              {senior.completed
+                                ? '정보 확인'
+                                : '정보 보완'}
+                            </button>
+                          </div>
+                        </article>
+                      ),
+                    )}
+                  </div>
+
+                  <div className="guardian-senior-information-footer">
+                    <p>
+                      보호자가 입력한 정보는 어르신 앱 정보와 함께 복지 혜택 검토에 사용됩니다.
+                    </p>
+                  </div>
+                </>
+              )}
+            </section>
 
             <section className="guardian-mypage__card">
               <div className="guardian-mypage__card-title">
@@ -1318,249 +1397,6 @@ export default function GuardianMyPage() {
             ].join(' ')}
           >
             {message}
-          </div>
-        )}
-
-        {seniorsModalOpen && (
-          <div
-            className="guardian-senior-management-overlay"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (
-                event.target
-                === event.currentTarget
-              ) {
-                setSeniorsModalOpen(
-                  false,
-                );
-              }
-            }}
-          >
-            <section
-              className="guardian-senior-management-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="guardian-senior-management-title"
-            >
-              <header className="guardian-senior-management-modal__header">
-                <div>
-                  <h2
-                    id="guardian-senior-management-title"
-                  >
-                    연결된 어르신
-                  </h2>
-
-                  <p>
-                    보호자 본인을 기준으로 어르신과의 관계를 설정하거나 연결을 해제할 수 있습니다.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  className="guardian-senior-management-modal__close"
-                  aria-label="연결된 어르신 관리 닫기"
-                  onClick={() => {
-                    setSeniorsModalOpen(
-                      false,
-                    );
-                  }}
-                >
-                  <CloseIcon />
-                </button>
-              </header>
-
-              <div className="guardian-senior-management-modal__summary">
-                <span>
-                  현재 연결
-                </span>
-
-                <strong>
-                  {seniors.length}
-                  명
-                </strong>
-              </div>
-
-              <div className="guardian-senior-management-modal__content">
-                {seniors.length === 0 ? (
-                  <div className="guardian-senior-management-modal__empty">
-                    <strong>
-                      연결된 어르신이 없습니다.
-                    </strong>
-
-                    <p>
-                      초대 코드를 전달해 어르신 계정과 연결해 주세요.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="guardian-senior-management-list">
-                    {seniors.map(
-                      (senior) => (
-                        <article
-                          key={senior.id}
-                          className="guardian-senior-management-item"
-                        >
-                          <div className="guardian-senior-management-item__profile">
-                            <div className="guardian-senior-management-item__avatar">
-                              {String(
-                                senior.name
-                                || '어',
-                              ).slice(
-                                0,
-                                1,
-                              )}
-                            </div>
-
-                            <div>
-                              <strong>
-                                {senior.name
-                                  || '이름 미확인'}
-                                {' '}
-                                님
-                              </strong>
-
-                              <span>
-                                연결일
-                                {' '}
-                                {formatDate(
-                                  senior.guardianLinkedAt,
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          <label className="guardian-senior-management-item__relationship">
-                            <span>
-                              관계
-                            </span>
-
-                            <select
-                              value={
-                                senior.guardianRelationship
-                                ?? ''
-                              }
-                              disabled={
-                                relationshipSavingId
-                                === senior.id
-                              }
-                              onChange={(event) => {
-                                changeRelationship(
-                                  senior.id,
-                                  event.target.value,
-                                );
-                              }}
-                            >
-                              <option value="">
-                                관계 선택
-                              </option>
-
-                              {RELATIONSHIPS.map(
-                                (relationship) => (
-                                  <option
-                                    key={relationship}
-                                    value={relationship}
-                                  >
-                                    {relationship}
-                                  </option>
-                                ),
-                              )}
-                            </select>
-                          </label>
-
-                          <div className="guardian-senior-management-item__actions">
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => {
-                                setDisconnectTarget(
-                                  senior,
-                                );
-                              }}
-                            >
-                              연결 해제
-                            </button>
-                          </div>
-                        </article>
-                      ),
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <footer className="guardian-senior-management-modal__footer">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSeniorsModalOpen(
-                      false,
-                    );
-                  }}
-                >
-                  닫기
-                </button>
-              </footer>
-            </section>
-          </div>
-        )}
-
-        {disconnectTarget && (
-          <div
-            className="guardian-mypage__modal guardian-mypage__modal--disconnect"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (
-                event.target
-                === event.currentTarget
-                && !disconnecting
-              ) {
-                setDisconnectTarget(
-                  null,
-                );
-              }
-            }}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="guardian-disconnect-title"
-            >
-              <h2
-                id="guardian-disconnect-title"
-              >
-                {disconnectTarget.name}
-                {' '}
-                님과의 연결을 해제하시겠습니까?
-              </h2>
-
-              <p>
-                연결을 해제하면 위치, 안부, 알림 정보를 확인할 수 없습니다.
-              </p>
-
-              <div>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={disconnecting}
-                  onClick={() => {
-                    setDisconnectTarget(
-                      null,
-                    );
-                  }}
-                >
-                  취소
-                </button>
-
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={disconnecting}
-                  onClick={confirmDisconnect}
-                >
-                  {disconnecting
-                    ? '해제 중...'
-                    : '연결 해제'}
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </main>
