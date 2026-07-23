@@ -4,6 +4,33 @@ import { getUserId } from '../utils/auth.js';
 export const getGuardians = () =>
   api.get('/guardians');
 
+export const getGuardianProfile = () =>
+  api.get('/guardians/me');
+
+export const updateGuardianProfile = (data) =>
+  api.patch('/guardians/me', data);
+
+export const regenerateGuardianInviteCode = () =>
+  api.post('/guardians/me/invite-code/regenerate');
+
+export const updateGuardianNotifications = (data) =>
+  api.patch('/guardians/me/notifications', data);
+
+export const changeGuardianPassword = (data) =>
+  api.patch('/guardians/me/password', data);
+
+export const updateGuardianSeniorRelationship = (
+  seniorId,
+  relationship,
+) =>
+  api.patch(
+    `/guardians/me/seniors/${seniorId}/relationship`,
+    { relationship },
+  );
+
+export const deleteGuardianAccount = () =>
+  api.delete('/guardians/me');
+
 export const getSeniorsByGuardian = () =>
   api.get(`/seniors/by-guardian/${getUserId()}`);
 
@@ -24,6 +51,28 @@ export const getActionsBySenior = (seniorId) =>
 
 export const getGuardianAlerts = () =>
   api.get(`/care/guardians/${getUserId()}/alerts`);
+
+/**
+ * 오늘 안부 요청·응답·미응답 요약
+ */
+export const getGuardianTodayCheckInSummary = () =>
+  api.get('/guardians/me/check-in-summary/today');
+
+/**
+ * 보호자 홈 긴급 확인 요약
+ *
+ * 현재 실제 집계 항목:
+ * - 미처리 낙상 의심·감지
+ * - 미처리 SOS
+ * - 오늘 안부 연속 3회 이상 미응답
+ *
+ * 추후 확장 항목:
+ * - 전기·가스 위험 신고
+ * - 화재·연기 위험 신고
+ * - 심각한 기상특보
+ */
+export const getGuardianUrgentSummary = () =>
+  api.get('/guardians/me/urgent-summary');
 
 export const acknowledgeAlert = (
   alertId,
@@ -62,7 +111,7 @@ export const deleteSafetyZone = (
   );
 
 /**
- * 님의 안부 확인 기록을 조회한다.
+ * 어르신의 안부 확인 기록을 조회한다.
  */
 export const getCheckIns = (seniorId) =>
   api.get(
@@ -87,7 +136,7 @@ export const requestCheckIn = (seniorId) =>
   );
 
 /**
- * 님의 자동 안부 확인 설정을 조회한다.
+ * 어르신의 자동 안부 확인 설정을 조회한다.
  *
  * 아직 설정을 저장하지 않은 경우에도
  * 서버에서 기본값을 반환한다.
@@ -98,7 +147,7 @@ export const getCheckInSchedule = (seniorId) =>
   );
 
 /**
- * 님의 자동 안부 확인 설정을
+ * 어르신의 자동 안부 확인 설정을
  * 새로 저장하거나 기존 설정을 수정한다.
  *
  * data 예시:

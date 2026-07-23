@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -74,6 +75,10 @@ public class SeniorAuthService {
 
         Guardian guardian = guardianRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 초대 코드입니다."));
+        if (guardian.getInviteCodeExpiresAt() != null
+                && guardian.getInviteCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("만료된 초대 코드입니다.");
+        }
 
         Senior senior = Senior.builder()
                 .name(request.getName())
@@ -82,6 +87,8 @@ public class SeniorAuthService {
                 .address(request.getAddress())
                 .gender(request.getGender())
                 .guardianId(guardian.getId())
+                .guardianLinkedAt(LocalDateTime.now())
+                .inviteCodeUsedAt(LocalDateTime.now())
                 .build();
 
         seniorRepository.save(senior);

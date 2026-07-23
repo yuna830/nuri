@@ -29,6 +29,12 @@ public interface CheckInRepository
             LocalDateTime requestedAt
     );
 
+    List<CheckIn> findBySeniorIdInAndRequestedAtGreaterThanEqualAndRequestedAtLessThan(
+            List<Long> seniorIds,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
     /**
      * 현재 PENDING 상태인 안부 요청을
      * 요청 시각이 오래된 순서로 조회한다.

@@ -7,6 +7,7 @@ class AuthApi {
     return '서버에 연결하지 못했습니다. 서버가 켜져 있는지와 API 주소($baseUrl)를 확인해 주세요.';
   }
 
+
   static Future<void> register(
     String name,
     String phone,
@@ -37,7 +38,7 @@ class AuthApi {
       throw Exception('회원가입에 실패했습니다. (${res.statusCode})');
     }
   }
-
+  
   static Future<Map<String, dynamic>> login(String name, String phone) async {
     late final http.Response res;
     try {

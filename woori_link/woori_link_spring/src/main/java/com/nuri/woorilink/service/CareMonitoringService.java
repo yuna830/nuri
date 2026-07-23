@@ -72,6 +72,8 @@ public class CareMonitoringService {
                 .seniorId(seniorId).latitude(latitude).longitude(longitude).outsideSafetyZone(outside).build());
         if (outside && !eventRepository.existsBySeniorIdAndTypeAndStatus(seniorId, CareEvent.EventType.SAFETY_RADIUS_EXIT, CareEvent.EventStatus.PENDING)) {
             reportEvent(seniorId, CareEvent.EventType.SAFETY_RADIUS_EXIT, latitude, longitude, "Safety zone exited");
+        } else if (!outside) {
+            resolveSafetyRadiusExit(seniorId);
         }
         return location;
     }
@@ -99,7 +101,9 @@ public class CareMonitoringService {
         zone.setName(normalizedName);
         zone.setSlotNumber(slotNumber);
         zone.setLatitude(latitude); zone.setLongitude(longitude); zone.setRadiusMeters(radiusMeters); zone.setEnabled(true);
-        return safetyZoneRepository.save(zone);
+        SafetyZone saved = safetyZoneRepository.save(zone);
+        reevaluateLatestLocation(seniorId);
+        return saved;
     }
 
     @Transactional
@@ -108,6 +112,8 @@ public class CareMonitoringService {
                 .filter(existing -> existing.getSeniorId().equals(seniorId))
                 .orElseThrow(() -> new IllegalArgumentException("Safety zone not found: " + zoneId));
         safetyZoneRepository.delete(zone);
+        safetyZoneRepository.flush();
+        reevaluateLatestLocation(seniorId);
     }
 
     public Optional<SeniorLocation> latestLocation(Long seniorId) { return locationRepository.findTopBySeniorIdOrderByRecordedAtDesc(seniorId); }
@@ -369,5 +375,46 @@ public class CareMonitoringService {
         double dLat = Math.toRadians(lat2 - lat1), dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private void reevaluateLatestLocation(Long seniorId) {
+        locationRepository.findTopBySeniorIdOrderByRecordedAtDesc(seniorId)
+                .ifPresent(location -> {
+                    List<SafetyZone> enabledZones = safetyZoneRepository
+                            .findBySeniorIdOrderByIdAsc(seniorId)
+                            .stream()
+                            .filter(zone -> Boolean.TRUE.equals(zone.getEnabled()))
+                            .toList();
+
+                    boolean outside = !enabledZones.isEmpty() && enabledZones.stream()
+                            .noneMatch(zone -> distanceMeters(
+                                    location.getLatitude(),
+                                    location.getLongitude(),
+                                    zone.getLatitude(),
+                                    zone.getLongitude()
+                            ) <= zone.getRadiusMeters());
+
+                    location.setOutsideSafetyZone(outside);
+                    if (!outside) {
+                        resolveSafetyRadiusExit(seniorId);
+                    }
+                });
+    }
+
+    private void resolveSafetyRadiusExit(Long seniorId) {
+        eventRepository.findBySeniorIdAndTypeAndStatus(
+                seniorId,
+                CareEvent.EventType.SAFETY_RADIUS_EXIT,
+                CareEvent.EventStatus.PENDING
+        ).forEach(event -> event.setStatus(CareEvent.EventStatus.RESOLVED));
+
+        alertRepository.findBySeniorIdAndTypeAndStatusIn(
+                seniorId,
+                CareEvent.EventType.SAFETY_RADIUS_EXIT,
+                List.of(CareAlert.AlertStatus.UNREAD, CareAlert.AlertStatus.ACKNOWLEDGED)
+        ).forEach(alert -> {
+            alert.setStatus(CareAlert.AlertStatus.RESOLVED);
+            alert.setAcknowledgedAt(LocalDateTime.now());
+        });
     }
 }

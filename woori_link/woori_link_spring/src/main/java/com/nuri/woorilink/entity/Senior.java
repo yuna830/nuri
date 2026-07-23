@@ -75,6 +75,9 @@ public class Senior {
     private Boolean locationEventResolved;
 
     private Long guardianId;
+    private String guardianRelationship;
+    private LocalDateTime guardianLinkedAt;
+    private LocalDateTime inviteCodeUsedAt;
     private Long welfareWorkerId;
 
     @Builder.Default

@@ -20,21 +20,74 @@ public interface CareAlertRepository
     );
 
     /**
-     * 특정 님에게 생성된 알림을 최신순으로 조회한다.
+     * 보호자에게 생성된 특정 상태의 알림을 최신순으로 조회한다.
+     *
+     * 예:
+     * UNREAD, ACKNOWLEDGED 상태만 조회
+     */
+    List<CareAlert> findByGuardianIdAndStatusInOrderByCreatedAtDesc(
+            Long guardianId,
+            Collection<CareAlert.AlertStatus> statuses
+    );
+
+    /**
+     * 보호자에게 생성된 특정 종류이면서
+     * 특정 상태에 해당하는 알림을 조회한다.
+     *
+     * 긴급 확인 요약에서
+     * 낙상, SOS 알림을 각각 집계할 때 사용한다.
+     */
+    List<CareAlert> findByGuardianIdAndTypeAndStatusIn(
+            Long guardianId,
+            CareEvent.EventType type,
+            Collection<CareAlert.AlertStatus> statuses
+    );
+
+    /**
+     * 보호자에게 생성된 여러 종류의 알림 중
+     * 특정 상태에 해당하는 알림을 조회한다.
+     *
+     * 예:
+     * FALL_SUSPECTED, FALL_DETECTED를 한 번에 조회
+     */
+    List<CareAlert> findByGuardianIdAndTypeInAndStatusIn(
+            Long guardianId,
+            Collection<CareEvent.EventType> types,
+            Collection<CareAlert.AlertStatus> statuses
+    );
+
+    /**
+     * 특정 어르신에게 생성된 알림을 최신순으로 조회한다.
      */
     List<CareAlert> findBySeniorIdOrderByCreatedAtDesc(
             Long seniorId
     );
 
-    /** 보호자에게 연결되지 않은 사용자 본인의 알림을 조회한다. */
-    List<CareAlert> findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(
+    /**
+     * 보호자에게 연결되지 않은
+     * 어르신 본인의 알림을 조회한다.
+     */
+    List<CareAlert>
+    findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(
             Long seniorId
     );
 
-    /** 여러 사용자의 특정 종류 알림을 최신순으로 조회한다. */
+    /**
+     * 여러 어르신의 특정 종류 알림을 최신순으로 조회한다.
+     */
     List<CareAlert> findBySeniorIdInAndTypeOrderByCreatedAtDesc(
             List<Long> seniorIds,
             CareEvent.EventType type
+    );
+
+    /**
+     * 특정 어르신의 특정 종류 알림 중
+     * 지정된 상태에 해당하는 알림을 조회한다.
+     */
+    List<CareAlert> findBySeniorIdAndTypeAndStatusIn(
+            Long seniorId,
+            CareEvent.EventType type,
+            Collection<CareAlert.AlertStatus> statuses
     );
 
     /**
@@ -48,23 +101,33 @@ public interface CareAlertRepository
     );
 
     /**
-     * 로그인한 보호자에게 속한 알림을 조회한다.
+     * 로그인한 보호자에게 속한 알림을 ID로 조회한다.
      */
     Optional<CareAlert> findByIdAndGuardianId(
             Long id,
             Long guardianId
     );
 
+    /**
+     * 어르신에게 속한 알림을 ID로 조회한다.
+     */
     Optional<CareAlert> findByIdAndSeniorId(
             Long id,
             Long seniorId
     );
 
+    /**
+     * 보호자 연결 없이 생성된
+     * 어르신 본인 알림을 ID로 조회한다.
+     */
     Optional<CareAlert> findByIdAndSeniorIdAndGuardianIdIsNull(
             Long id,
             Long seniorId
     );
 
+    /**
+     * 특정 종류의 알림을 ID로 조회한다.
+     */
     Optional<CareAlert> findByIdAndType(
             Long id,
             CareEvent.EventType type

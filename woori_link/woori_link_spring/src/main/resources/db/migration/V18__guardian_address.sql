@@ -1,0 +1,1 @@
+ALTER TABLE wl_guardians ADD COLUMN IF NOT EXISTS address VARCHAR(255);

@@ -21,6 +21,7 @@ import java.util.List;
 public class KakaoAddressService {
 
     private static final String BASE_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+    private static final String KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
 
     private final PublicDataConfig config;
     private final ObjectMapper objectMapper;
@@ -51,12 +52,38 @@ public class KakaoAddressService {
                 String displayAddress = StringUtils.hasText(roadAddress) ? roadAddress : addressName;
 
                 results.add(new AddressSearchResult(
+                        "",
                         displayAddress,
                         roadAddress,
                         jibunAddress,
                         parseDouble(item.path("y").asText(null)),
                         parseDouble(item.path("x").asText(null))
                 ));
+            }
+
+            if (results.isEmpty()) {
+                String keywordUrl = UriComponentsBuilder.fromHttpUrl(KEYWORD_URL)
+                        .queryParam("query", query)
+                        .queryParam("size", 10)
+                        .encode(StandardCharsets.UTF_8)
+                        .build()
+                        .toUriString();
+
+                JsonNode keywordDocuments = objectMapper.readTree(get(keywordUrl)).path("documents");
+                for (JsonNode item : keywordDocuments) {
+                    String roadAddress = item.path("road_address_name").asText("");
+                    String jibunAddress = item.path("address_name").asText("");
+                    String placeName = item.path("place_name").asText("");
+                    String displayAddress = StringUtils.hasText(roadAddress) ? roadAddress : jibunAddress;
+                    results.add(new AddressSearchResult(
+                            placeName,
+                            StringUtils.hasText(displayAddress) ? displayAddress : placeName,
+                            roadAddress,
+                            jibunAddress,
+                            parseDouble(item.path("y").asText(null)),
+                            parseDouble(item.path("x").asText(null))
+                    ));
+                }
             }
 
             return results;

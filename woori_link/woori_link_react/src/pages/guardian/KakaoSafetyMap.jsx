@@ -159,6 +159,19 @@ function arrangeZones(zones) {
   return arranged;
 }
 
+function distanceMeters(first, second) {
+  const earthRadius = 6371000;
+  const toRadians = (value) => value * Math.PI / 180;
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+  const value = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(firstLatitude) * Math.cos(secondLatitude)
+    * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
 /**
  * 위치 수신 시간 표시
  */
@@ -351,7 +364,8 @@ export default function KakaoSafetyMap({
 }) {
   const mapElementRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markerRef = useRef(null);
+  const locationMarkerRef = useRef(null);
+  const addressMarkerRef = useRef(null);
   const circleRefs = useRef([]);
   const previewCircleRef = useRef(null);
   const lastCenterRef = useRef(null);
@@ -392,6 +406,9 @@ export default function KakaoSafetyMap({
     () => readCoordinates(location),
     [location],
   );
+
+  const hasReceivedLocation =
+    locationCoordinates !== null;
 
   const zoneCoordinates = useMemo(
     () => readCoordinates(displayZone),
@@ -444,8 +461,20 @@ export default function KakaoSafetyMap({
     && Number.isFinite(radius)
     && radius > 0;
 
-  const isOutside =
-    location?.outsideSafetyZone === true;
+  const validZones = displayZones
+    .filter(Boolean)
+    .filter((zone) => zone.enabled !== false)
+    .map((zone) => ({
+      coordinates: readCoordinates(zone),
+      radius: Number(zone.radiusMeters ?? zone.radius ?? zone.distance),
+    }))
+    .filter((zone) => zone.coordinates && Number.isFinite(zone.radius) && zone.radius > 0);
+
+  const isOutside = locationCoordinates && validZones.length > 0
+    ? validZones.every((zone) => (
+      distanceMeters(locationCoordinates, zone.coordinates) > zone.radius
+    ))
+    : location?.outsideSafetyZone === true;
 
   const seniorName =
     senior?.name || '님';
@@ -550,12 +579,14 @@ export default function KakaoSafetyMap({
           map.setCenter(center);
         }
 
-        /**
-         * 이전 마커 제거
-         */
-        if (markerRef.current) {
-          markerRef.current.setMap(null);
-          markerRef.current = null;
+        if (locationMarkerRef.current) {
+          locationMarkerRef.current.setMap(null);
+          locationMarkerRef.current = null;
+        }
+
+        if (addressMarkerRef.current) {
+          addressMarkerRef.current.setMap(null);
+          addressMarkerRef.current = null;
         }
 
         /**
@@ -564,13 +595,35 @@ export default function KakaoSafetyMap({
         circleRefs.current.forEach((circle) => circle.setMap(null));
         circleRefs.current = [];
 
-        /**
-         * 최신 위치 또는 등록 주소 위치 마커
-         */
-        markerRef.current = new maps.Marker({
-          map,
-          position: center,
-        });
+        if (locationCoordinates) {
+          locationMarkerRef.current =
+            new maps.CustomOverlay({
+              map,
+              position: center,
+              yAnchor: 0.5,
+              xAnchor: 0.5,
+              content: `
+        <div
+          class="guardian-kakao-marker guardian-kakao-marker--location"
+          aria-label="현재 위치"
+        ></div>
+      `,
+            });
+        } else {
+          addressMarkerRef.current =
+            new maps.CustomOverlay({
+              map,
+              position: center,
+              yAnchor: 0.5,
+              xAnchor: 0.5,
+              content: `
+        <div
+          class="guardian-kakao-marker guardian-kakao-marker--address"
+          aria-label="등록 주소"
+        ></div>
+      `,
+            });
+        }
 
         /**
          * 안전구역 표시
@@ -742,9 +795,14 @@ export default function KakaoSafetyMap({
    */
   useEffect(() => (
     () => {
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-        markerRef.current = null;
+      if (locationMarkerRef.current) {
+        locationMarkerRef.current.setMap(null);
+        locationMarkerRef.current = null;
+      }
+
+      if (addressMarkerRef.current) {
+        addressMarkerRef.current.setMap(null);
+        addressMarkerRef.current = null;
       }
 
       circleRefs.current.forEach((circle) => circle.setMap(null));
@@ -905,18 +963,66 @@ export default function KakaoSafetyMap({
   }
 
   async function handleCurrentLocationMove() {
+    if (
+      locationRefreshing
+      || !window.kakao?.maps
+    ) {
+      return;
+    }
+
     setLocationRefreshing(true);
+    setZoneMessage('');
+
     try {
-      await onRefreshLocation?.();
-      if (!locationCoordinates || !window.kakao?.maps) {
-        setZoneMessage('최근 수신 위치가 없습니다.');
+      /*
+       * 실제 위치가 있으면 서버에서 위치를
+       * 다시 조회한 뒤 현재 위치로 이동합니다.
+       */
+      if (locationCoordinates) {
+        await onRefreshLocation?.();
+
+        const position =
+          new window.kakao.maps.LatLng(
+            locationCoordinates.latitude,
+            locationCoordinates.longitude,
+          );
+
+        mapInstanceRef.current?.setCenter(
+          position,
+        );
+
+        lastCenterRef.current =
+          position;
+
         return;
       }
-      const position = new window.kakao.maps.LatLng(
-        locationCoordinates.latitude,
-        locationCoordinates.longitude,
+
+      /*
+       * 위치를 수신하지 못한 경우에는
+       * 등록 주소 좌표로 이동합니다.
+       */
+      if (resolvedCenter) {
+        const position =
+          new window.kakao.maps.LatLng(
+            resolvedCenter.latitude,
+            resolvedCenter.longitude,
+          );
+
+        mapInstanceRef.current?.setCenter(
+          position,
+        );
+
+        lastCenterRef.current =
+          position;
+
+        return;
+      }
+
+      setZoneMessage(
+        seniorSearchAddress
+          ? '등록 주소 위치를 불러오는 중입니다.'
+          : '최근 위치와 등록 주소가 없습니다.',
       );
-      mapInstanceRef.current?.setCenter(position);
     } finally {
       setLocationRefreshing(false);
     }
@@ -928,14 +1034,34 @@ export default function KakaoSafetyMap({
         <div className="guardian-safety-map__heading">
           <div>
             <div className="guardian-safety-map__title-row">
-              <h3>현재 위치 · 안전구역</h3>
-              {hasLocationRisk && <span>확인 필요</span>}
+              <h3>
+                현재 위치 · 안전구역
+              </h3>
+
+              {hasLocationRisk && (
+                <span>
+                  확인 필요
+                </span>
+              )}
             </div>
 
             <p>
               {locationCoordinates
-                ? `${seniorName} 님의 최근 위치와 설정된 안전구역입니다.`
-                : `${seniorName} 님의 위치 정보가 수신되지 않았습니다.`}
+                ? (
+                  `${seniorName} 님의 최근 위치와 `
+                  + '설정된 안전구역입니다.'
+                )
+                : seniorSearchAddress
+                  ? (
+                    `${seniorName} 님의 위치 정보가 `
+                    + '수신되지 않았습니다. '
+                    + '등록 주소를 기준으로 '
+                    + '지도를 표시합니다.'
+                  )
+                  : (
+                    `${seniorName} 님의 위치 정보와 `
+                    + '등록 주소가 없습니다.'
+                  )}
             </p>
           </div>
 
@@ -944,24 +1070,40 @@ export default function KakaoSafetyMap({
               type="button"
               className="guardian-safety-map__refresh"
               onClick={handleCurrentLocationMove}
-              disabled={locationRefreshing}
+              disabled={
+                locationRefreshing
+                || (
+                  !locationCoordinates
+                  && !resolvedCenter
+                )
+              }
             >
-              {locationRefreshing ? '위치 확인 중' : '현재 위치로 이동'}
+              {locationRefreshing
+                ? '위치 확인 중'
+                : locationCoordinates
+                  ? '현재 위치로 이동'
+                  : '등록 주소 보기'}
             </button>
-            <div className="guardian-safety-map__legend">
-            {locationCoordinates && (
-              <span>
-                <i className="guardian-safety-map__marker-dot" />
-                현재 위치
-              </span>
-            )}
 
-            {hasZone && (
-              <span>
-                <i className="guardian-safety-map__zone-dot" />
-                안전구역
-              </span>
-            )}
+            <div className="guardian-safety-map__legend">
+              {locationCoordinates ? (
+                <span>
+                  <i className="guardian-safety-map__marker-dot" />
+                  현재 위치
+                </span>
+              ) : seniorSearchAddress ? (
+                <span>
+                  <i className="guardian-safety-map__address-dot" />
+                  등록 주소
+                </span>
+              ) : null}
+
+              {validZones.length > 0 && (
+                <span>
+                  <i className="guardian-safety-map__zone-dot" />
+                  안전구역
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -989,7 +1131,17 @@ export default function KakaoSafetyMap({
               <div
                 className={[
                   'guardian-safety-map__status',
-                  isOutside ? 'is-outside' : '',
+
+                  locationCoordinates
+                    ? 'guardian-safety-map__status--location'
+                    : 'guardian-safety-map__status--address',
+
+                  (
+                    locationCoordinates
+                    && isOutside
+                  )
+                    ? 'is-outside'
+                    : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -1007,8 +1159,17 @@ export default function KakaoSafetyMap({
                 <span>
                   {locationCoordinates
                     ? formatReceivedAt(location)
-                    : seniorDisplayAddress}
+                    : (
+                      seniorDisplayAddress
+                      || '등록 주소 정보 없음'
+                    )}
                 </span>
+
+                {!locationCoordinates && (
+                  <small>
+                    현재 위치가 아닌 등록 주소입니다.
+                  </small>
+                )}
               </div>
             )}
         </div>

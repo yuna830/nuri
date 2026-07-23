@@ -476,104 +476,120 @@
 .guardian-senior-hero {
   overflow: hidden;
   border: 1px solid #e1e8e1;
-  border-top-width: 4px;
+  border-top: 4px solid #aeb8b0;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 6px 20px rgba(34, 53, 39, 0.05)
+  box-shadow: 0 6px 20px rgba(34, 53, 39, 0.05);
 }
 
 .guardian-senior-hero--safe {
-  border-top-color: #8ea88c
+  border-top-color: #8ea88c;
 }
 
 .guardian-senior-hero--warning {
-  border-top-color: #d79d43
+  border-top-color: #d79d43;
 }
 
 .guardian-senior-hero--danger {
-  border-top-color: #c75a50
+  border-top-color: #c75a50;
 }
 
 .guardian-senior-hero--neutral {
-  border-top-color: #aeb8b0
+  border-top-color: #aeb8b0;
 }
+
 
 .guardian-senior-hero__top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 30px;
-  padding: 17px 21px
+  padding: 20px 22px 18px;
+}
+
+.guardian-senior-hero__identity {
+  min-width: 0;
+  flex: 1;
 }
 
 .guardian-senior-hero__title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px
+  gap: 10px;
 }
 
 .guardian-senior-hero__title h2 {
   margin: 0;
   color: #253128;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 900;
   line-height: 1.3;
-  letter-spacing: -0.035em
+  letter-spacing: -0.035em;
 }
 
 .guardian-senior-hero__status {
-  padding: 4px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 23px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 10px;
-  font-weight: 900
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .guardian-senior-hero__status--safe {
   background: #edf5eb;
-  color: #688466
+  color: #688466;
 }
 
 .guardian-senior-hero__status--warning {
   background: #fff4df;
-  color: #a56a17
+  color: #a56a17;
 }
 
 .guardian-senior-hero__status--danger {
   background: #fff0ed;
-  color: #b94c42
+  color: #b94c42;
 }
 
 .guardian-senior-hero__status--neutral {
   background: #f1f4f2;
-  color: #748078
-}
-
-.guardian-senior-hero__address {
-  margin: 9px 0 0;
-  color: #7e8b81;
-  font-size: 13px
+  color: #748078;
 }
 
 .guardian-senior-hero__phone {
   margin: 7px 0 0;
   color: #7e8b81;
   font-size: 12px;
-  font-weight: 700
+  font-weight: 700;
 }
 
-.guardian-senior-hero__description {
-  margin: 17px 0 0;
-  color: #3d4b41;
-  font-size: 13px;
-  line-height: 1.6
+.guardian-senior-hero__risk-text {
+  margin: 15px 0 0;
+  color: #475349;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+  word-break: keep-all;
 }
+
+.guardian-senior-hero__safe-message {
+  margin: 15px 0 0;
+  color: #718078;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 
 .guardian-senior-hero__actions {
   display: flex;
+  flex-shrink: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px
+  gap: 8px;
 }
 
 .guardian-senior-hero__actions button {
@@ -586,73 +602,69 @@
   font-family: inherit;
   font-size: 12px;
   font-weight: 900;
-  cursor: pointer
+  cursor: pointer;
 }
 
 .guardian-senior-hero__actions .guardian-senior-hero__call {
   border-color: #8ea98b;
   background: #8ea98b;
-  color: #ffffff
+  color: #ffffff;
 }
 
 .guardian-senior-hero__actions button:disabled {
-  opacity: .45;
-  cursor: not-allowed
+  opacity: 0.45;
+  cursor: not-allowed;
 }
+
 
 .guardian-senior-hero__information {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-top: 1px solid #edf1ed;
-  background: #fbfcfb
+  background: #fbfcfb;
 }
 
-.guardian-senior-hero__information>* {
+.guardian-senior-hero__summary-item {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
   min-width: 0;
-  padding: 15px 20px;
-  border-right: 1px solid #edf1ed
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 20px;
+  border-right: 1px solid #edf1ed;
 }
 
-.guardian-senior-hero__information>*:last-child {
-  border-right: 0
+.guardian-senior-hero__summary-item:last-child {
+  border-right: 0;
 }
 
-.guardian-senior-hero__information-button {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer
-}
-
-.guardian-senior-hero__information-button:hover {
-  background: #f3f7f2
-}
-
-.guardian-senior-hero__information span {
-  color: #909b93;
+.guardian-senior-hero__summary-item>span {
+  color: #8d9990;
   font-size: 10px;
-  font-weight: 800
+  font-weight: 800;
 }
 
-.guardian-senior-hero__information strong {
+.guardian-senior-hero__summary-item>strong {
   overflow: hidden;
   color: #354238;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
+  line-height: 1.4;
   text-overflow: ellipsis;
-  white-space: nowrap
+  white-space: nowrap;
 }
 
-.guardian-senior-hero__information small {
+.guardian-senior-hero__summary-item>small {
   overflow: hidden;
-  color: #7e8b81;
+  color: #8b968e;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 650;
+  line-height: 1.4;
   text-overflow: ellipsis;
-  white-space: nowrap
+  white-space: nowrap;
+}
+
+.guardian-senior-hero__summary-item--danger>strong {
+  color: #a94d44;
 }
 
 .guardian-fall-modal__heading p {
@@ -764,8 +776,8 @@
 }
 
 .guardian-safety-map__refresh:disabled {
-  opacity: .55;
-  cursor: wait
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .guardian-safety-map__legend {
@@ -788,11 +800,40 @@
 }
 
 .guardian-safety-map__marker-dot {
-  background: #3f6da5
+  background: #3f6da5;
+}
+
+.guardian-safety-map__address-dot {
+  border: 1px solid #7e8981;
+  background: #ffffff;
 }
 
 .guardian-safety-map__zone-dot {
-  background: #9ab097
+  background: #9ab097;
+}
+
+.guardian-kakao-marker {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+  box-shadow:
+    0 2px 8px rgba(35, 49, 38, 0.28),
+    0 0 0 1px rgba(54, 68, 58, 0.12);
+}
+
+.guardian-kakao-marker--location {
+  background: #3f6da5;
+}
+
+.guardian-kakao-marker--address {
+  border-width: 3px;
+  border-color: #ffffff;
+  background: #8b948d;
+  box-shadow:
+    0 2px 8px rgba(35, 49, 38, 0.22),
+    0 0 0 2px rgba(126, 137, 129, 0.32);
 }
 
 .guardian-safety-map__canvas-wrap {
@@ -831,27 +872,56 @@
   top: 14px;
   left: 14px;
   display: flex;
+  max-width: min(360px, calc(100% - 28px));
+  box-sizing: border-box;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   padding: 10px 13px;
-  border: 1px solid rgba(214, 223, 214, .95);
+  border: 1px solid rgba(214, 223, 214, 0.95);
   border-radius: 10px;
-  background: rgba(255, 255, 255, .94);
-  box-shadow: 0 3px 12px rgba(35, 49, 38, .12)
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 3px 12px rgba(35, 49, 38, 0.12);
+  backdrop-filter: blur(4px);
 }
 
 .guardian-safety-map__status strong {
   color: #4f6851;
-  font-size: 12px
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .guardian-safety-map__status span {
+  overflow: hidden;
   color: #879289;
-  font-size: 10px
+  font-size: 10px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guardian-safety-map__status small {
+  color: #a16b32;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.guardian-safety-map__status--address {
+  border-color: rgba(218, 205, 183, 0.95);
+  background: rgba(255, 252, 246, 0.95);
+}
+
+.guardian-safety-map__status--address strong {
+  color: #766044;
+}
+
+.guardian-safety-map__status.is-outside {
+  border-color: rgba(229, 186, 180, 0.95);
+  background: rgba(255, 247, 245, 0.96);
 }
 
 .guardian-safety-map__status.is-outside strong {
-  color: #b64f45
+  color: #b64f45;
 }
 
 .guardian-safety-zone-editor {
@@ -1430,28 +1500,28 @@
   border-top: 4px solid #aeb8b0;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 6px 20px rgba(34, 53, 39, 0.05)
+  box-shadow: 0 6px 20px rgba(34, 53, 39, 0.05);
 }
 
 .guardian-ai-checkin--safe {
-  border-top-color: #8ea88c
+  border-top-color: #8ea88c;
 }
 
 .guardian-ai-checkin--warning {
-  border-top-color: #d79d43
+  border-top-color: #d79d43;
 }
 
 .guardian-ai-checkin--danger {
-  border-top-color: #c75a50
+  border-top-color: #c75a50;
 }
 
 .guardian-ai-checkin--neutral {
-  border-top-color: #aeb8b0
+  border-top-color: #aeb8b0;
 }
 
+
 .guardian-ai-checkin__main {
-  display: block;
-  padding: 20px 22px 0
+  padding: 18px 22px 0;
 }
 
 .guardian-ai-checkin__header-row {
@@ -1459,34 +1529,19 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding-bottom: 18px
+  padding-bottom: 14px;
 }
 
 .guardian-ai-checkin__content {
   min-width: 0;
-  flex: 1
-}
-
-.guardian-ai-checkin__title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 15px
-}
-
-.guardian-ai-checkin__eyebrow {
-  display: block;
-  margin-bottom: 3px;
-  color: #7c8b7e;
-  font-size: 10px;
-  font-weight: 800
+  flex: 1;
 }
 
 .guardian-ai-checkin__title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px
+  gap: 8px;
 }
 
 .guardian-ai-checkin__title h2 {
@@ -1495,60 +1550,34 @@
   font-size: 17px;
   font-weight: 900;
   line-height: 1.3;
-  letter-spacing: -0.025em
+  letter-spacing: -0.025em;
 }
 
 .guardian-ai-checkin__status {
   padding: 4px 8px;
   border-radius: 999px;
   font-size: 9px;
-  font-weight: 900
+  font-weight: 900;
 }
 
 .guardian-ai-checkin__status--safe {
   background: #eaf5eb;
-  color: #44754a
+  color: #44754a;
 }
 
 .guardian-ai-checkin__status--warning {
   background: #fff4df;
-  color: #9b671d
+  color: #9b671d;
 }
 
 .guardian-ai-checkin__status--danger {
   background: #fff0ed;
-  color: #b94c42
+  color: #b94c42;
 }
 
 .guardian-ai-checkin__status--neutral {
   background: #eef2ef;
-  color: #748078
-}
-
-.guardian-ai-checkin__description {
-  margin: 6px 0 0;
-  color: #667369;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.5
-}
-
-.guardian-ai-checkin__description--safe {
-  color: #59725c
-}
-
-.guardian-ai-checkin__description--warning {
-  color: #94631c;
-  font-weight: 900
-}
-
-.guardian-ai-checkin__description--danger {
-  color: #b5483f;
-  font-weight: 900
-}
-
-.guardian-ai-checkin__description--neutral {
-  color: #718078
+  color: #748078;
 }
 
 .guardian-ai-checkin__error {
@@ -1556,14 +1585,15 @@
   margin-top: 6px;
   color: #b64e44;
   font-size: 10px;
-  font-weight: 800
+  font-weight: 800;
 }
+
 
 .guardian-ai-checkin__action {
   display: flex;
   align-items: center;
-  gap: 15px;
-  flex-shrink: 0
+  flex-shrink: 0;
+  gap: 12px;
 }
 
 .guardian-ai-checkin__requested-at {
@@ -1571,8 +1601,7 @@
   color: #909b93;
   font-size: 10px;
   font-weight: 700;
-  line-height: 1.5;
-  white-space: nowrap
+  white-space: nowrap;
 }
 
 .guardian-ai-checkin__request-button {
@@ -1587,30 +1616,27 @@
   font-family: inherit;
   font-size: 11px;
   font-weight: 900;
-  cursor: pointer
+  cursor: pointer;
 }
 
 .guardian-ai-checkin__request-button:hover:not(:disabled) {
   border-color: #7d997a;
-  background: #7d997a
+  background: #7d997a;
 }
 
 .guardian-ai-checkin__request-button:disabled {
   border-color: #dce4dc;
   background: #eef2ee;
   color: #879288;
-  cursor: not-allowed
+  cursor: not-allowed;
 }
+
 
 .guardian-ai-checkin__insight-card {
   margin: 0 -22px;
-  padding: 22px;
-
+  padding: 17px 22px 20px;
   border: 0;
-  border-radius: 0;
-
   background: #ffffff;
-  box-shadow: none;
 }
 
 .guardian-ai-checkin__insight-card--warning,
@@ -1622,100 +1648,54 @@
 
 .guardian-ai-checkin__analysis-row {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 14px
+  grid-template-columns: 106px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
 }
 
 .guardian-ai-checkin__analysis-row>strong {
   color: #293128;
   font-size: 13px;
-  font-weight: 800;
-  line-height: 1.7;
-  white-space: nowrap
+  font-weight: 850;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.guardian-ai-checkin__insight-summary {
+  min-width: 0;
+  margin: 0;
+  color: #2b312a;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.65;
+  word-break: keep-all;
 }
 
 .guardian-ai-checkin__source {
   flex-shrink: 0;
   padding: 4px 9px;
-
   border: 1px solid #dfe5df;
   border-radius: 999px;
-
   background: #ffffff;
   color: #68746b;
-
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-}
-
-.guardian-ai-checkin__insight-summary {
-  margin: 0;
-  color: #2b312a;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.7;
-  word-break: keep-all
-}
-
-.guardian-ai-checkin__recommended-action {
-  display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-
-  margin-top: 17px;
-  padding: 15px 0 0;
-
-  border: 0;
-  border-top: 1px solid #e7ebe7;
-  border-radius: 0;
-
-  background: transparent;
-}
-
-.guardian-ai-checkin__recommended-action strong {
-  color: #293128;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.6;
-  white-space: nowrap
-}
-
-.guardian-ai-checkin__recommended-action span {
-  color: #3f433d;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.6;
-  word-break: keep-all
+  white-space: nowrap;
 }
 
 .guardian-ai-checkin__insight-state {
   display: flex;
+  min-height: 52px;
   align-items: center;
-
-  min-height: 72px;
-  padding: 24px 0 30px;
-
   color: #7f8981;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
-  line-height: 1.6;
 }
 
-.guardian-ai-checkin__insight-state--error {
-  color: #aa493c
-}
 
 .guardian-ai-checkin__summary {
-  padding: 0 22px 20px;
-
-  /*
-   * 얇은 선 대신 넓은 회색 띠를 넣어서
-   * AI 해석 영역과 데이터 영역을 구분한다.
-   */
+  padding: 0 22px 16px;
   border-top: 10px solid #f3f5f3;
-
   background: #ffffff;
 }
 
@@ -1724,16 +1704,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-
-  margin: 0;
-  padding: 16px 0 13px;
-
+  padding: 14px 0 11px;
   border-bottom: 1px solid #edf0ed;
 }
 
 .guardian-ai-checkin__summary-heading h3 {
   margin: 0;
-
   color: #354038;
   font-size: 14px;
   font-weight: 850;
@@ -1741,219 +1717,108 @@
 
 .guardian-ai-checkin__summary-heading small {
   color: #969d94;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
 }
 
-.guardian-ai-checkin__metrics,
-.guardian-ai-checkin__metrics--compact {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
 
-  overflow: visible;
+.guardian-ai-checkin__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
   padding: 0;
-
-  border: 0;
   border-bottom: 1px solid #ecefea;
-  border-radius: 0;
-
-  background: transparent;
-  box-shadow: none;
 }
 
-.guardian-ai-checkin__metrics>div,
-.guardian-ai-checkin__metrics--compact>div {
+.guardian-ai-checkin__metrics>div {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
   min-width: 0;
-  min-height: 76px;
-  padding: 14px 12px;
-  border: 0;
+  min-height: 74px;
+  flex-direction: column;
+  padding: 12px;
   border-right: 1px solid #ecefea;
-  background: transparent;
-  text-align: center
+  text-align: center;
 }
 
-.guardian-ai-checkin__metrics>div:last-child,
-.guardian-ai-checkin__metrics--compact>div:last-child {
-  border-right: 0
+.guardian-ai-checkin__metrics>div:last-child {
+  border-right: 0;
 }
 
-.guardian-ai-checkin__metrics dt,
-.guardian-ai-checkin__metrics--compact dt {
-  width: 100%;
-  margin: 0 0 5px;
+.guardian-ai-checkin__metrics dt {
+  margin: 0 0 4px;
   color: #8a9187;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
-  line-height: 1.4;
-  text-align: center
 }
 
-.guardian-ai-checkin__metrics dd,
-.guardian-ai-checkin__metrics--compact dd {
-  width: 100%;
+.guardian-ai-checkin__metrics dd {
   margin: 0;
   color: #30372f;
   font-size: 18px;
   font-weight: 800;
   line-height: 1.3;
-  text-align: center
 }
 
-.guardian-ai-checkin__metrics small,
-.guardian-ai-checkin__metrics--compact small {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
+.guardian-ai-checkin__metrics small {
+  margin-top: 3px;
   color: #9ca29a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 550;
-  line-height: 1.4;
-  text-align: center
 }
 
-.guardian-ai-checkin__details {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent
-}
-
-.guardian-ai-checkin__details summary {
+.guardian-ai-checkin__analysis-unavailable {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 15px 2px 13px;
-  border: 0;
-  border-bottom: 1px solid #ecefea;
-  background: transparent;
-  color: #596157;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  list-style: none;
-  user-select: none
+  gap: 24px;
+  min-height: 74px;
+  padding: 15px 18px;
+  border: 1px solid #e1e6e1;
+  border-radius: 12px;
+  background: #f8faf8;
 }
 
-.guardian-ai-checkin__details summary::-webkit-details-marker {
-  display: none
+.guardian-ai-checkin__analysis-unavailable strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #405044;
+  font-size: 13px;
 }
 
-.guardian-ai-checkin__details summary>span:first-child {
-  position: relative;
-  padding-left: 14px
-}
-
-.guardian-ai-checkin__details summary>span:first-child::before {
-  position: absolute;
-  top: 50%;
-  left: 1px;
-  width: 5px;
-  height: 5px;
-  border-right: 1.5px solid #7f887c;
-  border-bottom: 1.5px solid #7f887c;
-  content: '';
-  transform: translateY(-65%) rotate(-45deg);
-  transition: transform 0.18s ease
-}
-
-.guardian-ai-checkin__details[open] summary>span:first-child::before {
-  transform: translateY(-70%) rotate(45deg)
-}
-
-.guardian-ai-checkin__details-action {
-  color: #8b9288;
-  font-size: 11px;
-  font-weight: 650
-}
-
-.guardian-ai-checkin__details-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.guardian-ai-checkin__analysis-unavailable p {
   margin: 0;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none
-}
-
-.guardian-ai-checkin__detail-row {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  align-items: start;
-  gap: 18px;
-  padding: 15px 12px;
-  border: 0;
-  border-bottom: 1px solid #eef1ed;
-  background: transparent
-}
-
-.guardian-ai-checkin__detail-row:last-child {
-  border-bottom: 0
-}
-
-.guardian-ai-checkin__detail-row>strong {
-  color: #4e5d51;
+  color: #7a867d;
   font-size: 11px;
-  font-weight: 900;
-  line-height: 1.55
+  line-height: 1.6;
 }
 
-.guardian-ai-checkin__missed-dates {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px
-}
-
-.guardian-ai-checkin__missed-date {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #66736a;
-  font-size: 10px;
-  font-weight: 800;
-  white-space: nowrap
-}
-
-.guardian-ai-checkin__missed-date:not(:last-child)::after {
-  margin-left: 7px;
-  color: #b4bbb3;
-  content: '·'
-}
-
-.guardian-ai-checkin__reason-summary {
-  margin: 0;
-  color: #68746b;
+.guardian-ai-checkin__analysis-unavailable button {
+  flex-shrink: 0;
+  min-width: 104px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #cfd9cf;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #5e735e;
+  font: inherit;
   font-size: 11px;
   font-weight: 700;
-  line-height: 1.7
+  cursor: pointer;
 }
 
-.guardian-ai-checkin__state {
-  padding: 13px;
-  border: 1px dashed #dce4dc;
-  border-radius: 9px;
-  color: #7f8b82;
-  font-size: 11px;
-  text-align: center
-}
-
-.guardian-ai-checkin__state--error {
-  border-color: #efc6c1;
-  background: #fff5f3;
-  color: #b3473d
+.guardian-ai-checkin__summary-unavailable {
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid #e3e8e3;
+  border-radius: 11px;
+  background: #fafbfa;
+  color: #7a867d;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 /* 자동 안부 설정 버튼 */
@@ -2463,133 +2328,67 @@
 
 @media (max-width: 640px) {
   .guardian-ai-checkin__main {
-    display: block;
-    padding: 18px 16px 0;
+    padding: 17px 16px 0;
   }
 
   .guardian-ai-checkin__header-row {
     align-items: stretch;
     flex-direction: column;
-    gap: 14px;
-    padding-bottom: 16px;
-  }
-
-  .guardian-ai-checkin__title-row {
-    flex-direction: column;
-    gap: 4px;
+    gap: 13px;
   }
 
   .guardian-ai-checkin__action {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
-    align-items: stretch;
-    flex-direction: column;
     gap: 7px;
   }
 
   .guardian-ai-checkin__requested-at {
-    font-size: 9px;
+    grid-column: 1 / -1;
     text-align: right;
   }
 
   .guardian-ai-checkin__request-button {
     width: 100%;
+    min-width: 0;
   }
 
   .guardian-ai-checkin__insight-card {
     margin: 0 -16px;
-    padding: 17px 16px 18px 20px;
+    padding: 16px;
   }
 
   .guardian-ai-checkin__analysis-row {
     grid-template-columns: 1fr;
-    gap: 5px;
+    gap: 6px;
   }
 
-  .guardian-ai-checkin__insight-summary {
-    font-size: 15px;
-    line-height: 1.65;
-  }
-
-  .guardian-ai-checkin__recommended-action {
-    grid-template-columns: 1fr;
-    gap: 5px;
+  .guardian-ai-checkin__source {
+    width: fit-content;
   }
 
   .guardian-ai-checkin__summary {
-    padding: 15px 16px 17px;
+    padding: 0 16px 14px;
   }
 
-  .guardian-ai-checkin__summary-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 3px;
+  .guardian-ai-checkin__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .guardian-ai-checkin__metrics,
-  .guardian-ai-checkin__metrics--compact {
-    grid-template-columns: repeat(2,
-        minmax(0, 1fr));
-  }
-
-  .guardian-ai-checkin__metrics>div,
-  .guardian-ai-checkin__metrics--compact>div {
-    min-height: 70px;
+  .guardian-ai-checkin__metrics>div {
+    min-height: 68px;
     border-right: 1px solid #ecefea;
     border-bottom: 1px solid #ecefea;
   }
 
-  .guardian-ai-checkin__metrics>div:nth-child(even),
-  .guardian-ai-checkin__metrics--compact>div:nth-child(even) {
+  .guardian-ai-checkin__metrics>div:nth-child(even) {
     border-right: 0;
   }
 
   .guardian-ai-checkin__metrics>div:nth-child(3),
-  .guardian-ai-checkin__metrics--compact>div:nth-child(3) {
-    border-right: 1px solid #ecefea;
-  }
-
-  .guardian-ai-checkin__metrics>div:last-child,
-  .guardian-ai-checkin__metrics--compact>div:last-child {
-    grid-column: 1 / -1;
-    border-right: 0;
+  .guardian-ai-checkin__metrics>div:nth-child(4) {
     border-bottom: 0;
-  }
-
-  .guardian-ai-checkin__detail-row {
-    grid-template-columns: 1fr;
-    gap: 7px;
-    padding: 14px 4px;
-  }
-
-  .guardian-ai-checkin__missed-dates {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .guardian-ai-checkin__missed-date:not(:last-child)::after {
-    display: none;
-  }
-
-  .guardian-checkin-schedule-modal {
-    width: min(100%,
-        calc(100vw - 20px));
-    max-height: calc(100vh - 20px);
-    padding: 20px;
-  }
-
-  .guardian-checkin-schedule-modal__mode-options {
-    grid-template-columns: 1fr;
-  }
-
-  .guardian-checkin-schedule-modal__mode-option {
-    min-height: 70px;
-  }
-
-  .guardian-checkin-schedule-modal footer {
-    bottom: -20px;
-    margin: 18px -20px -20px;
-    padding: 14px 20px 20px;
   }
 }
 

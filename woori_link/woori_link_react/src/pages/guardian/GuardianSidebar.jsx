@@ -43,6 +43,12 @@ const MENU_ITEMS = [
     path: '/guardian/welfare',
     icon: 'chat',
   },
+  {
+    key: 'mypage',
+    label: '마이페이지',
+    path: '/guardian/mypage',
+    icon: 'profile',
+  },
 ];
 
 
@@ -261,6 +267,7 @@ function getAlertAction(alert) {
     type.includes('LOCATION')
     || type.includes('GEOFENCE')
     || type.includes('SAFETY_ZONE')
+    || type.includes('SAFETY_RADIUS')
   ) {
     return {
       label: '위치 확인',
@@ -330,6 +337,16 @@ function SidebarIcon({ type }) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="m4 7 8-4 8 4v10l-8 4-8-4Z" />
         <path d="m4 7 8 4 8-4M12 11v10" />
+      </svg>
+    );
+  }
+
+  if (type === 'profile') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="8" r="3" />
+        <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
+        <path d="M18 4v4M16 6h4" />
       </svg>
     );
   }

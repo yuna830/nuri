@@ -6,5 +6,10 @@ import java.util.List;
 
 public interface CareEventRepository extends JpaRepository<CareEvent, Long> {
     List<CareEvent> findBySeniorIdOrderByOccurredAtDesc(Long seniorId);
+    List<CareEvent> findBySeniorIdAndTypeAndStatus(
+            Long seniorId,
+            CareEvent.EventType type,
+            CareEvent.EventStatus status
+    );
     boolean existsBySeniorIdAndTypeAndStatus(Long seniorId, CareEvent.EventType type, CareEvent.EventStatus status);
 }
