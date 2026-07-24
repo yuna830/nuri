@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { SPRING_API_BASE_URL } from '../config/api.js';
 
 const baseApi = axios.create({
-  baseURL: 'http://localhost:8090/api',
+  baseURL: SPRING_API_BASE_URL,
   withCredentials: true,
 });
 

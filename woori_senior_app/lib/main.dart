@@ -30,7 +30,7 @@ Future<void> main() async {
   if (!_disableKakaoMap) {
     AuthRepository.initialize(
       appKey: kakaoJavaScriptKey,
-      baseUrl: 'http://localhost',
+      baseUrl: kakaoJavaScriptBaseUrl,
     );
   }
 

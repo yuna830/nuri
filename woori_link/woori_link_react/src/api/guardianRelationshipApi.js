@@ -4,12 +4,7 @@ import {
   getToken,
   getUserId,
 } from '../utils/auth.js';
-
-
-const SPRING_API_BASE_URL = (
-  import.meta.env.VITE_SPRING_API_BASE_URL
-  || 'http://localhost:8090/api'
-).replace(/\/$/, '');
+import { SPRING_API_BASE_URL } from '../config/api.js';
 
 
 const guardianRelationshipApi = axios.create({
@@ -72,7 +67,7 @@ function getDisconnectErrorMessage(error) {
   if (!error.response) {
     return (
       'Spring 서버에 연결하지 못했습니다. '
-      + 'localhost:8090 서버 실행 상태를 확인해 주세요.'
+      + `${SPRING_API_BASE_URL} 서버 실행 상태를 확인해 주세요.`
     );
   }
 
@@ -131,7 +126,7 @@ function getDisconnectErrorMessage(error) {
  * 로그인 정보에 저장된 userId를 보호자 식별값으로 사용한다.
  *
  * 요청 예시:
- * DELETE http://localhost:8090/api/seniors/guardian/3/8
+ * DELETE /seniors/guardian/3/8
  */
 export async function disconnectGuardianSenior(
   seniorId,

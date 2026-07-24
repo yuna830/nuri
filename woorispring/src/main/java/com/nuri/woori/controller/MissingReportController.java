@@ -29,7 +29,7 @@ public class MissingReportController {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final MissingReportImageRepository missingReportImageRepository;
 
-    @Value("${app.face-server-url:http://localhost:8000}")
+    @Value("${app.face-server-url}")
     private String faceServerUrl;
 
     public MissingReportController(

@@ -32,7 +32,7 @@ public class SeniorFacePhotoController {
     private final MissingReportRepository missingReportRepository;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    @Value("${app.face-server-url:http://localhost:8000}")
+    @Value("${app.face-server-url}")
     private String faceServerUrl;
 
     public SeniorFacePhotoController(

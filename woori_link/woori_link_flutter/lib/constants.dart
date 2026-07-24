@@ -1,22 +1,12 @@
-import 'package:flutter/foundation.dart';
-
 const String _configuredApiBaseUrl =
     String.fromEnvironment(
   'API_BASE_URL',
 );
 
-final String baseUrl =
-    _configuredApiBaseUrl.isNotEmpty
-        ? _configuredApiBaseUrl
-        : (
-            kIsWeb
-                ? 'http://localhost:8090/api'
-                //: 'http://127.0.0.1:8090/api'
-                // USB device dev: run `adb reverse tcp:8090 tcp:8090`.
-                // Wi-Fi/device builds can override with --dart-define=API_BASE_URL=...
-                : 'http://172.29.123.214:8090/api'
-                //: 'http://10.0.2.2:8090/api'
-          );
+final String baseUrl = _requiredUrl(
+  _configuredApiBaseUrl,
+  'API_BASE_URL',
+);
 
 
 // 낙상 모델(fall-detection) 서버
@@ -26,17 +16,18 @@ const String _configuredFallServerBaseUrl =
   'FALL_SERVER_BASE_URL',
 );
 
-final String fallServerBaseUrl =
-    _configuredFallServerBaseUrl.isNotEmpty
-        ? _configuredFallServerBaseUrl
-        : (
-            kIsWeb
-                ? 'http://localhost:8000'
-                //: 'http://127.0.0.1:8000'
-                // USB device dev: run `adb reverse tcp:8000 tcp:8000`.
-                : 'http://172.29.123.214:8000'
-                //: 'http://10.0.2.2:8000'
-          );
+final String fallServerBaseUrl = _requiredUrl(
+  _configuredFallServerBaseUrl,
+  'FALL_SERVER_BASE_URL',
+);
+
+String _requiredUrl(String value, String name) {
+  final normalized = value.trim().replaceFirst(RegExp(r'/$'), '');
+  if (normalized.isEmpty) {
+    throw StateError('$name must be provided with --dart-define.');
+  }
+  return normalized;
+}
 
 
 const String fallDeviceId =

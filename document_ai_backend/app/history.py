@@ -49,4 +49,3 @@ def confirm_analysis(analysis_id: str, fields: dict, registered_product_id: int 
              datetime.now(timezone.utc).isoformat(), analysis_id),
         )
         return cursor.rowcount > 0
-

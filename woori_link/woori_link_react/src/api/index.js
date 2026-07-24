@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { getToken } from '../utils/auth.js';
+import { SPRING_API_BASE_URL } from '../config/api.js';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8090/api',
+  baseURL: SPRING_API_BASE_URL,
   withCredentials: true, // 쿠키 자동 첨부
 });
 

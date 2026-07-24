@@ -8,7 +8,10 @@ chcp 65001 > $null
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-$BaseUrl = "http://127.0.0.1:8090"
+$BaseUrl = $env:WOORI_LINK_API_BASE_URL
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+    throw "WOORI_LINK_API_BASE_URL environment variable is required."
+}
 
 function Read-ErrorBody {
     param(

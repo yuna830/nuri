@@ -1,5 +1,5 @@
 param(
-    [string]$ServerUrl = "http://localhost:8083",
+    [string]$ServerUrl = $env:WOORI_SPRING_BASE_URL,
     [string]$InputPath = "",
     [string]$OutputDir = "artifacts",
     [int]$MinimumRows = 10,

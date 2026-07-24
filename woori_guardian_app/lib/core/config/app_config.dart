@@ -7,7 +7,7 @@ class AppConfig {
       ((dotenv.env['API_BASE_URL'] ??
               const String.fromEnvironment(
                 'API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:8080/api',
+                defaultValue: '',
               )))
           .trim();
 
@@ -16,7 +16,7 @@ class AppConfig {
       ((dotenv.env['FACE_API_BASE_URL'] ??
               const String.fromEnvironment(
                 'FACE_API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:8000',
+                defaultValue: '',
               )))
           .trim();
 
@@ -25,7 +25,7 @@ class AppConfig {
       ((dotenv.env['RAG_API_BASE_URL'] ??
               const String.fromEnvironment(
                 'RAG_API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:8001',
+                defaultValue: '',
               )))
           .trim();
 
