@@ -38,12 +38,14 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
       final data = await SeniorApi.getSenior(seniorId);
       final energySupportDetails = await Future.wait([
         EnergySupportApi.getEnergySupportProfile(seniorId),
+        EnergySupportApi.getEnergyVoucherDetail(seniorId),
         EnergySupportApi.getGasDiscountDetail(seniorId),
         EnergySupportApi.getElectricityDiscountDetail(seniorId),
       ]);
       final profile = energySupportDetails[0];
-      final gasDetail = energySupportDetails[1];
-      final electricityDetail = energySupportDetails[2];
+      final voucherDetail = energySupportDetails[1];
+      final gasDetail = energySupportDetails[2];
+      final electricityDetail = energySupportDetails[3];
       final saved = await _storage.read(key: _storageKey(seniorId));
       final localInfo = saved == null
           ? <String, dynamic>{}
@@ -56,6 +58,7 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           data,
           localInfo,
           profile: profile,
+          voucherDetail: voucherDetail,
           gasDetail: gasDetail,
           electricityDetail: electricityDetail,
         );
@@ -76,6 +79,7 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     Map<String, dynamic> senior,
     Map<String, dynamic> local, {
     Map<String, dynamic>? profile,
+    Map<String, dynamic>? voucherDetail,
     Map<String, dynamic>? gasDetail,
     Map<String, dynamic>? electricityDetail,
   }) {
@@ -116,6 +120,9 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
 
     if (profile != null) {
       _applyProfileToLocal(values, profile);
+    }
+    if (voucherDetail != null) {
+      values.addAll(_voucherDetailToLocal(voucherDetail));
     }
     if (gasDetail != null) {
       values.addAll(_gasDetailToLocal(gasDetail));
@@ -192,6 +199,10 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           seniorId,
           _buildProfileRequest(nextInfo),
         ),
+        EnergySupportApi.saveEnergyVoucherDetail(
+          seniorId,
+          _buildVoucherRequest(nextInfo),
+        ),
       ];
       if (_shouldSaveGasDetail(nextInfo)) {
         detailSaves.add(
@@ -217,6 +228,7 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           (key, _) =>
               _gasServerBackedKeys.contains(key) ||
               _profileServerBackedKeys.contains(key) ||
+              _voucherServerBackedKeys.contains(key) ||
               _electricityServerBackedKeys.contains(key),
         );
       await _storage.write(
@@ -309,6 +321,18 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     'mainHeatingSource',
   };
 
+  static const _voucherServerBackedKeys = {
+    'voucherUseMethod',
+    'voucherElectricCustomerNo',
+    'voucherGasCustomerNo',
+    'energySupplier',
+    'recentBillReady',
+    'happyCardOwned',
+    'winterFuelSupport',
+    'coalCoupon',
+    'coalEnergyVoucher',
+  };
+
   static const _electricityServerBackedKeys = {
     'residentialElectricity',
     'electricityCompany',
@@ -317,6 +341,9 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     'electricAddressSame',
     'electricityServiceAddress',
     'electricBillReady',
+    'electricityDiscountApplied',
+    'electricityDiscountStatus',
+    'electricWelfareRecipient',
     'electricityNote',
   };
 
@@ -435,8 +462,118 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     };
   }
 
+  Map<String, dynamic> _voucherDetailToLocal(Map<String, dynamic> detail) {
+    final values = <String, dynamic>{};
+
+    if (detail['applicationResult'] == 'APPROVED') {
+      values['energyVoucherApplied'] = true;
+    }
+
+    final winterSupport = detail['winterOtherEnergySupportRecipient'];
+    if (winterSupport != null) {
+      values['winterFuelSupport'] = winterSupport;
+    }
+
+    final duplicateSupport = detail['duplicateSupportDisqualifying'];
+    if (duplicateSupport != null) {
+      values['coalCoupon'] = duplicateSupport;
+    }
+
+    final note = detail['confirmationNote'];
+    if (note is String && note.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(note);
+        if (decoded is Map) {
+          for (final entry in decoded.entries) {
+            values[entry.key.toString()] = entry.value;
+          }
+        }
+      } catch (_) {
+        values['voucherNote'] = note;
+      }
+    }
+
+    return values;
+  }
+
+  Map<String, dynamic> _buildVoucherRequest(Map<String, dynamic> info) {
+    final incomeKeys = {
+      'livelihoodBenefit',
+      'medicalBenefit',
+      'housingBenefit',
+      'educationBenefit',
+      'nearPoverty',
+    };
+    final traitKeys = {
+      'elderlyHouseholdMember',
+      'infantHouseholdMember',
+      'disabledHouseholdMember',
+      'nationalMeritHousehold',
+      'pregnantHouseholdMember',
+      'severeDiseaseHouseholdMember',
+      'rareDiseaseHouseholdMember',
+      'intractableDiseaseHouseholdMember',
+      'singleParentFamily',
+      'childHeadedHousehold',
+      'multiChildHousehold',
+    };
+    final otherSupportKeys = {
+      'winterFuelSupport',
+      'coalCoupon',
+      'coalEnergyVoucher',
+    };
+
+    final incomeValues = incomeKeys
+        .where((key) => info[key] == true)
+        .toList(growable: false);
+    final traitValues = traitKeys
+        .where((key) => info[key] == true)
+        .toList(growable: false);
+    final otherSupportValues = otherSupportKeys
+        .where((key) => info[key] == true)
+        .toList(growable: false);
+
+    final incomeConfirmed = _anyPresent(info, incomeKeys)
+        ? incomeValues.isNotEmpty
+        : null;
+    final traitConfirmed = _anyPresent(info, traitKeys)
+        ? traitValues.isNotEmpty
+        : null;
+    final winterSupportRecipient = _anyPresent(info, otherSupportKeys)
+        ? otherSupportValues.isNotEmpty
+        : null;
+
+    final notePayload = {
+      for (final key in _voucherServerBackedKeys)
+        if (info.containsKey(key)) key: info[key],
+    };
+
+    return {
+      'incomeCriteriaConfirmed': incomeConfirmed,
+      'livelihoodBenefitTypes':
+          incomeValues.isEmpty ? null : incomeValues.join(', '),
+      'householdCharacteristicConfirmed': traitConfirmed,
+      'householdCharacteristics':
+          traitValues.isEmpty ? null : traitValues.join(', '),
+      'winterOtherEnergySupportRecipient': winterSupportRecipient,
+      'otherEnergySupportTypes':
+          otherSupportValues.isEmpty ? null : otherSupportValues.join(', '),
+      'duplicateSupportDisqualifying': otherSupportValues.isNotEmpty,
+      'applicationYear': null,
+      'applicationResult': info['energyVoucherApplied'] == true
+          ? 'APPROVED'
+          : 'UNKNOWN',
+      'confirmationNote':
+          notePayload.isEmpty ? null : jsonEncode(notePayload),
+    };
+  }
+
   bool _shouldSaveGasDetail(Map<String, dynamic> info) {
     return info['usesCityGas'] != null;
+  }
+
+  bool _anyPresent(Map<String, dynamic> info, Set<String> keys) {
+    return keys.any((key) => info.containsKey(key) && info[key] != null);
   }
 
   int? _parseNullableInt(dynamic value) {
@@ -481,6 +618,15 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     apply('addressSame', 'electricAddressSame');
     apply('serviceAddress', 'electricityServiceAddress');
     apply('recentBillChecked', 'electricBillReady');
+    final currentDiscountStatus = _electricityDiscountStatusToDisplay(
+      detail['currentDiscountStatus'],
+    );
+    if (currentDiscountStatus != null) {
+      values['electricityDiscountStatus'] = currentDiscountStatus;
+      values['electricityDiscountApplied'] =
+          detail['currentDiscountStatus'] == 'RECEIVING';
+    }
+    apply('welfareEligible', 'electricWelfareRecipient');
     apply('note', 'electricityNote');
 
     return values;
@@ -500,6 +646,9 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           ? _emptyToNull(info['electricityServiceAddress'])
           : null,
       'recentBillChecked': info['electricBillReady'],
+      'currentDiscountStatus':
+          _electricityCurrentDiscountStatusToServer(info),
+      'welfareEligible': info['electricWelfareRecipient'],
       'note': _emptyToNull(info['electricityNote']),
     };
   }
@@ -510,7 +659,22 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
         _emptyToNull(info['electricContractor']) != null ||
         info['electricAddressSame'] != null ||
         info['electricBillReady'] != null ||
-        info['residentialElectricity'] != null;
+        info['residentialElectricity'] != null ||
+        info['electricityDiscountApplied'] != null ||
+        info['electricWelfareRecipient'] != null;
+  }
+
+  String? _electricityCurrentDiscountStatusToServer(
+    Map<String, dynamic> info,
+  ) {
+    final explicitStatus =
+        _electricityDiscountStatusToServer(info['electricityDiscountStatus']);
+    if (explicitStatus != null) return explicitStatus;
+
+    final applied = info['electricityDiscountApplied'];
+    if (applied == true) return 'RECEIVING';
+    if (applied == false) return 'NOT_RECEIVING';
+    return null;
   }
 
   String? _electricityDiscountStatusToDisplay(dynamic value) {
