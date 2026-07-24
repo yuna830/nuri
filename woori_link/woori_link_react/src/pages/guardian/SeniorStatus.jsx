@@ -2398,7 +2398,7 @@ export default function SeniorStatus() {
                   ) : (
                     <div className="guardian-ai-checkin__analysis-row">
                       <strong>
-                        AI 안부 분석
+                        안부 분석
                       </strong>
 
                       <p className="guardian-ai-checkin__insight-summary">
