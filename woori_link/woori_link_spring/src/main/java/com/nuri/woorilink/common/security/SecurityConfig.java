@@ -235,7 +235,32 @@ public class SecurityConfig {
                                 "GUARDIAN"
                         )
 
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/energy-support/consultations/*"
+                        )
+                        .hasAnyRole(
+                                "GUARDIAN",
+                                "WELFARE_WORKER"
+                        )
 
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/energy-support/consultations/*/schedule/propose"
+                        )
+                        .hasRole(
+                                "WELFARE_WORKER"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/energy-support/consultations/*/schedule/confirm",
+                                "/api/energy-support/consultations/*/schedule/request-change"
+                        )
+                        .hasRole(
+                                "GUARDIAN"
+                        )
+                        
                         /* =========================================
                          * 나머지 에너지복지 API
                          *

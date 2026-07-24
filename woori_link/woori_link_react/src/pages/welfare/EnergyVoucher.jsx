@@ -267,6 +267,26 @@ function getUpdatedByRoleLabel(role) {
   }
 }
 
+function normalizeCandidateResponse(response) {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  if (Array.isArray(response?.data?.content)) {
+    return response.data.content;
+  }
+
+  if (Array.isArray(response?.content)) {
+    return response.content;
+  }
+
+  return [];
+}
+
 
 export default function EnergyVoucher() {
   const [
@@ -503,27 +523,15 @@ export default function EnergyVoucher() {
         ]);
 
         setVoucherCases(
-          Array.isArray(
-            voucherResponse?.data,
-          )
-            ? voucherResponse.data
-            : [],
+          normalizeCandidateResponse(voucherResponse),
         );
 
         setElectricCases(
-          Array.isArray(
-            electricityResponse?.data,
-          )
-            ? electricityResponse.data
-            : [],
+          normalizeCandidateResponse(electricityResponse),
         );
 
         setGasCases(
-          Array.isArray(
-            gasResponse?.data,
-          )
-            ? gasResponse.data
-            : [],
+          normalizeCandidateResponse(gasResponse),
         );
 
         return true;
@@ -1079,71 +1087,71 @@ export default function EnergyVoucher() {
         <div className="energy-filter-section">
           <div className="energy-filter-row">
             <div className="energy-filter-group energy-support-type-group">
-            <div
-              className="tab-bar"
-              role="tablist"
-              aria-label="에너지복지 지원 종류"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'VOUCHER'}
-                className={[
-                  'tab-btn',
-                  tab === 'VOUCHER'
-                    ? 'active'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => {
-                  changeTab('VOUCHER');
-                }}
+              <div
+                className="tab-bar"
+                role="tablist"
+                aria-label="에너지복지 지원 종류"
               >
-                <span>에너지바우처</span>
-                <strong>{voucherCases.length}</strong>
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'VOUCHER'}
+                  className={[
+                    'tab-btn',
+                    tab === 'VOUCHER'
+                      ? 'active'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => {
+                    changeTab('VOUCHER');
+                  }}
+                >
+                  <span>에너지바우처</span>
+                  <strong>{voucherCases.length}</strong>
+                </button>
 
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'ELECTRICITY'}
-                className={[
-                  'tab-btn',
-                  tab === 'ELECTRICITY'
-                    ? 'active'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => {
-                  changeTab('ELECTRICITY');
-                }}
-              >
-                <span>전기요금 할인</span>
-                <strong>{electricCases.length}</strong>
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'ELECTRICITY'}
+                  className={[
+                    'tab-btn',
+                    tab === 'ELECTRICITY'
+                      ? 'active'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => {
+                    changeTab('ELECTRICITY');
+                  }}
+                >
+                  <span>전기요금 할인</span>
+                  <strong>{electricCases.length}</strong>
+                </button>
 
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'GAS'}
-                className={[
-                  'tab-btn',
-                  tab === 'GAS'
-                    ? 'active'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => {
-                  changeTab('GAS');
-                }}
-              >
-                <span>도시가스요금 경감</span>
-                <strong>{gasCases.length}</strong>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'GAS'}
+                  className={[
+                    'tab-btn',
+                    tab === 'GAS'
+                      ? 'active'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => {
+                    changeTab('GAS');
+                  }}
+                >
+                  <span>도시가스요금 경감</span>
+                  <strong>{gasCases.length}</strong>
+                </button>
+              </div>
             </div>
 
             <div className="energy-filter-group energy-case-scope-group">
@@ -1152,39 +1160,39 @@ export default function EnergyVoucher() {
                 role="tablist"
                 aria-label="처리 상태"
               >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={caseScope === 'ACTIVE'}
-                className={
-                  caseScope === 'ACTIVE'
-                    ? 'active'
-                    : ''
-                }
-                onClick={() => {
-                  setCaseScope('ACTIVE');
-                  setCurrentPage(1);
-                }}
-              >
-                진행 중
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={caseScope === 'ACTIVE'}
+                  className={
+                    caseScope === 'ACTIVE'
+                      ? 'active'
+                      : ''
+                  }
+                  onClick={() => {
+                    setCaseScope('ACTIVE');
+                    setCurrentPage(1);
+                  }}
+                >
+                  진행 중
+                </button>
 
-              <button
-                type="button"
-                role="tab"
-                aria-selected={caseScope === 'COMPLETED'}
-                className={
-                  caseScope === 'COMPLETED'
-                    ? 'active'
-                    : ''
-                }
-                onClick={() => {
-                  setCaseScope('COMPLETED');
-                  setCurrentPage(1);
-                }}
-              >
-                완료·보류
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={caseScope === 'COMPLETED'}
+                  className={
+                    caseScope === 'COMPLETED'
+                      ? 'active'
+                      : ''
+                  }
+                  onClick={() => {
+                    setCaseScope('COMPLETED');
+                    setCurrentPage(1);
+                  }}
+                >
+                  완료·보류
+                </button>
               </div>
             </div>
           </div>

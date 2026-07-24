@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,6 +23,10 @@ import java.time.LocalDateTime;
                 @Index(
                         name = "idx_energy_consultation_status",
                         columnList = "status"
+                ),
+                @Index(
+                        name = "idx_energy_consultation_schedule_status",
+                        columnList = "schedule_status"
                 )
         }
 )
@@ -83,6 +88,70 @@ public class EnergySupportConsultationRequest {
     private ConsultationStatus status =
             ConsultationStatus.REQUESTED;
 
+
+    /* =====================================================
+     * 상담 일정 조율 정보
+     * ===================================================== */
+
+    @Column(
+            name = "consultation_date"
+    )
+    private LocalDate consultationDate;
+
+    @Column(
+            name = "available_start_time",
+            length = 5
+    )
+    private String availableStartTime;
+
+    @Column(
+            name = "available_end_time",
+            length = 5
+    )
+    private String availableEndTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "consultation_method",
+            length = 30
+    )
+    private ConsultationMethod consultationMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "schedule_status",
+            length = 30
+    )
+    private ScheduleStatus scheduleStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "schedule_proposed_by",
+            length = 30
+    )
+    private ScheduleProposedBy scheduleProposedBy;
+
+    @Column(
+            name = "schedule_message",
+            length = 1000
+    )
+    private String scheduleMessage;
+
+    @Column(
+            name = "schedule_proposed_at"
+    )
+    private LocalDateTime scheduleProposedAt;
+
+    @Column(
+            name = "schedule_responded_at"
+    )
+    private LocalDateTime scheduleRespondedAt;
+
+
+    /* =====================================================
+     * 상담 요청 처리 완료 정보
+     * ===================================================== */
+
     @Column(
             name = "resolved_by"
     )
@@ -120,5 +189,26 @@ public class EnergySupportConsultationRequest {
         IN_PROGRESS,
         RESOLVED,
         CANCELLED
+    }
+
+
+    public enum ConsultationMethod {
+        PHONE,
+        VISIT
+    }
+
+
+    public enum ScheduleStatus {
+        PROPOSED,
+        CONFIRMED,
+        CHANGE_REQUESTED,
+        COMPLETED,
+        CANCELLED
+    }
+
+
+    public enum ScheduleProposedBy {
+        WELFARE_WORKER,
+        GUARDIAN
     }
 }

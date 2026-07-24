@@ -46,12 +46,7 @@ const MENUS = [
     label: '리콜 제품 조치 관리',
     path: '/welfare/recalled',
     icon: 'product',
-  },
-  {
-    label: '방문 일정',
-    path: '/welfare/schedule',
-    icon: 'schedule',
-  },
+  }
 ];
 
 
@@ -184,26 +179,44 @@ function getAlertType(alert) {
 
 
 function getConsultationRequestId(alert) {
+  const directRequestId =
+    alert?.consultationRequestId
+    ?? alert?.requestId
+    ?? alert?.referenceId
+    ?? null;
+
+  if (
+    directRequestId !== null
+    && directRequestId !== undefined
+    && directRequestId !== ''
+  ) {
+    return String(
+      directRequestId,
+    );
+  }
+
   const alertId =
     String(
-      getAlertId(alert),
+      alert?.id
+      ?? alert?.alertId
+      ?? '',
     );
 
   const prefix =
     'energy-consultation-';
 
   if (
-    !alertId.startsWith(prefix)
+    alertId.startsWith(prefix)
   ) {
-    return null;
+    return (
+      alertId.slice(
+        prefix.length,
+      )
+      || null
+    );
   }
 
-  const requestId =
-    alertId.slice(
-      prefix.length,
-    );
-
-  return requestId || null;
+  return null;
 }
 
 
@@ -217,8 +230,8 @@ function getWelfareAlertAction(alert) {
     ?? null;
 
   if (
-    type
-    === 'ENERGY_SUPPORT_CONSULTATION'
+    type ===
+    'ENERGY_SUPPORT_CONSULTATION'
   ) {
     const consultationRequestId =
       getConsultationRequestId(
@@ -227,6 +240,16 @@ function getWelfareAlertAction(alert) {
 
     const searchParams =
       new URLSearchParams();
+
+    searchParams.set(
+      'openConsultation',
+      'true',
+    );
+
+    searchParams.set(
+      'source',
+      'ENERGY_SUPPORT',
+    );
 
     if (seniorId) {
       searchParams.set(
@@ -238,19 +261,17 @@ function getWelfareAlertAction(alert) {
     if (consultationRequestId) {
       searchParams.set(
         'consultationRequestId',
-        consultationRequestId,
+        String(
+          consultationRequestId,
+        ),
       );
     }
 
-    searchParams.set(
-      'source',
-      'ENERGY_SUPPORT',
-    );
-
     return {
       label: '상담 조율',
+
       path:
-        `/welfare/schedule?${searchParams.toString()}`,
+        `/welfare?${searchParams.toString()}`,
     };
   }
 
@@ -865,7 +886,7 @@ export default function WelfareSidebar() {
 
             <div className="guardian-notification-panel__content">
               {loading
-              && alerts.length === 0 ? (
+                && alerts.length === 0 ? (
                 <div className="guardian-notification-panel__state">
                   알림을 불러오는 중입니다.
                 </div>
@@ -932,7 +953,7 @@ export default function WelfareSidebar() {
                               : '',
 
                             isRecall
-                            && !isImmediateStop
+                              && !isImmediateStop
                               ? 'welfare-notification-item--recall'
                               : '',
 

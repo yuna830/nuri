@@ -432,3 +432,102 @@ export async function resolveEnergySupportConsultation(
 
   return response.data;
 }
+
+/**
+ * 에너지복지 상담 요청 단건 조회
+ */
+export async function getEnergySupportConsultation(
+  requestId,
+) {
+  if (
+    requestId === null
+    || requestId === undefined
+    || requestId === ''
+  ) {
+    throw new Error(
+      '조회할 상담 요청 ID가 없습니다.',
+    );
+  }
+
+  const response = await api.get(
+    `/energy-support/consultations/${requestId}`,
+  );
+
+  return response.data;
+}
+
+
+/**
+ * 복지사가 보호자에게 상담 일정 제안
+ */
+export async function proposeEnergySupportConsultationSchedule(
+  requestId,
+  data,
+) {
+  if (
+    requestId === null
+    || requestId === undefined
+    || requestId === ''
+  ) {
+    throw new Error(
+      '상담 요청 ID가 없습니다.',
+    );
+  }
+
+  const response = await api.patch(
+    `/energy-support/consultations/${requestId}/schedule/propose`,
+    data,
+  );
+
+  return response.data;
+}
+
+
+/**
+ * 보호자가 상담 일정 가능 응답
+ */
+export async function confirmEnergySupportConsultationSchedule(
+  requestId,
+) {
+  if (
+    requestId === null
+    || requestId === undefined
+    || requestId === ''
+  ) {
+    throw new Error(
+      '상담 요청 ID가 없습니다.',
+    );
+  }
+
+  const response = await api.patch(
+    `/energy-support/consultations/${requestId}/schedule/confirm`,
+  );
+
+  return response.data;
+}
+
+
+/**
+ * 보호자가 다른 상담 일정 제안
+ */
+export async function requestEnergySupportConsultationScheduleChange(
+  requestId,
+  data,
+) {
+  if (
+    requestId === null
+    || requestId === undefined
+    || requestId === ''
+  ) {
+    throw new Error(
+      '상담 요청 ID가 없습니다.',
+    );
+  }
+
+  const response = await api.patch(
+    `/energy-support/consultations/${requestId}/schedule/request-change`,
+    data,
+  );
+
+  return response.data;
+}

@@ -2,6 +2,7 @@ package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.dto.EnergySupportConsultationRequestDto;
+import com.nuri.woorilink.entity.EnergySupportConsultationRequest;
 import com.nuri.woorilink.service.EnergySupportAccessService;
 import com.nuri.woorilink.service.EnergySupportConsultationService;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -27,9 +29,6 @@ public class EnergySupportConsultationController {
             accessService;
 
 
-    /**
-     * 보호자가 복지사에게 상담 요청
-     */
     @PostMapping(
             "/seniors/{seniorId}"
     )
@@ -62,9 +61,6 @@ public class EnergySupportConsultationController {
     }
 
 
-    /**
-     * 보호자 화면에서 현재 요청 상태 조회
-     */
     @GetMapping(
             "/seniors/{seniorId}/active"
     )
@@ -100,9 +96,27 @@ public class EnergySupportConsultationController {
     }
 
 
-    /**
-     * 복지사 화면의 상담 요청 목록
-     */
+    @GetMapping(
+            "/{requestId}"
+    )
+    public EnergySupportConsultationRequestDto
+    getRequest(
+            @PathVariable Long requestId,
+
+            @AuthenticationPrincipal
+            AuthenticatedUser user
+    ) {
+        requireAuthenticated(user);
+
+        return consultationService
+                .getRequest(
+                        requestId,
+                        user.getUserId(),
+                        user.getRole()
+                );
+    }
+
+
     @GetMapping(
             "/worker"
     )
@@ -113,9 +127,7 @@ public class EnergySupportConsultationController {
             @AuthenticationPrincipal
             AuthenticatedUser user
     ) {
-        requireWelfareWorker(
-                user
-        );
+        requireWelfareWorker(user);
 
         return consultationService
                 .getWorkerRequests(
@@ -125,8 +137,89 @@ public class EnergySupportConsultationController {
 
 
     /**
-     * 복지사가 처리 시작
+     * 복지사가 보호자에게 상담 일정 제안
      */
+    @PatchMapping(
+            "/{requestId}/schedule/propose"
+    )
+    public EnergySupportConsultationRequestDto
+    proposeSchedule(
+            @PathVariable Long requestId,
+
+            @RequestBody
+            ScheduleProposalRequest request,
+
+            @AuthenticationPrincipal
+            AuthenticatedUser user
+    ) {
+        requireWelfareWorker(user);
+
+        return consultationService
+                .proposeSchedule(
+                        requestId,
+                        user.getUserId(),
+                        request.consultationDate(),
+                        request.availableStartTime(),
+                        request.availableEndTime(),
+                        request.consultationMethod(),
+                        request.message()
+                );
+    }
+
+
+    /**
+     * 보호자가 제안된 상담 일정 가능 응답
+     */
+    @PatchMapping(
+            "/{requestId}/schedule/confirm"
+    )
+    public EnergySupportConsultationRequestDto
+    confirmSchedule(
+            @PathVariable Long requestId,
+
+            @AuthenticationPrincipal
+            AuthenticatedUser user
+    ) {
+        requireGuardian(user);
+
+        return consultationService
+                .confirmSchedule(
+                        requestId,
+                        user.getUserId()
+                );
+    }
+
+
+    /**
+     * 보호자가 다른 날짜·시간 요청
+     */
+    @PatchMapping(
+            "/{requestId}/schedule/request-change"
+    )
+    public EnergySupportConsultationRequestDto
+    requestScheduleChange(
+            @PathVariable Long requestId,
+
+            @RequestBody
+            ScheduleChangeRequest request,
+
+            @AuthenticationPrincipal
+            AuthenticatedUser user
+    ) {
+        requireGuardian(user);
+
+        return consultationService
+                .requestScheduleChange(
+                        requestId,
+                        user.getUserId(),
+                        request.consultationDate(),
+                        request.availableStartTime(),
+                        request.availableEndTime(),
+                        request.message()
+                );
+    }
+
+
     @PatchMapping(
             "/{requestId}/start"
     )
@@ -137,9 +230,7 @@ public class EnergySupportConsultationController {
             @AuthenticationPrincipal
             AuthenticatedUser user
     ) {
-        requireWelfareWorker(
-                user
-        );
+        requireWelfareWorker(user);
 
         return consultationService
                 .startConsultation(
@@ -149,9 +240,6 @@ public class EnergySupportConsultationController {
     }
 
 
-    /**
-     * 복지사가 처리 완료
-     */
     @PatchMapping(
             "/{requestId}/resolve"
     )
@@ -165,9 +253,7 @@ public class EnergySupportConsultationController {
             @AuthenticationPrincipal
             AuthenticatedUser user
     ) {
-        requireWelfareWorker(
-                user
-        );
+        requireWelfareWorker(user);
 
         return consultationService
                 .resolveConsultation(
@@ -175,6 +261,17 @@ public class EnergySupportConsultationController {
                         user.getUserId(),
                         request.resolutionNote()
                 );
+    }
+
+
+    private void requireAuthenticated(
+            AuthenticatedUser user
+    ) {
+        if (user == null) {
+            throw new AccessDeniedException(
+                    "로그인이 필요합니다."
+            );
+        }
     }
 
 
@@ -211,6 +308,34 @@ public class EnergySupportConsultationController {
 
 
     public record ConsultationRequest(
+            String message
+    ) {
+    }
+
+
+    public record ScheduleProposalRequest(
+            LocalDate consultationDate,
+
+            String availableStartTime,
+
+            String availableEndTime,
+
+            EnergySupportConsultationRequest
+                    .ConsultationMethod
+            consultationMethod,
+
+            String message
+    ) {
+    }
+
+
+    public record ScheduleChangeRequest(
+            LocalDate consultationDate,
+
+            String availableStartTime,
+
+            String availableEndTime,
+
             String message
     ) {
     }
