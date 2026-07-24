@@ -53,6 +53,25 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/products").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/products/*/notifications").permitAll()
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/energy-support/completion/**",
+                        "/api/energy-support/profile/**",
+                        "/api/energy-support/gas/**",
+                        "/api/energy-support/electricity/**",
+                        "/api/energy-support/voucher/**"
+                ).hasAnyRole("SENIOR", "GUARDIAN", "WELFARE_WORKER")
+                .requestMatchers(
+                        HttpMethod.PUT,
+                        "/api/energy-support/voucher/**"
+                ).hasAnyRole("SENIOR", "GUARDIAN", "WELFARE_WORKER")
+                .requestMatchers(
+                        HttpMethod.PUT,
+                        "/api/energy-support/profile/**",
+                        "/api/energy-support/electricity/**",
+                        "/api/energy-support/gas/**"
+                ).hasAnyRole("SENIOR", "GUARDIAN")
+                .requestMatchers("/api/energy-support/**").hasRole("WELFARE_WORKER")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtAuthenticationFilter(tokenProvider),

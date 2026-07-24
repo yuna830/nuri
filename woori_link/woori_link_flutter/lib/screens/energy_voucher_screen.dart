@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../api/energy_support_api.dart';
 import '../api/senior_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
@@ -35,6 +36,14 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
       final seniorId = await AuthService.getUserId();
       if (seniorId == null) return;
       final data = await SeniorApi.getSenior(seniorId);
+      final energySupportDetails = await Future.wait([
+        EnergySupportApi.getEnergySupportProfile(seniorId),
+        EnergySupportApi.getGasDiscountDetail(seniorId),
+        EnergySupportApi.getElectricityDiscountDetail(seniorId),
+      ]);
+      final profile = energySupportDetails[0];
+      final gasDetail = energySupportDetails[1];
+      final electricityDetail = energySupportDetails[2];
       final saved = await _storage.read(key: _storageKey(seniorId));
       final localInfo = saved == null
           ? <String, dynamic>{}
@@ -43,7 +52,13 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
       setState(() {
         _seniorId = seniorId;
         _senior = data;
-        _info = _mergedInfo(data, localInfo);
+        _info = _mergedInfo(
+          data,
+          localInfo,
+          profile: profile,
+          gasDetail: gasDetail,
+          electricityDetail: electricityDetail,
+        );
         _loading = false;
       });
     } catch (_) {
@@ -59,9 +74,15 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
 
   Map<String, dynamic> _mergedInfo(
     Map<String, dynamic> senior,
-    Map<String, dynamic> local,
-  ) {
-    return {
+    Map<String, dynamic> local, {
+    Map<String, dynamic>? profile,
+    Map<String, dynamic>? gasDetail,
+    Map<String, dynamic>? electricityDetail,
+  }) {
+    final localWithoutGas = Map<String, dynamic>.from(local)
+      ..removeWhere((key, _) => _gasServerBackedKeys.contains(key));
+
+    final values = <String, dynamic>{
       'livelihoodBenefit': senior['livelihoodBenefit'],
       'medicalBenefit': senior['medicalBenefit'],
       'housingBenefit': senior['housingBenefit'],
@@ -90,11 +111,68 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
       'winterFuelSupport': senior['winterFuelSupport'],
       'coalCoupon': senior['coalCoupon'],
       'coalEnergyVoucher': senior['coalEnergyVoucher'],
-      ...local,
+      ...localWithoutGas,
+    };
+
+    if (profile != null) {
+      _applyProfileToLocal(values, profile);
+    }
+    if (gasDetail != null) {
+      values.addAll(_gasDetailToLocal(gasDetail));
+    }
+    if (electricityDetail != null) {
+      values.addAll(_electricityDetailToLocal(electricityDetail));
+    }
+    return values;
+  }
+
+  void _applyProfileToLocal(
+    Map<String, dynamic> values,
+    Map<String, dynamic> profile,
+  ) {
+    void apply(String serverKey, String localKey) {
+      if (profile.containsKey(serverKey) && profile[serverKey] != null) {
+        values[localKey] = profile[serverKey];
+      }
+    }
+
+    apply('basicLivelihoodRecipient', 'livelihoodBenefit');
+    apply('nearPoverty', 'nearPoverty');
+    apply('disabledHousehold', 'disabledHouseholdMember');
+    apply('nationalMeritHousehold', 'nationalMeritHousehold');
+    apply('seniorHousehold', 'elderlyHouseholdMember');
+    apply('infantHousehold', 'infantHouseholdMember');
+    apply('pregnantHousehold', 'pregnantHouseholdMember');
+    apply('singleParentHousehold', 'singleParentFamily');
+    apply('multiChildHousehold', 'multiChildHousehold');
+    apply('householdSize', 'householdCount');
+    apply('energyVoucherRecipient', 'energyVoucherRecipient');
+
+    final heatingEnergyType = _heatingEnergyTypeToDisplay(
+      profile['heatingEnergyType'],
+    );
+    if (heatingEnergyType != null) {
+      values['mainHeatingSource'] = heatingEnergyType;
+    }
+  }
+
+  String? _heatingEnergyTypeToDisplay(dynamic value) {
+    return switch (value?.toString()) {
+      'CITY_GAS' => '도시가스',
+      'LPG' => 'LPG',
+      'KEROSENE' => '등유',
+      'ELECTRICITY' => '전기',
+      'DISTRICT_HEATING' => '지역난방',
+      'OTHER' => '기타',
+      'UNKNOWN' => '모름',
+      _ => null,
     };
   }
 
-  Future<void> _save(Map<String, dynamic> nextInfo) async {
+  Future<void> _save(
+    Map<String, dynamic> nextInfo,
+    String benefitId,
+  ) async {
     final seniorId = _seniorId ?? await AuthService.getUserId();
     if (seniorId == null || _saving) return;
     setState(() => _saving = true);
@@ -105,30 +183,69 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     };
 
     try {
+      if (serverBody.isNotEmpty) {
+        await SeniorApi.updateSenior(seniorId, serverBody);
+      }
+
+      final detailSaves = <Future<dynamic>>[
+        EnergySupportApi.saveEnergySupportProfile(
+          seniorId,
+          _buildProfileRequest(nextInfo),
+        ),
+      ];
+      if (_shouldSaveGasDetail(nextInfo)) {
+        detailSaves.add(
+          EnergySupportApi.saveGasDiscountDetail(
+            seniorId,
+            _gasDetailRequest(nextInfo),
+          ),
+        );
+      }
+      if (_shouldSaveElectricityDetail(nextInfo)) {
+        detailSaves.add(
+          EnergySupportApi.saveElectricityDiscountDetail(
+            seniorId,
+            _buildElectricityRequest(nextInfo),
+          ),
+        );
+      }
+
+      await Future.wait(detailSaves);
+
+      final localInfo = Map<String, dynamic>.from(nextInfo)
+        ..removeWhere(
+          (key, _) =>
+              _gasServerBackedKeys.contains(key) ||
+              _profileServerBackedKeys.contains(key) ||
+              _electricityServerBackedKeys.contains(key),
+        );
       await _storage.write(
         key: _storageKey(seniorId),
-        value: jsonEncode(nextInfo),
+        value: jsonEncode(localInfo),
       );
-      final updated = serverBody.isEmpty
-          ? _senior
-          : await SeniorApi.updateSenior(seniorId, serverBody);
-      if (!mounted) return;
-      setState(() {
-        _senior = updated ?? _senior;
-        _info = nextInfo;
-        _saving = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('입력 정보를 저장했습니다. 남은 항목은 보호자나 복지사에게 확인을 요청하세요.'),
-          backgroundColor: kPrimary,
-        ),
-      );
-    } catch (_) {
+
+      await _load();
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')),
+        SnackBar(
+          content: Text(
+            benefitId == 'gas'
+                ? '도시가스 정보를 저장했습니다.'
+                : '입력 정보를 저장했습니다. 남은 항목은 보호자나 복지사에게 확인을 요청하세요.',
+          ),
+          backgroundColor: kPrimary,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
       );
     }
   }
@@ -158,6 +275,50 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     'winterFuelSupport',
     'coalCoupon',
     'coalEnergyVoucher',
+  };
+
+  static const _gasServerBackedKeys = {
+    'usesCityGas',
+    'gasUseType',
+    'gasHeatingType',
+    'gasCompany',
+    'gasCustomerNo',
+    'gasContractor',
+    'gasAddressSame',
+    'gasServiceAddress',
+    'gasBillReady',
+    'gasSevereDisabilityOrMerit',
+    'gasBasicOrNearPoor',
+    'gasMultiChildThree',
+      'gasEnergyVoucherRecipient',
+    'gasNote',
+  };
+
+  static const _profileServerBackedKeys = {
+    'livelihoodBenefit',
+    'nearPoverty',
+    'disabledHouseholdMember',
+    'nationalMeritHousehold',
+    'elderlyHouseholdMember',
+    'infantHouseholdMember',
+    'pregnantHouseholdMember',
+    'singleParentFamily',
+    'multiChildHousehold',
+    'householdCount',
+    'energyVoucherRecipient',
+    'mainHeatingSource',
+  };
+
+  static const _electricityServerBackedKeys = {
+    'residentialElectricity',
+    'electricityCompany',
+    'electricCustomerNo',
+    'electricContractor',
+    'electricAddressSame',
+    'electricityServiceAddress',
+    'electricBillReady',
+    'electricityApplicationStatus',
+    'electricityNote',
   };
 
   @override
@@ -212,7 +373,213 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
         initialInfo: _info,
       ),
     );
-    if (result != null) await _save(result);
+    if (result != null) {
+      await _save(result, benefit.id);
+    }
+  }
+
+  Map<String, dynamic> _gasDetailRequest(
+    Map<String, dynamic> info,
+  ) {
+    return {
+      'usesCityGas': info['usesCityGas'],
+      'gasUseType': switch (info['gasUseType']) {
+        '취사' => 'COOKING',
+        '취사용' => 'COOKING',
+        '난방' => 'HEATING',
+        '취사 및 난방' => 'COOKING_AND_HEATING',
+        '취사·난방용' => 'COOKING_AND_HEATING',
+        '기타' => 'OTHER',
+        _ => null,
+      },
+      'gasHeatingType': switch (info['gasHeatingType']) {
+        '개별난방' => 'INDIVIDUAL',
+        '중앙난방' => 'CENTRAL',
+        '지역난방' => 'DISTRICT',
+        '가스 난방 미사용' => 'NOT_USED',
+        '기타' => 'OTHER',
+        _ => null,
+      },
+      'gasCompany': _emptyToNull(info['gasCompany']),
+      'gasCustomerNumber': _emptyToNull(info['gasCustomerNo']),
+      'gasContractorName': _emptyToNull(info['gasContractor']),
+      'addressSame': info['gasAddressSame'],
+      'gasServiceAddress': info['gasAddressSame'] == false
+          ? _emptyToNull(info['gasServiceAddress'])
+          : null,
+      'recentBillChecked': info['gasBillReady'],
+      'severeDisabilityOrMerit': info['gasSevereDisabilityOrMerit'],
+      'basicOrNearPoor': info['gasBasicOrNearPoor'],
+      'multiChildHousehold': info['gasMultiChildThree'],
+      'energyVoucherRecipient': info['gasEnergyVoucherRecipient'],
+      'note': _emptyToNull(info['gasNote']),
+    };
+  }
+
+  Map<String, dynamic> _buildProfileRequest(
+    Map<String, dynamic> info,
+  ) {
+    return {
+      'basicLivelihoodRecipient': info['livelihoodBenefit'],
+      'nearPoverty': info['nearPoverty'],
+      'disabledHousehold': info['disabledHouseholdMember'],
+      'nationalMeritHousehold': info['nationalMeritHousehold'],
+      'seniorHousehold': info['elderlyHouseholdMember'],
+      'infantHousehold': info['infantHouseholdMember'],
+      'pregnantHousehold': info['pregnantHouseholdMember'],
+      'singleParentHousehold': info['singleParentFamily'],
+      'multiChildHousehold': info['multiChildHousehold'],
+      'householdSize': _parseNullableInt(info['householdCount']),
+      'energyVoucherRecipient': info['energyVoucherRecipient'],
+      'heatingEnergyType': _heatingEnergyTypeToServer(
+        info['mainHeatingSource'],
+      ),
+    };
+  }
+
+  bool _shouldSaveGasDetail(Map<String, dynamic> info) {
+    return info['usesCityGas'] != null;
+  }
+
+  int? _parseNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    return int.tryParse(text);
+  }
+
+  String? _heatingEnergyTypeToServer(dynamic value) {
+    return switch (value?.toString()) {
+      '도시가스' => 'CITY_GAS',
+      'LPG' => 'LPG',
+      '등유' => 'KEROSENE',
+      '전기' => 'ELECTRICITY',
+      '지역난방' => 'DISTRICT_HEATING',
+      '기타' => 'OTHER',
+      '모름' => 'UNKNOWN',
+      _ => null,
+    };
+  }
+
+  Map<String, dynamic> _electricityDetailToLocal(
+    Map<String, dynamic> detail,
+  ) {
+    final values = <String, dynamic>{};
+
+    void apply(String serverKey, String localKey) {
+      if (detail.containsKey(serverKey) && detail[serverKey] != null) {
+        values[localKey] = detail[serverKey];
+      }
+    }
+
+    apply('usesElectricity', 'residentialElectricity');
+    final company =
+        detail['electricityCompany'] ?? detail['electricityProvider'];
+    if (company != null) values['electricityCompany'] = company;
+    apply('customerNumber', 'electricCustomerNo');
+    apply('contractorName', 'electricContractor');
+    apply('addressSame', 'electricAddressSame');
+    apply('serviceAddress', 'electricityServiceAddress');
+    apply('recentBillChecked', 'electricBillReady');
+    apply('note', 'electricityNote');
+
+    final status = _electricityDiscountStatusToDisplay(
+      detail['currentDiscountStatus'],
+    );
+    if (status != null) {
+      values['electricityApplicationStatus'] = status;
+    }
+    return values;
+  }
+
+  Map<String, dynamic> _buildElectricityRequest(
+    Map<String, dynamic> info,
+  ) {
+    final addressSame = info['electricAddressSame'];
+    return {
+      'usesElectricity': info['residentialElectricity'],
+      'electricityCompany': _emptyToNull(info['electricityCompany']),
+      'customerNumber': _emptyToNull(info['electricCustomerNo']),
+      'contractorName': _emptyToNull(info['electricContractor']),
+      'addressSame': addressSame,
+      'serviceAddress': addressSame == false
+          ? _emptyToNull(info['electricityServiceAddress'])
+          : null,
+      'recentBillChecked': info['electricBillReady'],
+      'currentDiscountStatus': _electricityDiscountStatusToServer(
+        info['electricityApplicationStatus'],
+      ),
+      'note': _emptyToNull(info['electricityNote']),
+    };
+  }
+
+  bool _shouldSaveElectricityDetail(Map<String, dynamic> info) {
+    return info['electricityApplicationStatus'] != null ||
+        _emptyToNull(info['electricityCompany']) != null ||
+        _emptyToNull(info['electricCustomerNo']) != null ||
+        _emptyToNull(info['electricContractor']) != null ||
+        info['electricAddressSame'] != null ||
+        info['electricBillReady'] != null ||
+        info['residentialElectricity'] != null;
+  }
+
+  String? _electricityDiscountStatusToDisplay(dynamic value) {
+    return switch (value?.toString()) {
+      'UNKNOWN' => '모름',
+      'NOT_RECEIVING' => '할인받지 않음',
+      'RECEIVING' => '할인받고 있음',
+      _ => null,
+    };
+  }
+
+  String? _electricityDiscountStatusToServer(dynamic value) {
+    return switch (value?.toString()) {
+      '모름' || 'UNKNOWN' => 'UNKNOWN',
+      '할인받지 않음' || '미신청' || 'NOT_RECEIVING' => 'NOT_RECEIVING',
+      '할인받고 있음' || '신청 완료' || '적용 중' || 'RECEIVING' =>
+        'RECEIVING',
+      _ => null,
+    };
+  }
+
+  Map<String, dynamic> _gasDetailToLocal(Map<String, dynamic> detail) {
+    return {
+      'usesCityGas': detail['usesCityGas'],
+      'gasUseType': switch (detail['gasUseType']) {
+        'COOKING' => '취사',
+        'HEATING' => '난방',
+        'COOKING_AND_HEATING' => '취사 및 난방',
+        'OTHER' => '기타',
+        _ => '모름',
+      },
+      'gasHeatingType': switch (detail['gasHeatingType']) {
+        'INDIVIDUAL' => '개별난방',
+        'CENTRAL' => '중앙난방',
+        'DISTRICT' => '지역난방',
+        'NOT_USED' => '가스 난방 미사용',
+        'OTHER' => '기타',
+        _ => '모름',
+      },
+      'gasCompany': detail['gasCompany'],
+      'gasCustomerNo': detail['gasCustomerNumber'],
+      'gasContractor': detail['gasContractorName'],
+      'gasAddressSame': detail['addressSame'],
+      'gasServiceAddress': detail['gasServiceAddress'],
+      'gasBillReady': detail['recentBillChecked'],
+      'gasSevereDisabilityOrMerit': detail['severeDisabilityOrMerit'],
+      'gasBasicOrNearPoor': detail['basicOrNearPoor'],
+      'gasMultiChildThree': detail['multiChildHousehold'],
+      'gasEnergyVoucherRecipient': detail['energyVoucherRecipient'],
+      'gasNote': detail['note'],
+    };
+  }
+
+  dynamic _emptyToNull(dynamic value) {
+    if (value is! String) return value;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }
 
@@ -917,6 +1284,7 @@ const _benefits = [
     color: kWarning,
     fields: [
       _InputField.toggle('livelihoodBenefit', '생계급여 수급'),
+      _InputField.toggle('nearPoverty', '차상위계층 해당'),
       _InputField.toggle('medicalBenefit', '의료급여 수급'),
       _InputField.toggle('housingBenefit', '주거급여 수급'),
       _InputField.toggle('educationBenefit', '교육급여 수급'),
@@ -925,6 +1293,7 @@ const _benefits = [
       _InputField.toggle('elderlyHouseholdMember', '노인 세대원 있음'),
       _InputField.toggle('infantHouseholdMember', '영유아 세대원 있음'),
       _InputField.toggle('disabledHouseholdMember', '등록 장애인 있음'),
+      _InputField.toggle('nationalMeritHousehold', '국가유공자 세대 해당'),
       _InputField.toggle('pregnantHouseholdMember', '임신·출산 해당'),
       _InputField.toggle('severeDiseaseHouseholdMember', '중증질환자 있음'),
       _InputField.toggle('rareDiseaseHouseholdMember', '희귀질환자 있음'),
@@ -936,7 +1305,7 @@ const _benefits = [
       _InputField.choice(
         'mainHeatingSource',
         '주 난방 에너지원',
-        ['전기', '도시가스', '지역난방', '등유', 'LPG', '연탄', '기타'],
+        ['전기', '도시가스', '지역난방', '등유', 'LPG', '연탄', '기타', '모름'],
       ),
       _InputField.choice('voucherUseMethod', '동절기 사용 방식', ['요금차감', '국민행복카드', '미정']),
       _InputField.text('voucherElectricCustomerNo', '전기 고객번호'),
@@ -947,6 +1316,7 @@ const _benefits = [
       _InputField.toggle('winterFuelSupport', '긴급복지 동절기 연료비 수급'),
       _InputField.toggle('coalCoupon', '연탄쿠폰 수급'),
       _InputField.toggle('coalEnergyVoucher', '연탄전환 에너지바우처 수급'),
+      _InputField.toggle('energyVoucherRecipient', '에너지바우처 수급'),
       _InputField.choice(
         'energyVoucherApplicationStatus',
         '현재 신청 여부',
@@ -962,9 +1332,11 @@ const _benefits = [
     icon: Icons.bolt,
     color: kPrimary,
     fields: [
+      _InputField.text('electricityCompany', '전기 공급사'),
       _InputField.text('electricCustomerNo', '한전 고객번호'),
       _InputField.text('electricContractor', '전기 계약자 명의'),
       _InputField.toggle('electricAddressSame', '전기 사용 장소와 주민등록 주소 같음'),
+      _InputField.text('electricityServiceAddress', '전기 사용 주소'),
       _InputField.toggle('residentialElectricity', '주택용 전기 사용'),
       _InputField.choice('apartmentBillingType', '아파트 전기요금 방식', ['해당 없음', '개별계량', '관리비 합산', '모름']),
       _InputField.toggle('electricWelfareRecipient', '수급자·차상위·장애인 등 할인 자격 있음'),
@@ -974,10 +1346,11 @@ const _benefits = [
       _InputField.text('recentBabyBirthDate', '최근 출생아 생년월일'),
       _InputField.toggle('lifeSupportDevice', '생명유지장치 사용'),
       _InputField.toggle('electricBillReady', '최근 전기요금 고지서 확인'),
+      _InputField.text('electricityNote', '전기요금 확인 메모'),
       _InputField.choice(
         'electricityApplicationStatus',
         '현재 할인 적용 여부',
-        ['모름', '미신청', '신청 완료', '적용 중', '명의 불일치', '고객번호 확인 필요'],
+        ['모름', '할인받지 않음', '할인받고 있음'],
       ),
     ],
   ),
@@ -990,17 +1363,27 @@ const _benefits = [
     color: kDanger,
     fields: [
       _InputField.toggle('usesCityGas', '도시가스 사용'),
-      _InputField.choice('gasUseType', '가스 사용 형태', ['취사용', '취사·난방용', '모름']),
-      _InputField.choice('gasHeatingType', '난방 방식', ['개별난방', '중앙난방', '모름']),
+      _InputField.choice(
+        'gasUseType',
+        '가스 사용 형태',
+        ['취사', '난방', '취사 및 난방', '기타', '모름'],
+      ),
+      _InputField.choice(
+        'gasHeatingType',
+        '난방 방식',
+        ['개별난방', '중앙난방', '지역난방', '가스 난방 미사용', '기타', '모름'],
+      ),
       _InputField.text('gasCompany', '도시가스 공급회사'),
       _InputField.text('gasCustomerNo', '도시가스 고객번호'),
       _InputField.text('gasContractor', '가스 계약자 명의'),
       _InputField.toggle('gasAddressSame', '가스 사용 장소와 주민등록 주소 같음'),
+      _InputField.text('gasServiceAddress', '도시가스 사용 주소'),
       _InputField.toggle('gasSevereDisabilityOrMerit', '중증장애·유공자 등 자격 있음'),
       _InputField.toggle('gasBasicOrNearPoor', '수급자 또는 차상위 해당'),
       _InputField.toggle('gasMultiChildThree', '자녀 또는 손자녀 3명 이상'),
       _InputField.toggle('gasEnergyVoucherRecipient', '에너지바우처 수급'),
       _InputField.toggle('gasBillReady', '최근 가스요금 고지서 확인'),
+      _InputField.text('gasNote', '도시가스 확인 메모'),
       _InputField.choice(
         'gasApplicationStatus',
         '현재 경감 적용 여부',

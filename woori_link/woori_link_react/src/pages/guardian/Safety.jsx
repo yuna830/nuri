@@ -233,7 +233,7 @@ const MISSING_LABEL = {
 
 const ACTION_UI = {
   IMMEDIATE_STOP: {
-    status: '즉시 사용 중지 필요',
+    status: '즉시 사용 중지',
     button: '리콜 제품 안내',
     fallback: '즉시 사용을 중지해 주세요.',
   },

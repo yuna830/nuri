@@ -110,7 +110,7 @@ function WelfareProtectedLayout() {
           </NavLink>
 
           <NavLink to="/welfare/recalled">
-            리콜 제품 확인 대상
+            리콜 제품 조치 관리
           </NavLink>
 
           <NavLink to="/welfare/schedule">
@@ -134,7 +134,9 @@ function WelfareProtectedLayout() {
       </aside>
 
       <main className="main-content">
-        <Outlet />
+        <div className="welfare-content-container">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

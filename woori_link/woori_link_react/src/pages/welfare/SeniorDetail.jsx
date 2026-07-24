@@ -1,313 +1,1904 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+
+import {
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
+
 import '../../css/welfare/SeniorDetail.css'
-import { getSeniorById, updateSeniorProfile } from '../../api/seniorApi'
-import { getLatestRisk, assessRisk } from '../../api/riskApi'
-import { getActionsBySenior, createAction } from '../../api/actionApi'
-import { getProductsBySenior } from '../../api/recallApi'
-import { getGuardians } from '../../api/guardianApi'
-import { getUser } from '../../utils/auth'
-import SeniorEditModal from './SeniorEditModal'
 
-const HOUSEHOLD_LABEL = { SINGLE: '1인 가구', FAMILY: '가족 가구', COUPLE: '부부 가구', OTHER: '기타 가구' }
-const LEVEL_MAP = { HIGH: { label: '우선 확인 후보', cls: 'high' }, MEDIUM: { label: '관심 필요', cls: 'medium' }, LOW: { label: '일반', cls: 'low' } }
-const RISK_CRITERIA = [
-  { group: 'A', label: '심각한 지역 기상위험', value: 'weatherRisk', score: 20 },
-  { group: 'A', label: '사용 중인 미조치 리콜 제품', value: 'recallRisk', score: 30 },
-  { group: 'A', label: '리콜 제품 사용 여부 미확인', value: 'recallUsageUnknown', score: 20 },
-  { group: 'A', label: '전기·가스 점검 미완료', value: 'safetyInspectionNeeded', values: ['safetyRisk', 'safetyInspectionOverdue'], score: 25 },
-  { group: 'B', label: '조치 요청 7일 이상 지연', value: 'overdueAction', score: 10 },
-  { group: 'B', label: '예정 방문 지연', value: 'delayedVisit', score: 15 },
-  { group: 'B', label: '동일 문제 반복', value: 'repeatedIssue', score: 10 },
-  { group: 'A', label: 'AI 안부 연속 미응답', value: 'aiNoResponse', score: 30 },
-  { group: 'A', label: '안전반경 이탈 미확인', value: 'locationAnomaly', score: 20 },
-  { group: 'C', label: '독거 가구', value: 'livingAlone', score: 10 },
-  { group: 'C', label: '보호자 미등록', value: 'guardianMissing', score: 10 },
-  { group: 'C', label: '장기요양 대상', value: 'longTermCare', score: 10 },
-  { group: 'C', label: '중증 장애', value: 'severeDisability', score: 10 },
-  { group: 'C', label: '에너지바우처 대상 미신청', value: 'voucherUnapplied', score: 5 },
-  { group: 'C', label: '전기·가스 할인 미신청', value: 'discountUnapplied', score: 5 },
-]
+import {
+  getSeniorById,
+  updateSeniorProfile,
+} from '../../api/seniorApi'
 
-function valueOrDash(value) {
-  return value === null || value === undefined || value === '' ? '-' : value
+import {
+  assessRisk,
+  getLatestRisk,
+} from '../../api/riskApi'
+
+import {
+  getProductsBySenior,
+} from '../../api/recallApi'
+
+import {
+  getGuardians,
+} from '../../api/guardianApi'
+
+const HOUSEHOLD_LABEL = {
+  SINGLE: '1인 가구',
+  COUPLE: '부부 가구',
+  FAMILY: '가족 가구',
+  OTHER: '기타 가구',
 }
 
-function formatPhone(value) {
-  const digits = value?.replace(/\D/g, '')
-  if (!digits) return '-'
-  if (digits.length === 11) return digits.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')
-  if (digits.length === 10) return digits.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')
+
+const LEVEL_MAP = {
+  HIGH: {
+    label: '우선 확인 후보',
+    className: 'high',
+  },
+
+  MEDIUM: {
+    label: '관심 필요',
+    className: 'medium',
+  },
+
+  LOW: {
+    label: '일반',
+    className: 'low',
+  },
+}
+
+
+const RISK_CRITERIA = [
+  {
+    group: 'A',
+    label: '심각한 지역 기상위험',
+    value: 'weatherRisk',
+    score: 20,
+    recommendation:
+      '기상특보 행동요령을 안내하고 현재 안전 상태를 확인하세요.',
+  },
+  {
+    group: 'A',
+    label: '사용 중인 미조치 리콜 제품',
+    value: 'recallRisk',
+    score: 30,
+    recommendation:
+      '제품 사용 중단 여부와 회수·교환 진행 상태를 확인하세요.',
+  },
+  {
+    group: 'A',
+    label: '리콜 제품 사용 여부 미확인',
+    value: 'recallUsageUnknown',
+    score: 20,
+    recommendation:
+      '어르신 또는 보호자에게 제품 사용 여부를 확인하세요.',
+  },
+  {
+    group: 'A',
+    label: '전기·가스 점검 미완료',
+    value: 'safetyInspectionNeeded',
+    values: [
+      'safetyRisk',
+      'safetyInspectionOverdue',
+    ],
+    score: 25,
+    recommendation:
+      '전기·가스 안전 점검 일정과 미완료 항목을 확인하세요.',
+  },
+  {
+    group: 'A',
+    label: 'AI 안부 확인 연속 미응답',
+    value: 'aiNoResponse',
+    score: 30,
+    recommendation:
+      '전화로 현재 상태를 확인하고 필요하면 방문 일정을 등록하세요.',
+  },
+  {
+    group: 'A',
+    label: '안전반경 이탈 미확인',
+    value: 'locationAnomaly',
+    score: 20,
+    recommendation:
+      '현재 위치와 안전반경 이탈 여부를 확인하세요.',
+  },
+
+  {
+    group: 'B',
+    label: '조치 요청 7일 이상 지연',
+    value: 'overdueAction',
+    score: 10,
+    recommendation:
+      '기한이 지난 조치의 담당자와 진행 상태를 확인하세요.',
+  },
+  {
+    group: 'B',
+    label: '예정 방문 지연',
+    value: 'delayedVisit',
+    score: 15,
+    recommendation:
+      '방문 일정을 다시 지정하고 대상자에게 안내하세요.',
+  },
+  {
+    group: 'B',
+    label: '동일 문제 반복',
+    value: 'repeatedIssue',
+    score: 10,
+    recommendation:
+      '반복 원인을 확인하고 기존 조치 방법을 재검토하세요.',
+  },
+
+  {
+    group: 'C',
+    label: '독거 가구',
+    value: 'livingAlone',
+    score: 10,
+    recommendation:
+      '정기 안부 확인과 비상 연락망을 점검하세요.',
+  },
+  {
+    group: 'C',
+    label: '보호자 미등록',
+    value: 'guardianMissing',
+    score: 10,
+    recommendation:
+      '보호자 또는 비상 연락처 등록 가능 여부를 확인하세요.',
+  },
+  {
+    group: 'C',
+    label: '장기요양 대상',
+    value: 'longTermCare',
+    score: 10,
+    recommendation:
+      '현재 이용 중인 장기요양 서비스와 돌봄 공백을 확인하세요.',
+  },
+  {
+    group: 'C',
+    label: '중증 장애',
+    value: 'severeDisability',
+    score: 10,
+    recommendation:
+      '이동 및 생활지원이 필요한지 확인하세요.',
+  },
+  {
+    group: 'C',
+    label: '에너지바우처 대상 미신청',
+    value: 'voucherUnapplied',
+    score: 5,
+    recommendation:
+      '에너지바우처 신청 의사와 필요 서류를 확인하세요.',
+  },
+  {
+    group: 'C',
+    label: '전기·가스 할인 미신청',
+    value: 'discountUnapplied',
+    score: 5,
+    recommendation:
+      '전기·가스 복지 할인 신청 여부를 확인하세요.',
+  },
+]
+
+
+function valueOrDash(value) {
+  if (
+    value === null
+    || value === undefined
+    || value === ''
+  ) {
+    return '-'
+  }
+
   return value
 }
 
-function booleanLabel(value, trueLabel = '예', falseLabel = '아니오') {
-  return value === true ? trueLabel : value === false ? falseLabel : '미확인'
-}
 
-function applicationLabel(value) {
-  return value === true ? '신청 완료' : value === false ? '미신청' : '미확인'
-}
+function formatPhone(value) {
+  const digits =
+    value?.replace(/\D/g, '')
 
-function areaScore(risk, ...keys) {
-  const key = keys.find(candidate => risk[candidate] !== null && risk[candidate] !== undefined)
-  return key ? `${risk[key]}점` : '-'
-}
-
-function getScoredCriteria(risk) {
-  if (!risk) return []
-
-  const groupScores = {
-    A: Number(risk.actualRiskScore ?? risk.riskScore ?? 0),
-    B: Math.min(Number(risk.delayScore ?? 0), 40),
-    C: Math.min(Number(risk.vulnerabilityScore ?? 0), 25),
+  if (!digits) {
+    return '-'
   }
 
-  return ['A', 'B', 'C'].flatMap(group => {
-    const applied = RISK_CRITERIA.filter(criteria =>
-      criteria.group === group &&
-      (criteria.values ?? [criteria.value]).some(value => risk[value] === true)
+  if (digits.length === 11) {
+    return digits.replace(
+      /(\d{3})(\d{4})(\d{4})/,
+      '$1-$2-$3',
     )
-    let remaining = groupScores[group]
+  }
 
-    return applied.map((criteria, index) => {
-      const score = index === applied.length - 1
-        ? remaining
-        : Math.min(criteria.score, remaining)
-      remaining = Math.max(0, remaining - score)
-      return { ...criteria, appliedScore: score }
-    })
-  })
+  if (digits.length === 10) {
+    return digits.replace(
+      /(\d{3})(\d{3})(\d{4})/,
+      '$1-$2-$3',
+    )
+  }
+
+  return value
 }
+
+
+function booleanLabel(
+  value,
+  trueLabel = '예',
+  falseLabel = '아니오',
+) {
+  if (value === true) {
+    return trueLabel
+  }
+
+  if (value === false) {
+    return falseLabel
+  }
+
+  return '미확인'
+}
+
+
+function applicationLabel(value) {
+  if (value === true) {
+    return '신청 완료'
+  }
+
+  if (value === false) {
+    return '미신청'
+  }
+
+  return '미확인'
+}
+
+
+function supportApplicationLabel(
+  eligible,
+  applied,
+) {
+  if (eligible === false) {
+    return '해당 없음'
+  }
+
+  return applicationLabel(applied)
+}
+
+
+function formatDateTime(value) {
+  if (!value) {
+    return '-'
+  }
+
+  return new Date(value)
+    .toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(/\. /g, '.')
+    .replace(/\.$/, '')
+}
+
+
+function getScoredCriteria(risk) {
+  if (!risk) {
+    return []
+  }
+
+  const groupScores = {
+    A: Number(
+      risk.actualRiskScore
+      ?? risk.riskScore
+      ?? 0,
+    ),
+
+    B: Math.min(
+      Number(
+        risk.delayScore
+        ?? 0,
+      ),
+      40,
+    ),
+
+    C: Math.min(
+      Number(
+        risk.vulnerabilityScore
+        ?? 0,
+      ),
+      25,
+    ),
+  }
+
+  return ['A', 'B', 'C']
+    .flatMap((group) => {
+      const appliedCriteria =
+        RISK_CRITERIA.filter(
+          (criteria) => {
+            if (
+              criteria.group
+              !== group
+            ) {
+              return false
+            }
+
+            const values =
+              criteria.values
+              ?? [criteria.value]
+
+            return values.some(
+              (value) =>
+                risk[value] === true,
+            )
+          },
+        )
+
+      let remainingScore =
+        groupScores[group]
+
+      return appliedCriteria.map(
+        (criteria, index) => {
+          const isLast =
+            index
+            === appliedCriteria.length - 1
+
+          const appliedScore =
+            isLast
+              ? remainingScore
+              : Math.min(
+                criteria.score,
+                remainingScore,
+              )
+
+          remainingScore =
+            Math.max(
+              0,
+              remainingScore
+              - appliedScore,
+            )
+
+          return {
+            ...criteria,
+            appliedScore,
+          }
+        },
+      )
+    })
+    .filter(
+      (criteria) =>
+        criteria.appliedScore > 0,
+    )
+}
+
+
+function getWelfareBenefitSummary(senior) {
+  const benefits = [
+    [
+      '생계급여',
+      senior.livelihoodBenefit,
+    ],
+    [
+      '의료급여',
+      senior.medicalBenefit,
+    ],
+    [
+      '주거급여',
+      senior.housingBenefit,
+    ],
+    [
+      '교육급여',
+      senior.educationBenefit,
+    ],
+  ]
+    .filter(
+      ([, active]) =>
+        active === true,
+    )
+    .map(([label]) => label)
+
+  if (benefits.length === 0) {
+    return '해당 없음'
+  }
+
+  return benefits.join(' · ')
+}
+
+
+function toSelectValue(value) {
+  if (value === true) {
+    return 'true'
+  }
+
+  if (value === false) {
+    return 'false'
+  }
+
+  return ''
+}
+
+
+function toNullableBoolean(value) {
+  if (value === 'true') {
+    return true
+  }
+
+  if (value === 'false') {
+    return false
+  }
+
+  return null
+}
+
+
+function createProfileForm(senior) {
+  return {
+    name: senior.name || '',
+    birthDate: senior.birthDate || '',
+    gender: senior.gender || '',
+    phone: formatPhone(senior.phone),
+    address: senior.address || '',
+    detailAddress:
+      senior.detailAddress || '',
+    guardianId:
+      senior.guardianId ?? '',
+    householdType:
+      senior.householdType || '',
+    housingType:
+      senior.housingType || '',
+    livingAlone:
+      toSelectValue(
+        senior.livingAlone,
+      ),
+    disabilityGrade:
+      senior.disabilityGrade || '',
+    longTermCare:
+      toSelectValue(
+        senior.longTermCare,
+      ),
+  }
+}
+
+
+function createWelfareForm(senior) {
+  return {
+    livelihoodBenefit:
+      toSelectValue(
+        senior.livelihoodBenefit,
+      ),
+    medicalBenefit:
+      toSelectValue(
+        senior.medicalBenefit,
+      ),
+    housingBenefit:
+      toSelectValue(
+        senior.housingBenefit,
+      ),
+    educationBenefit:
+      toSelectValue(
+        senior.educationBenefit,
+      ),
+    energyVoucherEligible:
+      toSelectValue(
+        senior.energyVoucherEligible,
+      ),
+    energyVoucherApplied:
+      toSelectValue(
+        senior.energyVoucherApplied,
+      ),
+    electricityDiscountEligible:
+      toSelectValue(
+        senior.electricityDiscountEligible,
+      ),
+    electricityDiscountApplied:
+      toSelectValue(
+        senior.electricityDiscountApplied,
+      ),
+    gasDiscountEligible:
+      toSelectValue(
+        senior.gasDiscountEligible,
+      ),
+    gasDiscountApplied:
+      toSelectValue(
+        senior.gasDiscountApplied,
+      ),
+  }
+}
+
 
 export default function SeniorDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [senior, setSenior] = useState(null)
-  const [risk, setRisk] = useState(null)
-  const [actions, setActions] = useState([])
-  const [products, setProducts] = useState([])
-  const [note, setNote] = useState('')
-  const [actionType, setActionType] = useState('OTHER')
-  const [dueDate, setDueDate] = useState('')
-  const [immediateRisk, setImmediateRisk] = useState(false)
-  const [assessing, setAssessing] = useState(false)
-  const [managementTab, setManagementTab] = useState('products')
-  const [showActionModal, setShowActionModal] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState(null)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [toast, setToast] = useState('')
-  const [guardians, setGuardians] = useState([])
+
+  const [
+    senior,
+    setSenior,
+  ] = useState(null)
+
+  const [
+    risk,
+    setRisk,
+  ] = useState(null)
+
+  const [
+    products,
+    setProducts,
+  ] = useState([])
+
+  const [
+    guardians,
+    setGuardians,
+  ] = useState([])
+
+  const [
+    assessing,
+    setAssessing,
+  ] = useState(false)
+
+  const [
+    profileForm,
+    setProfileForm,
+  ] = useState(null)
+
+  const [
+    profileSaving,
+    setProfileSaving,
+  ] = useState(false)
+
+  const [
+    welfareForm,
+    setWelfareForm,
+  ] = useState(null)
+
+  const [
+    welfareSaving,
+    setWelfareSaving,
+  ] = useState(false)
+
+  const [
+    toast,
+    setToast,
+  ] = useState('')
+
 
   useEffect(() => {
-    getSeniorById(id).then(r => setSenior(r.data)).catch(() => {})
-    getLatestRisk(id).then(r => setRisk(r.data)).catch(() => {})
-    getActionsBySenior(id).then(r => setActions(r.data)).catch(() => {})
-    getProductsBySenior(id).then(r => setProducts(r.data)).catch(() => {})
-    getGuardians().then(r => setGuardians(r.data)).catch(() => setGuardians([]))
+    loadDetail()
   }, [id])
 
-  async function handleAssess() {
-    setAssessing(true)
-    try { const r = await assessRisk(id); setRisk(r.data) }
-    finally { setAssessing(false) }
+
+  async function loadDetail() {
+    const results =
+      await Promise.allSettled([
+        getSeniorById(id),
+        getLatestRisk(id),
+        getProductsBySenior(id),
+        getGuardians(),
+      ])
+
+    if (
+      results[0].status
+      === 'fulfilled'
+    ) {
+      setSenior(
+        results[0].value.data,
+      )
+    }
+
+    if (
+      results[1].status
+      === 'fulfilled'
+    ) {
+      setRisk(
+        results[1].value.data,
+      )
+    }
+
+    if (
+      results[2].status
+      === 'fulfilled'
+    ) {
+      setProducts(
+        Array.isArray(
+          results[2].value.data,
+        )
+          ? results[2].value.data
+          : [],
+      )
+    } else {
+      setProducts([])
+    }
+
+    if (
+      results[3].status
+      === 'fulfilled'
+    ) {
+      setGuardians(
+        Array.isArray(
+          results[3].value.data,
+        )
+          ? results[3].value.data
+          : [],
+      )
+    } else {
+      setGuardians([])
+    }
   }
+
+
+  function showToast(message) {
+    setToast(message)
+
+    window.setTimeout(() => {
+      setToast('')
+    }, 3500)
+  }
+
+
+  async function handleAssess() {
+    if (assessing) {
+      return
+    }
+
+    setAssessing(true)
+
+    try {
+      const response =
+        await assessRisk(id)
+
+      setRisk(response.data)
+
+      showToast(
+        '확인 우선도가 다시 계산되었습니다.',
+      )
+    } catch (error) {
+      console.error(
+        '확인 우선도 재산정 실패:',
+        error,
+      )
+
+      showToast(
+        '확인 우선도를 다시 계산하지 못했습니다.',
+      )
+    } finally {
+      setAssessing(false)
+    }
+  }
+
 
   async function handleProfileSave(data) {
-    const updated = await updateSeniorProfile(id, data)
-    setSenior(updated.data)
-    setShowEditModal(false)
     try {
-      const recalculated = await assessRisk(id)
-      setRisk(recalculated.data)
-      setToast('대상자 정보가 수정되었으며 확인 우선도가 재산정되었습니다.')
-    } catch {
-      setToast('대상자 정보는 저장되었지만 확인 우선도 재산정에 실패했습니다.')
+      const updated =
+        await updateSeniorProfile(
+          id,
+          data,
+        )
+
+      setSenior(updated.data)
+      setProfileForm(null)
+      setWelfareForm(null)
+
+      try {
+        const recalculated =
+          await assessRisk(id)
+
+        setRisk(
+          recalculated.data,
+        )
+
+        showToast(
+          '대상자 정보가 수정되었으며 확인 우선도가 재산정되었습니다.',
+        )
+      } catch (error) {
+        console.error(
+          '정보 저장 후 재산정 실패:',
+          error,
+        )
+
+        showToast(
+          '대상자 정보는 저장되었지만 확인 우선도 재산정에 실패했습니다.',
+        )
+      }
+    } catch (error) {
+      console.error(
+        '대상자 정보 수정 실패:',
+        error,
+      )
+
+      throw error
     }
-    window.setTimeout(() => setToast(''), 3500)
   }
 
-  async function handleAction() {
-    if (!note.trim()) return
-    await createAction({ seniorId: Number(id), welfareWorkerId: 1, actionType, actionSubject: 'WELFARE_WORKER', note, dueDate: dueDate || null, immediateRisk })
-    const r = await getActionsBySenior(id)
-    setActions(r.data)
-    setNote('')
-    setDueDate('')
-    setImmediateRisk(false)
-    setShowActionModal(false)
+
+  function startProfileEdit() {
+    setProfileForm(
+      createProfileForm(senior),
+    )
   }
 
-  if (!senior) return <div className="empty-state">불러오는 중...</div>
 
-  const levelInfo = risk ? LEVEL_MAP[risk.level] : null
-  const scoredCriteria = getScoredCriteria(risk)
-  const guardianName = guardians.find(guardian => guardian.id === senior.guardianId)?.name
+  function updateProfileField(
+    name,
+    value,
+  ) {
+    setProfileForm(
+      (previous) => ({
+        ...previous,
+        [name]: value,
+      }),
+    )
+  }
+
+
+  async function saveInlineProfile() {
+    if (
+      !profileForm.name.trim()
+    ) {
+      showToast(
+        '이름을 입력해 주세요.',
+      )
+      return
+    }
+
+    setProfileSaving(true)
+
+    try {
+      await handleProfileSave({
+        name:
+          profileForm.name.trim(),
+        birthDate:
+          profileForm.birthDate
+          || null,
+        gender:
+          profileForm.gender
+          || null,
+        phone:
+          profileForm.phone
+            .replace(/\D/g, '')
+          || null,
+        address:
+          profileForm.address.trim()
+          || null,
+        detailAddress:
+          profileForm.detailAddress
+            .trim()
+          || null,
+        guardianId:
+          profileForm.guardianId === ''
+            ? null
+            : Number(
+              profileForm.guardianId,
+            ),
+        householdType:
+          profileForm.householdType
+          || null,
+        housingType:
+          profileForm.housingType
+          || null,
+        livingAlone:
+          toNullableBoolean(
+            profileForm.livingAlone,
+          ),
+        disabilityGrade:
+          profileForm.disabilityGrade
+            .trim()
+          || null,
+        longTermCare:
+          toNullableBoolean(
+            profileForm.longTermCare,
+          ),
+        incomeLevel:
+          senior.incomeLevel ?? null,
+        livelihoodBenefit:
+          senior.livelihoodBenefit
+          ?? null,
+        medicalBenefit:
+          senior.medicalBenefit ?? null,
+        housingBenefit:
+          senior.housingBenefit ?? null,
+        educationBenefit:
+          senior.educationBenefit
+          ?? null,
+        energyVoucherEligible:
+          senior.energyVoucherEligible
+          ?? null,
+        energyVoucherApplied:
+          senior.energyVoucherApplied
+          ?? null,
+        electricityDiscountEligible:
+          senior.electricityDiscountEligible
+          ?? null,
+        electricityDiscountApplied:
+          senior.electricityDiscountApplied
+          ?? null,
+        gasDiscountEligible:
+          senior.gasDiscountEligible
+          ?? null,
+        gasDiscountApplied:
+          senior.gasDiscountApplied
+          ?? null,
+      })
+    } catch {
+      showToast(
+        '대상자 정보를 저장하지 못했습니다.',
+      )
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+
+  function updateWelfareField(
+    name,
+    value,
+  ) {
+    setWelfareForm(
+      (previous) => ({
+        ...previous,
+        [name]: value,
+      }),
+    )
+  }
+
+
+  function updateEligibility(
+    prefix,
+    value,
+  ) {
+    setWelfareForm(
+      (previous) => ({
+        ...previous,
+        [`${prefix}Eligible`]:
+          value,
+        ...(
+          value === 'false'
+            ? {
+              [`${prefix}Applied`]:
+                '',
+            }
+            : {}
+        ),
+      }),
+    )
+  }
+
+
+  function deriveIncomeLevel() {
+    const levels = [
+      [
+        'livelihoodBenefit',
+        'LIVELIHOOD',
+      ],
+      [
+        'medicalBenefit',
+        'MEDICAL',
+      ],
+      [
+        'housingBenefit',
+        'HOUSING',
+      ],
+      [
+        'educationBenefit',
+        'EDUCATION',
+      ],
+    ]
+
+    const selected =
+      levels.find(
+        ([key]) =>
+          welfareForm[key]
+          === 'true',
+      )
+
+    if (selected) {
+      return selected[1]
+    }
+
+    return levels.every(
+      ([key]) =>
+        welfareForm[key]
+        === 'false',
+    )
+      ? 'NONE'
+      : null
+  }
+
+
+  async function saveInlineWelfare() {
+    setWelfareSaving(true)
+
+    try {
+      await handleProfileSave({
+        name: senior.name,
+        birthDate:
+          senior.birthDate ?? null,
+        gender:
+          senior.gender ?? null,
+        phone:
+          senior.phone ?? null,
+        address:
+          senior.address ?? null,
+        detailAddress:
+          senior.detailAddress ?? null,
+        guardianId:
+          senior.guardianId ?? null,
+        householdType:
+          senior.householdType ?? null,
+        housingType:
+          senior.housingType ?? null,
+        livingAlone:
+          senior.livingAlone ?? null,
+        disabilityGrade:
+          senior.disabilityGrade ?? null,
+        longTermCare:
+          senior.longTermCare ?? null,
+        incomeLevel:
+          deriveIncomeLevel(),
+        livelihoodBenefit:
+          toNullableBoolean(
+            welfareForm
+              .livelihoodBenefit,
+          ),
+        medicalBenefit:
+          toNullableBoolean(
+            welfareForm
+              .medicalBenefit,
+          ),
+        housingBenefit:
+          toNullableBoolean(
+            welfareForm
+              .housingBenefit,
+          ),
+        educationBenefit:
+          toNullableBoolean(
+            welfareForm
+              .educationBenefit,
+          ),
+        energyVoucherEligible:
+          toNullableBoolean(
+            welfareForm
+              .energyVoucherEligible,
+          ),
+        energyVoucherApplied:
+          toNullableBoolean(
+            welfareForm
+              .energyVoucherApplied,
+          ),
+        electricityDiscountEligible:
+          toNullableBoolean(
+            welfareForm
+              .electricityDiscountEligible,
+          ),
+        electricityDiscountApplied:
+          toNullableBoolean(
+            welfareForm
+              .electricityDiscountApplied,
+          ),
+        gasDiscountEligible:
+          toNullableBoolean(
+            welfareForm
+              .gasDiscountEligible,
+          ),
+        gasDiscountApplied:
+          toNullableBoolean(
+            welfareForm
+              .gasDiscountApplied,
+          ),
+      })
+    } catch {
+      showToast(
+        '복지 정보를 저장하지 못했습니다.',
+      )
+    } finally {
+      setWelfareSaving(false)
+    }
+  }
+
+
+  const levelInfo =
+    risk
+      ? (
+        LEVEL_MAP[risk.level]
+        ?? LEVEL_MAP.LOW
+      )
+      : LEVEL_MAP.LOW
+
+
+  const scoredCriteria =
+    useMemo(
+      () =>
+        getScoredCriteria(risk),
+      [risk],
+    )
+
+
+  const recallProductCount =
+    useMemo(
+      () =>
+        products.filter(
+          (product) =>
+            product.recallDecisionStatus
+            === 'RECALL_CONFIRMED'
+            || (
+              !product.recallDecisionStatus
+              && product.recallStatus
+              === 'RECALLED'
+            ),
+        ).length,
+      [products],
+    )
+
+
+  const reviewRequiredProductCount =
+    useMemo(
+      () =>
+        products.filter(
+          (product) =>
+            product.recallDecisionStatus
+            === 'REVIEW_REQUIRED',
+        ).length,
+      [products],
+    )
+
+
+  const guardianName =
+    guardians.find(
+      (guardian) =>
+        Number(guardian.id)
+        === Number(
+          senior?.guardianId,
+        ),
+    )?.name
+
+
+  if (!senior) {
+    return (
+      <div className="empty-state">
+        대상자 정보를 불러오는 중입니다.
+      </div>
+    )
+  }
+
 
   return (
-    <div>
+    <div className="senior-detail-page">
       <div className="detail-title-row">
         <button
           type="button"
           className="detail-title-back"
-          onClick={() => navigate('/welfare/seniors')}
           aria-label="대상자 목록으로 이동"
+          onClick={() =>
+            navigate('/welfare/seniors')
+          }
         >
           &lt;
         </button>
-        <h1 className="page-title">{senior.name}</h1>
-      </div>
 
-      <div className="detail-grid">
-        <div className="card detail-info-card">
-          <div className="section-header"><span className="card-title" style={{ margin: 0 }}>기본 정보</span><button className="btn-outline detail-small-button" onClick={() => setShowEditModal(true)}>정보 수정</button></div>
-          <div className="detail-info-grid">
-            <div className="info-row"><span className="info-label">나이</span><span className="info-value">{senior.age !== null && senior.age !== undefined ? `${senior.age}세` : '-'}</span></div>
-            <div className="info-row"><span className="info-label">연락처</span><span className="info-value">{formatPhone(senior.phone)}</span></div>
-            <div className="info-row info-row-wide"><span className="info-label">주소</span><span className="info-value">{valueOrDash(senior.address)}</span></div>
-            <div className="info-row"><span className="info-label">장애등급</span><span className="info-value">{valueOrDash(senior.disabilityGrade)}</span></div>
-            <div className="info-row"><span className="info-label">독거여부</span><span className="info-value">{senior.livingAlone === true ? '독거' : senior.livingAlone === false ? '비독거' : '-'}</span></div>
-            <div className="info-row"><span className="info-label">보호자 등록 여부</span><span className="info-value">{senior.guardianId ? '등록' : '미등록'}</span></div>
-          </div>
-          <div className="detail-last-updated">마지막 수정: {senior.updatedAt ? new Date(senior.updatedAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '') : '-'} · {getUser()?.name || '-'} 복지사</div>
-          <div className="detail-all-info">
-            <section>
-              <h3>인적 정보</h3>
-              <div className="detail-info-grid">
-                <div className="info-row"><span className="info-label">이름</span><span className="info-value">{valueOrDash(senior.name)}{senior.gender === 'MALE' ? ' (남성)' : senior.gender === 'FEMALE' ? ' (여성)' : ''}</span></div>
-                <div className="info-row"><span className="info-label">생년월일</span><span className="info-value">{senior.birthDate?.replaceAll('-', '.') || '-'}</span></div>
-                <div className="info-row"><span className="info-label">연락처</span><span className="info-value">{formatPhone(senior.phone)}</span></div>
-                <div className="info-row"><span className="info-label">장애등급</span><span className="info-value">{valueOrDash(senior.disabilityGrade)}</span></div>
-              </div>
-            </section>
-            <section>
-              <h3>생활·돌봄 정보</h3>
-              <div className="detail-info-grid">
-                <div className="info-row"><span className="info-label">가구 형태</span><span className="info-value">{senior.householdType ? `${HOUSEHOLD_LABEL[senior.householdType] || senior.householdType}${senior.livingAlone != null ? ` (${senior.livingAlone ? '독거' : '비독거'})` : ''}` : senior.livingAlone != null ? booleanLabel(senior.livingAlone, '독거', '비독거') : '-'}</span></div>
-                <div className="info-row"><span className="info-label">주거 형태</span><span className="info-value">{valueOrDash(senior.housingType)}</span></div>
-                <div className="info-row"><span className="info-label">장기요양</span><span className="info-value">{booleanLabel(senior.longTermCare, '대상', '대상 아님')}</span></div>
-                <div className="info-row"><span className="info-label">보호자</span><span className="info-value">{senior.guardianId ? (guardianName || '등록') : '미등록'}</span></div>
-                <div className="info-row info-row-wide"><span className="info-label">주소</span><span className="info-value">{senior.address ? `${senior.address}${senior.detailAddress ? ` (${senior.detailAddress})` : ''}` : '-'}</span></div>
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <div className="card detail-welfare-card">
-          <div className="card-title">복지 정보</div>
-          <div className="detail-info-grid">
-            <div className="info-row"><span className="info-label">생계급여</span><span className="info-value">{booleanLabel(senior.livelihoodBenefit)}</span></div>
-            <div className="info-row"><span className="info-label">의료급여</span><span className="info-value">{booleanLabel(senior.medicalBenefit)}</span></div>
-            <div className="info-row"><span className="info-label">주거급여</span><span className="info-value">{booleanLabel(senior.housingBenefit)}</span></div>
-            <div className="info-row"><span className="info-label">교육급여</span><span className="info-value">{booleanLabel(senior.educationBenefit)}</span></div>
-          </div>
-          <div className="support-status-table">
-            <div className="support-status-head"><span>지원 항목</span><span>자격</span><span>신청 상태</span></div>
-            <div><strong>에너지바우처</strong><span>{booleanLabel(senior.energyVoucherEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.energyVoucherApplied)}</span></div>
-            <div><strong>전기요금 할인</strong><span>{booleanLabel(senior.electricityDiscountEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.electricityDiscountApplied)}</span></div>
-            <div><strong>가스요금 할인</strong><span>{booleanLabel(senior.gasDiscountEligible, '대상', '대상 아님')}</span><span>{applicationLabel(senior.gasDiscountApplied)}</span></div>
-          </div>
+        <div>
+          <h1 className="page-title">
+            {senior.name}
+          </h1>
         </div>
       </div>
 
-      <div className="card detail-risk-card detail-risk-card-wide">
-        <div className="section-header">
-          <div className="risk-title-summary">
-            <span className="card-title" style={{ margin: 0 }}>복지사 확인 우선도</span>
-            {risk && <div className="risk-header"><span className={`risk-score ${levelInfo?.cls}`}>{risk.totalScore}점</span><span className={`badge badge-${levelInfo?.cls}`}>{levelInfo?.label}</span></div>}
+      <section className="card detail-info-card">
+        <div className="detail-section-header">
+          <div>
+            <h2 className="card-title">
+              대상자 기본 정보
+            </h2>
           </div>
-          <button className="btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={handleAssess} disabled={assessing}>{assessing ? '산정 중...' : '재산정'}</button>
-        </div>
-        {risk ? <>
-          <div className="risk-wide-content">
-            <div className="risk-all-groups">
-              {[
-                ['A', '실제 위험', areaScore(risk, 'actualRiskScore', 'riskScore')],
-                ['B', '조치 지연', areaScore(risk, 'delayScore')],
-                ['C', '기본 취약성', areaScore(risk, 'vulnerabilityScore')],
-              ].map(([group, label, score]) => (
-                <section className={`risk-group risk-group-${group.toLowerCase()}`} key={group}>
-                  <div className="risk-group-heading"><span><b>{group}</b>{label}</span><strong>{score}</strong></div>
-                  <div className="risk-group-criteria">
-                    {RISK_CRITERIA.filter(criteria => criteria.group === group).map(criteria => {
-                      const scored = scoredCriteria.find(item => item.value === criteria.value)
-                      const applied = scored?.appliedScore > 0
-                      return <div className={`risk-criteria-item ${applied ? 'applied' : ''}`} key={criteria.label}><span>{criteria.label}</span><strong>{applied ? `+${scored.appliedScore}점` : '0점'}</strong></div>
-                    })}
-                  </div>
-                </section>
-              ))}
+
+          {profileForm ? (
+            <div className="detail-inline-actions">
+              <button
+                type="button"
+                className="btn-outline detail-small-button"
+                disabled={profileSaving}
+                onClick={() =>
+                  setProfileForm(null)
+                }
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary detail-small-button"
+                disabled={profileSaving}
+                onClick={saveInlineProfile}
+              >
+                {profileSaving
+                  ? '저장 중...'
+                  : '저장'}
+              </button>
             </div>
-          </div>
-        </> : <div className="empty-state detail-compact-empty">평가 이력 없음</div>}
-      </div>
-
-      <div className="card detail-management-card">
-        <div className="detail-management-tabs">
-          <button className={managementTab === 'products' ? 'active' : ''} onClick={() => setManagementTab('products')}>등록 제품 ({products.length})</button>
-          <button className={managementTab === 'actions' ? 'active' : ''} onClick={() => setManagementTab('actions')}>조치 기록 ({actions.length})</button>
-        </div>
-
-        {managementTab === 'products' && (
-          products.length === 0 ? (
-            <div className="detail-tab-empty"><strong>등록된 제품이 없습니다.</strong><p>님 앱에서 등록한 제품이 이곳에 표시됩니다.</p></div>
           ) : (
-            <table className="data-table">
-              <thead><tr><th>제품명</th><th>제조사·모델명</th><th>등록일</th><th>리콜 상태</th><th>관리</th></tr></thead>
-              <tbody>{products.map(product => (
-                <tr key={product.id}>
-                  <td className="font-bold">{product.productName || '-'}</td>
-                  <td>{[product.manufacturer, product.modelNumber].filter(Boolean).join(' · ') || '-'}</td>
-                  <td>{(product.registeredAt || product.createdAt)?.slice(0, 10) || '-'}</td>
-                  <td><span className={`badge badge-${product.recallDecisionStatus === 'RECALL_CONFIRMED' ? 'recalled' : 'review'}`}>{product.recallDecisionStatus === 'RECALL_CONFIRMED' ? '공식 리콜 일치' : product.recallDecisionStatus === 'NO_MATCH_FOUND' ? '등록 공고 일치 없음' : product.recallDecisionStatus === 'REVIEW_REQUIRED' ? '추가 확인 필요' : product.recallStatus === 'RECALLED' ? '리콜 확인 필요' : '조회 전'}</span></td>
-                  <td><button className="btn-primary detail-small-button" onClick={() => setSelectedProduct(product)}>상세 보기</button></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )
-        )}
+            <button
+              type="button"
+              className="btn-outline detail-small-button"
+              onClick={startProfileEdit}
+            >
+              수정
+            </button>
+          )}
+        </div>
 
-        {managementTab === 'actions' && (
-          <>
-            <div className="detail-action-toolbar"><h2>조치 기록</h2><button className="btn-primary detail-small-button" onClick={() => setShowActionModal(true)}>새 기록 추가</button></div>
-            {actions.length === 0 ? (
-              <div className="detail-tab-empty"><strong>아직 등록된 조치 기록이 없습니다.</strong><p>연락, 상담, 방문 및 지원 내용을 기록할 수 있습니다.</p></div>
-            ) : (
-              <div className="detail-action-list">{[...actions].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map(action => (
-                <div key={action.id}><span className="detail-action-date">{action.createdAt?.slice(0, 10) || '-'}</span><div><strong>{action.actionType || '-'}</strong><p>{action.note || '-'}</p></div><span className={`badge badge-${action.status === 'COMPLETED' ? 'completed' : 'pending'}`}>{action.status || '-'}</span></div>
-              ))}</div>
-            )}
-          </>
-        )}
-      </div>
+        <div className="detail-information-section">
+          <h3>인적 정보</h3>
 
-      {showEditModal && <SeniorEditModal senior={senior} onClose={() => setShowEditModal(false)} onSave={handleProfileSave} />}
-      {toast && <div className="detail-toast">{toast}</div>}
+          <div className="detail-info-grid">
+            <div className="info-row">
+              <span className="info-label">
+                이름
+              </span>
 
-      {showActionModal && (
-        <div className="detail-modal-overlay" onClick={() => setShowActionModal(false)}>
-          <div className="detail-modal" onClick={event => event.stopPropagation()}>
-            <div className="detail-modal-header"><div><h2>새 조치 기록</h2><p>{senior.name}</p></div><button onClick={() => setShowActionModal(false)}>×</button></div>
-            <div className="detail-modal-form">
-              <label>조치 유형<select value={actionType} onChange={event => setActionType(event.target.value)}><option value="OTHER">기타</option><option value="RECALL">리콜</option><option value="VOUCHER">복지 신청</option><option value="GAS_CHECK">가스점검</option><option value="ELECTRIC_CHECK">전기점검</option><option value="VISIT">방문</option></select></label>
-              <label>조치일<input type="text" value="저장 시 자동 기록" disabled /></label>
-              <label className="detail-modal-wide">조치 내용<textarea value={note} onChange={event => setNote(event.target.value)} placeholder="조치 내용을 입력하세요" /></label>
-              <label>다음 조치일<input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} /></label>
-              <label>진행 상태<input type="text" value="확인 필요" disabled /></label>
-              {(actionType === 'GAS_CHECK' || actionType === 'ELECTRIC_CHECK') && <label className="detail-check-field"><input type="checkbox" checked={immediateRisk} onChange={event => setImmediateRisk(event.target.checked)} /> 즉시 개선 필요</label>}
+              {profileForm ? (
+                <div className="detail-inline-pair">
+                  <input
+                    className="detail-inline-input"
+                    value={profileForm.name}
+                    aria-label="이름"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'name',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  <select
+                    className="detail-inline-select detail-inline-select-compact"
+                    value={profileForm.gender}
+                    aria-label="성별"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'gender',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="">미확인</option>
+                    <option value="MALE">남성</option>
+                    <option value="FEMALE">여성</option>
+                  </select>
+                </div>
+              ) : (
+                <span className="info-value">
+                  {valueOrDash(senior.name)}
+                  {senior.gender === 'MALE'
+                    && ' (남성)'}
+                  {senior.gender === 'FEMALE'
+                    && ' (여성)'}
+                </span>
+              )}
             </div>
-            <div className="detail-modal-actions"><button className="btn-outline" onClick={() => setShowActionModal(false)}>취소</button><button className="btn-primary" onClick={handleAction} disabled={!note.trim()}>기록 저장</button></div>
+
+            <div className="info-row">
+              <span className="info-label">
+                생년월일
+              </span>
+
+              {profileForm ? (
+                <input
+                  type="date"
+                  className="detail-inline-input"
+                  value={profileForm.birthDate}
+                  aria-label="생년월일"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'birthDate',
+                      event.target.value,
+                    )
+                  }
+                />
+              ) : (
+                <span className="info-value">
+                  {senior.birthDate
+                    ?.replaceAll('-', '.')
+                    || '정보 미등록'}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">
+                연락처
+              </span>
+
+              {profileForm ? (
+                <input
+                  className="detail-inline-input"
+                  value={profileForm.phone}
+                  aria-label="연락처"
+                  placeholder="010-0000-0000"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'phone',
+                      event.target.value,
+                    )
+                  }
+                />
+              ) : (
+                <span className="info-value">
+                  {formatPhone(senior.phone)}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row info-row-wide">
+              <span className="info-label">
+                주소
+              </span>
+
+              {profileForm ? (
+                <div className="detail-inline-pair">
+                  <input
+                    className="detail-inline-input"
+                    value={profileForm.address}
+                    aria-label="주소"
+                    placeholder="주소"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'address',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  <input
+                    className="detail-inline-input"
+                    value={profileForm.detailAddress}
+                    aria-label="상세 주소"
+                    placeholder="상세 주소"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'detailAddress',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </div>
+              ) : (
+                <span className="info-value">
+                  {senior.address
+                    ? `${senior.address}${
+                      senior.detailAddress
+                        ? ` (${senior.detailAddress})`
+                        : ''
+                    }`
+                    : '정보 미등록'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        <div className="detail-information-section">
+          <h3>생활·돌봄 정보</h3>
+
+          <div className="detail-info-grid">
+            <div className="info-row">
+              <span className="info-label">
+                가구 형태
+              </span>
+
+              {profileForm ? (
+                <div className="detail-inline-pair">
+                  <select
+                    className="detail-inline-select"
+                    value={profileForm.householdType}
+                    aria-label="가구 형태"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'householdType',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="">미확인</option>
+                    <option value="SINGLE">1인 가구</option>
+                    <option value="COUPLE">부부 가구</option>
+                    <option value="FAMILY">가족 가구</option>
+                    <option value="OTHER">기타 가구</option>
+                  </select>
+
+                  <select
+                    className="detail-inline-select"
+                    value={profileForm.livingAlone}
+                    aria-label="독거 여부"
+                    onChange={(event) =>
+                      updateProfileField(
+                        'livingAlone',
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="">미확인</option>
+                    <option value="true">독거</option>
+                    <option value="false">비독거</option>
+                  </select>
+                </div>
+              ) : (
+                <span className="info-value">
+                  {senior.householdType
+                    ? (
+                      HOUSEHOLD_LABEL[
+                        senior.householdType
+                      ]
+                      || senior.householdType
+                    )
+                    : '정보 미등록'}
+                  {senior.livingAlone
+                    !== null
+                    && senior.livingAlone
+                    !== undefined
+                    && ` · ${
+                      senior.livingAlone
+                        ? '독거'
+                        : '비독거'
+                    }`}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">
+                주거 형태
+              </span>
+
+              {profileForm ? (
+                <input
+                  className="detail-inline-input"
+                  value={profileForm.housingType}
+                  aria-label="주거 형태"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'housingType',
+                      event.target.value,
+                    )
+                  }
+                />
+              ) : (
+                <span className="info-value">
+                  {senior.housingType
+                    || '정보 미등록'}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">
+                장애등급
+              </span>
+
+              {profileForm ? (
+                <input
+                  className="detail-inline-input"
+                  value={profileForm.disabilityGrade}
+                  aria-label="장애등급"
+                  placeholder="해당 없으면 비워 두세요"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'disabilityGrade',
+                      event.target.value,
+                    )
+                  }
+                />
+              ) : (
+                <span className="info-value">
+                  {senior.disabilityGrade
+                    || '해당 없음'}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">
+                장기요양
+              </span>
+
+              {profileForm ? (
+                <select
+                  className="detail-inline-select"
+                  value={profileForm.longTermCare}
+                  aria-label="장기요양 여부"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'longTermCare',
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="">미확인</option>
+                  <option value="true">대상</option>
+                  <option value="false">대상 아님</option>
+                </select>
+              ) : (
+                <span className="info-value">
+                  {booleanLabel(
+                    senior.longTermCare,
+                    '대상',
+                    '대상 아님',
+                  )}
+                </span>
+              )}
+            </div>
+
+            <div className="info-row info-row-wide">
+              <span className="info-label">
+                보호자
+              </span>
+
+              {profileForm ? (
+                <select
+                  className="detail-inline-select"
+                  value={profileForm.guardianId}
+                  aria-label="보호자"
+                  onChange={(event) =>
+                    updateProfileField(
+                      'guardianId',
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="">미등록</option>
+                  {guardians.map(
+                    (guardian) => (
+                      <option
+                        key={guardian.id}
+                        value={guardian.id}
+                      >
+                        {guardian.name}
+                      </option>
+                    ),
+                  )}
+                </select>
+              ) : (
+                <span className="info-value">
+                  {senior.guardianId
+                    ? guardianName
+                      || '등록된 보호자'
+                    : '미등록'}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-last-updated">
+          마지막 수정:
+          {' '}
+          {formatDateTime(
+            senior.updatedAt,
+          )}
+        </div>
+      </section>
+
+      <section className="card detail-risk-card detail-risk-card-wide">
+        <div className="detail-section-header">
+          <div>
+            <h2 className="card-title">
+              복지사 확인 우선도
+            </h2>
+          </div>
+
+          <div className="risk-heading-actions">
+            {risk && (
+              <div className="risk-header">
+                <span
+                  className={[
+                    'risk-score',
+                    levelInfo.className,
+                  ].join(' ')}
+                >
+                  {risk.totalScore ?? 0}점
+                </span>
+
+                <span className="risk-level-text">
+                  · {levelInfo.label}
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="btn-primary detail-small-button"
+              disabled={assessing}
+              onClick={handleAssess}
+            >
+              {assessing
+                ? '산정 중...'
+                : '재산정'}
+            </button>
+          </div>
+        </div>
+
+        {!risk ? (
+          <div className="detail-empty-message">
+            <strong>
+              평가 이력이 없습니다.
+            </strong>
+
+            <p>
+              재산정을 실행해 현재 확인 우선도를 계산하세요.
+            </p>
+          </div>
+        ) : scoredCriteria.length === 0 ? (
+          <div className="detail-empty-message">
+            <strong>
+              현재 우선 확인이 필요한 항목이 없습니다.
+            </strong>
+
+            <p>
+              점수가 발생한 위험 또는 취약 조건이 없습니다.
+            </p>
+          </div>
+        ) : (
+          <div className="risk-reasons">
+            <h3>현재 확인 사유</h3>
+
+            <div className="risk-paired-list">
+              {scoredCriteria.map(
+                (criteria) => (
+                  <div
+                    className="risk-paired-item"
+                    key={criteria.value}
+                  >
+                    <div className="risk-paired-heading">
+                      <strong>
+                        {criteria.label}
+                      </strong>
+
+                      <span>
+                        +{criteria.appliedScore}점
+                      </span>
+                    </div>
+
+                    <p>
+                      {criteria.recommendation}
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
+
+        {risk && (
+          <div className="risk-score-breakdown">
+            <h3>점수 구성</h3>
+
+            <div className="risk-score-breakdown-grid">
+              <div>
+                <span>실제 위험</span>
+                <strong>
+                  {risk.actualRiskScore ?? 0}점
+                </strong>
+              </div>
+
+              <div>
+                <span>조치 지연</span>
+                <strong>
+                  {risk.delayScore ?? 0}점
+                </strong>
+              </div>
+
+              <div>
+                <span>기본 취약성</span>
+                <strong>
+                  {risk.vulnerabilityScore ?? 0}점
+                </strong>
+              </div>
+            </div>
+
+            <p className="risk-score-assessed-at">
+              마지막 산정 {formatDateTime(risk.assessedAt)}
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section className="card detail-welfare-card">
+        <div className="detail-section-header">
+          <div>
+            <h2 className="card-title">
+              복지 자격 및 지원 현황
+            </h2>
+          </div>
+
+          {welfareForm ? (
+            <div className="detail-inline-actions">
+              <button
+                type="button"
+                className="btn-outline detail-small-button"
+                disabled={welfareSaving}
+                onClick={() =>
+                  setWelfareForm(null)
+                }
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary detail-small-button"
+                disabled={welfareSaving}
+                onClick={saveInlineWelfare}
+              >
+                {welfareSaving
+                  ? '저장 중...'
+                  : '저장'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-outline detail-small-button"
+              onClick={() =>
+                setWelfareForm(
+                  createWelfareForm(
+                    senior,
+                  ),
+                )
+              }
+            >
+              수정
+            </button>
+          )}
+        </div>
+
+        <div className="welfare-benefit-section">
+          <span className="welfare-section-label">
+            기초생활보장
+          </span>
+
+          {welfareForm ? (
+            <div className="welfare-inline-benefits">
+              {[
+                [
+                  'livelihoodBenefit',
+                  '생계급여',
+                ],
+                [
+                  'medicalBenefit',
+                  '의료급여',
+                ],
+                [
+                  'housingBenefit',
+                  '주거급여',
+                ],
+                [
+                  'educationBenefit',
+                  '교육급여',
+                ],
+              ].map(
+                ([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+
+                    <select
+                      className="detail-inline-select"
+                      value={
+                        welfareForm[key]
+                      }
+                      onChange={(event) =>
+                        updateWelfareField(
+                          key,
+                          event.target.value,
+                        )
+                      }
+                    >
+                      <option value="">
+                        미확인
+                      </option>
+                      <option value="true">
+                        수급
+                      </option>
+                      <option value="false">
+                        해당 없음
+                      </option>
+                    </select>
+                  </label>
+                ),
+              )}
+            </div>
+          ) : (
+            <strong>
+              {getWelfareBenefitSummary(
+                senior,
+              )}
+            </strong>
+          )}
+        </div>
+
+        <div className="support-status-table">
+          {[
+            [
+              'energyVoucher',
+              '에너지바우처',
+            ],
+            [
+              'electricityDiscount',
+              '전기요금 복지 할인',
+            ],
+            [
+              'gasDiscount',
+              '도시가스요금 경감',
+            ],
+          ].map(
+            ([
+              prefix,
+              label,
+            ]) => {
+              const eligibleKey =
+                `${prefix}Eligible`
+              const appliedKey =
+                `${prefix}Applied`
+              const ineligible =
+                welfareForm?.[
+                  eligibleKey
+                ] === 'false'
+
+              return (
+                <div
+                  className={[
+                    'support-status-row',
+                    ineligible
+                      ? 'is-ineligible'
+                      : '',
+                  ].filter(Boolean).join(' ')}
+                  key={prefix}
+                >
+                  <strong>{label}</strong>
+
+                  <div className="support-status-values">
+                    <label>
+                      <small>자격</small>
+
+                      {welfareForm ? (
+                        <select
+                          className="detail-inline-select"
+                          value={
+                            welfareForm[
+                              eligibleKey
+                            ]
+                          }
+                          onChange={(event) =>
+                            updateEligibility(
+                              prefix,
+                              event.target.value,
+                            )
+                          }
+                        >
+                          <option value="">미확인</option>
+                          <option value="true">대상</option>
+                          <option value="false">대상 아님</option>
+                        </select>
+                      ) : (
+                        <span>
+                          {booleanLabel(
+                            senior[
+                              eligibleKey
+                            ],
+                            '대상',
+                            '대상 아님',
+                          )}
+                        </span>
+                      )}
+                    </label>
+
+                    <label>
+                      <small>신청 상태</small>
+
+                      {welfareForm ? (
+                        <select
+                          className="detail-inline-select"
+                          value={
+                            ineligible
+                              ? 'not_applicable'
+                              : welfareForm[
+                                appliedKey
+                              ]
+                          }
+                          disabled={ineligible}
+                          onChange={(event) =>
+                            updateWelfareField(
+                              appliedKey,
+                              event.target.value,
+                            )
+                          }
+                        >
+                          {ineligible ? (
+                            <option value="not_applicable">
+                              해당 없음
+                            </option>
+                          ) : (
+                            <>
+                              <option value="">미확인</option>
+                              <option value="false">미신청</option>
+                              <option value="true">신청 완료</option>
+                            </>
+                          )}
+                        </select>
+                      ) : (
+                        <span>
+                          {supportApplicationLabel(
+                            senior[
+                              eligibleKey
+                            ],
+                            senior[
+                              appliedKey
+                            ],
+                          )}
+                        </span>
+                      )}
+                    </label>
+                  </div>
+
+                </div>
+              )
+            },
+          )}
+        </div>
+      </section>
+
+      {products.length > 0 && (
+        <section className="product-summary-bar">
+          <div>
+            <span className="product-summary-title">
+              제품 안전
+            </span>
+
+            <div className="product-summary-counts">
+              <span>
+                등록 제품
+                {' '}
+                <strong>
+                  {products.length}개
+                </strong>
+              </span>
+
+              <span>
+                리콜 확인 필요
+                {' '}
+                <strong>
+                  {recallProductCount}개
+                </strong>
+              </span>
+
+              <span>
+                추가 확인 필요
+                {' '}
+                <strong>
+                  {reviewRequiredProductCount}개
+                </strong>
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn-outline detail-small-button"
+            onClick={() =>
+              navigate(
+                `/welfare/recalled?seniorId=${id}`,
+              )
+            }
+          >
+            리콜 관리
+          </button>
+        </section>
       )}
 
-      {selectedProduct && (
-        <div className="detail-modal-overlay" onClick={() => setSelectedProduct(null)}>
-          <div className="detail-modal product-detail-modal" onClick={event => event.stopPropagation()}>
-            <div className="detail-modal-header"><div><h2>{selectedProduct.productName || '제품 정보'}</h2><p>등록 제품 상세</p></div><button onClick={() => setSelectedProduct(null)}>×</button></div>
-            <dl><div><dt>제조사</dt><dd>{selectedProduct.manufacturer || '-'}</dd></div><div><dt>모델명</dt><dd>{selectedProduct.modelNumber || '-'}</dd></div><div><dt>등록일</dt><dd>{(selectedProduct.registeredAt || selectedProduct.createdAt)?.slice(0, 10) || '-'}</dd></div><div><dt>리콜 판정</dt><dd>{selectedProduct.recallDecisionStatus || '조회 전'}</dd></div><div><dt>마지막 정상 확인</dt><dd>{selectedProduct.lastSuccessfulCheckedAt?.slice(0, 16) || selectedProduct.lastCheckedAt?.slice(0, 16) || '-'}</dd></div></dl>
-            <div className="detail-modal-actions"><button className="btn-outline" onClick={() => setSelectedProduct(null)}>닫기</button></div>
-          </div>
+      {toast && (
+        <div
+          className="detail-toast"
+          role="status"
+          aria-live="polite"
+        >
+          {toast}
         </div>
       )}
     </div>

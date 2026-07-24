@@ -4,6 +4,12 @@
   vertical-align: middle;
 }
 
+.senior-list-table th:nth-child(1) { width: 12%; }
+.senior-list-table th:nth-child(2) { width: 8%; }
+.senior-list-table th:nth-child(3) { width: 28%; }
+.senior-list-table th:nth-child(4) { width: 20%; }
+.senior-list-table th:nth-child(5) { width: 32%; }
+
 .senior-list-row { cursor: pointer; }
 .senior-list-row:hover,
 .senior-list-row:focus-visible { background: var(--primary-light); outline: none; }
@@ -58,8 +64,25 @@
 }
 
 .income-tag {
-    font-size: 11px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.senior-support-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px 14px;
     color: var(--text-muted);
+    font-size: 11px;
+}
+
+.senior-support-summary strong {
+    margin-left: 2px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .action-cell {

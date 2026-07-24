@@ -181,9 +181,7 @@ public class ProductRecallService {
         String officialProductName = notice == null
                 ? null
                 : cleanOfficialProductName(notice.getProductName());
-        if (nonBlank(officialProductName)
-                && (!nonBlank(product.getProductName())
-                || looksLikeBarcodeName(product.getProductName(), product.getBarcode()))) {
+        if (nonBlank(officialProductName)) {
             return officialProductName;
         }
         return nonBlank(product.getProductName())

@@ -52,7 +52,11 @@ public class EnergySupportCase {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    public enum SupportType { VOUCHER, ELECTRICITY }
+    public enum SupportType {
+        VOUCHER,
+        ELECTRICITY,
+        GAS
+    }
 
     public enum EligibilityLevel { HIGH, CONFIRMATION_NEEDED, LOW }
 

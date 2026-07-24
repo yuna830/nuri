@@ -11,6 +11,27 @@ import { getUserId } from '../../utils/auth'
 const INCOME_LABEL = { LIVELIHOOD: '생계급여', MEDICAL: '의료급여', HOUSING: '주거급여', EDUCATION: '교육급여', NONE: '해당없음' }
 const PAGE_SIZE = 7
 
+function getIncomeSummary(senior) {
+  const benefits = [
+    ['생계급여', senior.livelihoodBenefit],
+    ['의료급여', senior.medicalBenefit],
+    ['주거급여', senior.housingBenefit],
+    ['교육급여', senior.educationBenefit],
+  ]
+    .filter(([, active]) => active === true)
+    .map(([label]) => label)
+
+  if (benefits.length > 0) return benefits.join(' · ')
+  return INCOME_LABEL[senior.incomeLevel] || '해당없음'
+}
+
+function getSupportStatus(eligible, applied) {
+  if (eligible === false) return '해당 없음'
+  if (applied === true) return '신청 완료'
+  if (eligible === true && applied === false) return '미신청'
+  return '미확인'
+}
+
 const formatPhone = (value) => {
   const digits = value.replace(/\D/g, '').slice(0, 11)
   if (digits.length > 7) {
@@ -185,7 +206,7 @@ export default function SeniorList() {
           <>
             <table className="data-table senior-list-table">
               <thead>
-                <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>에너지바우처</th></tr>
+                <tr><th>이름</th><th>나이</th><th>주소</th><th>소득구분</th><th>복지 지원</th></tr>
               </thead>
               <tbody>
                 {pagedSeniors.map(s => (
@@ -201,8 +222,42 @@ export default function SeniorList() {
                     <td className="font-bold">{s.name}</td>
                     <td>{s.age}세</td>
                     <td>{s.address}</td>
-                    <td><span className="income-tag">{INCOME_LABEL[s.incomeLevel] || '-'}</span></td>
-                    <td>{s.energyVoucherApplied ? <span className="badge badge-completed">신청완료</span> : <span className="badge badge-pending">미신청</span>}</td>
+                    <td>
+                      <span className="income-tag">
+                        {getIncomeSummary(s)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="senior-support-summary">
+                        <span>
+                          바우처{' '}
+                          <strong>
+                            {getSupportStatus(
+                              s.energyVoucherEligible,
+                              s.energyVoucherApplied,
+                            )}
+                          </strong>
+                        </span>
+                        <span>
+                          전기{' '}
+                          <strong>
+                            {getSupportStatus(
+                              s.electricityDiscountEligible,
+                              s.electricityDiscountApplied,
+                            )}
+                          </strong>
+                        </span>
+                        <span>
+                          가스{' '}
+                          <strong>
+                            {getSupportStatus(
+                              s.gasDiscountEligible,
+                              s.gasDiscountApplied,
+                            )}
+                          </strong>
+                        </span>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

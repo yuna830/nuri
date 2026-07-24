@@ -1,374 +1,164 @@
-.detail-grid {
+/* =========================================================
+ * 대상자 상세 페이지
+ * ========================================================= */
+
+.senior-detail-page {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: stretch;
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(360px, 0.85fr);
+  gap: 20px;
+  width: 100%;
 }
 
-.detail-grid>.card {
-  min-height: 330px;
-  height: 100%;
+.senior-detail-page > .detail-title-row,
+.senior-detail-page > .detail-welfare-card,
+.senior-detail-page > .product-summary-bar {
+  grid-column: 1 / -1;
+}
+
+.senior-detail-page > .detail-info-card {
+  grid-column: 1;
+}
+
+.senior-detail-page > .detail-risk-card-wide {
+  grid-column: 2;
+}
+
+.detail-title-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.detail-title-row .page-title {
+  margin: 0;
+}
+
+.detail-page-description {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-title-back {
+  position: absolute;
+  right: 100%;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary-dark);
+  font-size: 27px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.detail-title-back:hover {
+  background: var(--primary-light);
+}
+
+
+/* =========================================================
+ * 공통 카드 헤더
+ * ========================================================= */
+
+.detail-info-card,
+.detail-risk-card-wide,
+.detail-welfare-card {
+  min-width: 0;
   box-sizing: border-box;
 }
 
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 22px;
+.detail-info-card,
+.detail-risk-card-wide {
+  min-height: 360px;
 }
+
+.detail-risk-card-wide {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.detail-section-header > div {
+  min-width: 0;
+}
+
+.detail-section-header .card-title {
+  display: block;
+  margin: 0;
+  color: var(--text-main);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.detail-section-description {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.detail-small-button {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+ * 대상자 기본 정보
+ * ========================================================= */
 
 .detail-info-card {
   display: flex;
   flex-direction: column;
 }
 
-.detail-info-card>.detail-info-grid {
-  display: none;
-}
-
-.detail-last-updated {
-  order: 3;
-  margin-top: auto;
-  padding-top: 18px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.detail-all-info {
-  order: 2;
-  padding-top: 4px;
-}
-
-.detail-all-info section {
+.detail-information-section + .detail-information-section {
+  margin-top: 24px;
   padding-top: 0;
 }
 
-.detail-all-info h3 {
-  display: none;
-}
-
-.detail-all-info .detail-info-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 20px;
-}
-
-.detail-all-info .info-label {
-  width: 82px;
-}
-
-.detail-all-info .info-value {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.support-status-table {
-  margin-top: 12px;
-  font-size: 12px;
-}
-
-.support-status-table>div {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.support-status-table>div:last-child {
-  border-bottom: 0;
-}
-
-.support-status-table .support-status-head {
-  padding-top: 8px;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.support-status-table strong {
-  font-size: 12px;
-}
-
-.detail-welfare-card {
-  margin-bottom: 0;
-}
-
-.detail-welfare-card>.card-title {
-  margin-bottom: 14px;
-}
-
-.detail-welfare-card>.detail-info-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 20px;
-}
-
-.detail-welfare-card .support-status-table {
-  margin-top: 16px;
-}
-
-.detail-risk-card-wide {
-  margin-bottom: 20px;
-}
-
-.risk-wide-content {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.risk-title-summary {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.risk-title-summary .risk-header {
-  margin: 0;
-  gap: 8px;
-}
-
-.risk-title-summary .risk-score {
-  font-size: 24px;
-}
-
-.detail-risk-card-wide .badge {
-  background: #fff;
-  border: 1px solid var(--primary-border);
-  color: var(--primary-dark);
-}
-
-.risk-total-label {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.risk-wide-score .risk-header {
-  margin: 0;
-}
-
-.detail-risk-card-wide .risk-applied-section {
-  padding: 16px 18px;
-  border-radius: 10px;
-  background: var(--bg-page);
-}
-
-.detail-risk-card-wide .risk-area-scores {
-  margin-top: 0;
-  padding: 16px 18px;
-}
-
-.detail-risk-card-wide .risk-area-scores>div {
-  flex-direction: column;
-  gap: 10px;
-}
-
-.risk-group-selector {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: var(--bg-page);
-}
-
-.risk-group-selector h3 {
-  grid-column: 1 / -1;
-  margin: 0 0 2px;
+.detail-information-section h3 {
+  margin: 0 0 8px;
+  color: var(--text-main);
   font-size: 13px;
+  font-weight: 800;
 }
 
-.risk-group-selector button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: border-color .15s, background .15s;
-}
-
-.risk-group-selector button:hover {
-  border-color: var(--primary-border);
-  background: var(--primary-light);
-}
-
-.risk-group-selector button span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.risk-group-selector button b {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: #fff;
-  color: var(--primary-dark);
-}
-
-.risk-group-selector button.active {
-  color: var(--primary-dark);
-  font-weight: 700;
-}
-
-.risk-group-selector button.active {
-  border-color: var(--primary);
-}
-
-.risk-group-selector button.active b {
-  background: var(--primary);
-  color: #fff;
-}
-
-.risk-inline-details {
-  margin-top: 14px;
-  padding: 16px 18px 18px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
-}
-
-.risk-inline-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.risk-inline-header strong {
-  font-size: 13px;
-}
-
-.risk-inline-header span {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.risk-criteria-grid {
+.detail-info-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.risk-criteria-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 42px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
-  background: #fff;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.risk-criteria-item>span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.risk-criteria-item>span::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: #fff;
-}
-
-.risk-criteria-item strong {
-  color: var(--text-muted);
-}
-
-.risk-criteria-item.applied {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.risk-criteria-item.applied strong {
-  color: var(--text-primary);
-}
-
-.risk-criteria-item.applied>span::before {
-  border-color: var(--primary);
-  background: var(--primary);
-}
-
-.risk-all-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.risk-all-groups section {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
-}
-
-.risk-group-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-  background: #fff;
-  font-size: 13px;
-}
-
-.risk-group-heading span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-}
-
-.risk-group-heading b {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--primary);
-  color: #fff;
-}
-
-.risk-group-criteria {
-  display: grid;
-  gap: 0 12px;
-  padding: 8px 10px;
-  border-left: 1px solid var(--border);
-}
-
-.risk-group-a .risk-group-criteria,
-.risk-group-b .risk-group-criteria,
-.risk-group-c .risk-group-criteria {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.risk-group-criteria .risk-criteria-item {
-  min-height: 36px;
-  padding: 0 9px;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
 }
 
 .info-row {
   display: flex;
+  align-items: center;
+  min-width: 0;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
 }
@@ -378,35 +168,93 @@
 }
 
 .info-label {
-  width: 105px;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 600;
+  width: 88px;
   flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .info-value {
-  font-size: 13px;
+  min-width: 0;
   color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
-.section-header {
+.detail-inline-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  gap: 8px;
+}
+
+.detail-inline-input,
+.detail-inline-select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: none;
+}
+
+.detail-inline-input:focus,
+.detail-inline-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(126, 154, 121, 0.12);
+}
+
+.detail-inline-pair {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(120px, 0.55fr);
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.detail-inline-select-compact {
+  max-width: 120px;
+}
+
+.detail-last-updated {
+  margin-top: auto;
+  padding-top: 22px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+ * 복지사 확인 우선도
+ * ========================================================= */
+
+.risk-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .risk-header {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0;
 }
 
 .risk-score {
-  font-size: 36px;
-  font-weight: 800;
+  font-size: 21px;
+  font-weight: 850;
+  line-height: 1;
 }
 
 .risk-score.high {
@@ -421,240 +269,311 @@
   color: var(--primary);
 }
 
-.risk-reason-box {
-  background: var(--bg-page);
-  border-radius: 8px;
-  padding: 12px 16px;
-  font-size: 13px;
+.risk-level-text {
   color: var(--text-secondary);
-  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 750;
 }
 
-.risk-row {
+.risk-paired-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
+  flex-direction: column;
+}
+
+.risk-reasons h3 {
+  margin: 0 4px 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.risk-paired-item {
+  padding: 13px 4px;
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
 }
 
-.risk-row:last-child {
-  border-bottom: none;
-}
-
-.risk-flag-on {
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.risk-flag-off {
-  color: var(--text-muted);
-}
-
-.risk-applied-section h3,
-.risk-area-scores h3,
-.risk-all-criteria h3 {
-  margin: 0 0 7px;
-  font-size: 13px;
-}
-
-.risk-applied-section .risk-row strong {
-  color: var(--danger);
-  font-size: 12px;
-}
-
-.risk-no-items {
-  padding: 10px 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.risk-area-scores {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--bg-page);
-}
-
-.risk-area-scores>div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.risk-area-scores strong {
-  margin-left: 4px;
-  color: var(--text-primary);
-}
-
-.risk-toggle-button {
-  width: 100%;
-  margin-top: 12px;
-  padding: 9px 0;
-  border: 0;
+.risk-paired-item:first-child {
   border-top: 1px solid var(--border);
-  background: transparent;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
-.risk-toggle-button span {
-  margin-left: 4px;
-}
-
-.detail-compact-empty {
-  min-height: 0;
-  padding: 22px 12px;
-}
-
-.detail-action-empty {
-  margin-top: 12px;
-}
-
-.action-form-box {
-  background: var(--primary-light);
-  border-radius: 10px;
-  padding: 16px;
-  margin-top: 16px;
-}
-
-.action-form-note {
-  width: 100%;
-  border: 1px solid var(--primary-border);
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 13px;
-  resize: vertical;
-  min-height: 80px;
-  outline: none;
-  font-family: inherit;
-}
-
-.detail-title-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.detail-title-row .page-title {
-  margin: 0;
-}
-
-.detail-title-back {
-  position: absolute;
-  right: 100%;
-  margin-right: 10px;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--primary-dark);
-  font-size: 27px;
-  line-height: 1;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-}
-
-.detail-title-back:hover {
-  background: var(--primary-light);
-}
-
-.detail-management-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.detail-management-tabs button {
-  padding: 9px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.detail-management-tabs button.active {
-  border-bottom-color: var(--primary);
-  color: var(--primary-dark);
-}
-
-.detail-tab-empty {
-  padding: 28px 16px;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.detail-tab-empty strong {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.detail-tab-empty p {
-  margin: 0;
-  font-size: 12px;
-}
-
-.detail-small-button {
-  padding: 6px 11px;
-  font-size: 12px;
-}
-
-.detail-action-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.detail-action-toolbar h2 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.detail-action-list>div {
-  display: grid;
-  grid-template-columns: 92px 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.detail-action-list>div:last-child {
+.risk-paired-item:last-child {
   border-bottom: 0;
 }
 
-.detail-action-date {
-  color: var(--text-muted);
-  font-size: 12px;
+.risk-paired-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-.detail-action-list strong {
+.risk-paired-heading strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.risk-paired-heading span {
+  flex-shrink: 0;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.risk-paired-item p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.risk-score-breakdown {
+  margin-top: auto;
+  padding: 15px 4px 0;
+}
+
+.risk-score-breakdown h3 {
+  margin: 0 0 11px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.risk-score-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.risk-score-breakdown-grid > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.risk-score-breakdown-grid span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.risk-score-breakdown-grid strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.risk-score-assessed-at {
+  margin: 18px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.detail-empty-message {
+  padding: 22px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.detail-empty-message strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.detail-empty-message p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+
+/* =========================================================
+ * 복지 자격 및 지원 현황
+ * ========================================================= */
+
+.detail-welfare-card {
+  margin-bottom: 0;
+}
+
+.detail-welfare-card .detail-section-header {
+  margin-bottom: 12px;
+}
+
+.welfare-benefit-section {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  padding: 0 0 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.welfare-section-label {
+  flex-shrink: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.welfare-benefit-section strong {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.welfare-inline-benefits {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.welfare-inline-benefits label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.welfare-inline-benefits label > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.support-status-title {
+  margin-top: 22px;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.support-status-table {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 4px;
   font-size: 13px;
 }
 
-.detail-action-list p {
-  margin: 3px 0 0;
+.support-status-row {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 4px 4px;
+}
+
+.support-status-row + .support-status-row {
+  margin-top: 0;
+  padding-left: 28px;
+  border-left: 1px solid var(--border);
+}
+
+.support-status-row strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.support-status-values {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.support-status-values label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.support-status-values small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.support-status-values span {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.support-status-row.is-ineligible strong,
+.support-status-row.is-ineligible
+  .support-status-values span {
+  color: var(--text-muted);
+}
+
+.support-status-row .detail-inline-select {
+  justify-self: stretch;
+}
+
+
+/* =========================================================
+ * 제품 안전 요약
+ * ========================================================= */
+
+.product-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.product-summary-bar > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 30px;
+}
+
+.product-summary-title {
+  flex-shrink: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.product-summary-counts {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 26px;
   color: var(--text-secondary);
   font-size: 12px;
 }
+
+.product-summary-counts span {
+  white-space: nowrap;
+}
+
+.product-summary-counts strong {
+  margin-left: 4px;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+
+/* =========================================================
+ * 수정 모달
+ * ========================================================= */
 
 .detail-modal-overlay {
   position: fixed;
@@ -664,25 +583,68 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, .42);
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .detail-modal {
   width: min(680px, 100%);
   max-height: 86vh;
   overflow-y: auto;
+  box-sizing: border-box;
   padding: 24px;
   border-radius: 14px;
-  background: #fff;
+  background: #ffffff;
 }
 
 .senior-edit-modal {
   width: min(780px, 100%);
 }
 
+.detail-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.detail-modal-header h2 {
+  margin: 0 0 5px;
+  color: var(--text-main);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.detail-modal-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-modal-header > button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.detail-modal-header > button:hover {
+  background: var(--bg-page);
+}
+
 .edit-modal-tabs {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -692,7 +654,8 @@
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 750;
   cursor: pointer;
 }
 
@@ -701,32 +664,132 @@
   color: var(--primary-dark);
 }
 
-.edit-modal-error {
-  margin-top: 14px;
+.detail-modal-form {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.detail-modal-form label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.detail-modal-form input,
+.detail-modal-form select,
+.detail-modal-form textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  box-sizing: border-box;
   padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.detail-modal-form input:focus,
+.detail-modal-form select:focus,
+.detail-modal-form textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(126, 155, 121, 0.12);
+}
+
+.detail-modal-form input:disabled,
+.detail-modal-form select:disabled {
+  background: var(--bg-page);
+  color: var(--text-muted);
+}
+
+.detail-modal-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.detail-modal-actions button {
+  min-height: 40px;
+  padding: 0 17px;
+}
+
+.edit-modal-error {
+  margin-top: 16px;
+  padding: 11px 13px;
   border-radius: 8px;
   background: #fff1ef;
   color: var(--danger);
   font-size: 12px;
+  line-height: 1.5;
 }
 
-.welfare-edit-grid {
+
+/* =========================================================
+ * 복지 정보 수정 모달
+ * ========================================================= */
+
+.welfare-edit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.welfare-edit-section + .welfare-edit-section {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.welfare-edit-section-header {
+  margin-bottom: 15px;
+}
+
+.welfare-edit-section-header h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.welfare-edit-section-header p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.welfare-benefit-edit-grid {
   align-items: end;
 }
 
 .benefit-toggle {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
 }
 
 .benefit-toggle button {
-  min-height: 40px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 6px;
   border: 0;
   border-right: 1px solid var(--border);
-  background: #fff;
+  background: #ffffff;
   color: var(--text-muted);
   font: inherit;
   cursor: pointer;
@@ -739,30 +802,32 @@
 .benefit-toggle button.active {
   background: var(--primary-light);
   color: var(--primary-dark);
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .welfare-edit-table {
-  grid-column: 1 / -1;
-  border: 1px solid var(--border);
-  border-radius: 8px;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
 }
 
 .welfare-edit-head,
 .welfare-status-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns:
+    minmax(170px, 1.2fr)
+    minmax(140px, 1fr)
+    minmax(140px, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 11px 13px;
 }
 
 .welfare-edit-head {
   background: var(--bg-page);
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .welfare-status-row {
@@ -770,424 +835,207 @@
 }
 
 .welfare-status-row strong {
-  align-self: center;
+  color: var(--text-main);
   font-size: 13px;
+  font-weight: 800;
 }
 
 .welfare-status-row select {
   min-width: 0;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font: inherit;
 }
+
+
+/* =========================================================
+ * 알림
+ * ========================================================= */
 
 .detail-toast {
   position: fixed;
   right: 28px;
   bottom: 28px;
   z-index: 400;
+  max-width: min(
+    420px,
+    calc(100vw - 40px)
+  );
   padding: 14px 18px;
   border-radius: 10px;
   background: #243526;
-  color: #fff;
+  color: #ffffff;
   font-size: 13px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
-}
-
-.risk-detail-modal {
-  width: min(760px, 100%);
-}
-
-.detail-modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
-
-.detail-modal-header h2 {
-  margin: 0 0 5px;
-  font-size: 20px;
-}
-
-.detail-modal-header p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.detail-modal-header button {
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 28px;
-  cursor: pointer;
-}
-
-.risk-detail-groups {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-
-.risk-detail-groups section:first-child {
-  grid-column: 1 / -1;
-}
-
-.risk-detail-groups h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
-}
-
-.detail-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.detail-modal-actions button {
-  min-height: 40px;
-  padding: 0 16px;
-}
-
-.detail-modal-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.detail-modal-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.detail-modal-form input,
-.detail-modal-form select,
-.detail-modal-form textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  font: inherit;
-}
-
-.detail-modal-form input:disabled {
-  background: var(--bg-page);
-  color: var(--text-muted);
-}
-
-.detail-modal-wide {
-  grid-column: 1 / -1;
-}
-
-.detail-modal-wide textarea {
-  min-height: 90px;
-  resize: vertical;
-}
-
-.detail-check-field {
-  flex-direction: row !important;
-  align-items: center;
-}
-
-.detail-check-field input {
-  width: 16px;
-}
-
-.product-detail-modal dl {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 0;
-}
-
-.product-detail-modal dl>div {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bg-page);
-}
-
-.product-detail-modal dt {
-  margin-bottom: 5px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.product-detail-modal dd {
-  margin: 0;
-  font-size: 13px;
-}
-
-.guardian-safety-map {
-  overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #e4e9e2;
-  border-radius: 18px;
-  box-shadow: 0 8px 24px rgba(36, 52, 35, 0.04);
-}
-
-.guardian-safety-map__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px 24px 18px;
-  background: #ffffff;
-  border-bottom: 1px solid #edf0ec;
-}
-
-.guardian-safety-map__heading h3 {
-  margin: 0;
-  color: #223024;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1.4;
-}
-
-.guardian-safety-map__heading p {
-  margin: 6px 0 0;
-  color: #8c978e;
-  font-size: 14px;
   line-height: 1.5;
+  box-shadow:
+    0 8px 24px
+    rgba(0, 0, 0, 0.18);
 }
 
-.guardian-safety-map__legend {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 24px;
+
+/* =========================================================
+ * 반응형
+ * ========================================================= */
+
+@media (max-width: 1000px) {
+  .senior-detail-page {
+    grid-template-columns: 1fr;
+  }
+
+  .senior-detail-page > .detail-title-row,
+  .senior-detail-page > .detail-info-card,
+  .senior-detail-page > .detail-risk-card-wide,
+  .senior-detail-page > .detail-welfare-card,
+  .senior-detail-page > .product-summary-bar {
+    grid-column: 1;
+  }
+
+  .detail-info-card,
+  .detail-risk-card-wide {
+    min-height: 0;
+  }
+
+  .welfare-inline-benefits {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
 }
 
-.guardian-safety-map__legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: #647067;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 
-.guardian-safety-map__marker-dot,
-.guardian-safety-map__zone-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-}
-
-.guardian-safety-map__marker-dot {
-  background: #4f7850;
-  box-shadow: 0 0 0 3px rgba(79, 120, 80, 0.16);
-}
-
-.guardian-safety-map__zone-dot {
-  background: rgba(125, 155, 121, 0.28);
-  border: 2px solid #7d9b79;
-}
-
-.guardian-safety-map__canvas-wrap {
-  position: relative;
-  width: 100%;
-  height: 360px;
-  min-height: 360px;
-  overflow: hidden;
-  background: #eef2ed;
-}
-
-/*
-  카카오맵이 들어가는 div는 항상 DOM에 유지해야 한다.
-*/
-.guardian-safety-map__canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  min-height: 360px;
-  background: #eef2ed;
-}
-
-.guardian-safety-map__overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(246, 248, 245, 0.94);
-}
-
-.guardian-safety-map__message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #8a958c;
-  font-size: 14px;
-  line-height: 1.6;
-  text-align: center;
-}
-
-.guardian-safety-map__message strong {
-  color: #536057;
-  font-size: 15px;
-  font-weight: 750;
-}
-
-.guardian-safety-map__status {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: calc(100% - 32px);
-  padding: 12px 15px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(219, 226, 217, 0.95);
-  border-radius: 12px;
-  box-shadow: 0 5px 16px rgba(35, 50, 35, 0.11);
-  backdrop-filter: blur(4px);
-}
-
-.guardian-safety-map__status strong {
-  color: #526b52;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.guardian-safety-map__status span {
-  overflow: hidden;
-  color: #7d887f;
-  font-size: 12px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.guardian-safety-map__status.is-outside {
-  border-color: #e5b9b1;
-  background: rgba(255, 248, 246, 0.96);
-}
-
-.guardian-safety-map__status.is-outside strong {
-  color: #b45c4d;
-}
-
-@media (max-width: 768px) {
-  .guardian-safety-map__heading {
+@media (max-width: 720px) {
+  .detail-section-header {
+    align-items: flex-start;
     flex-direction: column;
     gap: 12px;
-    padding: 18px;
   }
 
-  .guardian-safety-map__legend {
-    flex-wrap: wrap;
+  .detail-section-header > button {
+    width: 100%;
   }
 
-  .guardian-safety-map__canvas-wrap,
-  .guardian-safety-map__canvas {
-    height: 320px;
-    min-height: 320px;
+  .detail-section-header
+  > .detail-inline-actions {
+    width: 100%;
   }
 
-  .guardian-safety-map__status {
-    right: 12px;
-    left: 12px;
-    max-width: none;
+  .detail-section-header
+  > .detail-inline-actions
+  button {
+    flex: 1;
   }
-}
 
-@media (max-width: 900px) {
-  .detail-grid {
+  .risk-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .detail-info-grid,
+  .detail-modal-form {
     grid-template-columns: 1fr;
   }
 
-  .detail-all-info .detail-info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .detail-welfare-card>.detail-info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .risk-wide-content {
-    grid-template-columns: 1fr;
-  }
-
-  .risk-group-a .risk-group-criteria,
-  .risk-group-b .risk-group-criteria,
-  .risk-group-c .risk-group-criteria {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 620px) {
-  .detail-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-all-info .detail-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-welfare-card>.detail-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .info-row-wide {
-    grid-column: auto;
-  }
-
-  .risk-detail-groups,
-  .detail-modal-form,
-  .product-detail-modal dl {
-    grid-template-columns: 1fr;
-  }
-
-  .risk-detail-groups section:first-child,
+  .info-row-wide,
   .detail-modal-wide {
     grid-column: auto;
   }
 
-  .welfare-edit-head,
-  .welfare-status-row {
+  .support-status-table {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .support-status-row {
+    gap: 10px;
+    padding: 10px 4px;
+  }
+
+  .support-status-row
+  + .support-status-row {
+    padding-top: 22px;
+    padding-left: 4px;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .support-status-row strong {
+    grid-column: auto;
+  }
+
+  .product-summary-bar,
+  .product-summary-bar > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .product-summary-counts {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .product-summary-bar > button {
+    width: 100%;
   }
 
   .welfare-edit-head {
     display: none;
   }
 
-  .risk-group-selector {
+  .welfare-status-row {
     grid-template-columns: 1fr;
   }
 
-  .risk-criteria-grid {
+  .detail-modal-overlay {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .detail-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+
+@media (max-width: 520px) {
+  .welfare-benefit-section {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .welfare-inline-benefits {
     grid-template-columns: 1fr;
   }
 
-  .risk-inline-header {
+  .risk-heading-actions {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .risk-all-groups section {
+  .risk-heading-actions button {
+    width: 100%;
+  }
+
+  .benefit-toggle {
     grid-template-columns: 1fr;
   }
 
-  .risk-group-criteria {
-    grid-template-columns: 1fr !important;
-    border-left: 0;
-    border-top: 1px solid var(--border);
+  .benefit-toggle button {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .benefit-toggle button:last-child {
+    border-bottom: 0;
+  }
+
+  .detail-modal-actions button {
+    flex: 1;
   }
 }

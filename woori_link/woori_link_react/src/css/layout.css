@@ -10,6 +10,12 @@
 .sidebar-nav a.active { color: #fff; background: rgba(134,167,136,0.15); border-left-color: var(--primary); }
 
 .main-content { margin-left: 200px; flex: 1; padding: 28px; min-height: 100vh; }
+
+.welfare-content-container {
+  width: min(100%, 1300px);
+  margin: 0 auto;
+  padding-top: 14px;
+}
 .page-title {
   margin: 0 0 20px;
   color: var(--text-primary);

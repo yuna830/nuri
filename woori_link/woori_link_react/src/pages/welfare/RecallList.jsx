@@ -4,8 +4,6 @@ import { cancelWelfareNotification, createSeniorNotification, getWelfareNotifica
 import '../../css/welfare/RecallList.css'
 import { getUser, getUserId } from '../../utils/auth'
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
-import { getActionsByWelfareWorker } from '../../api/actionApi'
-import { filterProductsByRecallRequests } from '../../utils/recallRequestFilter'
 
 const USE_STATUS_LABEL = {
   UNKNOWN: '미확인',
@@ -38,6 +36,12 @@ const GUARDIAN_CONTACT_METHODS = ['전화', '방문', '기타']
 
 function valueOrFallback(value, fallback = '-') {
   return value === null || value === undefined || value === '' ? fallback : value
+}
+
+function officialRecallProductName(product) {
+  return product?.matchedRecallNotice?.productName
+    || product?.recallProductName
+    || product?.productName
 }
 
 function extractRecallContact(text) {
@@ -74,6 +78,40 @@ function recallHazard(product) {
   return product.hazardDescription || product.defectDescription || product.matchedRecallNotice?.hazardDescription || product.matchedRecallNotice?.defectDescription || product.recallReason || ''
 }
 
+function recallDecisionLabel(product) {
+  switch (product.recallDecisionStatus) {
+    case 'RECALL_CONFIRMED':
+      return '공식 리콜 일치'
+
+    case 'REVIEW_REQUIRED':
+      return '추가 확인 필요'
+
+    case 'NO_MATCH_FOUND':
+      return '공고 일치 없음'
+
+    default:
+      return product.recallStatus === 'RECALLED'
+        ? '리콜 대상'
+        : '판정 미확인'
+  }
+}
+
+function recallDecisionTone(product) {
+  switch (product.recallDecisionStatus) {
+    case 'RECALL_CONFIRMED':
+      return 'confirmed'
+
+    case 'REVIEW_REQUIRED':
+      return 'review'
+
+    case 'NO_MATCH_FOUND':
+      return 'excluded'
+
+    default:
+      return 'unknown'
+  }
+}
+
 function removeGuideNotes(note) {
   return String(note || '')
     .split(/\r?\n/)
@@ -103,35 +141,198 @@ function formatGuidanceDate(value) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function currentStage(product) {
-  const useStatus = product.currentUseStatus || 'UNKNOWN'
-  const actionStatus = product.actionStatus || 'CONFIRMATION_NEEDED'
+function recallActionType(product) {
+  return product.actionType
+    || product.matchedRecallNotice?.actionType
+    || 'GENERAL_GUIDANCE'
+}
 
-  if (product.finalResult || actionStatus === 'COMPLETED') return product.finalResult === 'NOT_RECALLED' ? '등록 공고 일치 없음' : '조치 완료'
-  if (actionStatus === 'NOT_RECALLED' || product.recallDecisionStatus === 'NO_MATCH_FOUND') return '등록 공고 일치 없음'
+function registrationSourceLabel(value) {
+  switch (value) {
+    case 'GUARDIAN':
+    case 'GUARDIAN_WEB':
+      return '보호자'
+
+    case 'WELFARE_WORKER':
+    case 'WELFARE_WEB':
+      return '복지사'
+
+    case 'SENIOR':
+    case 'SENIOR_APP':
+    case 'BARCODE_SCAN':
+    case 'KC_INPUT':
+    case 'MANUAL':
+      return '사용자'
+
+    default:
+      return '등록자 미확인'
+  }
+}
+
+function recallUrgency(product) {
   if (
-    useStatus === 'UNKNOWN' &&
-    !product.followUpType &&
-    !['STOP_GUIDANCE_COMPLETED', 'RECALL_GUIDANCE_COMPLETED', 'RECALL_IN_PROGRESS'].includes(actionStatus)
-  ) return '사용 여부 확인'
+    product.finalResult
+    || product.actionStatus === 'COMPLETED'
+  ) {
+    return 90
+  }
+
+  switch (recallActionType(product)) {
+    case 'IMMEDIATE_STOP':
+      return 0
+
+    case 'PRODUCT_CHECK_REQUIRED':
+      return 10
+
+    case 'EXCHANGE':
+    case 'REFUND':
+    case 'EXCHANGE_OR_REFUND':
+      return 20
+
+    case 'REPAIR':
+    case 'COLLECTION':
+    case 'REPAIR_OR_COLLECTION':
+      return 30
+
+    default:
+      return 40
+  }
+}
+
+function currentStage(product) {
+  const useStatus =
+    product.currentUseStatus || 'UNKNOWN'
+
+  const actionStatus =
+    product.actionStatus || 'CONFIRMATION_NEEDED'
+
+  if (
+    product.finalResult ||
+    actionStatus === 'COMPLETED'
+  ) {
+    return '조치 완료'
+  }
+
+  if (
+    actionStatus === 'NOT_RECALLED' ||
+    product.recallDecisionStatus === 'NO_MATCH_FOUND'
+  ) {
+    return '관리 제외'
+  }
+
+  const actionType = recallActionType(product)
+
+  if (actionType === 'IMMEDIATE_STOP') {
+    return '즉시 사용 중지'
+  }
+
+  if (
+    actionType === 'REPAIR'
+    || actionType === 'COLLECTION'
+    || actionType === 'REPAIR_OR_COLLECTION'
+  ) {
+    return '수선·회수 필요'
+  }
+
+  if (
+    actionType === 'EXCHANGE'
+    || actionType === 'REFUND'
+    || actionType === 'EXCHANGE_OR_REFUND'
+  ) {
+    return '교환·환불 필요'
+  }
+
+  if (actionType === 'PRODUCT_CHECK_REQUIRED') {
+    return '추가 확인 필요'
+  }
+
+  if (
+    useStatus === 'UNKNOWN' ||
+    useStatus === 'NOT_OWNED'
+  ) {
+    return '사용 여부 확인'
+  }
+
+  if (
+    useStatus === 'IN_USE' &&
+    !product.stopGuidanceCompleted
+  ) {
+    return '사용 중단 필요'
+  }
+
   return '후속 조치'
 }
 
 function stageTone(product) {
-  if (product.finalResult || product.actionStatus === 'COMPLETED') return 'done'
-  if (product.actionStatus === 'NOT_RECALLED' || product.recallDecisionStatus === 'NO_MATCH_FOUND') return 'excluded'
-  if ((product.currentUseStatus || 'UNKNOWN') === 'UNKNOWN' && !product.followUpType) return 'check'
+  const stage = currentStage(product)
+
+  if (stage === '조치 완료') {
+    return 'done'
+  }
+
+  if (stage === '관리 제외') {
+    return 'excluded'
+  }
+
+  if (stage === '사용 여부 확인') {
+    return 'check'
+  }
+
+  if (stage === '사용 중단 필요') {
+    return 'danger'
+  }
+
+  if (stage === '즉시 사용 중지') {
+    return 'danger'
+  }
+
+  if (
+    stage === '수선·회수 필요'
+    || stage === '교환·환불 필요'
+  ) {
+    return 'action'
+  }
+
   return 'action'
 }
 
 const SUMMARY_FILTERS = [
-  { key: 'ALL', label: '전체', tone: 'all' },
-  { key: 'CHECK', label: '확인 필요', tone: 'check', stages: ['사용 여부 확인'] },
-  { key: 'ACTION', label: '조치 진행', tone: 'action', stages: ['후속 조치'] },
-  { key: 'DONE', label: '완료', tone: 'done', stages: ['조치 완료', '등록 공고 일치 없음'] },
+  {
+    key: 'ALL',
+    label: '전체 대상',
+    tone: 'all',
+  },
+  {
+    key: 'CHECK',
+    label: '사용 확인 필요',
+    tone: 'check',
+    stages: [
+      '사용 여부 확인',
+      '사용 중단 필요',
+      '즉시 사용 중지',
+      '추가 확인 필요',
+    ],
+  },
+  {
+    key: 'ACTION',
+    label: '후속 조치 중',
+    tone: 'action',
+    stages: [
+      '후속 조치',
+      '수선·회수 필요',
+      '교환·환불 필요',
+    ],
+  },
+  {
+    key: 'DONE',
+    label: '처리 완료',
+    tone: 'done',
+    stages: [
+      '조치 완료',
+      '관리 제외',
+    ],
+  },
 ]
-
-const DETAIL_STAGES = ['사용 여부 확인', '후속 조치', '조치 완료', '등록 공고 일치 없음']
 
 const FINAL_RESULT_OPTIONS = [
   ['USE_STOPPED', '사용 중단 완료'],
@@ -157,7 +358,7 @@ export default function RecallList() {
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({})
   const [activeTab, setActiveTab] = useState('ALL')
-  const [detailStage, setDetailStage] = useState('ALL')
+  const [selectedSeniorId, setSelectedSeniorId] = useState('ALL')
   const [step, setStep] = useState(1)
   const [showOriginal, setShowOriginal] = useState(false)
   const [useStatusSelected, setUseStatusSelected] = useState(false)
@@ -193,7 +394,7 @@ export default function RecallList() {
       recipient: product && !product.guardianId ? 'SENIOR' : 'BOTH',
       title: '리콜 제품 안내',
       message: product
-        ? `${valueOrFallback(product.productName, '등록 제품')} 리콜 확인이 필요합니다. 제품 사용을 잠시 중단하고 복지사의 안내를 확인해 주세요.`
+        ? `${valueOrFallback(officialRecallProductName(product), '등록 제품')} 리콜 확인이 필요합니다. 제품 사용을 잠시 중단하고 복지사의 안내를 확인해 주세요.`
         : '',
     })
     setNoticeTab('compose')
@@ -226,12 +427,9 @@ export default function RecallList() {
         guardianId: product.guardianId ?? senior.guardianId,
       } : product
     }
-    const actionsResponse = await getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] }))
-    const recallRequests = Array.isArray(actionsResponse.data) ? actionsResponse.data : []
-
     const response = await getRecalledProductsByWelfareWorker(welfareWorkerId).catch(() => null)
     if (Array.isArray(response?.data) && response.data.length > 0) {
-      setProducts(filterProductsByRecallRequests(response.data.map(enrichProduct), recallRequests))
+      setProducts(response.data.map(enrichProduct))
       return
     }
 
@@ -242,7 +440,7 @@ export default function RecallList() {
       .flatMap(result => Array.isArray(result.data) ? result.data : [])
       .filter(product => product.recallDecisionStatus === 'RECALL_CONFIRMED' || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
       .map(enrichProduct)
-    setProducts(filterProductsByRecallRequests(recalledProducts, recallRequests))
+    setProducts(recalledProducts)
   }
 
   function openModal(product) {
@@ -496,9 +694,36 @@ export default function RecallList() {
   const summaryFilteredProducts = activeTab === 'ALL'
     ? products
     : products.filter(product => selectedTab.stages.includes(currentStage(product)))
-  const filteredProducts = detailStage === 'ALL'
-    ? summaryFilteredProducts
-    : summaryFilteredProducts.filter(product => currentStage(product) === detailStage)
+  const seniorOptions = Array.from(
+    products.reduce((map, product) => {
+      const id = String(product.seniorId ?? '')
+      if (id && !map.has(id)) {
+        map.set(id, {
+          id,
+          name: valueOrFallback(
+            product.seniorName,
+            '이름 미확인',
+          ),
+        })
+      }
+      return map
+    }, new Map()).values(),
+  ).sort((a, b) =>
+    a.name.localeCompare(b.name, 'ko'),
+  )
+  const filteredProducts = summaryFilteredProducts
+    .filter(product =>
+      selectedSeniorId === 'ALL'
+      || String(product.seniorId) === selectedSeniorId,
+    )
+    .sort((a, b) =>
+      recallUrgency(a) - recallUrgency(b)
+      || String(a.seniorName ?? '').localeCompare(
+        String(b.seniorName ?? ''),
+        'ko',
+      )
+      || Number(a.id ?? 0) - Number(b.id ?? 0),
+    )
   const noticeTargets = Array.from(
     [...seniors, ...products].reduce((map, item) => {
       const id = item.seniorId ?? item.id
@@ -534,7 +759,7 @@ export default function RecallList() {
     ? '조치 완료 저장'
     : completionOnly
       ? '조치 완료 저장'
-    : '후속 조치 저장'
+      : '후속 조치 저장'
   const hasSavedFollowUp = Boolean(form.followUpType || form.finalResult || form.nextActionDate || form.note || form.guardianContactStatus !== 'UNKNOWN')
   const usageNextDisabled = !form.contactMethod ||
     !useStatusSelected ||
@@ -548,71 +773,189 @@ export default function RecallList() {
     <div>
       <div className="recall-page-header">
         <div>
-          <h1 className="page-title">리콜 제품 확인 대상</h1>
-          <p className="recall-page-description">님이 등록한 제품과 리콜 정보를 대조하고, 실제 사용 여부와 후속 조치를 관리합니다.</p>
+          <h1 className="page-title">
+            리콜 제품 조치 관리
+          </h1>
+
+          <p className="recall-page-description">
+            시스템에서 리콜 대상으로 확인된 제품의 사용 여부와
+            보호자 확인, 회수·교환 등 후속 조치를 관리합니다.
+          </p>
         </div>
-        {lastCheckedDate && <span className="recall-last-checked">마지막 확인: {lastCheckedDate}</span>}
+
+        {lastCheckedDate && (
+          <span className="recall-last-checked">
+            리콜 정보 마지막 조회: {lastCheckedDate}
+          </span>
+        )}
       </div>
 
       <div className="recall-summary-cards" role="tablist" aria-label="리콜 처리 상태 요약">
         {SUMMARY_FILTERS.map(tab => (
           <button key={tab.key} type="button" role="tab" aria-selected={activeTab === tab.key}
-            className={[`tone-${tab.tone}`, activeTab === tab.key ? 'active' : ''].filter(Boolean).join(' ')} onClick={() => { setActiveTab(tab.key); setDetailStage('ALL') }}>
+            className={[`tone-${tab.tone}`, activeTab === tab.key ? 'active' : ''].filter(Boolean).join(' ')} onClick={() => {
+              setActiveTab(tab.key)
+              setSelectedSeniorId('ALL')
+            }}>
             <span>{tab.label}</span><strong>{tabCount(tab)}</strong>
           </button>
         ))}
       </div>
 
       <div className="card recall-card">
-        <div className="recall-table-toolbar">
-          <label htmlFor="recallDetailStage">세부 단계</label>
-          <select id="recallDetailStage" value={detailStage} onChange={event => setDetailStage(event.target.value)}>
-            <option value="ALL">세부 단계 전체</option>
-            {DETAIL_STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
-          </select>
-        </div>
         {filteredProducts.length === 0 ? (
           <div className="recall-empty-state">
-            <strong>{products.length === 0 ? '현재 확인이 필요한 리콜 제품이 없습니다.' : '해당 단계의 제품이 없습니다.'}</strong>
-            <p>님이 등록한 제품은 최신 리콜 정보와 자동으로 비교됩니다.</p>
-            <p>새로운 리콜 대상이 확인되면 이 목록에 표시됩니다.</p>
+            <strong>
+              {products.length === 0
+                ? '현재 복지사가 조치할 리콜 제품이 없습니다.'
+                : '선택한 단계에 해당하는 제품이 없습니다.'}
+            </strong>
+
+            <p>
+              어르신 또는 보호자가 등록한 제품은
+              공식 리콜 정보와 자동으로 비교됩니다.
+            </p>
+
+            <p>
+              사용 확인이나 후속 조치가 필요한 제품만
+              이 화면에 표시됩니다.
+            </p>
           </div>
         ) : (
           <table className="data-table recall-table">
             <thead>
               <tr>
-                <th>어르신</th><th>등록 제품</th><th>현재 단계</th><th>보호자 연락</th><th>다음 조치일</th>
+                <th>
+                  <label className="recall-senior-select">
+                    <select
+                      aria-label="대상자 선택"
+                      value={selectedSeniorId}
+                      onChange={(event) =>
+                        setSelectedSeniorId(
+                          event.target.value,
+                        )
+                      }
+                    >
+                      <option value="ALL">
+                        대상자
+                      </option>
+
+                      {seniorOptions.map((senior) => (
+                        <option
+                          value={senior.id}
+                          key={senior.id}
+                        >
+                          {senior.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </th>
+                <th>등록 제품</th>
+                <th>자동 판정</th>
+                <th>현재 업무</th>
+                <th>등록자</th>
+                <th>다음 조치일</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map(product => {
-                const stage = currentStage(product)
-                const tone = stageTone(product)
-                const hazard = product.hazardType ?? product.recallHazardType
+              {filteredProducts.map((product) => {
+                const stage =
+                  currentStage(product)
+
+                const tone =
+                  stageTone(product)
+
+                const hazard =
+                  product.hazardType
+                  ?? product.recallHazardType
+
                 return (
                   <tr
                     key={product.id}
                     className={`recall-row tone-${tone}`}
                     tabIndex={0}
                     onClick={() => openModal(product)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter' || event.key === ' ') {
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === 'Enter' ||
+                        event.key === ' '
+                      ) {
                         event.preventDefault()
                         openModal(product)
                       }
                     }}
                   >
-                    <td className="font-bold">{valueOrFallback(product.seniorName, '미확인')}</td>
-                    <td>
-                      <strong className="recall-product-name">{valueOrFallback(product.productName)}</strong>
-                      <span className="recall-product-model">{valueOrFallback(product.modelNumber)} · {valueOrFallback(product.manufacturer)}</span>
-                      {hazard && (
-                        <small className="recall-hazard-warning">주의: {hazard}</small>
+                    <td className="font-bold">
+                      {valueOrFallback(
+                        product.seniorName,
+                        '미확인',
                       )}
                     </td>
-                    <td><span className={`recall-state-badge tone-${tone}`}>{stage}</span></td>
-                    <td><span className={`recall-guardian-badge status-${(product.guardianContactStatus || 'UNKNOWN').toLowerCase()}`}>{GUARDIAN_CONTACT_STATUS_LABEL[product.guardianContactStatus] || '미확인'}</span></td>
-                    <td>{formatDate(product.nextActionDate)}</td>
+
+                    <td>
+                      <strong className="recall-product-name">
+                        {valueOrFallback(
+                          officialRecallProductName(product),
+                        )}
+                      </strong>
+
+                      <span className="recall-product-model">
+                        {valueOrFallback(
+                          product.modelNumber,
+                        )}
+                        {' · '}
+                        {valueOrFallback(
+                          product.manufacturer,
+                        )}
+                      </span>
+
+                      {hazard && (
+                        <small className="recall-hazard-warning">
+                          주의: {hazard}
+                        </small>
+                      )}
+                    </td>
+
+                    <td>
+                      <span
+                        className={[
+                          'recall-decision-badge',
+                          `tone-${recallDecisionTone(product)}`,
+                        ].join(' ')}
+                      >
+                        {recallDecisionLabel(product)}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`recall-state-badge tone-${tone}`}
+                      >
+                        {stage}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={[
+                          'recall-registration-source',
+                          product.registrationSource === 'GUARDIAN_WEB'
+                            ? 'is-guardian'
+                            : '',
+                        ].join(' ')}
+                      >
+                        {registrationSourceLabel(
+                          product.registrationSource,
+                        )}
+                      </span>
+                    </td>
+
+                    <td>
+                      {formatDate(
+                        product.nextActionDate,
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -734,50 +1077,119 @@ export default function RecallList() {
             <div className="recall-modal-header">
               <div>
                 <h2>{valueOrFallback(selected.seniorName, '이름 미확인')}님</h2>
-                <p>{valueOrFallback(selected.productName)} · {valueOrFallback(selected.modelNumber)} <span>{currentStage({ ...selected, ...form })}</span></p>
+                <p>{valueOrFallback(officialRecallProductName(selected))} · {valueOrFallback(selected.modelNumber)} <span>{currentStage({ ...selected, ...form })}</span></p>
               </div>
               <button type="button" className="recall-modal-close" onClick={() => setSelected(null)}>×</button>
             </div>
 
             <div className="recall-stepper">
-              <div className="done"><b>✓</b><span>리콜 공고 확인</span></div>
-              <div className={step === 1 ? 'active' : 'done'}><b>{step > 1 ? '✓' : '1'}</b><span>사용 여부 확인</span></div>
-              <div className={step === 2 ? 'active' : ''}><b>2</b><span>후속 조치</span></div>
+              <div className="done">
+                <b>✓</b>
+                <span>자동 판정 완료</span>
+              </div>
+
+              <div className={step === 1 ? 'active' : 'done'}>
+                <b>{step > 1 ? '✓' : '1'}</b>
+                <span>사용 여부 확인</span>
+              </div>
+
+              <div className={step === 2 ? 'active' : ''}>
+                <b>2</b>
+                <span>조치 완료 관리</span>
+              </div>
             </div>
 
             <div className="recall-modal-body">
               <section className="recall-action-guide">
                 <div className="recall-action-guide__header">
                   <div>
-                    <span>리콜 공고 확인</span>
-                    <strong>{recallContact(selected) || '문의처 정보 없음'}</strong>
-                    <small>{recallContact(selected) ? '문의처 확인 후 실제 안내·조치 내용은 아래 업무 단계에서 기록하세요.' : '상세 안내 원문 또는 출처에서 문의처를 확인하세요.'}</small>
+                    <span>
+                      시스템 자동 판정 결과
+                    </span>
+
+                    <strong>
+                      {recallDecisionLabel(selected)}
+                    </strong>
+
+                    <small>
+                      리콜 여부는 공식 API 조회 결과입니다.
+                      복지사는 실제 보유·사용 여부와 후속 조치 완료 여부를 확인합니다.
+                    </small>
                   </div>
+
                   <div className="recall-action-guide__tools">
-                    <button type="button" className="recall-detail-notice-button" onClick={() => openNoticeComposer(selected)} aria-label="알림 작성">✉</button>
-                    <button type="button" onClick={copyRecallContact} disabled={!recallContact(selected)}>문의처 복사</button>
+                    <button
+                      type="button"
+                      className="recall-detail-notice-button"
+                      aria-label="알림 작성"
+                      onClick={() =>
+                        openNoticeComposer(selected)
+                      }
+                    >
+                      ✉
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!recallContact(selected)}
+                      onClick={copyRecallContact}
+                    >
+                      문의처 복사
+                    </button>
                   </div>
                 </div>
-                <button type="button" className={`recall-action-guide__toggle ${showRecallDetails ? 'open' : ''}`} onClick={() => setShowRecallDetails(value => !value)}>
-                  {showRecallDetails ? '상세 안내 접기' : '상세 안내 보기'}
-                </button>
                 {showRecallDetails && (
                   <dl>
                     <div>
-                      <dt>소비자 조치</dt>
-                      <dd>{recallConsumerAction(selected)}</dd>
+                      <dt>제품 판정</dt>
+                      <dd>
+                        {recallDecisionLabel(selected)}
+                      </dd>
                     </div>
+
                     <div>
-                      <dt>위험/결함</dt>
-                      <dd>{valueOrFallback(recallHazard(selected), '상세 위험 정보가 없습니다. 사용 여부 확인 후 제조사 문의처로 조치 방법을 확인하세요.')}</dd>
+                      <dt>소비자 조치</dt>
+                      <dd>
+                        {recallConsumerAction(selected)}
+                      </dd>
                     </div>
+
+                    <div>
+                      <dt>위험·결함</dt>
+                      <dd>
+                        {valueOrFallback(
+                          recallHazard(selected),
+                          '상세 위험 정보가 없습니다.',
+                        )}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>제조사 문의</dt>
+                      <dd>
+                        {valueOrFallback(
+                          recallContact(selected),
+                          '문의처 정보 없음',
+                        )}
+                      </dd>
+                    </div>
+
                     {(selected.sourceName || selected.sourceUrl) && (
                       <div>
                         <dt>출처</dt>
                         <dd>
-                          {selected.sourceUrl
-                            ? <a href={selected.sourceUrl} target="_blank" rel="noreferrer">{selected.sourceName || '리콜 상세 보기'}</a>
-                            : selected.sourceName}
+                          {selected.sourceUrl ? (
+                            <a
+                              href={selected.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {selected.sourceName
+                                || '공식 리콜 공고 보기'}
+                            </a>
+                          ) : (
+                            selected.sourceName
+                          )}
                         </dd>
                       </div>
                     )}
@@ -788,7 +1200,7 @@ export default function RecallList() {
               {false && <>
                 <div className="recall-compare-grid">
                   <section><h3>등록 제품</h3><dl><div><dt>제품명</dt><dd>{valueOrFallback(selected.productName)}</dd></div><div><dt>제조사</dt><dd>{valueOrFallback(selected.manufacturer)}</dd></div><div><dt>모델명</dt><dd>{valueOrFallback(selected.modelNumber)}</dd></div><div><dt>등록 방식</dt><dd>{valueOrFallback(selected.registrationSource ?? selected.ocrInfo ?? selected.ocrText)}</dd></div></dl></section>
-                  <section><h3>리콜 대상 정보</h3><dl><div><dt>제품명</dt><dd>{valueOrFallback(selected.recallProductName ?? selected.productName)}</dd></div><div><dt>제조사</dt><dd>{valueOrFallback(selected.recallManufacturer ?? selected.manufacturer)}</dd></div><div><dt>대상 모델</dt><dd>{valueOrFallback(selected.recallModelNumber ?? selected.modelNumber)}</dd></div><div><dt>위해 유형</dt><dd>{valueOrFallback(selected.hazardType ?? selected.recallHazardType)}</dd></div></dl></section>
+                  <section><h3>리콜 대상 정보</h3><dl><div><dt>제품명</dt><dd>{valueOrFallback(officialRecallProductName(selected))}</dd></div><div><dt>제조사</dt><dd>{valueOrFallback(selected.recallManufacturer ?? selected.manufacturer)}</dd></div><div><dt>대상 모델</dt><dd>{valueOrFallback(selected.recallModelNumber ?? selected.modelNumber)}</dd></div><div><dt>위해 유형</dt><dd>{valueOrFallback(selected.hazardType ?? selected.recallHazardType)}</dd></div></dl></section>
                 </div>
                 <div className="recall-key-guidance"><div><strong>즉시 조치</strong><p>{valueOrFallback(selected.immediateAction, '제품 사용을 중단하고 전원 플러그를 분리하도록 안내합니다.')}</p></div><div><strong>조치 방법</strong><p>{valueOrFallback(selected.remedy ?? selected.actionMethod, '제조사 고객센터 또는 공식 안내 페이지에서 수리·교환·환불 방법을 확인합니다.')}</p></div><div><strong>문의처</strong><p>{valueOrFallback(selected.contactNumber)}</p></div><button type="button" onClick={() => setShowOriginal(value => !value)}>리콜 상세 원문 {showOriginal ? '닫기' : '보기'}</button>{showOriginal && <pre>{valueOrFallback(selected.recallReason)}</pre>}</div>
                 <div className="recall-api-match-note">
@@ -804,10 +1216,10 @@ export default function RecallList() {
 
               {step === 1 && <>
                 <div className="recall-usage-layout">
-                <fieldset className="recall-choice-group"><legend>확인 방법</legend>{['전화','보호자 연락','방문','기타'].map(value => <button key={value} type="button" className={form.contactMethod === value ? 'active' : ''} onClick={() => updateContactMethod(value)}>{value}</button>)}</fieldset>
+                  <fieldset className="recall-choice-group"><legend>확인 방법</legend>{['전화', '보호자 연락', '방문', '기타'].map(value => <button key={value} type="button" className={form.contactMethod === value ? 'active' : ''} onClick={() => updateContactMethod(value)}>{value}</button>)}</fieldset>
                 </div>
                 {form.contactMethod === '보호자 연락' && renderGuardianContactPanel()}
-                <fieldset className="recall-choice-group vertical recall-use-status-group" disabled={!canSelectUseStatus}><legend>제품 사용 상태 {!form.contactMethod && <small>확인 방법을 먼저 선택해주세요.</small>}{form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN' && <small>보호자 연락 상태를 먼저 기록해주세요.</small>}</legend>{[['IN_USE','현재 사용 중'],['NOT_IN_USE','보유 중이나 사용하지 않음'],['STOPPED','사용 중단 완료'],['UNKNOWN','확인하지 못함']].map(([value,label]) => <button key={value} type="button" disabled={!canSelectUseStatus} className={useStatusSelected && form.currentUseStatus === value ? 'active' : ''} onClick={() => { setUseStatusSelected(true); setForm(previous => ({ ...previous, currentUseStatus: value, finalResult: '' })) }}>{label}</button>)}</fieldset>
+                <fieldset className="recall-choice-group vertical recall-use-status-group" disabled={!canSelectUseStatus}><legend>제품 사용 상태 {!form.contactMethod && <small>확인 방법을 먼저 선택해주세요.</small>}{form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN' && <small>보호자 연락 상태를 먼저 기록해주세요.</small>}</legend>{[['IN_USE', '현재 사용 중'], ['NOT_IN_USE', '보유 중이나 사용하지 않음'], ['STOPPED', '사용 중단 완료'], ['UNKNOWN', '확인하지 못함']].map(([value, label]) => <button key={value} type="button" disabled={!canSelectUseStatus} className={useStatusSelected && form.currentUseStatus === value ? 'active' : ''} onClick={() => { setUseStatusSelected(true); setForm(previous => ({ ...previous, currentUseStatus: value, finalResult: '' })) }}>{label}</button>)}</fieldset>
                 {form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted && <aside className="recall-stop-warning"><strong>사용 중단 안내 기록이 필요합니다.</strong><ul><li>즉시 전원을 끄고 플러그를 분리하도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul><button type="button" className="recall-stop-guidance-btn" onClick={() => setShowStopGuidance(true)}>사용 중단 안내 기록</button></aside>}
                 {form.currentUseStatus === 'IN_USE' && form.stopGuidanceCompleted && <aside className="recall-guidance-complete"><strong>사용 중단 안내 기록 완료</strong><p>{formatGuidanceDate(form.stopGuidanceCompletedAt)} · {valueOrFallback(form.stopGuidanceMethod)} · {valueOrFallback(form.stopGuidanceTarget)}</p><p>담당자: {valueOrFallback(form.stopGuidanceWorkerName)}</p><button type="button" onClick={() => setShowStopGuidance(true)}>안내 기록 보기</button></aside>}
                 {(form.currentUseStatus === 'UNKNOWN' || form.guardianContactStatus === 'SCHEDULED') && <div className="recall-form-grid"><label>{form.guardianContactStatus === 'SCHEDULED' ? '보호자 다음 연락일' : '다음 연락일'}<input type="date" value={form.nextActionDate ?? ''} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label></div>}
@@ -840,7 +1252,7 @@ export default function RecallList() {
                     <strong>조치 완료 처리</strong>
                     <span>{valueOrFallback(form.followUpType)}</span>
                   </div>
-                  <fieldset className="recall-choice-group recall-completion-group"><legend>완료 결과 <small>실제 조치가 끝난 결과만 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
+                  <fieldset className="recall-choice-group recall-completion-group"><legend>완료 결과 <small>실제 조치가 끝난 결과만 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value, label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
                   <label className="recall-completion-note">완료 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="완료 처리 내용이나 확인 사항을 기록하세요" /></label>
                 </div>
               )}
@@ -856,11 +1268,11 @@ export default function RecallList() {
                     guardianContactedAt: isGuardianFollowUp ? previous.guardianContactedAt : null,
                     guardianContactMemo: isGuardianFollowUp ? previous.guardianContactMemo : '',
                   }))
-                }}><option value="">선택</option>{['어르신 안내','보호자 안내','제조사 문의','사용 중단 재확인','제조사 문의·조치 안내','수리 또는 환불 확인','보호자 연락','방문 확인','기타'].map(value => <option key={value}>{value}</option>)}</select></label>
+                }}><option value="">선택</option>{['어르신 안내', '보호자 안내', '제조사 문의', '사용 중단 재확인', '제조사 문의·조치 안내', '수리 또는 환불 확인', '보호자 연락', '방문 확인', '기타'].map(value => <option key={value}>{value}</option>)}</select></label>
                 <label>다음 조치일<input type="date" value={form.nextActionDate ?? ''} disabled={Boolean(form.finalResult)} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label>
                 {['보호자 연락', '보호자 안내'].includes(form.followUpType) && renderGuardianContactPanel()}
                 <label className="recall-note-field">담당자 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="확인 및 후속 조치 내용을 기록하세요" /></label>
-                <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value,label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
+                <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value, label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
               </div>}
             </div>
 
@@ -875,8 +1287,8 @@ export default function RecallList() {
               <div className="recall-guidance-header"><div><h3>사용 중단 안내 기록</h3><p>실제로 안내한 뒤 기록을 저장해주세요.</p></div><button type="button" aria-label="닫기" onClick={() => setShowStopGuidance(false)}>×</button></div>
               <div className="recall-guidance-body">
                 <ul className="recall-guidance-checklist"><li>즉시 전원을 끄도록 안내</li><li>플러그를 분리하도록 안내</li><li>제품을 다시 사용하지 않도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul>
-                <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['님 본인','님'],['보호자','보호자']].map(([value,label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
-                <fieldset className="recall-choice-group"><legend>안내 방법</legend>{['전화','방문','보호자 연락'].map(value => <button key={value} type="button" className={guidanceForm.method === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, method: value }))}>{value}</button>)}</fieldset>
+                <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['님 본인', '님'], ['보호자', '보호자']].map(([value, label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
+                <fieldset className="recall-choice-group"><legend>안내 방법</legend>{['전화', '방문', '보호자 연락'].map(value => <button key={value} type="button" className={guidanceForm.method === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, method: value }))}>{value}</button>)}</fieldset>
                 <label className="recall-guidance-memo">메모<textarea value={guidanceForm.memo ?? ''} onChange={event => setGuidanceForm(previous => ({ ...previous, memo: event.target.value }))} placeholder="안내 내용이나 특이사항을 기록하세요" /></label>
               </div>
               <div className="recall-guidance-actions"><button type="button" className="btn-outline" onClick={() => setShowStopGuidance(false)}>취소</button><button type="button" className="btn-primary" onClick={completeStopGuidance}>안내 기록 저장</button></div>

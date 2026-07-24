@@ -23,11 +23,28 @@ public class EnergySupportActivity {
     @Enumerated(EnumType.STRING)
     private EnergySupportCase.SupportStatus status;
 
+    @Enumerated(EnumType.STRING)
+    private EnergySupportCase.ExistingApplicationStatus existingApplicationStatus;
+
+    @Enumerated(EnumType.STRING)
+    private EnergySupportCase.ApplicationIntent applicationIntent;
+
+    @Enumerated(EnumType.STRING)
+    private EnergySupportCase.DeclineReason declineReason;
+
     private String contactMethod;
     private LocalDate nextActionDate;
 
     @Column(length = 1000)
     private String note;
+
+    @Column(length = 30)
+    private String updatedByRole;
+
+    private Long updatedById;
+
+    @Column(length = 2000)
+    private String changeSummary;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
