@@ -31,13 +31,6 @@ import {
 
 import '../../css/guardian/SeniorStatus.css';
 
-
-const FALL_API_BASE = String(
-  import.meta.env.VITE_FALL_API_BASE
-  ?? 'http://localhost:8000',
-).replace(/\/$/, '');
-
-
 const RISK_VIEW = {
   HIGH: {
     label: '확인 필요',
@@ -952,11 +945,6 @@ export default function SeniorStatus() {
   ] = useState('');
 
   const [
-    cameraOpen,
-    setCameraOpen,
-  ] = useState(false);
-
-  const [
     fallDetailOpen,
     setFallDetailOpen,
   ] = useState(false);
@@ -1151,7 +1139,7 @@ export default function SeniorStatus() {
             .response
             ?.data
             ?.message
-          || '님 상세 정보를 불러오지 못했습니다.',
+          || '어르신 상세 정보를 불러오지 못했습니다.',
         );
       } finally {
         /*
@@ -1301,7 +1289,7 @@ export default function SeniorStatus() {
 
   /*
    * 로그인한 보호자와 연결된
-   * 님 목록 조회
+   * 어르신 목록 조회
    */
   useEffect(() => {
     let cancelled = false;
@@ -1375,7 +1363,7 @@ export default function SeniorStatus() {
               .response
               ?.data
               ?.message
-            || '담당 님 정보를 불러오지 못했습니다.',
+            || '담당 어르신 정보를 불러오지 못했습니다.',
           );
         }
       } finally {
@@ -1465,7 +1453,7 @@ export default function SeniorStatus() {
     });
 
   /*
-   * 다른 님 선택
+   * 다른 어르신 선택
    */
   const handleSeniorChange = (
     seniorId,
@@ -1592,7 +1580,7 @@ export default function SeniorStatus() {
           <div
             className="guardian-senior-page__selector"
             role="group"
-            aria-label="님 선택 및 연결"
+            aria-label="어르신 선택 및 연결"
           >
             <button
               type="button"
@@ -1681,12 +1669,12 @@ export default function SeniorStatus() {
               </header>
 
               <p>
-                님 계정에 등록된 이름과
+                어르신 계정에 등록된 이름과
                 전화번호를 입력해 주세요.
               </p>
 
               <label>
-                님 이름
+                어르신 이름
 
                 <input
                   required
@@ -1771,73 +1759,6 @@ export default function SeniorStatus() {
             setCheckInScheduleOpen(false);
           }}
         />
-
-
-        {cameraOpen
-          && selectedSenior
-          && (
-            <div
-              className="guardian-connect-overlay"
-              onMouseDown={
-                (event) => {
-                  if (
-                    event.target
-                    === event.currentTarget
-                  ) {
-                    setCameraOpen(false);
-                  }
-                }
-              }
-            >
-              <section
-                className="guardian-camera-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="guardian-camera-title"
-              >
-                <header>
-                  <div>
-                    <span>
-                      실시간 카메라
-                    </span>
-
-                    <h2
-                      id="guardian-camera-title"
-                    >
-                      {selectedSenior.name}
-                      {' '}
-                      님
-                    </h2>
-                  </div>
-
-                  <button
-                    type="button"
-                    aria-label="닫기"
-                    onClick={() => (
-                      setCameraOpen(false)
-                    )}
-                  >
-                    ×
-                  </button>
-                </header>
-
-                <div
-                  className="guardian-camera-modal__viewport"
-                >
-                  <img
-                    src={`${FALL_API_BASE}/video`}
-                    alt={`${selectedSenior.name} 님 실시간 카메라`}
-                  />
-                </div>
-
-                <p>
-                  카메라 서버가 실행 중일 때
-                  실시간 화면이 표시됩니다.
-                </p>
-              </section>
-            </div>
-          )}
-
 
         {fallDetailOpen
           && selectedSenior
@@ -2198,7 +2119,7 @@ export default function SeniorStatus() {
           <div
             className="guardian-senior-page__state"
           >
-            담당 님 정보를
+            담당 어르신 정보를
             불러오는 중입니다.
           </div>
         ) : !selectedSenior ? (
@@ -2259,16 +2180,6 @@ export default function SeniorStatus() {
                 <div
                   className="guardian-senior-hero__actions"
                 >
-                  <button
-                    type="button"
-                    className="guardian-senior-hero__call"
-                    onClick={() => (
-                      setCameraOpen(true)
-                    )}
-                  >
-                    카메라 보기
-                  </button>
-
                   <DisconnectSeniorButton
                     senior={
                       selectedSenior

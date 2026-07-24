@@ -56,7 +56,7 @@
   align-items: flex-start;
   padding: 14px 18px;
   border: 0;
-  border-top: 3px solid var(--primary);
+  /* border-top: 3px solid var(--primary); */
   border-radius: var(--radius);
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
@@ -79,13 +79,13 @@
   font-size: 24px;
 }
 
-.stat-card.danger {
+/* .stat-card.danger {
   border-top-color: var(--danger);
 }
 
 .stat-card.warning {
   border-top-color: var(--warning);
-}
+} */
 
 .dashboard-panel {
   min-width: 0;

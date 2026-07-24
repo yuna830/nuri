@@ -152,7 +152,7 @@ export async function disconnectGuardianSenior(
     || String(seniorId).trim() === ''
   ) {
     throw new Error(
-      '연결을 해제할 님 정보를 찾지 못했습니다.',
+      '연결을 해제할 어르신 정보를 찾지 못했습니다.',
     );
   }
 
@@ -174,7 +174,7 @@ export async function disconnectGuardianSenior(
   );
 
   console.log(
-    '[보호자-님 연결 해제 요청]',
+    '[보호자-어르신 연결 해제 요청]',
     {
       guardianUserId,
       seniorId,
@@ -191,7 +191,7 @@ export async function disconnectGuardianSenior(
     return response.data;
   } catch (error) {
     console.error(
-      '[보호자-님 연결 해제 실패]',
+      '[보호자-어르신 연결 해제 실패]',
       {
         guardianUserId,
         seniorId,

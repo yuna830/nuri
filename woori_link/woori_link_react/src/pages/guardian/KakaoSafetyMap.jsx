@@ -847,7 +847,7 @@ export default function KakaoSafetyMap({
           위치 정보와 등록 주소가 없습니다.
         </strong>
         <span>
-          님 기기의 위치 권한과 등록 주소를 확인해 주세요.
+          어르신 기기의 위치 권한과 등록 주소를 확인해 주세요.
         </span>
       </div>
     );

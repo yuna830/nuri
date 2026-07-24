@@ -182,9 +182,9 @@ export default function DisconnectSeniorButton({
               </strong>
 
               <p id="guardian-disconnect-description">
-                현재 로그인한 보호자와 님 사이의 연결만
+                현재 로그인한 보호자와 어르신 사이의 연결만
                 해제됩니다. 연결을 해제하면 보호자 화면에서
-                해당 님의 위치, 안부, 알림과 등록 제품을
+                해당 어르신의 위치, 안부, 알림과 등록 제품을
                 더 이상 확인할 수 없습니다.
               </p>
             </div>
@@ -202,7 +202,7 @@ export default function DisconnectSeniorButton({
                 <dt>유지되는 정보</dt>
 
                 <dd>
-                  님 계정, 위치 기록, 안부 기록,
+                  어르신 계정, 위치 기록, 안부 기록,
                   알림, 복약 정보, 등록 제품
                 </dd>
               </div>
@@ -211,7 +211,7 @@ export default function DisconnectSeniorButton({
                 <dt>삭제되는 정보</dt>
 
                 <dd>
-                  현재 보호자와 님 사이의 연결 관계
+                  현재 보호자와 어르신 사이의 연결 관계
                 </dd>
               </div>
             </dl>

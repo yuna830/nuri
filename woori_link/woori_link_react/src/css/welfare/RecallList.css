@@ -1828,45 +1828,46 @@
 .recall-summary-cards button {
   position: relative;
   overflow: hidden;
-  border-color: #dbe4ee;
+  border: 1px solid #e1e8e1;
+  border-top-width: 3px;
+  background: #ffffff;
+  box-shadow: 0 5px 17px rgba(35, 53, 40, 0.04);
   transition: border-color .15s, box-shadow .15s, transform .15s, background .15s;
 }
 
 .recall-summary-cards button::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 5px;
-  background: #94a3b8;
+  content: none;
 }
 
 .recall-summary-cards button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, .08);
+  box-shadow: 0 7px 20px rgba(35, 53, 40, 0.07);
 }
 
-.recall-summary-cards button.tone-all::before {
-  background: #8fa78b;
+.recall-summary-cards button.tone-all {
+  border-top-color: #8fa78b;
 }
 
-.recall-summary-cards button.tone-check::before {
-  background: #c7d7c4;
+.recall-summary-cards button.tone-check {
+  border-top-color: #b94f43;
 }
 
-.recall-summary-cards button.tone-action::before {
-  background: #9fb69b;
+.recall-summary-cards button.tone-action {
+  border-top-color: #c9852b;
 }
 
-.recall-summary-cards button.tone-done::before {
-  background: #789277;
+.recall-summary-cards button.tone-done {
+  border-top-color: #789277;
 }
 
 .recall-summary-cards button.tone-all.active,
 .recall-summary-cards button.tone-check.active,
 .recall-summary-cards button.tone-action.active,
 .recall-summary-cards button.tone-done.active {
-  border-color: #dce5dc;
-  background: #f8faf7;
+  border-right-color: #dce5dc;
+  border-bottom-color: #dce5dc;
+  border-left-color: #dce5dc;
+  background: #ffffff;
   color: #506a51;
 }
 
@@ -1877,8 +1878,8 @@
   color: #243128;
 }
 
-.recall-summary-cards button.tone-danger::before {
-  background: #c96b5c;
+.recall-summary-cards button.tone-danger {
+  border-top-color: #c96b5c;
 }
 
 .recall-table tbody tr.recall-row.tone-danger td:first-child {
