@@ -57,7 +57,6 @@
 
 .recall-summary-cards button.active {
   border-color: var(--primary-border);
-  border-top: 3px solid var(--primary);
   background: rgba(238, 246, 237, .55);
   color: var(--primary-dark);
   font-weight: 700;
@@ -1829,7 +1828,6 @@
   position: relative;
   overflow: hidden;
   border: 1px solid #e1e8e1;
-  border-top-width: 3px;
   background: #ffffff;
   box-shadow: 0 5px 17px rgba(35, 53, 40, 0.04);
   transition: border-color .15s, box-shadow .15s, transform .15s, background .15s;
@@ -1844,30 +1842,12 @@
   box-shadow: 0 7px 20px rgba(35, 53, 40, 0.07);
 }
 
-.recall-summary-cards button.tone-all {
-  border-top-color: #8fa78b;
-}
-
-.recall-summary-cards button.tone-check {
-  border-top-color: #b94f43;
-}
-
-.recall-summary-cards button.tone-action {
-  border-top-color: #c9852b;
-}
-
-.recall-summary-cards button.tone-done {
-  border-top-color: #789277;
-}
-
 .recall-summary-cards button.tone-all.active,
 .recall-summary-cards button.tone-check.active,
 .recall-summary-cards button.tone-action.active,
 .recall-summary-cards button.tone-done.active {
-  border-right-color: #dce5dc;
-  border-bottom-color: #dce5dc;
-  border-left-color: #dce5dc;
-  background: #ffffff;
+  border-color: #dce5dc;
+  background: #eef6ed;
   color: #506a51;
 }
 
@@ -1876,10 +1856,6 @@
 .recall-summary-cards button.tone-action.active strong,
 .recall-summary-cards button.tone-done.active strong {
   color: #243128;
-}
-
-.recall-summary-cards button.tone-danger {
-  border-top-color: #c96b5c;
 }
 
 .recall-table tbody tr.recall-row.tone-danger td:first-child {
