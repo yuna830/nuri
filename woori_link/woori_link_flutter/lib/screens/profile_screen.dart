@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../api/care_monitoring_api.dart';
 import '../api/contact_api.dart';
 import '../api/senior_api.dart';
 import '../services/auth_service.dart';
+import '../text_scale_controller.dart';
 import '../theme.dart';
 import 'login_screen.dart';
 
@@ -22,6 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _savingSettings = false;
+  bool _requestingConsultation = false;
   bool _recallReminder = true;
   bool _scheduleReminder = true;
   bool _voiceAnswer = true;
@@ -176,7 +179,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _editField(
                 birthDateCtrl,
                 '생년월일',
-                keyboardType: TextInputType.datetime,
+                hintText: '예: 19450301',
+                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
@@ -216,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final birthDate = _normalizeDate(birthDateCtrl.text);
     if (birthDateCtrl.text.trim().isNotEmpty && birthDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('생년월일은 1945-03-01 형식으로 입력해 주세요.')),
+        const SnackBar(content: Text('생년월일은 19450301처럼 숫자 8자리로 입력해 주세요.')),
       );
       return;
     }
@@ -263,17 +267,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _normalizeDate(String value) {
     final cleaned = value.trim().replaceAll('.', '-').replaceAll('/', '-');
     if (cleaned.isEmpty) return null;
+    final compactMatch = RegExp(r'^(\d{4})(\d{2})(\d{2})$').firstMatch(cleaned);
+    if (compactMatch != null) {
+      return _validDateOrNull(
+        compactMatch.group(1)!,
+        compactMatch.group(2)!,
+        compactMatch.group(3)!,
+      );
+    }
     final match = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(cleaned);
     if (match == null) return null;
-    final year = match.group(1)!;
-    final month = match.group(2)!.padLeft(2, '0');
-    final day = match.group(3)!.padLeft(2, '0');
+    return _validDateOrNull(
+      match.group(1)!,
+      match.group(2)!.padLeft(2, '0'),
+      match.group(3)!.padLeft(2, '0'),
+    );
+  }
+
+  String? _validDateOrNull(String year, String month, String day) {
+    final parsed = DateTime.tryParse('$year-$month-$day');
+    if (parsed == null) return null;
+    if (parsed.year != int.parse(year) ||
+        parsed.month != int.parse(month) ||
+        parsed.day != int.parse(day)) {
+      return null;
+    }
     return '$year-$month-$day';
   }
 
   Widget _editField(
     TextEditingController controller,
     String label, {
+    String? hintText,
     TextInputType? keyboardType,
   }) {
     return TextField(
@@ -281,24 +306,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
+        hintText: hintText,
         filled: true,
         fillColor: kBg,
       ),
     );
   }
 
-  Future<void> _call(String? phone) async {
-    final number = '${phone ?? ''}'.replaceAll(RegExp(r'\s+'), '');
-    if (number.isEmpty) {
+  Future<void> _copyToClipboard(String? value, String label) async {
+    final text = '${value ?? ''}'.trim();
+    if (text.isEmpty || text == '-') {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('등록된 전화번호가 없습니다.')),
+        SnackBar(content: Text('복사할 $label 정보가 없습니다.')),
       );
       return;
     }
 
-    final uri = Uri.parse('tel:$number');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label을 복사했습니다.')),
+    );
+  }
+
+  Future<void> _requestConsultation() async {
+    if (_requestingConsultation) return;
+    final worker = _worker;
+    if (worker == null) return;
+    final senior = _senior ?? const <String, dynamic>{};
+    final seniorId = _intValue(senior['id']) ?? await AuthService.getUserId();
+    if (seniorId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('상담 신청'),
+        content: Text(
+          '${_text(worker['name'], fallback: '담당 복지사')}님에게 상담 요청 알림을 보낼까요?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('신청하기'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _requestingConsultation = true);
+    try {
+      final seniorName = _text(senior['name'], fallback: '어르신');
+      await CareMonitoringApi.requestConsultation(
+        seniorId,
+        '$seniorName님이 담당 복지사 상담을 요청했습니다.',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('담당 복지사에게 상담 요청을 보냈습니다.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('상담 요청을 보내지 못했습니다. 다시 시도해 주세요.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _requestingConsultation = false);
+      }
     }
   }
 
@@ -323,6 +402,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('내 정보'),
         actions: [
+          const _TextSizeAction(),
           IconButton(
             tooltip: '새로고침',
             onPressed: _load,
@@ -364,7 +444,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               emptyText: '연결된 보호자가 없습니다.',
               lines: [
                 _InfoRow('관계', _text(_guardian?['relationship'])),
-                _InfoRow('전화번호', _text(_guardian?['phone'])),
+                _InfoRow(
+                  '전화번호',
+                  _text(_guardian?['phone']),
+                  copyable: true,
+                ),
                 _InfoRow('이메일', _text(_guardian?['email'])),
               ],
             ),
@@ -374,9 +458,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.support_agent,
               data: _worker,
               emptyText: '배정된 복지사가 없습니다.',
+              onConsultationRequest: _requestConsultation,
+              consultationRequesting: _requestingConsultation,
               lines: [
                 _InfoRow('기관', _text(_worker?['organization'])),
-                _InfoRow('전화번호', _text(_worker?['phone'])),
+                _InfoRow(
+                  '전화번호',
+                  _text(_worker?['phone']),
+                  copyable: true,
+                ),
                 _InfoRow('이메일', _text(_worker?['email'])),
               ],
             ),
@@ -386,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoRow('소득 구분', _incomeLabel(senior['incomeLevel'])),
               _InfoRow('독거 여부', senior['livingAlone'] == true ? '독거' : '해당 없음'),
               _InfoRow('주거 형태', _text(senior['housingType'])),
-              _InfoRow('에너지 복지', '에너지 탭에서 입력·신청 현황 확인'),
+              _InfoRow('에너지 복지', '에너지 탭에서 입력 현황 확인'),
             ]),
             const SizedBox(height: 18),
             _sectionTitle('앱 설정'),
@@ -485,7 +575,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Align(alignment: Alignment.centerRight, child: action),
               const Divider(height: 10),
             ],
-            ...rows.map((row) => _infoLine(row.label, row.value)),
+            ...rows.map(
+              (row) => _infoLine(
+                row.label,
+                row.value,
+                copyable: row.copyable,
+              ),
+            ),
           ],
         ),
       ),
@@ -498,8 +594,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Map<String, dynamic>? data,
     required String emptyText,
     required List<_InfoRow> lines,
+    VoidCallback? onConsultationRequest,
+    bool consultationRequesting = false,
   }) {
-    final phone = '${data?['phone'] ?? ''}'.trim();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -521,17 +618,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: Text(
                     data == null ? title : '$title · ${_text(data['name'])}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: '전화',
-                  onPressed: phone.isEmpty ? null : () => _call(phone),
-                  icon: const Icon(Icons.call_outlined),
-                ),
+                if (data != null && onConsultationRequest != null)
+                  OutlinedButton.icon(
+                    onPressed:
+                        consultationRequesting ? null : onConsultationRequest,
+                    icon: consultationRequesting
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chat_outlined, size: 16),
+                    label: const Text('상담 신청'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kPrimaryDark,
+                      side: BorderSide(color: kPrimary.withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -541,7 +655,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(color: kTextMuted, fontWeight: FontWeight.w600),
               )
             else
-              ...lines.map((row) => _infoLine(row.label, row.value)),
+              ...lines.map(
+                (row) => _infoLine(
+                  row.label,
+                  row.value,
+                  copyable: row.copyable,
+                ),
+              ),
           ],
         ),
       ),
@@ -583,7 +703,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _infoLine(String label, String value) {
+  Widget _infoLine(String label, String value, {bool copyable = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -601,13 +721,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              value.isEmpty ? '-' : value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value.isEmpty ? '-' : value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                if (copyable) ...[
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: '$label 복사',
+                    onPressed: () => _copyToClipboard(value, label),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -616,9 +753,138 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _TextSizeAction extends StatelessWidget {
+  const _TextSizeAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: AppTextScaleController.scale,
+      builder: (context, _, __) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: Center(
+            child: Semantics(
+              label: '글씨 크기 조절',
+              child: Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: const Color(0xFFD4E8D6)),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(right: 5),
+                      child: Text(
+                        '글씨',
+                        style: TextStyle(
+                          color: Color(0xFF7A9A7C),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                    _FontSizeButton(
+                      index: 0,
+                      fontSize: 12,
+                      size: 24,
+                      selected: AppTextScaleController.currentIndex == 0,
+                    ),
+                    const SizedBox(width: 3),
+                    _FontSizeButton(
+                      index: 1,
+                      fontSize: 15,
+                      size: 28,
+                      selected: AppTextScaleController.currentIndex == 1,
+                    ),
+                    const SizedBox(width: 3),
+                    _FontSizeButton(
+                      index: 2,
+                      fontSize: 18,
+                      size: 32,
+                      selected: AppTextScaleController.currentIndex == 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FontSizeButton extends StatelessWidget {
+  const _FontSizeButton({
+    required this.index,
+    required this.fontSize,
+    required this.size,
+    required this.selected,
+  });
+
+  final int index;
+  final double fontSize;
+  final double size;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (index) {
+      0 => '기본 크기',
+      1 => '크게',
+      _ => '매우 크게',
+    };
+
+    return Tooltip(
+      message: title,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => AppTextScaleController.setScale(
+          AppTextScaleController.values[index],
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? kPrimary : Colors.transparent,
+            border: Border.all(
+              color: selected ? kPrimaryDark : Colors.transparent,
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '가',
+            style: TextStyle(
+              color: selected ? Colors.white : const Color(0xFF5F7D61),
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoRow {
-  const _InfoRow(this.label, this.value);
+  const _InfoRow(
+    this.label,
+    this.value, {
+    this.copyable = false,
+  });
 
   final String label;
   final String value;
+  final bool copyable;
 }

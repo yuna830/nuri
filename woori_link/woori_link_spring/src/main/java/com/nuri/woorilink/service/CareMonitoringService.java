@@ -158,9 +158,12 @@ public class CareMonitoringService {
                 .map(Senior::getId)
                 .toList();
         if (seniorIds.isEmpty()) return List.of();
-        return alertRepository.findBySeniorIdInAndTypeOrderByCreatedAtDesc(
+        return alertRepository.findBySeniorIdInAndTypeInOrderByCreatedAtDesc(
                 seniorIds,
-                CareEvent.EventType.WELFARE_NOTICE
+                List.of(
+                        CareEvent.EventType.WELFARE_NOTICE,
+                        CareEvent.EventType.CONSULTATION_REQUEST
+                )
         );
     }
 
@@ -723,14 +726,20 @@ public class CareMonitoringService {
             case SAFETY_RADIUS_EXIT -> "안전반경 이탈";
             case CHECK_IN_MISSED -> "안부 미응답";
             case WELFARE_NOTICE -> "복지사 알림";
+            case CONSULTATION_REQUEST -> "상담 요청";
         };
         CareAlert.Severity severity = event.getType() == CareEvent.EventType.SOS || event.getType() == CareEvent.EventType.FALL_DETECTED
                 ? CareAlert.Severity.HIGH : CareAlert.Severity.MEDIUM;
+        String message = event.getType() == CareEvent.EventType.CONSULTATION_REQUEST
+                && event.getNote() != null
+                && !event.getNote().isBlank()
+                ? event.getNote().trim()
+                : senior.getName() + "님: " + title;
         alertRepository.save(CareAlert.builder().seniorId(senior.getId()).guardianId(senior.getGuardianId())
                 .careEventId(event.getId()).type(event.getType()).severity(severity).status(CareAlert.AlertStatus.UNREAD)
                 .imageUrl(event.getImageUrl()).detectionScore(event.getDetectionScore())
                 .fallDetails(event.getFallDetails())
-                .title(title).message(senior.getName() + "님: " + title).build());
+                .title(title).message(message).build());
     }
 
     private String normalizeImageUrl(String imageUrl) {

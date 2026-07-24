@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/auth_service.dart';
+import 'text_scale_controller.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -32,11 +33,25 @@ class WooriLinkApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '우리 LINK',
-      theme: appTheme(),
-      home: const SplashRouter(),
-      debugShowCheckedModeBanner: false,
+    return ValueListenableBuilder<double>(
+      valueListenable: AppTextScaleController.scale,
+      builder: (context, textScale, child) {
+        return MaterialApp(
+          title: '우리 LINK',
+          theme: appTheme(),
+          home: const SplashRouter(),
+          debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                textScaler: TextScaler.linear(textScale),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -27,7 +27,8 @@ public class CareAlertSchemaMigration {
                     'SOS',
                     'SAFETY_RADIUS_EXIT',
                     'CHECK_IN_MISSED',
-                    'WELFARE_NOTICE'
+                    'WELFARE_NOTICE',
+                    'CONSULTATION_REQUEST'
                 ))
                 """);
     }

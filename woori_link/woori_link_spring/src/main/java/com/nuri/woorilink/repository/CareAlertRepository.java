@@ -87,6 +87,14 @@ public interface CareAlertRepository
     );
 
     /**
+     * 여러 어르신의 여러 종류 알림을 최신순으로 조회한다.
+     */
+    List<CareAlert> findBySeniorIdInAndTypeInOrderByCreatedAtDesc(
+            List<Long> seniorIds,
+            Collection<CareEvent.EventType> types
+    );
+
+    /**
      * 특정 어르신의 특정 종류 알림 중
      * 지정된 상태에 해당하는 알림을 조회한다.
      */

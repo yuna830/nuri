@@ -35,7 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     final birthDate = _normalizeDate(_birthDateController.text);
     if (birthDate == null) {
-      setState(() => _error = '생년월일은 1945-03-01 형식으로 입력해 주세요.');
+      setState(() => _error = '생년월일은 19450301처럼 숫자 8자리로 입력해 주세요.');
       return;
     }
 
@@ -70,11 +70,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _normalizeDate(String value) {
     final cleaned = value.trim().replaceAll('.', '-').replaceAll('/', '-');
+    final compactMatch = RegExp(r'^(\d{4})(\d{2})(\d{2})$').firstMatch(cleaned);
+    if (compactMatch != null) {
+      return _validDateOrNull(
+        compactMatch.group(1)!,
+        compactMatch.group(2)!,
+        compactMatch.group(3)!,
+      );
+    }
     final match = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$').firstMatch(cleaned);
     if (match == null) return null;
-    final year = match.group(1)!;
-    final month = match.group(2)!.padLeft(2, '0');
-    final day = match.group(3)!.padLeft(2, '0');
+    return _validDateOrNull(
+      match.group(1)!,
+      match.group(2)!.padLeft(2, '0'),
+      match.group(3)!.padLeft(2, '0'),
+    );
+  }
+
+  String? _validDateOrNull(String year, String month, String day) {
+    final parsed = DateTime.tryParse('$year-$month-$day');
+    if (parsed == null) return null;
+    if (parsed.year != int.parse(year) ||
+        parsed.month != int.parse(month) ||
+        parsed.day != int.parse(day)) {
+      return null;
+    }
     return '$year-$month-$day';
   }
 
@@ -129,10 +149,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 14),
           TextField(
             controller: _birthDateController,
-            keyboardType: TextInputType.datetime,
+            keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: '생년월일',
-              hintText: '예: 1945-03-01',
+              hintText: '예: 19450301',
               border: OutlineInputBorder(),
             ),
           ),

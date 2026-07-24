@@ -871,14 +871,17 @@ export default function RecallList() {
               ) : (
                 <ul>
                   {visibleSentNotices.map(notice => {
-                    const recipient = notice.guardianId ? '보호자' : '어르신'
+                    const isConsultationRequest = notice.type === 'CONSULTATION_REQUEST'
+                    const recipient = isConsultationRequest
+                      ? '상담 요청'
+                      : notice.guardianId ? '보호자' : '어르신'
                     const unread = notice.status === 'UNREAD'
                     return (
                       <li key={notice.id}>
                         <span>{recipient} · {unread ? '미확인' : '확인됨'}</span>
                         <strong>{notice.title || '복지사 알림'}</strong>
                         <p>{notice.message}</p>
-                        {unread && (
+                        {unread && !isConsultationRequest && (
                           <button type="button" disabled={noticeCancellingId === notice.id} onClick={() => cancelSentNotice(notice.id)}>
                             {noticeCancellingId === notice.id ? '취소 중' : '전송취소'}
                           </button>

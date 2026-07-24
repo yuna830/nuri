@@ -7,6 +7,7 @@ import '../api/risk_api.dart';
 import '../api/action_api.dart';
 import '../api/care_monitoring_api.dart';
 import '../api/product_api.dart';
+import '../api/schedule_api.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
 import 'chat_screen.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _products = [];
   List<dynamic> _recallActions = [];
   List<dynamic> _alerts = [];
+  List<dynamic> _todaySchedules = [];
   bool _loading = true;
   Map<String, dynamic>? _pendingCheckIn;
   Timer? _refreshTimer;
@@ -90,6 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
           () => CareMonitoringApi.getAlerts(seniorId),
           <dynamic>[],
         ),
+        _loadOptional<List<dynamic>>(
+          'today-schedules',
+          () => senior['scheduleReminderEnabled'] == false
+              ? Future.value(<dynamic>[])
+              : ScheduleApi.fetchTodaySchedules(seniorId),
+          <dynamic>[],
+        ),
       ]);
 
       if (!mounted) return;
@@ -97,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final checkIns = results[1];
       final products = results[2];
       final alerts = results[3];
+      final todaySchedules = _remainingTodaySchedules(results[4]);
       final recallActions = _dedupeRecallActions(
         allActions
             .where((a) => a is Map && '${a['actionType'] ?? ''}' == 'RECALL')
@@ -110,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _risk = risk.isNotEmpty ? risk : null;
         _products = products;
         _recallActions = recallActions;
+        _todaySchedules = todaySchedules;
         final pending = checkIns
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
@@ -817,7 +828,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           FloatingActionButton(
             heroTag: 'chatFab',
-            tooltip: '상담 챗봇',
+            tooltip: '챗봇',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ChatScreen()),
@@ -871,35 +882,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
               flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [kPrimaryDark, kPrimary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        '안녕하세요, $name님',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
+                background: Stack(
+                  children: [
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [kPrimaryDark, kPrimary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        address,
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 13),
+                      padding: const EdgeInsets.fromLTRB(20, 48, 20, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '안녕하세요, $name님',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            address,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -968,6 +983,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 8),
                   ],
 
+                  _TodayScheduleCard(
+                    schedules: _todaySchedules,
+                    formatScheduleBrief: _formatScheduleBrief,
+                    onShowAll: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ChatScreen(
+                            expandTodaySchedules: true,
+                          ),
+                        ),
+                      );
+                    },
+                    onRegister: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ChatScreen(
+                            initialMessage: '일정 등록 어떻게 해?',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
                   // 체크리스트
                   Card(
                     child: Padding(
@@ -990,7 +1029,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             '리콜 제품 확인',
                             _risk?['recallRisk'] == true,
                             _risk?['recallRisk'] == true
-                                ? '⚠️ 리콜 제품 있음'
+                                ? '리콜 제품 있음'
                                 : '이상 없음',
                           ),
                           _checkItem(
@@ -998,7 +1037,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             _risk?['voucherUnapplied'] == true,
                             _risk?['voucherUnapplied'] == true
                                 ? '정보 확인 필요'
-                                : '신청 현황 확인',
+                                : '입력 현황 확인',
                           ),
                         ],
                       ),
@@ -1183,43 +1222,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 );
                               }),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      _recallActions.length > 2
-                                          ? '외 ${_recallActions.length - 2}건 더 있음'
-                                          : _unrequestedRecalledProductCount() >
-                                                  0
-                                              ? '리콜 대상 제품에서 조치 요청을 보낼 수 있어요'
-                                              : '자세한 진행 상태를 확인할 수 있어요',
-                                      style: const TextStyle(
-                                        color: kTextMuted,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                              if (_recallActions.length > 2)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '외 ${_recallActions.length - 2}건 더 있음',
+                                    style: const TextStyle(
+                                      color: kTextMuted,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                     ),
-                                    const Spacer(),
-                                    Text(
-                                      _unrequestedRecalledProductCount() > 0
-                                          ? '보유 제품 보기'
-                                          : '요청 내역 보기',
-                                      style: const TextStyle(
-                                        color: kPrimaryDark,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    const Icon(
-                                      Icons.chevron_right,
-                                      color: kPrimaryDark,
-                                      size: 18,
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -1260,6 +1274,184 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool _isRemainingTodaySchedule(dynamic schedule) {
+    if (schedule is! Map) return false;
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final date =
+        '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+    if (date.isNotEmpty && (date.length < 10 || date.substring(0, 10) != today)) {
+      return false;
+    }
+    final time =
+        '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    if (time.isEmpty) return true;
+    final parts = time.split(':');
+    if (parts.length < 2) return true;
+    final now = DateTime.now();
+    final scheduledAt = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      int.tryParse(parts[0]) ?? 0,
+      int.tryParse(parts[1]) ?? 0,
+    );
+    return scheduledAt.isAfter(now);
+  }
+
+  List<dynamic> _remainingTodaySchedules(List<dynamic> schedules) {
+    final remaining = schedules.where(_isRemainingTodaySchedule).toList();
+    remaining.sort((a, b) => _scheduleDateTime(a).compareTo(_scheduleDateTime(b)));
+    return remaining;
+  }
+
+  DateTime _scheduleDateTime(dynamic schedule) {
+    final now = DateTime.now();
+    if (schedule is! Map) return now;
+    final rawDate =
+        '${schedule['visitDate'] ?? schedule['scheduleDate'] ?? schedule['date'] ?? ''}';
+    final date = DateTime.tryParse(rawDate.length >= 10 ? rawDate.substring(0, 10) : '') ??
+        DateTime(now.year, now.month, now.day);
+    final time =
+        '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    final parts = time.split(':');
+    if (parts.length < 2) return DateTime(date.year, date.month, date.day, 23, 59);
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.tryParse(parts[0]) ?? 23,
+      int.tryParse(parts[1]) ?? 59,
+    );
+  }
+
+  String _formatScheduleBrief(dynamic schedule) {
+    if (schedule is! Map) return '일정';
+    final title =
+        '${schedule['purpose'] ?? schedule['title'] ?? schedule['content'] ?? schedule['memo'] ?? '일정'}';
+    final time =
+        '${schedule['visitTime'] ?? schedule['scheduleTime'] ?? schedule['time'] ?? ''}';
+    if (time.isEmpty) return title;
+    return '${_formatTime(time)} $title';
+  }
+
+  String _formatTime(String time) {
+    final parts = time.split(':');
+    if (parts.length < 2) return time;
+    final hour = int.tryParse(parts[0]) ?? 0;
+    final minute = int.tryParse(parts[1]) ?? 0;
+    final period = hour < 12 ? '오전' : '오후';
+    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$period $displayHour:${minute.toString().padLeft(2, '0')}';
+  }
+
+}
+
+class _TodayScheduleCard extends StatelessWidget {
+  const _TodayScheduleCard({
+    required this.schedules,
+    required this.formatScheduleBrief,
+    required this.onShowAll,
+    required this.onRegister,
+  });
+
+  final List<dynamic> schedules;
+  final String Function(dynamic schedule) formatScheduleBrief;
+  final VoidCallback onShowAll;
+  final VoidCallback onRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = schedules.take(2).toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.event_available, color: kPrimaryDark),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '오늘 일정',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  if (schedules.isEmpty) ...[
+                    const Text(
+                      '등록된 일정이 없습니다.',
+                      style: TextStyle(
+                        color: kTextMuted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: onRegister,
+                        icon: const Icon(Icons.add_task),
+                        label: const Text('일정 등록하러 가기'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kPrimaryDark,
+                          side: BorderSide(color: kPrimary.withOpacity(0.28)),
+                          backgroundColor: kPrimaryLight,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    ...visible.map(
+                      (schedule) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          formatScheduleBrief(schedule),
+                          style: const TextStyle(
+                            color: kTextPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (schedules.length > visible.length)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: onShowAll,
+                          icon: const Icon(Icons.open_in_new, size: 16),
+                          label: Text('외 ${schedules.length - visible.length}건 더 있음'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: kPrimaryDark,
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _RobotFaceIcon extends StatelessWidget {

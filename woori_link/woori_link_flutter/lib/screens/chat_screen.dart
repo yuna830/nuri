@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:intl/intl.dart';
@@ -12,13 +15,22 @@ import '../services/auth_service.dart';
 import '../theme.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({
+    super.key,
+    this.expandTodaySchedules = false,
+    this.initialMessage,
+  });
+
+  final bool expandTodaySchedules;
+  final String? initialMessage;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _storage = FlutterSecureStorage();
+
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FlutterTts _tts = FlutterTts();
@@ -40,11 +52,14 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _voiceAnswerEnabled = true;
   bool _voiceSendScheduled = false;
   bool _voiceHadRecognizedText = false;
+  late bool _todaySchedulesExpanded;
+  bool _initialMessageSent = false;
   _PendingScheduleDraft? _pendingScheduleDraft;
 
   @override
   void initState() {
     super.initState();
+    _todaySchedulesExpanded = widget.expandTodaySchedules;
     _initVoice();
     _loadInitialData();
   }
@@ -100,8 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
         SeniorApi.getSenior(seniorId).catchError((_) => <String, dynamic>{}),
         ScheduleApi.fetchTodaySchedules(seniorId).catchError((_) => <dynamic>[]),
         ScheduleApi.fetchSeniorSchedules(seniorId).catchError((_) => <dynamic>[]),
-        AssistantConversationApi.fetchConversations(seniorId)
-            .catchError((_) => <dynamic>[]),
+        _loadConversationList(seniorId),
       ]);
 
       _seniorId = seniorId;
@@ -117,6 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
       } else {
         await _createConversation();
       }
+      await _sendInitialMessageIfNeeded();
     } catch (_) {
       setState(() {
         _messages = _welcomeMessages();
@@ -173,10 +188,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     ];
 
-    final briefs = _remainingTodaySchedules(_todaySchedules).map(_formatScheduleBrief).toList();
-    if (briefs.isNotEmpty) {
-      messages.add(_ChatMessage.assistant(_formatScheduleAnswer('남은 오늘 일정입니다.', briefs)));
-    }
     if (_apiKeyMissing) {
       messages.add(_ChatMessage.assistant(
         '.env에 VITE_GEMINI_API_KEY 또는 GEMINI_API_KEY를 설정하면 AI 답변을 사용할 수 있습니다.',
@@ -195,8 +206,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final seniorId = _seniorId;
     if (seniorId == null) return;
     try {
-      final savedMessages =
-          await AssistantConversationApi.fetchMessages(seniorId, conversationId);
+      final savedMessages = _isLocalConversationId(conversationId)
+          ? await _loadLocalMessages(seniorId, conversationId)
+          : await AssistantConversationApi.fetchMessages(
+              seniorId,
+              conversationId,
+            );
       setState(() {
         _activeConversationId = conversationId;
         _messages = savedMessages.isEmpty
@@ -233,13 +248,21 @@ class _ChatScreenState extends State<ChatScreen> {
       for (final message in nextMessages) {
         await _saveMessage(message);
       }
+      await _saveLocalConversationSnapshot();
       await _refreshConversations();
       _scrollToBottom();
     } catch (_) {
+      final conversation = _newLocalConversation();
+      final nextMessages = _welcomeMessages();
+      await _saveLocalConversation(seniorId, conversation);
+      await _saveLocalMessages(seniorId, conversation['id'], nextMessages);
       setState(() {
-        _messages = _welcomeMessages();
+        _activeConversationId = conversation['id'];
+        _conversations = [conversation, ..._conversations];
+        _messages = nextMessages;
         _loading = false;
       });
+      _scrollToBottom();
     }
   }
 
@@ -247,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final seniorId = _seniorId;
     if (seniorId == null) return;
     try {
-      final conversations = await AssistantConversationApi.fetchConversations(seniorId);
+      final conversations = await _loadConversationList(seniorId);
       if (!mounted) return;
       if (conversations.isEmpty && _activeConversationId != null && _conversations.isNotEmpty) {
         return;
@@ -348,8 +371,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _voiceSendScheduled = false;
   }
 
-  Future<void> _speak(String text) async {
-    if (!_voiceAnswerEnabled || text.trim().isEmpty) return;
+  Future<void> _speak(String text, {bool force = false}) async {
+    if ((!force && !_voiceAnswerEnabled) || text.trim().isEmpty) return;
     final speakable = text
         .replaceAll(RegExp(r'[#*_`>~\[\]\(\)]'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -361,6 +384,172 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {
       // Korean TTS can be unavailable on some devices.
     }
+  }
+
+  Future<List<dynamic>> _loadConversationList(int seniorId) async {
+    final results = await Future.wait<List<dynamic>>([
+      AssistantConversationApi.fetchConversations(seniorId)
+          .catchError((_) => <dynamic>[]),
+      _loadLocalConversations(seniorId),
+    ]);
+    final byId = <String, Map<String, dynamic>>{};
+    for (final source in results) {
+      for (final item in source) {
+        if (item is! Map) continue;
+        final conversation = Map<String, dynamic>.from(item);
+        final id = '${conversation['id'] ?? ''}';
+        if (id.isEmpty) continue;
+        byId[id] = conversation;
+      }
+    }
+    final conversations = byId.values.toList();
+    conversations.sort((a, b) {
+      final right = _parseDate(b['updatedAt'] ?? b['createdAt']);
+      final left = _parseDate(a['updatedAt'] ?? a['createdAt']);
+      return right.compareTo(left);
+    });
+    return conversations;
+  }
+
+  String _localConversationListKey(int seniorId) =>
+      'assistant_local_conversations_$seniorId';
+
+  String _localMessagesKey(int seniorId, dynamic conversationId) =>
+      'assistant_local_messages_${seniorId}_$conversationId';
+
+  bool _isLocalConversationId(dynamic conversationId) =>
+      '$conversationId'.startsWith('local_');
+
+  Map<String, dynamic> _newLocalConversation() {
+    final now = DateTime.now().toIso8601String();
+    return {
+      'id': 'local_${DateTime.now().microsecondsSinceEpoch}',
+      'title': '새 대화',
+      'createdAt': now,
+      'updatedAt': now,
+      'local': true,
+    };
+  }
+
+  Future<List<dynamic>> _loadLocalConversations(int seniorId) async {
+    final raw = await _storage.read(key: _localConversationListKey(seniorId));
+    if (raw == null || raw.trim().isEmpty) return <dynamic>[];
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is List ? decoded : <dynamic>[];
+    } catch (_) {
+      return <dynamic>[];
+    }
+  }
+
+  Future<void> _saveLocalConversation(
+    int seniorId,
+    Map<String, dynamic> conversation,
+  ) async {
+    final conversations = (await _loadLocalConversations(seniorId))
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    final id = '${conversation['id']}';
+    conversations.removeWhere((item) => '${item['id']}' == id);
+    conversations.insert(0, conversation);
+    await _storage.write(
+      key: _localConversationListKey(seniorId),
+      value: jsonEncode(conversations.take(30).toList()),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadLocalMessages(
+    int seniorId,
+    dynamic conversationId,
+  ) async {
+    final raw = await _storage.read(
+      key: _localMessagesKey(seniorId, conversationId),
+    );
+    if (raw == null || raw.trim().isEmpty) return <Map<String, dynamic>>[];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return <Map<String, dynamic>>[];
+      return decoded
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<void> _saveLocalMessages(
+    int seniorId,
+    dynamic conversationId,
+    List<_ChatMessage> messages,
+  ) async {
+    await _storage.write(
+      key: _localMessagesKey(seniorId, conversationId),
+      value: jsonEncode(messages.map((message) => message.toJson()).toList()),
+    );
+  }
+
+  Future<void> _saveLocalConversationSnapshot() async {
+    final seniorId = _seniorId;
+    final conversationId = _activeConversationId;
+    if (seniorId == null || conversationId == null) return;
+
+    final existing = _conversations.whereType<Map>().firstWhere(
+          (item) => '${item['id']}' == '$conversationId',
+          orElse: () => <String, dynamic>{},
+        );
+    final now = DateTime.now().toIso8601String();
+    final existingTitle = '${existing['title'] ?? ''}'.trim();
+    final title = existing['customTitle'] == true
+        ? existingTitle
+        : _conversationTitleFromMessages();
+    final conversation = {
+      ...Map<String, dynamic>.from(existing),
+      'id': conversationId,
+      'title': title,
+      'updatedAt': now,
+      'createdAt': existing['createdAt'] ?? now,
+      if (_isLocalConversationId(conversationId)) 'local': true,
+    };
+    await _saveLocalConversation(seniorId, conversation);
+    await _saveLocalMessages(seniorId, conversationId, _messages);
+    if (!mounted) return;
+    setState(() {
+      _conversations = _upsertConversation(_conversations, conversation);
+    });
+  }
+
+  String _conversationTitleFromMessages() {
+    for (final message in _messages) {
+      if (message.role == 'user' && message.content.trim().isNotEmpty) {
+        return _conversationTitleFromText(message.content);
+      }
+    }
+    return '새 대화';
+  }
+
+  String _conversationTitleFromText(String text) {
+    final cleaned = text
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'(해줘|해주세요|알려줘|알려주세요|궁금해요|궁금해)$'), '')
+        .trim();
+    if (cleaned.isEmpty) return '새 대화';
+    return cleaned.length > 18 ? '${cleaned.substring(0, 18)}...' : cleaned;
+  }
+
+  List<dynamic> _upsertConversation(
+    List<dynamic> conversations,
+    Map<String, dynamic> conversation,
+  ) {
+    final id = '${conversation['id']}';
+    final next = conversations
+        .whereType<Map>()
+        .where((item) => '${item['id']}' != id)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    next.insert(0, conversation);
+    return next;
   }
 
   Future<void> _setVoiceAnswerEnabled(bool enabled) async {
@@ -408,6 +597,14 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.clear();
     _scrollToBottom();
     await _saveMessage(userMessage);
+    await _maybeUpdateTitle(text);
+
+    final scheduleConfirmAnswer =
+        await _tryConfirmScheduleRegistrationFromText(text);
+    if (scheduleConfirmAnswer != null) {
+      await _addAssistantAnswer(scheduleConfirmAnswer);
+      return;
+    }
 
     final scheduleDeleteAnswer = await _tryDeleteScheduleFromText(text);
     if (scheduleDeleteAnswer != null) {
@@ -415,15 +612,15 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    final scheduleCreateAnswer = await _tryCreateScheduleFromText(text);
-    if (scheduleCreateAnswer != null) {
-      await _addAssistantAnswer(scheduleCreateAnswer);
-      return;
-    }
-
     final localAnswer = await _answerLocally(text);
     if (localAnswer != null) {
       await _addAssistantAnswer(localAnswer);
+      return;
+    }
+
+    final scheduleCreateAnswer = await _tryCreateScheduleFromText(text);
+    if (scheduleCreateAnswer != null) {
+      await _addAssistantAnswer(scheduleCreateAnswer);
       return;
     }
 
@@ -461,7 +658,6 @@ $text
       await _addAssistantAnswer(
         answer?.isNotEmpty == true ? answer! : '답변을 만들지 못했어요. 다시 말씀해 주세요.',
       );
-      await _maybeUpdateTitle(text);
     } catch (_) {
       await _addAssistantAnswer('답변을 가져오지 못했어요. 잠시 후 다시 말씀해 주세요.');
     }
@@ -470,6 +666,9 @@ $text
   Future<String?> _answerLocally(String text) async {
     final normalized = text.replaceAll(' ', '');
     final targetDate = _parseScheduleQueryDate(text);
+    if (_isScheduleRegistrationGuideQuestion(normalized)) {
+      return '일정은 "오늘 오후 5시에 산책 일정 등록해줘"처럼 날짜, 시간, 내용을 같이 말하면 등록할 수 있어요. 날짜를 빼면 오늘 일정으로 보고, 시간이 빠지면 몇 시인지 다시 물어볼게요.';
+    }
     if (RegExp(r'(수정|변경|바꿔)').hasMatch(normalized) && _isScheduleQuestion(normalized)) {
       return '일정 수정은 아직 서버 API가 없어서 바로 바꾸지는 못해요. 지금은 달력에서 기존 일정을 삭제한 뒤 새 일정으로 다시 등록해 주세요.';
     }
@@ -597,6 +796,48 @@ $text
     }
 
     return _saveParsedSchedule(parsed);
+  }
+
+  Future<String?> _tryConfirmScheduleRegistrationFromText(String text) async {
+    final normalized = text.replaceAll(RegExp(r'[\s.!?~요]+'), '');
+    final affirmative =
+        RegExp(r'^(응|네|예|그래|좋아|등록해줘|해줘|맞아|ㅇㅇ)$').hasMatch(normalized);
+    if (!affirmative) return null;
+
+    String? lastAssistant;
+    for (final message in _messages.reversed) {
+      if (message.role == 'assistant') {
+        lastAssistant = message.content;
+        break;
+      }
+    }
+    if (lastAssistant == null || !lastAssistant.contains('등록')) {
+      return null;
+    }
+
+    final match = RegExp(
+      r'((?:오늘|내일모레|모레|내일|글피|20\d{2}[년./-]?\s*\d{1,2}[월./-]?\s*\d{1,2}일?|\d{1,2}\s*월\s*\d{1,2}\s*일)?)\s*'
+      r'((?:오전|오후|아침|점심|저녁|밤|새벽)?\s*\d{1,2}\s*시\s*(?:반|(?:\d{1,2}\s*분?))?)에\s+'
+      r'(.+?)\s+일정을\s+등록(?:해\s*드릴|할)까요',
+    ).firstMatch(lastAssistant);
+    if (match == null) return null;
+
+    final dateText = match.group(1)?.trim() ?? '';
+    final timeText = match.group(2)?.trim() ?? '';
+    final title = (match.group(3) ?? '').trim();
+    if (title.isEmpty || timeText.isEmpty) return null;
+
+    final date = dateText.isEmpty
+        ? DateFormat('yyyy-MM-dd').format(DateTime.now())
+        : _parseScheduleDate(dateText);
+    if (date == null) return null;
+
+    final time = _parseScheduleTime(timeText, date);
+    if (time.isEmpty) return null;
+
+    return _saveParsedSchedule(
+      _ParsedSchedule(date: date, time: time, title: title),
+    );
   }
 
   Future<String> _saveParsedSchedule(_ParsedSchedule parsed) async {
@@ -753,6 +994,18 @@ $text
         normalized.contains('조치일');
   }
 
+  bool _isScheduleRegistrationGuideQuestion(String normalized) {
+    return normalized.contains('일정') &&
+        normalized.contains('등록') &&
+        (normalized.contains('어떻게') ||
+            normalized.contains('방법') ||
+            normalized.contains('하는법') ||
+            normalized.contains('어케') ||
+            normalized.contains('사용법') ||
+            normalized.contains('메뉴얼') ||
+            normalized.contains('매뉴얼'));
+  }
+
   bool _isRecallScheduleQuestion(String normalized) {
     return normalized.contains('리콜') &&
         (normalized.contains('일정') ||
@@ -777,44 +1030,138 @@ $text
     final seniorId = _seniorId;
     final conversationId = _activeConversationId;
     if (seniorId == null || conversationId == null) return;
-    try {
-      await AssistantConversationApi.saveMessage(
-        seniorId,
-        conversationId,
-        {
-          'role': message.role,
-          'content': message.content,
-        },
-      );
-    } catch (_) {
-      // Chat should continue even if persistence is temporarily unavailable.
+    if (!_isLocalConversationId(conversationId)) {
+      try {
+        await AssistantConversationApi.saveMessage(
+          seniorId,
+          conversationId,
+          {
+            'role': message.role,
+            'content': message.content,
+          },
+        );
+      } catch (_) {
+        // Keep a local copy so the conversation list does not disappear.
+      }
     }
+    await _saveLocalConversationSnapshot();
   }
 
   Future<void> _maybeUpdateTitle(String text) async {
     final seniorId = _seniorId;
     final conversationId = _activeConversationId;
-    if (seniorId == null || conversationId == null || _messages.length > 4) return;
-    final title = text.length > 18 ? '${text.substring(0, 18)}...' : text;
+    if (seniorId == null || conversationId == null) return;
+    final existing = _conversations.whereType<Map>().firstWhere(
+          (item) => '${item['id']}' == '$conversationId',
+          orElse: () => <String, dynamic>{},
+    );
+    if (existing['customTitle'] == true) return;
+    final currentTitle = '${existing['title'] ?? ''}'.trim();
+
+    final title = _conversationTitleFromText(text);
+    if (title == '새 대화') return;
+    if (currentTitle.isNotEmpty &&
+        currentTitle != '새 대화' &&
+        currentTitle != title) {
+      return;
+    }
+    final updatedConversation = {
+      ...Map<String, dynamic>.from(existing),
+      'id': conversationId,
+      'title': title,
+      'updatedAt': DateTime.now().toIso8601String(),
+      if (_isLocalConversationId(conversationId)) 'local': true,
+    };
+    await _saveLocalConversation(seniorId, updatedConversation);
     try {
-      await AssistantConversationApi.updateTitle(seniorId, conversationId, title);
-      setState(() {
-        _conversations = _conversations
-            .map((conversation) => conversation['id'] == conversationId
-                ? {...conversation, 'title': title}
-                : conversation)
-            .toList();
-      });
+      if (!_isLocalConversationId(conversationId)) {
+        await AssistantConversationApi.updateTitle(
+          seniorId,
+          conversationId,
+          title,
+        );
+      }
     } catch (_) {
       // Title updates are cosmetic.
     }
+    if (!mounted) return;
+    setState(() {
+      _conversations = _upsertConversation(_conversations, updatedConversation);
+    });
+  }
+
+  Future<void> _renameConversation(
+    dynamic conversationId,
+    String initialTitle,
+  ) async {
+    final seniorId = _seniorId;
+    if (seniorId == null) return;
+    final controller = TextEditingController(text: initialTitle);
+    final title = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('대화 이름 수정'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 24,
+          decoration: const InputDecoration(hintText: '대화 이름'),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final nextTitle = title?.trim();
+    if (nextTitle == null || nextTitle.isEmpty) return;
+
+    final existing = _conversations.whereType<Map>().firstWhere(
+          (item) => '${item['id']}' == '$conversationId',
+          orElse: () => <String, dynamic>{},
+        );
+    final updatedConversation = {
+      ...Map<String, dynamic>.from(existing),
+      'id': conversationId,
+      'title': nextTitle,
+      'customTitle': true,
+      'updatedAt': DateTime.now().toIso8601String(),
+      if (_isLocalConversationId(conversationId)) 'local': true,
+    };
+    await _saveLocalConversation(seniorId, updatedConversation);
+    try {
+      if (!_isLocalConversationId(conversationId)) {
+        await AssistantConversationApi.updateTitle(
+          seniorId,
+          conversationId,
+          nextTitle,
+        );
+      }
+    } catch (_) {
+      // Keep the local title even if the server title update fails.
+    }
+    if (!mounted) return;
+    setState(() {
+      _conversations = _upsertConversation(_conversations, updatedConversation);
+    });
   }
 
   Future<void> _deleteConversation(dynamic conversationId) async {
     final seniorId = _seniorId;
     if (seniorId == null) return;
     try {
-      await AssistantConversationApi.deleteConversation(seniorId, conversationId);
+      if (!_isLocalConversationId(conversationId)) {
+        await AssistantConversationApi.deleteConversation(seniorId, conversationId);
+      }
+      await _deleteLocalConversation(seniorId, conversationId);
       setState(() {
         _conversations =
             _conversations.where((conversation) => conversation['id'] != conversationId).toList();
@@ -833,6 +1180,22 @@ $text
         const SnackBar(content: Text('대화를 삭제하지 못했습니다.')),
       );
     }
+  }
+
+  Future<void> _deleteLocalConversation(
+    int seniorId,
+    dynamic conversationId,
+  ) async {
+    final conversations = (await _loadLocalConversations(seniorId))
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) => '${item['id']}' != '$conversationId')
+        .toList();
+    await _storage.write(
+      key: _localConversationListKey(seniorId),
+      value: jsonEncode(conversations),
+    );
+    await _storage.delete(key: _localMessagesKey(seniorId, conversationId));
   }
 
   DateTime _parseDate(dynamic value) {
@@ -993,6 +1356,15 @@ $text
     _send();
   }
 
+  Future<void> _sendInitialMessageIfNeeded() async {
+    final message = widget.initialMessage?.trim();
+    if (_initialMessageSent || message == null || message.isEmpty) return;
+    if (_activeConversationId == null || _sending) return;
+    _initialMessageSent = true;
+    _controller.text = message;
+    await _send();
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -1004,6 +1376,39 @@ $text
     });
   }
 
+  Future<void> _speakMessage(_ChatMessage message) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.volume_up, color: kPrimary),
+                title: const Text(
+                  '읽어주기',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  message.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _speak(message.content, force: true);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -1012,7 +1417,7 @@ $text
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('상담 챗봇'),
+        title: const Text('챗봇'),
         actions: [
           IconButton(
             tooltip: _voiceAnswerEnabled ? '음성 답변 끄기' : '음성 답변 켜기',
@@ -1038,6 +1443,10 @@ $text
               schedules: _todaySchedules,
               formatScheduleBrief: _formatScheduleBrief,
               onOpenCalendar: _openScheduleCalendar,
+              expanded: _todaySchedulesExpanded,
+              onToggleExpanded: () => setState(
+                () => _todaySchedulesExpanded = !_todaySchedulesExpanded,
+              ),
             ),
             Expanded(
               child: ListView.builder(
@@ -1048,7 +1457,10 @@ $text
                   if (_sending && index == _messages.length) {
                     return const _TypingBubble();
                   }
-                  return _MessageBubble(message: _messages[index]);
+                  return _MessageBubble(
+                    message: _messages[index],
+                    onSpeak: _speakMessage,
+                  );
                 },
               ),
             ),
@@ -1108,12 +1520,28 @@ $text
                   color: selected ? kPrimary : kTextMuted,
                 ),
                 title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _deleteConversation(id);
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '이름 수정',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _renameConversation(id, title);
+                      },
+                    ),
+                    IconButton(
+                      tooltip: '삭제',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteConversation(id);
+                      },
+                    ),
+                  ],
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -1234,14 +1662,44 @@ class _TodaySchedulePanel extends StatelessWidget {
     required this.schedules,
     required this.formatScheduleBrief,
     required this.onOpenCalendar,
+    required this.expanded,
+    required this.onToggleExpanded,
   });
 
   final List<dynamic> schedules;
   final String Function(dynamic schedule) formatScheduleBrief;
   final VoidCallback onOpenCalendar;
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
 
   @override
   Widget build(BuildContext context) {
+    final visibleSchedules = expanded ? schedules : schedules.take(4).toList();
+    final hiddenCount = schedules.length - visibleSchedules.length;
+    final scheduleChips = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: visibleSchedules
+          .map((schedule) => Chip(
+                avatar: const Icon(
+                  Icons.schedule,
+                  size: 15,
+                  color: kPrimaryDark,
+                ),
+                label: Text(formatScheduleBrief(schedule)),
+                labelStyle: const TextStyle(
+                  fontSize: 12,
+                  color: kTextPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+                backgroundColor: kPrimaryLight,
+                side: BorderSide(color: kPrimary.withOpacity(0.22)),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ))
+          .toList(),
+    );
+
     return Container(
       width: double.infinity,
       color: kBg,
@@ -1291,27 +1749,33 @@ class _TodaySchedulePanel extends StatelessWidget {
             const SizedBox(height: 10),
             if (schedules.isEmpty)
               const Text('등록된 일정이 없습니다.', style: TextStyle(color: kTextMuted, fontSize: 12))
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: schedules
-                    .take(4)
-                    .map((schedule) => Chip(
-                          avatar: const Icon(Icons.schedule, size: 15, color: kPrimaryDark),
-                          label: Text(formatScheduleBrief(schedule)),
-                          labelStyle: const TextStyle(
-                            fontSize: 12,
-                            color: kTextPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          backgroundColor: kPrimaryLight,
-                          side: BorderSide(color: kPrimary.withOpacity(0.22)),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ))
-                    .toList(),
-              ),
+            else ...[
+              if (expanded && schedules.length > 4)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 168),
+                  child: SingleChildScrollView(child: scheduleChips),
+                )
+              else
+                scheduleChips,
+              if (schedules.length > 4) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: onToggleExpanded,
+                    icon: Icon(
+                      expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      size: 18,
+                    ),
+                    label: Text(expanded ? '접기' : '더보기 $hiddenCount건'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: kPrimaryDark,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
@@ -1475,6 +1939,7 @@ class _QuickQuestions extends StatelessWidget {
       '오늘 일정 알려줘',
       '리콜 조치일정 알려줘',
       '리콜 제품은 어떻게 확인해?',
+      '일정 등록 어떻게 해?',
     ];
 
     return Container(
@@ -1524,15 +1989,21 @@ class _QuickQuestions extends StatelessWidget {
     return switch (index) {
       0 => Icons.today,
       1 => Icons.support_agent,
-      _ => Icons.manage_search,
+      2 => Icons.manage_search,
+      _ => Icons.event_note,
     };
   }
+
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({
+    required this.message,
+    required this.onSpeak,
+  });
 
   final _ChatMessage message;
+  final ValueChanged<_ChatMessage> onSpeak;
 
   @override
   Widget build(BuildContext context) {
@@ -1546,28 +2017,31 @@ class _MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: alignment,
         children: [
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.76,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(fromUser ? 16 : 4),
-                bottomRight: Radius.circular(fromUser ? 4 : 16),
+          GestureDetector(
+            onLongPress: () => onSpeak(message),
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.76,
               ),
-              border: fromUser ? null : Border.all(color: kBorder),
-            ),
-            child: Text(
-              message.content,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                height: 1.45,
-                fontWeight: fromUser ? FontWeight.w600 : FontWeight.w500,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(fromUser ? 16 : 4),
+                  bottomRight: Radius.circular(fromUser ? 4 : 16),
+                ),
+                border: fromUser ? null : Border.all(color: kBorder),
+              ),
+              child: Text(
+                message.content,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                  height: 1.45,
+                  fontWeight: fromUser ? FontWeight.w600 : FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -1699,6 +2173,14 @@ class _ChatMessage {
 
   factory _ChatMessage.assistant(String content) {
     return _ChatMessage(role: 'assistant', content: content, createdAt: DateTime.now());
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'role': role,
+      'content': content,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 
   final String role;
