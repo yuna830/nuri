@@ -7,10 +7,6 @@ final String baseUrl = _requiredUrl(
   'API_BASE_URL',
 );
 
-
-// 낙상 모델(fall-detection) 서버
-// 카메라 + 휴대폰 센서 앙상블이 동작하는 FastAPI 서버.
-
 String _requiredUrl(String value, String name) {
   final normalized = value.trim().replaceFirst(RegExp(r'/$'), '');
   if (normalized.isEmpty) {
