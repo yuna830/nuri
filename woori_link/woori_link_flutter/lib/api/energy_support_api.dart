@@ -149,6 +149,40 @@ class EnergySupportApi {
     );
   }
 
+  /// GET /api/energy-support/voucher/{seniorId}
+  static Future<Map<String, dynamic>?> getEnergyVoucherDetail(
+    int seniorId,
+  ) {
+    if (seniorId <= 0) {
+      return Future.error(
+        Exception('에너지바우처 정보를 조회할 사용자 ID가 없습니다.'),
+      );
+    }
+
+    return _getDetail(
+      '/energy-support/voucher/$seniorId',
+      '에너지바우처 정보 조회',
+    );
+  }
+
+  /// PUT /api/energy-support/voucher/{seniorId}
+  static Future<Map<String, dynamic>> saveEnergyVoucherDetail(
+    int seniorId,
+    Map<String, dynamic> body,
+  ) {
+    if (seniorId <= 0) {
+      return Future.error(
+        Exception('에너지바우처 정보를 저장할 사용자 ID가 없습니다.'),
+      );
+    }
+
+    return _saveDetail(
+      '/energy-support/voucher/$seniorId',
+      '에너지바우처 정보 저장',
+      body,
+    );
+  }
+
   /// GET /api/energy-support/electricity/{seniorId}
   static Future<Map<String, dynamic>?> getElectricityDiscountDetail(
     int seniorId,
