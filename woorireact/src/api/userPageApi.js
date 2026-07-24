@@ -8,7 +8,7 @@ import {
   markLocalAlertRead,
 } from "./localAlertStore";
 
-import { FALL_API_PORT, SPRING_API_BASE, getDefaultFallApiBase } from "../config/api.js";
+import { SPRING_API_BASE, getDefaultFallApiBase } from "../config/api.js";
 
 const API_BASE = SPRING_API_BASE;
 

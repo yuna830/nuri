@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     product_label_ocr_enabled: bool = True
     product_label_ocr_allowed_sources: str = "GUARDIAN_WEB"
     document_ai_history_db: str = "document_ai_history.db"
+    cors_allowed_origins: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -15,6 +16,10 @@ class Settings(BaseSettings):
     @property
     def allowed_sources(self) -> set[str]:
         return {value.strip() for value in self.product_label_ocr_allowed_sources.split(",") if value.strip()}
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [value.strip() for value in self.cors_allowed_origins.split(",") if value.strip()]
 
 
 settings = Settings()

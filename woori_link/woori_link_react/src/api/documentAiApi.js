@@ -1,9 +1,5 @@
 import axios from 'axios';
-
-const DOCUMENT_AI_BASE_URL = (
-  import.meta.env.VITE_DOCUMENT_AI_BASE_URL
-  || 'http://127.0.0.1:8002'
-).replace(/\/$/, '');
+import { DOCUMENT_AI_BASE_URL } from '../config/api.js';
 
 export const productDocumentAiEnabled = (
   String(import.meta.env.VITE_PRODUCT_LABEL_OCR_ENABLED ?? import.meta.env.VITE_PRODUCT_DOCUMENT_AI_ENABLED ?? 'true').toLowerCase() === 'true'

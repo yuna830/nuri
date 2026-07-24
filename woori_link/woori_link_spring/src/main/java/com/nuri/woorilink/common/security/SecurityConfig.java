@@ -27,7 +27,7 @@ public class SecurityConfig {
     private final JwtTokenProvider tokenProvider;
 
     @Value(
-            "#{'${app.cors.allowed-origin-patterns:http://localhost:*}'.split(',')}"
+            "#{'${app.cors.allowed-origin-patterns}'.split(',')}"
     )
     private List<String> allowedOriginPatterns;
 

@@ -16,10 +16,8 @@ public class AiBackendProperties {
      * FastAPI 기본 주소.
      *
      * 기본값:
-     * http://127.0.0.1:8000/api
      */
-    private String baseUrl =
-            "http://127.0.0.1:8000/api";
+    private String baseUrl;
 
     /**
      * 안부 분석 API 경로.
@@ -50,10 +48,7 @@ public class AiBackendProperties {
     }
 
     public void setBaseUrl(String baseUrl) {
-        this.baseUrl = normalizeText(
-                baseUrl,
-                "http://127.0.0.1:8000/api"
-        );
+        this.baseUrl = normalizeText(baseUrl, null);
     }
 
     public String getCheckInAnalysisPath() {

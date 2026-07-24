@@ -1,9 +1,10 @@
 import {
   getToken,
 } from '../utils/auth.js';
-
-const DEFAULT_SPRING_API_BASE_URL = 'http://localhost:8090/api';
-const DEFAULT_RAG_API_BASE_URL = 'http://127.0.0.1:8001/api';
+import {
+  RAG_API_BASE_URL,
+  SPRING_API_BASE_URL,
+} from '../config/api.js';
 
 
 /*
@@ -12,12 +13,12 @@ const DEFAULT_RAG_API_BASE_URL = 'http://127.0.0.1:8001/api';
  * 우선순위:
  * 1. VITE_PRODUCT_API_BASE_URL
  * 2. VITE_SPRING_API_BASE_URL
- * 3. http://localhost:8090/api
+ * 3. VITE_SPRING_API_BASE_URL
  */
 const PRODUCT_API_BASE_URL = (
   import.meta.env.VITE_PRODUCT_API_BASE_URL
   || import.meta.env.VITE_SPRING_API_BASE_URL
-  || DEFAULT_SPRING_API_BASE_URL
+  || SPRING_API_BASE_URL
 ).replace(/\/$/, '');
 
 
@@ -26,14 +27,8 @@ const PRODUCT_API_BASE_URL = (
  *
  * 우선순위:
  * 1. VITE_RAG_API_BASE_URL
- * 2. http://127.0.0.1:8001/api
+ * 2. VITE_RAG_API_BASE_URL
  */
-const RAG_API_BASE_URL = (
-  import.meta.env.VITE_RAG_API_BASE_URL
-  || DEFAULT_RAG_API_BASE_URL
-).replace(/\/$/, '');
-
-
 const REGISTERED_PRODUCT_PATH = (
   import.meta.env.VITE_REGISTERED_PRODUCT_PATH
   || '/products/senior'
@@ -338,7 +333,7 @@ export async function getGuardianRecallProducts(
  * 보호자용 RAG 질문을 전송한다.
  *
  * FastAPI 요청 예시:
- * POST http://127.0.0.1:8001/api/chat
+ * POST /chat
  *
  * 요청 본문:
  * {

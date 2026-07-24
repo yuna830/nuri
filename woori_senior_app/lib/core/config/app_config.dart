@@ -3,7 +3,7 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get apiBaseUrl {
-  return dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8080';
+  return dotenv.env['API_BASE_URL'] ?? '';
 }
 
 String get kakaoNativeAppKey {
@@ -11,13 +11,17 @@ String get kakaoNativeAppKey {
 }
 
 String get fallServerBaseUrl {
-  return dotenv.env['FALL_API_BASE_URL'] ?? 'http://10.0.2.2:8000';
+  return dotenv.env['FALL_API_BASE_URL'] ?? '';
 }
 
 String get chatApiBaseUrl {
-  return dotenv.env['CHAT_API_BASE_URL'] ?? 'http://10.0.2.2:8002';
+  return dotenv.env['CHAT_API_BASE_URL'] ?? '';
 }
 
 String get kakaoJavaScriptKey {
   return dotenv.env['KAKAO_JAVASCRIPT_KEY'] ?? '';
+}
+
+String get kakaoJavaScriptBaseUrl {
+  return dotenv.env['KAKAO_JAVASCRIPT_BASE_URL'] ?? '';
 }

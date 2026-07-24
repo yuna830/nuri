@@ -31,7 +31,7 @@ public class PublicWelfareRagEmbeddingSyncService {
     private final RagDocumentRepository ragDocumentRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${ai.backend.base-url:http://127.0.0.1:8001/api}")
+    @Value("${ai.backend.base-url}")
     private String aiBackendBaseUrl;
 
     public PublicWelfareRagEmbeddingSyncService(

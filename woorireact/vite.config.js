@@ -5,7 +5,7 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const kakaoRestApiKey = (env.VITE_KAKAO_REST_API_KEY || '').trim()
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080'
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim()
 
   return {
   plugins: [
@@ -27,14 +27,14 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/airkorea/, ''),
         secure: false,
       },
-      '/api': {
+      ...(apiProxyTarget ? {'/api': {
         target: apiProxyTarget,
         changeOrigin: true,
-      },
-      '/uploads': {
+      }} : {}),
+      ...(apiProxyTarget ? {'/uploads': {
         target: apiProxyTarget,
         changeOrigin: true,
-      },
+      }} : {}),
       '/senuri': {
         target: 'http://apis.data.go.kr',
         changeOrigin: true,

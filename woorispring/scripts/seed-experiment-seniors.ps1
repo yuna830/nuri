@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$BaseUrl = "http://localhost:8083",
+    [string]$BaseUrl = $env:WOORI_SPRING_BASE_URL,
     [int]$CountPerStatus = 20
 )
 

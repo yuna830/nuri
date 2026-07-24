@@ -35,8 +35,8 @@ police.safe182.esntl-id=${SAFE182_ESNTL_ID}
 police.safe182.auth-key=${SAFE182_AUTH_KEY}
 
 # ─── 연동 서버 ────────────────────────────────────────
-ai.backend.base-url=${AI_BACKEND_BASE_URL:http://127.0.0.1:8001/api}
-app.face-server-url=${FACE_SERVER_URL:http://localhost:8003}
+ai.backend.base-url=${AI_BACKEND_BASE_URL}
+app.face-server-url=${FACE_SERVER_URL}
 
 # ─── Firebase FCM ────────────────────────────────────
 firebase.service-account-path=${FIREBASE_SERVICE_ACCOUNT_PATH}

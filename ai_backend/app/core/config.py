@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     database_url: str
     spring_upload_root: str = "C:/github/nuri/woorispring/uploads"
+    cors_allowed_origins: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -28,6 +29,14 @@ class Settings(BaseSettings):
     public_welfare_service_key: str
     public_welfare_list_url: str
     public_welfare_detail_url: str
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()
