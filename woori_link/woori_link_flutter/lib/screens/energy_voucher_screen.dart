@@ -317,7 +317,6 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     'electricAddressSame',
     'electricityServiceAddress',
     'electricBillReady',
-    'electricityApplicationStatus',
     'electricityNote',
   };
 
@@ -484,12 +483,6 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
     apply('recentBillChecked', 'electricBillReady');
     apply('note', 'electricityNote');
 
-    final status = _electricityDiscountStatusToDisplay(
-      detail['currentDiscountStatus'],
-    );
-    if (status != null) {
-      values['electricityApplicationStatus'] = status;
-    }
     return values;
   }
 
@@ -507,16 +500,12 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           ? _emptyToNull(info['electricityServiceAddress'])
           : null,
       'recentBillChecked': info['electricBillReady'],
-      'currentDiscountStatus': _electricityDiscountStatusToServer(
-        info['electricityApplicationStatus'],
-      ),
       'note': _emptyToNull(info['electricityNote']),
     };
   }
 
   bool _shouldSaveElectricityDetail(Map<String, dynamic> info) {
-    return info['electricityApplicationStatus'] != null ||
-        _emptyToNull(info['electricityCompany']) != null ||
+    return _emptyToNull(info['electricityCompany']) != null ||
         _emptyToNull(info['electricCustomerNo']) != null ||
         _emptyToNull(info['electricContractor']) != null ||
         info['electricAddressSame'] != null ||
@@ -1460,12 +1449,23 @@ class _Benefit {
 }
 
 class _InputField {
-  const _InputField.toggle(this.key, this.label, {this.hint})
+  const _InputField.toggle(
+    this.key,
+    this.label, {
+    this.hint,
+    this.requiredForStatus = true,
+  })
       : type = _FieldType.toggle,
         options = const [],
         keyboardType = null;
 
-  const _InputField.text(this.key, this.label, {this.hint, this.keyboardType})
+  const _InputField.text(
+    this.key,
+    this.label, {
+    this.hint,
+    this.keyboardType,
+    this.requiredForStatus = true,
+  })
       : type = _FieldType.text,
         options = const [];
 
@@ -1474,10 +1474,16 @@ class _InputField {
     this.label,
     this.options, {
     this.hint,
+    this.requiredForStatus = true,
   })  : type = _FieldType.choice,
         keyboardType = null;
 
-  const _InputField.householdBirthDates(this.key, this.label, {this.hint})
+  const _InputField.householdBirthDates(
+    this.key,
+    this.label, {
+    this.hint,
+    this.requiredForStatus = true,
+  })
       : type = _FieldType.householdBirthDates,
         options = const [],
         keyboardType = null;
@@ -1488,6 +1494,7 @@ class _InputField {
   final _FieldType type;
   final List<String> options;
   final TextInputType? keyboardType;
+  final bool requiredForStatus;
 }
 
 enum _FieldType { toggle, text, choice, householdBirthDates }
@@ -1535,11 +1542,6 @@ const _benefits = [
       _InputField.toggle('coalCoupon', '연탄쿠폰 수급'),
       _InputField.toggle('coalEnergyVoucher', '연탄전환 에너지바우처 수급'),
       _InputField.toggle('energyVoucherRecipient', '에너지바우처 수급'),
-      _InputField.choice(
-        'energyVoucherApplicationStatus',
-        '현재 신청 여부',
-        ['모름', '미신청', '신청 중', '선정 완료', '사용 중', '대상 아님'],
-      ),
     ],
   ),
   _Benefit(
@@ -1559,17 +1561,29 @@ const _benefits = [
       _InputField.choice('apartmentBillingType', '아파트 전기요금 방식', ['해당 없음', '개별계량', '관리비 합산', '모름']),
       _InputField.toggle('electricWelfareRecipient', '수급자·차상위·장애인 등 할인 자격 있음'),
       _InputField.text('electricHouseholdCount', '세대원 수', keyboardType: TextInputType.number),
-      _InputField.text('minorChildCount', '자녀 수', keyboardType: TextInputType.number),
-      _InputField.text('childBirthDates', '자녀 생년월일'),
-      _InputField.text('recentBabyBirthDate', '최근 출생아 생년월일'),
+      _InputField.toggle('minorChildrenPresent', '미성년 자녀 있음'),
+      _InputField.text(
+        'minorChildCount',
+        '자녀 수',
+        hint: '자녀가 없으면 위 항목에서 아니요를 선택하세요.',
+        keyboardType: TextInputType.number,
+        requiredForStatus: false,
+      ),
+      _InputField.text(
+        'childBirthDates',
+        '자녀 생년월일',
+        hint: '확인 가능한 경우만 입력하세요.',
+        requiredForStatus: false,
+      ),
+      _InputField.text(
+        'recentBabyBirthDate',
+        '최근 출생아 생년월일',
+        hint: '해당하는 경우만 입력하세요.',
+        requiredForStatus: false,
+      ),
       _InputField.toggle('lifeSupportDevice', '생명유지장치 사용'),
       _InputField.toggle('electricBillReady', '최근 전기요금 고지서 확인'),
       _InputField.text('electricityNote', '전기요금 확인 메모'),
-      _InputField.choice(
-        'electricityApplicationStatus',
-        '현재 할인 적용 여부',
-        ['모름', '할인받지 않음', '할인받고 있음'],
-      ),
     ],
   ),
   _Benefit(
@@ -1602,17 +1616,13 @@ const _benefits = [
       _InputField.toggle('gasEnergyVoucherRecipient', '에너지바우처 수급'),
       _InputField.toggle('gasBillReady', '최근 가스요금 고지서 확인'),
       _InputField.text('gasNote', '도시가스 확인 메모'),
-      _InputField.choice(
-        'gasApplicationStatus',
-        '현재 경감 적용 여부',
-        ['모름', '미신청', '신청 완료', '적용 중', '도시가스 미사용', '공급회사 확인 필요'],
-      ),
     ],
   ),
 ];
 
 _BenefitStatus _evaluateBenefit(_Benefit benefit, Map<String, dynamic> info) {
   final missing = benefit.fields
+      .where((field) => field.requiredForStatus)
       .where((field) => !_hasValue(info[field.key]))
       .map((field) => field.label)
       .take(6)

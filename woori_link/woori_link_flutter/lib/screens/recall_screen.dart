@@ -1040,13 +1040,6 @@ class _RecallScreenState extends State<RecallScreen> {
                     ),
                     Row(
                       children: [
-                        Icon(
-                          status == 'RECALLED'
-                              ? Icons.warning_amber
-                              : Icons.inventory_2_outlined,
-                          color: _statusColor(status),
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '${product['productName'] ?? '제품명 없음'}',
@@ -2077,14 +2070,6 @@ class _RecallScreenState extends State<RecallScreen> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  status == 'RECALLED'
-                                      ? Icons.warning_amber
-                                      : Icons.inventory_2_outlined,
-                                  color: _statusColor(status),
-                                  size: 30,
-                                ),
-                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
