@@ -1,5 +1,6 @@
 package com.nuri.woorilink.service;
 
+import com.nuri.woorilink.dto.WelfareWorkAlertDto;
 import com.nuri.woorilink.entity.*;
 import com.nuri.woorilink.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,10 @@ public class CareMonitoringService {
     private final CareAlertRepository alertRepository;
     private final CheckInRepository checkInRepository;
     private final CheckInScheduleRepository checkInScheduleRepository;
+    private final ActionRecordRepository actionRecordRepository;
+    private final RegisteredProductRepository registeredProductRepository;
+    private final RecallNoticeRepository recallNoticeRepository;
+    private final EnergySupportConsultationRequestRepository energySupportConsultationRequestRepository;
 
     @Transactional
     public CareEvent reportEvent(Long seniorId, CareEvent.EventType type, Double latitude, Double longitude, String note) {
@@ -140,6 +145,11 @@ public class CareMonitoringService {
     }
     public List<CareAlert> guardianAlerts(Long guardianId) { return alertRepository.findByGuardianIdOrderByCreatedAtDesc(guardianId); }
 
+    @Transactional
+    public void deleteAllGuardianAlerts(Long guardianId) {
+        alertRepository.deleteByGuardianId(guardianId);
+    }
+
     public List<CareAlert> seniorAlerts(Long seniorId) { return alertRepository.findBySeniorIdAndGuardianIdIsNullOrderByCreatedAtDesc(seniorId); }
 
     public List<CareAlert> welfareNotices(Long welfareWorkerId) {
@@ -152,6 +162,367 @@ public class CareMonitoringService {
                 seniorIds,
                 CareEvent.EventType.WELFARE_NOTICE
         );
+    }
+
+    public List<WelfareWorkAlertDto> welfareAlerts(
+            Long welfareWorkerId
+    ) {
+        List<Senior> seniors =
+                seniorRepository.findByWelfareWorkerId(
+                        welfareWorkerId
+                );
+
+        List<Long> seniorIds =
+                seniors.stream()
+                        .map(Senior::getId)
+                        .toList();
+
+        if (seniorIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, String> seniorNames =
+                seniors.stream()
+                        .collect(
+                                java.util.stream.Collectors.toMap(
+                                        Senior::getId,
+                                        Senior::getName
+                                )
+                        );
+
+        java.util.ArrayList<WelfareWorkAlertDto> alerts =
+                new java.util.ArrayList<>();
+
+
+        /* =====================================================
+         * 에너지복지 정보 확인 요청
+         * ===================================================== */
+        energySupportConsultationRequestRepository
+                .findByWelfareWorkerIdAndStatusInOrderByCreatedAtDesc(
+                        welfareWorkerId,
+                        List.of(
+                                EnergySupportConsultationRequest
+                                        .ConsultationStatus
+                                        .REQUESTED,
+
+                                EnergySupportConsultationRequest
+                                        .ConsultationStatus
+                                        .IN_PROGRESS
+                        )
+                )
+                .forEach(request -> {
+                    String seniorName =
+                            seniorNames.getOrDefault(
+                                    request.getSeniorId(),
+                                    "담당 대상자"
+                            );
+
+                    boolean inProgress =
+                            request.getStatus()
+                                    == EnergySupportConsultationRequest
+                                    .ConsultationStatus
+                                    .IN_PROGRESS;
+
+                    String title =
+                            inProgress
+                                    ? "에너지복지 정보 확인 중"
+                                    : "에너지복지 정보 확인 요청";
+
+                    String message =
+                            seniorName
+                                    + "님의 보호자가 확인하지 못한 필수 정보 "
+                                    + request.getMissingCount()
+                                    + "개 항목에 대한 확인을 요청했습니다.";
+
+                    alerts.add(
+                            new WelfareWorkAlertDto(
+                                    "energy-consultation-"
+                                            + request.getId(),
+
+                                    "ENERGY_SUPPORT_CONSULTATION",
+
+                                    "MEDIUM",
+
+                                    title,
+
+                                    message,
+
+                                    request.getSeniorId(),
+
+                                    request.getStatus().name(),
+
+                                    "GUARDIAN",
+
+                                    request.getCreatedAt()
+                            )
+                    );
+                });
+
+
+        /* =====================================================
+         * 생활안전 지원 확인 요청
+         * ===================================================== */
+        actionRecordRepository
+                .findBySeniorIdIn(
+                        seniorIds
+                )
+                .stream()
+                .filter(record ->
+                        record.getActionSubject()
+                                == ActionRecord.ActionSubject.GUARDIAN
+                )
+                .filter(record ->
+                        record.getStatus()
+                                != ActionRecord.ActionStatus.COMPLETED
+                                && record.getStatus()
+                                != ActionRecord.ActionStatus.CANCELLED
+                )
+                .filter(record ->
+                        switch (
+                                record.getActionType()
+                                ) {
+                            case GAS_CHECK,
+                                 ELECTRIC_CHECK,
+                                 FIRE_CHECK,
+                                 HEATING_CHECK,
+                                 FALL_CHECK,
+                                 OTHER -> true;
+
+                            default -> false;
+                        }
+                )
+                .forEach(record ->
+                        alerts.add(
+                                new WelfareWorkAlertDto(
+                                        "support-"
+                                                + record.getId(),
+
+                                        "SAFETY_SUPPORT_REQUEST",
+
+                                        "MEDIUM",
+
+                                        "생활안전 지원 확인 요청",
+
+                                        seniorNames.getOrDefault(
+                                                record.getSeniorId(),
+                                                "담당 대상자"
+                                        )
+                                                + "님의 생활안전 지원 여부를 확인해 주세요.",
+
+                                        record.getSeniorId(),
+
+                                        null,
+
+                                        null,
+
+                                        record.getCreatedAt()
+                                )
+                        )
+                );
+
+
+        /* =====================================================
+         * 리콜 제품 등록
+         * ===================================================== */
+        registeredProductRepository
+                .findBySeniorIdInAndRecallStatus(
+                        seniorIds,
+                        RegisteredProduct.RecallStatus.RECALLED
+                )
+                .forEach(product -> {
+                    String seniorName =
+                            seniorNames.getOrDefault(
+                                    product.getSeniorId(),
+                                    "담당 대상자"
+                            );
+
+                    String source =
+                            product.getRegistrationSource();
+
+                    boolean guardianRegistered =
+                            source != null
+                                    && source
+                                    .toUpperCase(
+                                            java.util.Locale.ROOT
+                                    )
+                                    .contains(
+                                            "GUARDIAN"
+                                    );
+
+                    String registrant =
+                            guardianRegistered
+                                    ? seniorName
+                                    + "님의 보호자가"
+                                    : seniorName
+                                    + "님이";
+
+                    String actionType =
+                            product.getMatchedRecallNoticeId()
+                                    == null
+                                    ? RecallNotice.ActionType
+                                    .GENERAL_GUIDANCE
+                                    .name()
+                                    : recallNoticeRepository
+                                    .findById(
+                                            product.getMatchedRecallNoticeId()
+                                    )
+                                    .map(
+                                            RecallNotice::getActionType
+                                    )
+                                    .map(
+                                            Enum::name
+                                    )
+                                    .orElse(
+                                            RecallNotice.ActionType
+                                                    .GENERAL_GUIDANCE
+                                                    .name()
+                                    );
+
+                    alerts.add(
+                            new WelfareWorkAlertDto(
+                                    "recall-"
+                                            + product.getId(),
+
+                                    "RECALL_PRODUCT_REGISTERED",
+
+                                    "HIGH",
+
+                                    "리콜 제품 등록",
+
+                                    registrant
+                                            + " 리콜 대상 제품을 등록했습니다.",
+
+                                    product.getSeniorId(),
+
+                                    actionType,
+
+                                    source,
+
+                                    product.getCreatedAt()
+                            )
+                    );
+                });
+
+
+        /* =====================================================
+         * 보호자 미확인 안부 알림
+         * ===================================================== */
+        alertRepository
+                .findBySeniorIdInOrderByCreatedAtDesc(
+                        seniorIds
+                )
+                .stream()
+                .filter(alert ->
+                        alert.getType()
+                                == CareEvent.EventType.CHECK_IN_MISSED
+                )
+                .filter(alert ->
+                        alert.getGuardianId() != null
+                )
+                .filter(alert ->
+                        alert.getStatus()
+                                == CareAlert.AlertStatus.UNREAD
+                )
+                .filter(alert ->
+                        alert.getReminderCount() != null
+                                && alert.getReminderCount() > 0
+                )
+                .forEach(alert ->
+                        alerts.add(
+                                new WelfareWorkAlertDto(
+                                        "checkin-"
+                                                + alert.getId(),
+
+                                        "GUARDIAN_UNREAD_CHECK_IN",
+
+                                        "HIGH",
+
+                                        "안부 미응답 반복",
+
+                                        seniorNames.getOrDefault(
+                                                alert.getSeniorId(),
+                                                "담당 대상자"
+                                        )
+                                                + "님의 안부 미응답이 반복되었으며 보호자가 아직 확인하지 않았습니다.",
+
+                                        alert.getSeniorId(),
+
+                                        null,
+
+                                        null,
+
+                                        alert.getCreatedAt()
+                                )
+                        )
+                );
+
+
+        /* =====================================================
+         * 방문 상담 요청
+         * ===================================================== */
+        actionRecordRepository
+                .findBySeniorIdIn(
+                        seniorIds
+                )
+                .stream()
+                .filter(record ->
+                        record.getActionType()
+                                == ActionRecord.ActionType.VISIT
+                )
+                .filter(record ->
+                        record.getActionSubject()
+                                == ActionRecord.ActionSubject.GUARDIAN
+                                || record.getActionSubject()
+                                == ActionRecord.ActionSubject.SENIOR
+                )
+                .filter(record ->
+                        record.getStatus()
+                                != ActionRecord.ActionStatus.COMPLETED
+                                && record.getStatus()
+                                != ActionRecord.ActionStatus.CANCELLED
+                )
+                .forEach(record ->
+                        alerts.add(
+                                new WelfareWorkAlertDto(
+                                        "visit-"
+                                                + record.getId(),
+
+                                        "VISIT_INTENT",
+
+                                        "MEDIUM",
+
+                                        "방문 상담 요청",
+
+                                        seniorNames.getOrDefault(
+                                                record.getSeniorId(),
+                                                "담당 대상자"
+                                        )
+                                                + " 측에서 방문 의사를 전달했습니다.",
+
+                                        record.getSeniorId(),
+
+                                        null,
+
+                                        null,
+
+                                        record.getCreatedAt()
+                                )
+                        )
+                );
+
+
+        return alerts.stream()
+                .sorted(
+                        java.util.Comparator.comparing(
+                                WelfareWorkAlertDto::createdAt,
+
+                                java.util.Comparator.nullsLast(
+                                        java.util.Comparator.reverseOrder()
+                                )
+                        )
+                )
+                .limit(30)
+                .toList();
     }
 
     @Transactional

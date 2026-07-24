@@ -2,6 +2,7 @@ package com.nuri.woorilink.controller;
 
 import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.entity.*;
+import com.nuri.woorilink.dto.WelfareWorkAlertDto;
 import com.nuri.woorilink.service.CareMonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -92,6 +93,11 @@ public class CareMonitoringController {
         return careMonitoringService.welfareNotices(requireWelfareWorker(user));
     }
 
+    @GetMapping("/welfare-alerts")
+    public List<WelfareWorkAlertDto> welfareAlerts(@AuthenticationPrincipal AuthenticatedUser user) {
+        return careMonitoringService.welfareAlerts(requireWelfareWorker(user));
+    }
+
     @DeleteMapping("/welfare-notices/{alertId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cancelWelfareNotice(@PathVariable Long alertId, @AuthenticationPrincipal AuthenticatedUser user) {
@@ -145,6 +151,19 @@ public class CareMonitoringController {
             throw new AccessDeniedException("You can only view your own alerts");
         }
         return careMonitoringService.guardianAlerts(authenticatedGuardianId);
+    }
+
+    @DeleteMapping("/guardians/{guardianId}/alerts")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAllGuardianAlerts(
+            @PathVariable Long guardianId,
+            Authentication authentication
+    ) {
+        Long authenticatedGuardianId = requireGuardian(authentication);
+        if (!authenticatedGuardianId.equals(guardianId)) {
+            throw new AccessDeniedException("You can only delete your own alerts");
+        }
+        careMonitoringService.deleteAllGuardianAlerts(authenticatedGuardianId);
     }
 
     @PatchMapping("/alerts/{alertId}")

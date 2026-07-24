@@ -83,6 +83,9 @@ export const acknowledgeAlert = (
     { resolved },
   );
 
+export const deleteAllGuardianAlerts = (guardianId) =>
+  api.delete(`/care/guardians/${guardianId}/alerts`);
+
 export const getLatestLocation = (seniorId) =>
   api.get(
     `/care/seniors/${seniorId}/locations/latest`,

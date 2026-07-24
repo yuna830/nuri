@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   acknowledgeAlert,
+  deleteAllGuardianAlerts,
   getGuardianAlerts,
   getSeniorsByGuardian,
 } from '../../api/guardianApi.js';
@@ -396,6 +397,16 @@ export default function GuardianSidebar({
 
   const [processingAlertId, setProcessingAlertId] = useState(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem('guardianDismissedAlertIds') || '[]',
+      );
+    } catch {
+      return [];
+    }
+  });
 
 
   const unreadCount = useMemo(() => (
@@ -426,7 +437,9 @@ export default function GuardianSidebar({
         getSeniorsByGuardian(),
       ]);
 
-      setAlerts(normalizeArray(alertsResponse.data));
+      setAlerts(normalizeArray(alertsResponse.data).filter((alert) => (
+        !dismissedAlertIds.includes(String(getAlertId(alert)))
+      )));
       setSeniors(normalizeArray(seniorsResponse.data));
     } catch (error) {
       setAlertError(
@@ -438,7 +451,7 @@ export default function GuardianSidebar({
         setAlertsLoading(false);
       }
     }
-  }, []);
+  }, [dismissedAlertIds]);
 
 
   useEffect(() => {
@@ -550,6 +563,42 @@ export default function GuardianSidebar({
       }
     } finally {
       setMarkingAll(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const guardianId = currentUser?.id ?? currentUser?.userId;
+
+    if (!guardianId || alerts.length === 0 || deletingAll) {
+      return;
+    }
+
+    setDeletingAll(true);
+    setAlertError('');
+
+    const nextDismissedIds = [
+      ...new Set([
+        ...dismissedAlertIds,
+        ...alerts
+          .map((alert) => getAlertId(alert))
+          .filter(Boolean)
+          .map(String),
+      ]),
+    ];
+
+    setDismissedAlertIds(nextDismissedIds);
+    localStorage.setItem(
+      'guardianDismissedAlertIds',
+      JSON.stringify(nextDismissedIds),
+    );
+    setAlerts([]);
+
+    try {
+      await deleteAllGuardianAlerts(guardianId);
+    } catch (error) {
+      console.error('보호자 알림 서버 삭제 실패:', error);
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -768,13 +817,23 @@ export default function GuardianSidebar({
             <div className="guardian-notification-panel__toolbar">
               <span>최근 알림 {sortedAlerts.length}건</span>
 
-              <button
-                type="button"
-                onClick={handleMarkAllRead}
-                disabled={unreadCount === 0 || markingAll}
-              >
-                {markingAll ? '처리 중...' : '모두 읽음'}
-              </button>
+              <div className="guardian-notification-panel__toolbar-actions">
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  disabled={unreadCount === 0 || markingAll || deletingAll}
+                >
+                  {markingAll ? '처리 중...' : '모두 확인'}
+                </button>
+                <button
+                  type="button"
+                  className="guardian-notification-panel__delete-all"
+                  onClick={handleDeleteAll}
+                  disabled={sortedAlerts.length === 0 || deletingAll || markingAll}
+                >
+                  {deletingAll ? '삭제 중...' : '모두 삭제'}
+                </button>
+              </div>
             </div>
 
             {alertError && (
@@ -820,46 +879,60 @@ export default function GuardianSidebar({
                           'guardian-notification-item',
                           unread
                             ? 'guardian-notification-item--unread'
-                            : '',
+                            : 'guardian-notification-item--read',
                         ]
                           .filter(Boolean)
                           .join(' ')}
                       >
                         <div className="guardian-notification-item__top">
-                          <div className="guardian-notification-item__labels">
-                            <span className="guardian-notification-item__type">
-                              {getAlertTypeLabel(alert)}
-                            </span>
-
-                            {unread && (
-                              <span className="guardian-notification-item__new">
-                                새 알림
+                          <h3>
+                            {getAlertTitle(alert)}
+                            {detectionScore != null && (
+                              <span className="guardian-notification-item__score-text">
+                                {' '}(감지 점수: {detectionScore})
                               </span>
                             )}
-                          </div>
+                          </h3>
 
-                          <time>
-                            {formatAlertTime(
-                              getAlertTimestamp(alert),
+                          <div className="guardian-notification-item__meta">
+                            <time>
+                              {formatAlertTime(
+                                getAlertTimestamp(alert),
+                              )}
+                            </time>
+
+                            {unread && (
+                              <button
+                                type="button"
+                                className="guardian-notification-item__read-button"
+                                onClick={() => (
+                                  handleAcknowledgeAlert(alert)
+                                )}
+                                disabled={
+                                  processingAlertId === getAlertId(alert)
+                                }
+                              >
+                                {processingAlertId === getAlertId(alert)
+                                  ? '처리 중...'
+                                  : '확인'}
+                              </button>
                             )}
-                          </time>
+
+                            {action && (
+                              <button
+                                type="button"
+                                className="guardian-notification-item__action-button"
+                                onClick={() => handleAlertAction(alert)}
+                              >
+                                {action.label}
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="guardian-notification-item__copy">
-                          <strong>
-                            {getAlertSeniorName(alert, seniors)} 어르신
-                          </strong>
-
-                          <h3>{getAlertTitle(alert)}</h3>
-
                           {getAlertMessage(alert) && (
                             <p>{getAlertMessage(alert)}</p>
-                          )}
-
-                          {detectionScore != null && (
-                            <span className="guardian-notification-item__score">
-                              감지 점수 {detectionScore}
-                            </span>
                           )}
 
                           {imageUrl && (
@@ -879,38 +952,6 @@ export default function GuardianSidebar({
                           )}
                         </div>
 
-                        <div className="guardian-notification-item__actions">
-                          {unread ? (
-                            <button
-                              type="button"
-                              className="guardian-notification-item__read-button"
-                              onClick={() => (
-                                handleAcknowledgeAlert(alert)
-                              )}
-                              disabled={
-                                processingAlertId === getAlertId(alert)
-                              }
-                            >
-                              {processingAlertId === getAlertId(alert)
-                                ? '처리 중...'
-                                : '읽음 처리'}
-                            </button>
-                          ) : (
-                            <span className="guardian-notification-item__read-label">
-                              확인됨
-                            </span>
-                          )}
-
-                          {action && (
-                            <button
-                              type="button"
-                              className="guardian-notification-item__action-button"
-                              onClick={() => handleAlertAction(alert)}
-                            >
-                              {action.label}
-                            </button>
-                          )}
-                        </div>
                       </article>
                     );
                   })}

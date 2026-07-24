@@ -2008,3 +2008,223 @@
     grid-column: auto;
   }
 }
+
+/* ===== Simplified welfare recall action modal ===== */
+
+.recall-modal {
+  width: min(760px, 100%);
+  max-height: 86vh;
+}
+
+.recall-modal-body {
+  padding: 22px 28px 24px;
+}
+
+.recall-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 24px;
+  border-top: 1px solid #e7edf3;
+  border-bottom: 1px solid #e7edf3;
+}
+
+.recall-overview__item {
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.recall-overview__item + .recall-overview__item {
+  border-left: 1px solid #e7edf3;
+}
+
+.recall-overview__item span,
+.recall-overview__item strong {
+  display: block;
+}
+
+.recall-overview__item span {
+  margin-bottom: 6px;
+  color: #8a98aa;
+  font-size: 11px;
+}
+
+.recall-overview__item strong {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.recall-official-info {
+  padding-bottom: 22px;
+  border-bottom: 1px solid #e7edf3;
+}
+
+.recall-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recall-section-header > div:first-child span,
+.recall-section-header > div:first-child strong {
+  display: block;
+}
+
+.recall-section-header > div:first-child span {
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.recall-section-header > div:first-child strong {
+  color: #506a51;
+  font-size: 17px;
+}
+
+.recall-section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.recall-section-actions .btn-outline {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.recall-section-actions .btn-outline:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.recall-official-info__list {
+  margin: 18px 0 0;
+}
+
+.recall-official-info__list > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px 0;
+}
+
+.recall-official-info__list > div + div {
+  border-top: 1px solid #f0f3f6;
+}
+
+.recall-official-info__list dt {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recall-official-info__list dd {
+  margin: 0;
+  color: #394656;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.recall-official-info__list a {
+  color: #506a51;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.recall-official-info__list a:hover {
+  text-decoration: underline;
+}
+
+.recall-plan-section {
+  padding-top: 22px;
+}
+
+.recall-section-title {
+  margin-bottom: 16px;
+}
+
+.recall-section-title strong,
+.recall-section-title span {
+  display: block;
+}
+
+.recall-section-title strong {
+  margin-bottom: 5px;
+  color: #1f2933;
+  font-size: 15px;
+}
+
+.recall-section-title span {
+  color: #8a98aa;
+  font-size: 12px;
+}
+
+.recall-clean-text {
+  white-space: pre-line;
+}
+
+.recall-plan-section .recall-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.recall-plan-section .recall-note-field {
+  grid-column: 1 / -1;
+}
+
+.recall-plan-section .recall-note-field textarea {
+  min-height: 92px;
+}
+
+.recall-modal-actions {
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 28px;
+  border-top: 1px solid #e7edf3;
+}
+
+@media (max-width: 700px) {
+  .recall-modal-overlay {
+    padding: 12px;
+  }
+
+  .recall-modal-header,
+  .recall-modal-body,
+  .recall-modal-actions {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .recall-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .recall-overview__item + .recall-overview__item {
+    border-top: 1px solid #e7edf3;
+    border-left: 0;
+  }
+
+  .recall-section-header {
+    flex-direction: column;
+  }
+
+  .recall-section-actions {
+    width: 100%;
+  }
+
+  .recall-section-actions .btn-outline {
+    flex: 1;
+  }
+
+  .recall-official-info__list > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .recall-plan-section .recall-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

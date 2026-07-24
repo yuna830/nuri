@@ -1,15 +1,12 @@
 import {
   BrowserRouter,
   Navigate,
-  NavLink,
   Outlet,
   Route,
   Routes,
-  useNavigate,
 } from 'react-router-dom';
 
 import {
-  clearUser,
   getUser,
 } from './utils/auth.js';
 
@@ -37,6 +34,7 @@ import RecallList from './pages/welfare/RecallList.jsx';
 import Schedule from './pages/welfare/Schedule.jsx';
 import SeniorDetail from './pages/welfare/SeniorDetail.jsx';
 import SeniorList from './pages/welfare/SeniorList.jsx';
+import WelfareSidebar from './pages/welfare/WelfareSidebar.jsx';
 
 
 /* =========================================================
@@ -44,7 +42,6 @@ import SeniorList from './pages/welfare/SeniorList.jsx';
    ========================================================= */
 
 function WelfareProtectedLayout() {
-  const navigate = useNavigate();
   const user = getUser();
 
   if (!user) {
@@ -65,73 +62,9 @@ function WelfareProtectedLayout() {
     );
   }
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error(
-        '복지사 로그아웃 요청 실패:',
-        error,
-      );
-    } finally {
-      clearUser();
-
-      navigate(
-        '/welfare/login',
-        {
-          replace: true,
-        },
-      );
-    }
-  };
-
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <h1>WOORI</h1>
-          <p>복지사 관리 시스템</p>
-        </div>
-
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/welfare"
-            end
-          >
-            대시보드
-          </NavLink>
-
-          <NavLink to="/welfare/seniors">
-            대상자 목록
-          </NavLink>
-
-          <NavLink to="/welfare/energy-voucher">
-            에너지복지 신청 지원
-          </NavLink>
-
-          <NavLink to="/welfare/recalled">
-            리콜 제품 조치 관리
-          </NavLink>
-
-          <NavLink to="/welfare/schedule">
-            방문 일정
-          </NavLink>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            {user.name || '담당자'} 복지사
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="sidebar-logout"
-          >
-            로그아웃
-          </button>
-        </div>
-      </aside>
+      <WelfareSidebar />
 
       <main className="main-content">
         <div className="welfare-content-container">

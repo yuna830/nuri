@@ -37,8 +37,7 @@
 .guardian-mypage__two-column {
   display: grid;
   grid-template-columns:
-    minmax(0, 1.45fr)
-    minmax(340px, 0.95fr);
+    minmax(0, 1.45fr) minmax(340px, 0.95fr);
   align-items: stretch;
   gap: 18px;
 }
@@ -236,8 +235,7 @@
 .guardian-profile-actions {
   display: grid;
   grid-template-columns:
-    minmax(0, 7fr)
-    minmax(0, 3fr);
+    minmax(0, 7fr) minmax(0, 3fr);
   gap: 9px;
 
   width: 100%;
@@ -294,8 +292,7 @@
 }
 
 .guardian-profile-actions .guardian-mypage__save-button,
-.guardian-mypage__card
-.guardian-profile-actions__delete {
+.guardian-mypage__card .guardian-profile-actions__delete {
   width: 100%;
   height: 44px;
   box-sizing: border-box;
@@ -841,10 +838,744 @@
   background: #b85f52;
 }
 
+/* =========================================================
+ * 에너지복지 정보 보완 모달
+ * ========================================================= */
+
+.energy-complement-overlay {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  padding: 24px;
+
+  background: rgba(25, 36, 28, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+.energy-complement-modal {
+  display: flex;
+  flex-direction: column;
+
+  width: min(860px, 100%);
+  max-height: calc(100vh - 48px);
+
+  overflow: hidden;
+
+  border: 1px solid #e1e7e0;
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 28px 80px rgba(25, 36, 28, 0.22);
+}
+
 
 /* =========================================================
- * 반응형
+ * 모달 상단
  * ========================================================= */
+
+.energy-complement-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 24px 26px 19px;
+
+  border-bottom: 1px solid #edf0ed;
+}
+
+.energy-complement-header>div {
+  min-width: 0;
+}
+
+.energy-complement-header h2 {
+  margin: 0;
+
+  color: #29352d;
+
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: -0.035em;
+}
+
+.energy-complement-header p {
+  margin: 7px 0 0;
+
+  color: #818c84;
+
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.energy-complement-close {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+
+  place-items: center;
+
+  margin: -4px -4px 0 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 9px;
+
+  background: transparent;
+  color: #7d8980;
+
+  font-family: Arial, sans-serif;
+  font-size: 27px;
+  font-weight: 400;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.energy-complement-close:hover {
+  background: #f1f4f0;
+  color: #39463d;
+}
+
+.energy-complement-close:focus-visible {
+  outline: 3px solid rgba(145, 168, 137, 0.23);
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+ * 구분 탭
+ * ========================================================= */
+
+.energy-complement-tabs {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+
+  padding: 0 26px;
+
+  border-bottom: 1px solid #e9ede9;
+
+  background: #ffffff;
+}
+
+.energy-complement-tabs button {
+  position: relative;
+
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 0 10px;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  color: #79837c;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.energy-complement-tabs button::after {
+  position: absolute;
+  right: 10px;
+  bottom: -1px;
+  left: 10px;
+
+  height: 2px;
+
+  border-radius: 999px;
+
+  background: transparent;
+
+  content: '';
+}
+
+.energy-complement-tabs button:hover {
+  background: #fafbfa;
+  color: #526151;
+}
+
+.energy-complement-tabs button.active {
+  color: #5f775b;
+  font-weight: 900;
+}
+
+.energy-complement-tabs button.active::after {
+  background: #8fa987;
+}
+
+.energy-complement-tabs button span {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.energy-complement-tabs button strong {
+  display: inline-flex;
+  flex: 0 0 auto;
+
+  min-width: 21px;
+  height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  padding: 0 6px;
+
+  border-radius: 999px;
+
+  background: #eef2ed;
+  color: #788478;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.energy-complement-tabs button.active strong {
+  background: #e6eee3;
+  color: #60785c;
+}
+
+/* =========================================================
+ * 로딩 및 오류
+ * ========================================================= */
+
+.energy-complement-state {
+  display: grid;
+  min-height: 300px;
+
+  place-items: center;
+
+  padding: 40px 24px;
+
+  color: #7c877e;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.energy-complement-error {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+
+  border: 1px solid #eccdc8;
+  border-radius: 10px;
+
+  background: #fff6f4;
+  color: #a65349;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+ * 모달 본문
+ * ========================================================= */
+
+.energy-complement-body {
+  flex: 1 1 auto;
+
+  min-height: 0;
+  padding: 20px 26px 26px;
+
+  overflow-y: auto;
+
+  scrollbar-width: thin;
+  scrollbar-color: #cdd6cc transparent;
+}
+
+.energy-complement-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.energy-complement-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.energy-complement-body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+
+  background: #cdd6cc;
+  background-clip: padding-box;
+}
+
+.energy-complement-section {
+  width: 100%;
+}
+
+.energy-complement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 18px 20px;
+}
+
+.energy-complement-grid>label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+
+  margin: 0;
+}
+
+.energy-complement-grid>label>span {
+  color: #475449;
+
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.energy-complement-grid input,
+.energy-complement-grid select,
+.energy-complement-grid textarea {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  border: 1px solid #dce3dc;
+  border-radius: 10px;
+  outline: none;
+
+  background: #ffffff;
+  color: #29352d;
+
+  font: inherit;
+  font-size: 13px;
+
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.energy-complement-grid input,
+.energy-complement-grid select {
+  height: 45px;
+  padding: 0 13px;
+}
+
+.energy-complement-grid textarea {
+  min-height: 96px;
+
+  padding: 12px 13px;
+
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.energy-complement-grid input::placeholder,
+.energy-complement-grid textarea::placeholder {
+  color: #a3aba4;
+}
+
+.energy-complement-grid input:hover,
+.energy-complement-grid select:hover,
+.energy-complement-grid textarea:hover {
+  border-color: #c7d0c6;
+}
+
+.energy-complement-grid input:focus,
+.energy-complement-grid select:focus,
+.energy-complement-grid textarea:focus {
+  border-color: #91a889;
+
+  box-shadow:
+    0 0 0 3px rgba(145, 168, 137, 0.13);
+}
+
+.energy-complement-grid input:disabled,
+.energy-complement-grid select:disabled,
+.energy-complement-grid textarea:disabled {
+  background: #f5f7f4;
+  color: #89928b;
+
+  cursor: not-allowed;
+}
+
+.energy-complement-grid select {
+  appearance: none;
+
+  padding-right: 38px;
+
+  background-image:
+    linear-gradient(45deg,
+      transparent 50%,
+      #7a857d 50%),
+    linear-gradient(135deg,
+      #7a857d 50%,
+      transparent 50%);
+
+  background-position:
+    calc(100% - 17px) 19px,
+    calc(100% - 12px) 19px;
+
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+}
+
+.energy-complement-full {
+  grid-column: 1 / -1;
+}
+
+
+/* =========================================================
+ * 모달 하단
+ * ========================================================= */
+
+.energy-complement-footer {
+  display: flex;
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 14px 26px;
+
+  border-top: 1px solid #e9ede9;
+
+  background: #ffffff;
+}
+
+.energy-complement-footer__status {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.energy-complement-footer__status strong {
+  color: #5f775b;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.energy-complement-footer__status span {
+  color: #8a938c;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.energy-complement-footer__actions {
+  display: flex;
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.energy-complement-footer button {
+  min-width: 104px;
+  height: 43px;
+
+  box-sizing: border-box;
+  padding: 0 18px;
+
+  border-radius: 9px;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.energy-complement-cancel {
+  border: 1px solid #dce3dc;
+
+  background: #ffffff;
+  color: #687369;
+}
+
+.energy-complement-cancel:hover:not(:disabled) {
+  border-color: #c5cec4;
+
+  background: #f7f9f6;
+  color: #455047;
+}
+
+.energy-complement-save {
+  border: 1px solid #91a889;
+
+  background: #91a889;
+  color: #ffffff;
+}
+
+.energy-complement-save:hover:not(:disabled) {
+  border-color: #7f9978;
+
+  background: #7f9978;
+}
+
+.energy-complement-footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 필수 항목 빨간 별 */
+.energy-required-mark {
+  display: inline-block;
+
+  margin-left: 3px;
+
+  color: #d74b45;
+
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: top;
+}
+
+
+/* 조건에 따라 입력할 수 없는 항목 */
+.energy-complement-grid input:disabled,
+.energy-complement-grid select:disabled,
+.energy-complement-grid textarea:disabled {
+  border-color: #e5e9e4;
+
+  background: #f5f7f4;
+  color: #9aa29c;
+
+  cursor: not-allowed;
+}
+
+
+/* 하단 필수 미입력 안내 */
+.energy-complement-footer__status strong {
+  color: #627a5e;
+}
+
+.energy-complement-footer__status span {
+  color: #8a938c;
+}
+
+/* =========================================================
+ * 상담 요청 결과 안내
+ * ========================================================= */
+
+.energy-complement-success {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+
+  border: 1px solid #cfdeca;
+  border-radius: 10px;
+
+  background: #f3f8f1;
+  color: #587153;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+
+.energy-consultation-status {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  margin-bottom: 18px;
+  padding: 13px 15px;
+
+  border: 1px solid #dce5d9;
+  border-radius: 11px;
+
+  background: #f7f9f6;
+}
+
+
+.energy-consultation-status>div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+
+.energy-consultation-status strong {
+  color: #52654f;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+
+.energy-consultation-status span {
+  color: #7f8a81;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+
+.energy-consultation-status__badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+
+  min-height: 27px;
+
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  padding: 0 10px;
+
+  border-radius: 999px;
+
+  background: #e7eee4;
+  color: #5d7658 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+}
+
+
+/* =========================================================
+ * 상담 요청 버튼
+ * ========================================================= */
+
+.energy-consultation-button {
+  min-width: 104px;
+  height: 43px;
+
+  box-sizing: border-box;
+  padding: 0 18px;
+
+  border: 1px solid #7e9678;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #61785d;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+
+.energy-consultation-button:hover:not(:disabled) {
+  border-color: #6f8969;
+
+  background: #f2f6f0;
+  color: #526b4e;
+}
+
+
+.energy-consultation-button--requested {
+  border-color: #dce3db;
+
+  background: #f3f5f2;
+  color: #89928b;
+}
+
+
+.energy-consultation-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+ * 태블릿 반응형
+ * ========================================================= */
+
+@media (max-width: 800px) {
+  .energy-complement-overlay {
+    padding: 16px;
+  }
+
+  .energy-complement-modal {
+    max-height: calc(100vh - 32px);
+  }
+
+  .energy-complement-header {
+    padding:
+      21px 21px 17px;
+  }
+
+  .energy-complement-tabs {
+    padding: 0 20px;
+  }
+
+  .energy-complement-tabs button {
+    min-height: 53px;
+    padding: 0 6px;
+
+    font-size: 11px;
+  }
+
+  .energy-complement-body {
+    padding:
+      18px 20px 22px;
+  }
+
+  .energy-complement-grid {
+    gap:
+      16px 15px;
+  }
+
+  .energy-complement-footer {
+    padding:
+      13px 20px;
+  }
+}
 
 @media (max-width: 850px) {
   .guardian-senior-information-item {
@@ -889,6 +1620,54 @@
     grid-template-columns:
       minmax(0, 2fr) minmax(120px, 1fr);
   }
+
+  .energy-complement-overlay {
+    padding: 16px;
+  }
+
+  .energy-complement-modal {
+    max-height: calc(100vh - 32px);
+  }
+
+  .energy-complement-header {
+    padding:
+      21px 21px 17px;
+  }
+
+  .energy-complement-tabs {
+    padding: 0 20px;
+  }
+
+  .energy-complement-tabs button {
+    min-height: 53px;
+    padding: 0 6px;
+
+    font-size: 11px;
+  }
+
+  .energy-complement-body {
+    padding:
+      18px 20px 22px;
+  }
+
+  .energy-complement-grid {
+    gap:
+      16px 15px;
+  }
+
+  .energy-complement-footer {
+    padding:
+      13px 20px;
+  }
+
+  .energy-complement-footer__actions {
+    grid-template-columns:
+      0.8fr 1fr 1fr;
+  }
+
+  .energy-consultation-status {
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 600px) {
@@ -912,6 +1691,96 @@
   .guardian-senior-information-footer {
     padding: 11px 12px;
   }
+
+  .energy-complement-overlay {
+    align-items: flex-end;
+
+    padding: 0;
+
+    background: rgba(25, 36, 28, 0.52);
+  }
+
+  .energy-complement-modal {
+    width: 100%;
+    max-height: 92vh;
+
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius:
+      20px 20px 0 0;
+  }
+
+  .energy-complement-header {
+    padding:
+      19px 18px 16px;
+  }
+
+  .energy-complement-header h2 {
+    font-size: 18px;
+  }
+
+  .energy-complement-header p {
+    font-size: 12px;
+  }
+
+  .energy-complement-tabs {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    padding: 0 14px;
+  }
+
+  .energy-complement-tabs button {
+    min-height: 48px;
+
+    border-bottom: 1px solid #edf0ed;
+  }
+
+  .energy-complement-tabs button::after {
+    right: 7px;
+    left: 7px;
+  }
+
+  .energy-complement-body {
+    padding:
+      17px 16px 20px;
+  }
+
+  .energy-complement-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .energy-complement-full {
+    grid-column: auto;
+  }
+
+  .energy-complement-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 11px;
+
+    padding:
+      12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .energy-complement-footer__status {
+    gap: 2px;
+  }
+
+  .energy-complement-footer__actions {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+
+    width: 100%;
+    gap: 8px;
+  }
+
+  .energy-complement-footer button {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 520px) {
@@ -921,5 +1790,39 @@
 
   .guardian-mypage__card .guardian-profile-actions__delete {
     height: 44px;
+  }
+
+  .energy-complement-footer__actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .energy-consultation-button {
+    grid-column: 1 / -1;
+
+    width: 100%;
+  }
+
+  .energy-consultation-status {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 390px) {
+  .energy-complement-tabs button {
+    gap: 5px;
+
+    padding: 0 3px;
+
+    font-size: 10px;
+  }
+
+  .energy-complement-tabs button strong {
+    min-width: 19px;
+    height: 19px;
+
+    padding: 0 5px;
+
+    font-size: 9px;
   }
 }

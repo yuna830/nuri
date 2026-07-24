@@ -25,14 +25,6 @@ const ACTION_STATUS_LABEL = {
   NOT_RECALLED: '등록 공고 일치 없음',
 }
 
-const GUARDIAN_CONTACT_STATUS_LABEL = {
-  UNKNOWN: '미확인',
-  SCHEDULED: '연락 예정',
-  COMPLETED: '연락 완료',
-  UNREACHABLE: '연락 불가',
-}
-
-const GUARDIAN_CONTACT_METHODS = ['전화', '방문', '기타']
 
 function valueOrFallback(value, fallback = '-') {
   return value === null || value === undefined || value === '' ? fallback : value
@@ -112,14 +104,19 @@ function recallDecisionTone(product) {
   }
 }
 
-function removeGuideNotes(note) {
-  return String(note || '')
+function cleanRecallText(value) {
+  if (!value) return ''
+
+  return String(value)
+    .replace(/\s+[-–—•·▪▫■□◆◇▶▷※○◯〇oO]\s+/g, '\n')
     .split(/\r?\n/)
-    .filter(line => !line.trim().startsWith('님 안내:')
-      && !line.trim().startsWith('보호자 안내:')
-      && !line.trim().startsWith('제조사 문의:'))
+    .map(line =>
+      line
+        .replace(/^\s*[-–—•·▪▫■□◆◇▶▷※○◯〇oO]+\s*/g, '')
+        .trim()
+    )
+    .filter(Boolean)
     .join('\n')
-    .trim()
 }
 
 function formatDate(value) {
@@ -134,12 +131,6 @@ function formatCheckedDate(value) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
 }
 
-function formatGuidanceDate(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
 
 function recallActionType(product) {
   return product.actionType
@@ -334,18 +325,6 @@ const SUMMARY_FILTERS = [
   },
 ]
 
-const FINAL_RESULT_OPTIONS = [
-  ['USE_STOPPED', '사용 중단 완료'],
-  ['REPAIRED', '수리 완료'],
-  ['EXCHANGED', '교환 완료'],
-  ['REFUNDED', '환불 완료'],
-  ['RECOVERED', '회수 완료'],
-  ['DECLINED', '조치 거부/불가'],
-]
-
-function finalResultLabel(value) {
-  return FINAL_RESULT_OPTIONS.find(([optionValue]) => optionValue === value)?.[1] || valueOrFallback(value)
-}
 
 function alertWorkflowSaveError(error) {
   console.error('Failed to save recall workflow', error)
@@ -359,14 +338,6 @@ export default function RecallList() {
   const [form, setForm] = useState({})
   const [activeTab, setActiveTab] = useState('ALL')
   const [selectedSeniorId, setSelectedSeniorId] = useState('ALL')
-  const [step, setStep] = useState(1)
-  const [showOriginal, setShowOriginal] = useState(false)
-  const [useStatusSelected, setUseStatusSelected] = useState(false)
-  const [showStopGuidance, setShowStopGuidance] = useState(false)
-  const [showRecallDetails, setShowRecallDetails] = useState(false)
-  const [followUpEditing, setFollowUpEditing] = useState(true)
-  const [completionOnly, setCompletionOnly] = useState(false)
-  const [guidanceForm, setGuidanceForm] = useState({ method: '', target: '', memo: '' })
   const [seniors, setSeniors] = useState([])
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [noticeTab, setNoticeTab] = useState('compose')
@@ -447,7 +418,9 @@ export default function RecallList() {
     setSelected(product)
     setForm({
       modelMatchStatus: product.modelMatchStatus || 'MATCHED',
-      currentUseStatus: product.currentUseStatus === 'NOT_OWNED' ? 'UNKNOWN' : product.currentUseStatus || 'UNKNOWN',
+      currentUseStatus: product.currentUseStatus === 'NOT_OWNED'
+        ? 'UNKNOWN'
+        : product.currentUseStatus || 'UNKNOWN',
       contactMethod: product.contactMethod || '',
       stopGuidanceCompleted: product.stopGuidanceCompleted || false,
       stopGuidanceCompletedAt: product.stopGuidanceCompletedAt || null,
@@ -466,18 +439,6 @@ export default function RecallList() {
       note: product.note || '',
       finalResult: product.finalResult || '',
     })
-    setStep(!product.currentUseStatus || ['UNKNOWN', 'NOT_OWNED'].includes(product.currentUseStatus) ? 1 : 2)
-    setFollowUpEditing(!(product.followUpType || product.finalResult || product.followUpProgressStatus === 'COMPLETED'))
-    setCompletionOnly(false)
-    setShowOriginal(false)
-    setShowRecallDetails(false)
-    setUseStatusSelected(product.currentUseStatus && !['UNKNOWN', 'NOT_OWNED'].includes(product.currentUseStatus))
-    setShowStopGuidance(false)
-    setGuidanceForm({
-      method: product.stopGuidanceMethod || product.contactMethod || '',
-      target: product.stopGuidanceTarget || '',
-      memo: product.stopGuidanceMemo || '',
-    })
   }
 
   function workflowPayload(extra = {}) {
@@ -489,157 +450,35 @@ export default function RecallList() {
     }
   }
 
-  function hasGuardianContactWork(draft = form) {
-    return draft.contactMethod === '보호자 연락' || ['보호자 연락', '보호자 안내'].includes(draft.followUpType)
-  }
-
-  function needsGuardianContactForStep() {
-    return step === 1
-      ? form.contactMethod === '보호자 연락'
-      : ['보호자 연락', '보호자 안내'].includes(form.followUpType)
-  }
-
-  function updateGuardianContactStatus(value) {
-    setForm(previous => ({
-      ...previous,
-      guardianContactStatus: value,
-      guardianContactedAt: value === 'COMPLETED' ? (previous.guardianContactedAt || new Date().toISOString()) : null,
-    }))
-  }
-
-  function updateContactMethod(value) {
-    setForm(previous => {
-      const shouldKeepGuardianContact = value === '보호자 연락' || ['보호자 연락', '보호자 안내'].includes(previous.followUpType)
-      return {
-        ...previous,
-        contactMethod: value,
-        guardianContactStatus: shouldKeepGuardianContact ? previous.guardianContactStatus : 'UNKNOWN',
-        guardianContactMethod: shouldKeepGuardianContact ? previous.guardianContactMethod : '',
-        guardianContactedAt: shouldKeepGuardianContact ? previous.guardianContactedAt : null,
-        guardianContactMemo: shouldKeepGuardianContact ? previous.guardianContactMemo : '',
-      }
-    })
-  }
-
-  function validateGuardianContact() {
-    if (!needsGuardianContactForStep()) return false
-    if (form.guardianContactStatus === 'UNKNOWN') {
-      alert('보호자 연락 상태를 선택해주세요.')
-      return true
-    }
-    if (form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) {
-      alert('보호자 다음 연락일을 입력해주세요.')
-      return true
-    }
-    return false
-  }
-
-  function renderGuardianContactPanel() {
-    return (
-      <section className="recall-guardian-contact-panel">
-        <div className="recall-guardian-contact-panel__header">
-          <strong>보호자 연락 기록</strong>
-          <span>{GUARDIAN_CONTACT_STATUS_LABEL[form.guardianContactStatus] || '미확인'}</span>
-        </div>
-        <fieldset className="recall-choice-group recall-guardian-status-group">
-          <legend>연락 상태 <small>보호자에게 리콜 위험과 필요한 조치를 안내했는지 기록하세요.</small></legend>
-          {Object.entries(GUARDIAN_CONTACT_STATUS_LABEL).map(([value, label]) => (
-            <button key={value} type="button" className={form.guardianContactStatus === value ? 'active' : ''} onClick={() => updateGuardianContactStatus(value)}>{label}</button>
-          ))}
-        </fieldset>
-        <div className="recall-guardian-contact-fields">
-          <label>실제 연락 수단<select value={form.guardianContactMethod ?? ''} onChange={event => setForm(previous => ({ ...previous, guardianContactMethod: event.target.value }))}><option value="">선택</option>{GUARDIAN_CONTACT_METHODS.map(value => <option key={value}>{value}</option>)}</select></label>
-          <label>연락 메모<textarea value={form.guardianContactMemo ?? ''} onChange={event => setForm(previous => ({ ...previous, guardianContactMemo: event.target.value }))} placeholder="통화 내용, 연락 실패 사유, 보호자 요청사항을 기록하세요." /></label>
-        </div>
-        {form.guardianContactedAt && <p className="recall-guardian-contact-time">연락 완료 시각: {formatGuidanceDate(form.guardianContactedAt)}</p>}
-      </section>
-    )
-  }
-
-  async function completeStopGuidance() {
-    if (!guidanceForm.method) return alert('안내 방법을 선택해주세요.')
-    if (!guidanceForm.target) return alert('상담 대상을 선택해주세요.')
-    const completedAt = new Date().toISOString()
-    const worker = getUser()
-    const guidanceData = workflowPayload({
-      stopGuidanceCompleted: true,
-      stopGuidanceCompletedAt: completedAt,
-      stopGuidanceMethod: guidanceForm.method,
-      stopGuidanceTarget: guidanceForm.target,
-      stopGuidanceWorkerId: getUserId(),
-      stopGuidanceMemo: guidanceForm.memo,
-      nextActionDate: form.nextActionDate || null,
-      finalResult: form.finalResult || null,
-      welfareWorkerId: getUserId(),
-    })
-    try {
-      await updateRecallWorkflow(selected.id, guidanceData)
-      setForm(previous => ({
-        ...previous,
-        stopGuidanceCompleted: true,
-        stopGuidanceCompletedAt: completedAt,
-        stopGuidanceMethod: guidanceForm.method,
-        stopGuidanceTarget: guidanceForm.target,
-        stopGuidanceWorkerId: getUserId(),
-        stopGuidanceMemo: guidanceForm.memo,
-        stopGuidanceWorkerName: worker?.name || '',
-      }))
-      setSelected(previous => ({
-        ...previous,
-        ...guidanceData,
-        stopGuidanceWorkerName: worker?.name || '',
-      }))
-      setShowStopGuidance(false)
-      await load()
-    } catch (error) {
-      alertWorkflowSaveError(error)
-    }
-  }
-
   async function handleActionSave(event) {
     event.preventDefault()
-    if (step === 1 && !form.contactMethod) return alert('확인 방법을 먼저 선택해주세요.')
-    if (step === 1 && validateGuardianContact()) return
-    if (step === 1 && !useStatusSelected) return alert('제품 사용 상태를 선택해주세요.')
-    if (step === 1 && form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted) return alert('사용 중단 안내를 먼저 완료해주세요.')
-    if (step === 2 && !form.followUpType) return alert('후속 조치 유형을 선택해주세요.')
-    if (step === 2 && validateGuardianContact()) return
-    if (step === 2 && completionOnly && !form.finalResult) return alert('조치 완료 결과를 선택해주세요.')
-    if (step === 2 && !form.finalResult && !form.nextActionDate) return alert('다음 조치일을 입력하거나 조치 완료 결과를 선택해주세요.')
+
+    if (!form.followUpType) {
+      alert('진행할 조치를 선택해주세요.')
+      return
+    }
+
+    if (!form.nextActionDate) {
+      alert('조치 예정일을 입력해주세요.')
+      return
+    }
+
     try {
-      await updateRecallWorkflow(selected.id, workflowPayload({
-        followUpProgressStatus: form.finalResult ? 'COMPLETED' : (form.followUpProgressStatus || 'PLANNED'),
-        nextActionDate: form.finalResult ? null : (form.nextActionDate || null),
-        finalResult: form.finalResult || null,
-        welfareWorkerId: getUserId(),
-      }))
+      await updateRecallWorkflow(
+        selected.id,
+        workflowPayload({
+          followUpProgressStatus: 'PLANNED',
+          nextActionDate: form.nextActionDate,
+          finalResult: null,
+          welfareWorkerId: getUserId(),
+        }),
+      )
+
       await load()
       setSelected(null)
     } catch (error) {
       alertWorkflowSaveError(error)
     }
-  }
-
-  async function goNext() {
-    if (step === 1 && !form.contactMethod) return alert('확인 방법을 먼저 선택해주세요.')
-    if (step === 1 && validateGuardianContact()) return
-    if (step === 1 && !useStatusSelected) return alert('제품 사용 상태를 선택해주세요.')
-    if (step === 1 && form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted) return alert('사용 중단 안내를 먼저 완료해주세요.')
-    if (step === 1) {
-      try {
-        await updateRecallWorkflow(selected.id, workflowPayload({
-          nextActionDate: form.nextActionDate || null,
-          finalResult: form.finalResult || null,
-          welfareWorkerId: getUserId(),
-        }))
-        setSelected(previous => ({ ...previous, ...form }))
-        await load()
-      } catch (error) {
-        alertWorkflowSaveError(error)
-        return
-      }
-    }
-    setStep(previous => Math.min(2, previous + 1))
   }
 
   async function sendSeniorNotice(event) {
@@ -748,26 +587,9 @@ export default function RecallList() {
     .filter(Boolean)
     .sort((a, b) => new Date(b) - new Date(a))[0]
   const lastCheckedDate = formatCheckedDate(lastCheckedAt)
-  const followUpSaveDisabled = step === 2 && (
-    !form.followUpType ||
-    (needsGuardianContactForStep() && form.guardianContactStatus === 'UNKNOWN') ||
-    (needsGuardianContactForStep() && form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) ||
-    (completionOnly && !form.finalResult) ||
-    (!form.finalResult && !form.nextActionDate)
-  )
-  const followUpSaveLabel = form.finalResult
-    ? '조치 완료 저장'
-    : completionOnly
-      ? '조치 완료 저장'
-      : '후속 조치 저장'
-  const hasSavedFollowUp = Boolean(form.followUpType || form.finalResult || form.nextActionDate || form.note || form.guardianContactStatus !== 'UNKNOWN')
-  const usageNextDisabled = !form.contactMethod ||
-    !useStatusSelected ||
-    (form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN') ||
-    (form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'SCHEDULED' && !form.nextActionDate) ||
-    (form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted)
-  const canSelectUseStatus = Boolean(form.contactMethod) &&
-    (form.contactMethod !== '보호자 연락' || form.guardianContactStatus !== 'UNKNOWN')
+  const followUpSaveDisabled =
+    !form.followUpType || !form.nextActionDate
+
 
   return (
     <div>
@@ -1072,65 +894,98 @@ export default function RecallList() {
       )}
 
       {selected && (
-        <div className="recall-modal-overlay" onClick={() => setSelected(null)}>
-          <form className="recall-modal" onSubmit={handleActionSave} onClick={event => event.stopPropagation()}>
+        <div
+          className="recall-modal-overlay"
+          onClick={() => setSelected(null)}
+        >
+          <form
+            className="recall-modal"
+            onSubmit={handleActionSave}
+            onClick={event => event.stopPropagation()}
+          >
             <div className="recall-modal-header">
               <div>
-                <h2>{valueOrFallback(selected.seniorName, '이름 미확인')}님</h2>
-                <p>{valueOrFallback(officialRecallProductName(selected))} · {valueOrFallback(selected.modelNumber)} <span>{currentStage({ ...selected, ...form })}</span></p>
-              </div>
-              <button type="button" className="recall-modal-close" onClick={() => setSelected(null)}>×</button>
-            </div>
+                <h2>
+                  {valueOrFallback(
+                    selected.seniorName,
+                    '이름 미확인',
+                  )}님
+                </h2>
 
-            <div className="recall-stepper">
-              <div className="done">
-                <b>✓</b>
-                <span>자동 판정 완료</span>
+                <p>
+                  {valueOrFallback(
+                    officialRecallProductName(selected),
+                  )}
+                  {' · '}
+                  {valueOrFallback(selected.modelNumber)}
+                  <span>
+                    {currentStage({
+                      ...selected,
+                      ...form,
+                    })}
+                  </span>
+                </p>
               </div>
 
-              <div className={step === 1 ? 'active' : 'done'}>
-                <b>{step > 1 ? '✓' : '1'}</b>
-                <span>사용 여부 확인</span>
-              </div>
-
-              <div className={step === 2 ? 'active' : ''}>
-                <b>2</b>
-                <span>조치 완료 관리</span>
-              </div>
+              <button
+                type="button"
+                className="recall-modal-close"
+                aria-label="닫기"
+                onClick={() => setSelected(null)}
+              >
+                ×
+              </button>
             </div>
 
             <div className="recall-modal-body">
-              <section className="recall-action-guide">
-                <div className="recall-action-guide__header">
-                  <div>
-                    <span>
-                      시스템 자동 판정 결과
-                    </span>
+              <section className="recall-overview">
+                <div className="recall-overview__item">
+                  <span>등록자</span>
+                  <strong>
+                    {registrationSourceLabel(
+                      selected.registrationSource,
+                    )}
+                  </strong>
+                </div>
 
+                <div className="recall-overview__item">
+                  <span>현재 사용 상태</span>
+                  <strong>
+                    {USE_STATUS_LABEL[
+                      selected.currentUseStatus || 'UNKNOWN'
+                    ] || '미확인'}
+                  </strong>
+                </div>
+
+                <div className="recall-overview__item">
+                  <span>현재 관리 상태</span>
+                  <strong>{currentStage(selected)}</strong>
+                </div>
+              </section>
+
+              <section className="recall-official-info">
+                <div className="recall-section-header">
+                  <div>
+                    <span>공식 리콜 정보</span>
                     <strong>
                       {recallDecisionLabel(selected)}
                     </strong>
-
-                    <small>
-                      리콜 여부는 공식 API 조회 결과입니다.
-                      복지사는 실제 보유·사용 여부와 후속 조치 완료 여부를 확인합니다.
-                    </small>
                   </div>
 
-                  <div className="recall-action-guide__tools">
+                  <div className="recall-section-actions">
                     <button
                       type="button"
-                      className="recall-detail-notice-button"
-                      aria-label="알림 작성"
+                      className="btn-outline"
                       onClick={() =>
                         openNoticeComposer(selected)
                       }
                     >
-                      ✉
+                      안내 작성
                     </button>
 
                     <button
                       type="button"
+                      className="btn-outline"
                       disabled={!recallContact(selected)}
                       onClick={copyRecallContact}
                     >
@@ -1138,45 +993,42 @@ export default function RecallList() {
                     </button>
                   </div>
                 </div>
-                {showRecallDetails && (
-                  <dl>
-                    <div>
-                      <dt>제품 판정</dt>
-                      <dd>
-                        {recallDecisionLabel(selected)}
-                      </dd>
-                    </div>
 
-                    <div>
-                      <dt>소비자 조치</dt>
-                      <dd>
-                        {recallConsumerAction(selected)}
-                      </dd>
-                    </div>
+                <dl className="recall-official-info__list">
+                  <div>
+                    <dt>위험·결함 내용</dt>
+                    <dd className="recall-clean-text">
+                      {valueOrFallback(
+                        cleanRecallText(recallHazard(selected)),
+                        '상세 위험 정보가 없습니다.',
+                      )}
+                    </dd>
+                  </div>
 
-                    <div>
-                      <dt>위험·결함</dt>
-                      <dd>
-                        {valueOrFallback(
-                          recallHazard(selected),
-                          '상세 위험 정보가 없습니다.',
-                        )}
-                      </dd>
-                    </div>
+                  <div>
+                    <dt>소비자 조치 안내</dt>
+                    <dd className="recall-clean-text">
+                      {valueOrFallback(
+                        cleanRecallText(recallConsumerAction(selected)),
+                        '조치 안내 정보가 없습니다.',
+                      )}
+                    </dd>
+                  </div>
 
-                    <div>
-                      <dt>제조사 문의</dt>
-                      <dd>
-                        {valueOrFallback(
-                          recallContact(selected),
-                          '문의처 정보 없음',
-                        )}
-                      </dd>
-                    </div>
+                  <div>
+                    <dt>제조사 문의처</dt>
+                    <dd>
+                      {valueOrFallback(
+                        recallContact(selected),
+                        '문의처 정보 없음',
+                      )}
+                    </dd>
+                  </div>
 
-                    {(selected.sourceName || selected.sourceUrl) && (
+                  {(selected.sourceName ||
+                    selected.sourceUrl) && (
                       <div>
-                        <dt>출처</dt>
+                        <dt>공식 출처</dt>
                         <dd>
                           {selected.sourceUrl ? (
                             <a
@@ -1184,8 +1036,8 @@ export default function RecallList() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              {selected.sourceName
-                                || '공식 리콜 공고 보기'}
+                              {selected.sourceName ||
+                                '공식 리콜 공고 보기'}
                             </a>
                           ) : (
                             selected.sourceName
@@ -1193,107 +1045,104 @@ export default function RecallList() {
                         </dd>
                       </div>
                     )}
-                  </dl>
-                )}
+                </dl>
               </section>
 
-              {false && <>
-                <div className="recall-compare-grid">
-                  <section><h3>등록 제품</h3><dl><div><dt>제품명</dt><dd>{valueOrFallback(selected.productName)}</dd></div><div><dt>제조사</dt><dd>{valueOrFallback(selected.manufacturer)}</dd></div><div><dt>모델명</dt><dd>{valueOrFallback(selected.modelNumber)}</dd></div><div><dt>등록 방식</dt><dd>{valueOrFallback(selected.registrationSource ?? selected.ocrInfo ?? selected.ocrText)}</dd></div></dl></section>
-                  <section><h3>리콜 대상 정보</h3><dl><div><dt>제품명</dt><dd>{valueOrFallback(officialRecallProductName(selected))}</dd></div><div><dt>제조사</dt><dd>{valueOrFallback(selected.recallManufacturer ?? selected.manufacturer)}</dd></div><div><dt>대상 모델</dt><dd>{valueOrFallback(selected.recallModelNumber ?? selected.modelNumber)}</dd></div><div><dt>위해 유형</dt><dd>{valueOrFallback(selected.hazardType ?? selected.recallHazardType)}</dd></div></dl></section>
+              <section className="recall-plan-section">
+                <div className="recall-section-title">
+                  <strong>조치 계획</strong>
+                  <span>
+                    복지사가 앞으로 진행할 업무를
+                    기록합니다.
+                  </span>
                 </div>
-                <div className="recall-key-guidance"><div><strong>즉시 조치</strong><p>{valueOrFallback(selected.immediateAction, '제품 사용을 중단하고 전원 플러그를 분리하도록 안내합니다.')}</p></div><div><strong>조치 방법</strong><p>{valueOrFallback(selected.remedy ?? selected.actionMethod, '제조사 고객센터 또는 공식 안내 페이지에서 수리·교환·환불 방법을 확인합니다.')}</p></div><div><strong>문의처</strong><p>{valueOrFallback(selected.contactNumber)}</p></div><button type="button" onClick={() => setShowOriginal(value => !value)}>리콜 상세 원문 {showOriginal ? '닫기' : '보기'}</button>{showOriginal && <pre>{valueOrFallback(selected.recallReason)}</pre>}</div>
-                <div className="recall-api-match-note">
-                  <strong>제품안전정보센터 리콜 목록에서 조회된 제품입니다.</strong>
-                  <p>리콜 여부는 API 조회 결과로 처리하고, 복지사는 실제 보유·사용 여부와 후속 조치만 확인합니다.</p>
+
+                <div className="recall-form-grid">
+                  <label>
+                    진행할 조치
+                    <select
+                      value={form.followUpType ?? ''}
+                      onChange={event =>
+                        setForm(previous => ({
+                          ...previous,
+                          followUpType:
+                            event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">선택</option>
+
+                      {[
+                        '어르신 안내',
+                        '보호자 안내',
+                        '제조사 문의',
+                        '사용 중단 재확인',
+                        '제조사 문의·조치 안내',
+                        '수리 또는 환불 확인',
+                        '방문 확인',
+                        '관련 기관 연계',
+                        '기타',
+                      ].map(value => (
+                        <option
+                          key={value}
+                          value={value}
+                        >
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    조치 예정일
+                    <input
+                      type="date"
+                      value={form.nextActionDate ?? ''}
+                      onChange={event =>
+                        setForm(previous => ({
+                          ...previous,
+                          nextActionDate:
+                            event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="recall-note-field">
+                    담당자 메모
+                    <textarea
+                      value={form.note ?? ''}
+                      onChange={event =>
+                        setForm(previous => ({
+                          ...previous,
+                          note: event.target.value,
+                        }))
+                      }
+                      placeholder="연락, 방문, 제조사 안내 등 앞으로 진행할 내용을 기록하세요."
+                    />
+                  </label>
                 </div>
-              </>}
-
-              <div className="recall-workflow-note">
-                <strong>{step === 1 ? '현재 업무: 사용 여부 확인' : '현재 업무: 후속 조치 기록'}</strong>
-                <p>{step === 1 ? '어르신이 실제로 제품을 보유하고 사용하는지 먼저 확인합니다.' : '확인한 내용을 바탕으로 제조사 문의, 방문, 수리·환불 등 다음 조치를 기록합니다.'}</p>
-              </div>
-
-              {step === 1 && <>
-                <div className="recall-usage-layout">
-                  <fieldset className="recall-choice-group"><legend>확인 방법</legend>{['전화', '보호자 연락', '방문', '기타'].map(value => <button key={value} type="button" className={form.contactMethod === value ? 'active' : ''} onClick={() => updateContactMethod(value)}>{value}</button>)}</fieldset>
-                </div>
-                {form.contactMethod === '보호자 연락' && renderGuardianContactPanel()}
-                <fieldset className="recall-choice-group vertical recall-use-status-group" disabled={!canSelectUseStatus}><legend>제품 사용 상태 {!form.contactMethod && <small>확인 방법을 먼저 선택해주세요.</small>}{form.contactMethod === '보호자 연락' && form.guardianContactStatus === 'UNKNOWN' && <small>보호자 연락 상태를 먼저 기록해주세요.</small>}</legend>{[['IN_USE', '현재 사용 중'], ['NOT_IN_USE', '보유 중이나 사용하지 않음'], ['STOPPED', '사용 중단 완료'], ['UNKNOWN', '확인하지 못함']].map(([value, label]) => <button key={value} type="button" disabled={!canSelectUseStatus} className={useStatusSelected && form.currentUseStatus === value ? 'active' : ''} onClick={() => { setUseStatusSelected(true); setForm(previous => ({ ...previous, currentUseStatus: value, finalResult: '' })) }}>{label}</button>)}</fieldset>
-                {form.currentUseStatus === 'IN_USE' && !form.stopGuidanceCompleted && <aside className="recall-stop-warning"><strong>사용 중단 안내 기록이 필요합니다.</strong><ul><li>즉시 전원을 끄고 플러그를 분리하도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul><button type="button" className="recall-stop-guidance-btn" onClick={() => setShowStopGuidance(true)}>사용 중단 안내 기록</button></aside>}
-                {form.currentUseStatus === 'IN_USE' && form.stopGuidanceCompleted && <aside className="recall-guidance-complete"><strong>사용 중단 안내 기록 완료</strong><p>{formatGuidanceDate(form.stopGuidanceCompletedAt)} · {valueOrFallback(form.stopGuidanceMethod)} · {valueOrFallback(form.stopGuidanceTarget)}</p><p>담당자: {valueOrFallback(form.stopGuidanceWorkerName)}</p><button type="button" onClick={() => setShowStopGuidance(true)}>안내 기록 보기</button></aside>}
-                {(form.currentUseStatus === 'UNKNOWN' || form.guardianContactStatus === 'SCHEDULED') && <div className="recall-form-grid"><label>{form.guardianContactStatus === 'SCHEDULED' ? '보호자 다음 연락일' : '다음 연락일'}<input type="date" value={form.nextActionDate ?? ''} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label></div>}
-              </>}
-
-              {step === 2 && !followUpEditing && hasSavedFollowUp && (
-                <section className="recall-followup-summary">
-                  <div className="recall-followup-summary__header">
-                    <strong>{form.finalResult ? '조치 완료 기록' : '저장된 후속 조치'}</strong>
-                    <span>{form.finalResult ? finalResultLabel(form.finalResult) : valueOrFallback(form.followUpType)}</span>
-                  </div>
-                  <dl>
-                    <div><dt>후속 조치</dt><dd>{valueOrFallback(form.followUpType)}</dd></div>
-                    <div><dt>보호자 연락</dt><dd>{GUARDIAN_CONTACT_STATUS_LABEL[form.guardianContactStatus] || '미확인'}{form.guardianContactMethod ? ` · ${form.guardianContactMethod}` : ''}</dd></div>
-                    {form.guardianContactedAt && <div><dt>연락 완료</dt><dd>{formatGuidanceDate(form.guardianContactedAt)}</dd></div>}
-                    <div><dt>다음 조치일</dt><dd>{form.finalResult ? '-' : formatDate(form.nextActionDate)}</dd></div>
-                    <div><dt>완료 결과</dt><dd>{form.finalResult ? finalResultLabel(form.finalResult) : '진행 중'}</dd></div>
-                    <div><dt>담당자 메모</dt><dd>{valueOrFallback(form.note)}</dd></div>
-                  </dl>
-                  <div className="recall-followup-summary__actions">
-                    <button type="button" className="btn-outline" onClick={() => { setCompletionOnly(false); setFollowUpEditing(true) }}>수정</button>
-                    {!form.finalResult && <button type="button" className="btn-primary" onClick={() => { setCompletionOnly(true); setFollowUpEditing(true) }}>조치 완료 처리</button>}
-                  </div>
-                </section>
-              )}
-
-              {step === 2 && followUpEditing && completionOnly && (
-                <div className="recall-completion-panel">
-                  <div className="recall-completion-panel__header">
-                    <strong>조치 완료 처리</strong>
-                    <span>{valueOrFallback(form.followUpType)}</span>
-                  </div>
-                  <fieldset className="recall-choice-group recall-completion-group"><legend>완료 결과 <small>실제 조치가 끝난 결과만 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value, label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
-                  <label className="recall-completion-note">완료 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="완료 처리 내용이나 확인 사항을 기록하세요" /></label>
-                </div>
-              )}
-
-              {step === 2 && followUpEditing && !completionOnly && <div className="recall-form-grid">
-                <label>후속 조치 유형<select value={form.followUpType ?? ''} onChange={event => {
-                  const isGuardianFollowUp = ['보호자 연락', '보호자 안내'].includes(event.target.value)
-                  setForm(previous => ({
-                    ...previous,
-                    followUpType: event.target.value,
-                    guardianContactStatus: isGuardianFollowUp ? previous.guardianContactStatus : 'UNKNOWN',
-                    guardianContactMethod: isGuardianFollowUp ? previous.guardianContactMethod : '',
-                    guardianContactedAt: isGuardianFollowUp ? previous.guardianContactedAt : null,
-                    guardianContactMemo: isGuardianFollowUp ? previous.guardianContactMemo : '',
-                  }))
-                }}><option value="">선택</option>{['어르신 안내', '보호자 안내', '제조사 문의', '사용 중단 재확인', '제조사 문의·조치 안내', '수리 또는 환불 확인', '보호자 연락', '방문 확인', '기타'].map(value => <option key={value}>{value}</option>)}</select></label>
-                <label>다음 조치일<input type="date" value={form.nextActionDate ?? ''} disabled={Boolean(form.finalResult)} onChange={event => setForm(previous => ({ ...previous, nextActionDate: event.target.value }))} /></label>
-                {['보호자 연락', '보호자 안내'].includes(form.followUpType) && renderGuardianContactPanel()}
-                <label className="recall-note-field">담당자 메모<textarea value={form.note ?? ''} onChange={event => setForm(previous => ({ ...previous, note: event.target.value }))} placeholder="확인 및 후속 조치 내용을 기록하세요" /></label>
-                <fieldset className="recall-choice-group recall-completion-group"><legend>조치 완료 처리 <small>실제 조치가 끝났을 때 선택하세요.</small></legend>{FINAL_RESULT_OPTIONS.map(([value, label]) => <button key={value} type="button" className={form.finalResult === value ? 'active' : ''} onClick={() => setForm(previous => previous.finalResult === value ? ({ ...previous, finalResult: '' }) : ({ ...previous, finalResult: value, followUpProgressStatus: 'COMPLETED', nextActionDate: '' }))}>{label}</button>)}</fieldset>
-              </div>}
+              </section>
             </div>
 
             <div className="recall-modal-actions">
-              {step > 1 && <button type="button" className="btn-outline" onClick={() => setStep(value => value - 1)}>이전</button>}
-              {step < 2 && <button type="button" className="btn-primary" disabled={usageNextDisabled} onClick={goNext}>다음 단계: 후속 조치</button>}
-              {step === 2 && followUpEditing && <button type="submit" className="btn-primary" disabled={followUpSaveDisabled}>{followUpSaveLabel}</button>}
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setSelected(null)}
+              >
+                닫기
+              </button>
+
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={followUpSaveDisabled}
+              >
+                조치 계획 저장
+              </button>
             </div>
           </form>
-          {showStopGuidance && <div className="recall-guidance-overlay" role="dialog" aria-modal="true" aria-label="사용 중단 안내" onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) setShowStopGuidance(false) }}>
-            <div className="recall-guidance-dialog" onClick={event => event.stopPropagation()}>
-              <div className="recall-guidance-header"><div><h3>사용 중단 안내 기록</h3><p>실제로 안내한 뒤 기록을 저장해주세요.</p></div><button type="button" aria-label="닫기" onClick={() => setShowStopGuidance(false)}>×</button></div>
-              <div className="recall-guidance-body">
-                <ul className="recall-guidance-checklist"><li>즉시 전원을 끄도록 안내</li><li>플러그를 분리하도록 안내</li><li>제품을 다시 사용하지 않도록 안내</li><li>제조사 문의처와 조치 방법 안내</li><li>필요하면 보호자에게 위험 사실 전달</li></ul>
-                <fieldset className="recall-choice-group"><legend>상담 대상</legend>{[['님 본인', '님'], ['보호자', '보호자']].map(([value, label]) => <button key={value} type="button" className={guidanceForm.target === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, target: value }))}>{label}</button>)}</fieldset>
-                <fieldset className="recall-choice-group"><legend>안내 방법</legend>{['전화', '방문', '보호자 연락'].map(value => <button key={value} type="button" className={guidanceForm.method === value ? 'active' : ''} onClick={() => setGuidanceForm(previous => ({ ...previous, method: value }))}>{value}</button>)}</fieldset>
-                <label className="recall-guidance-memo">메모<textarea value={guidanceForm.memo ?? ''} onChange={event => setGuidanceForm(previous => ({ ...previous, memo: event.target.value }))} placeholder="안내 내용이나 특이사항을 기록하세요" /></label>
-              </div>
-              <div className="recall-guidance-actions"><button type="button" className="btn-outline" onClick={() => setShowStopGuidance(false)}>취소</button><button type="button" className="btn-primary" onClick={completeStopGuidance}>안내 기록 저장</button></div>
-            </div>
-          </div>}
         </div>
       )}
     </div>

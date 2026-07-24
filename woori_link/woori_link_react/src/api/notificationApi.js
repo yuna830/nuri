@@ -12,5 +12,8 @@ export const createSeniorNotification = (seniorId, data) =>
 export const getWelfareNotifications = () =>
   api.get('/care/welfare-notices', authConfig())
 
+export const getWelfareAlerts = () =>
+  api.get('/care/welfare-alerts', authConfig())
+
 export const cancelWelfareNotification = (alertId) =>
   api.delete(`/care/welfare-notices/${alertId}`, authConfig())

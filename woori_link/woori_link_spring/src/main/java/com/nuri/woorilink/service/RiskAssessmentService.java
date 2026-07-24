@@ -287,19 +287,19 @@ public class RiskAssessmentService {
          * 리콜 두 항목은 동시에 합산하지 않습니다.
          */
         if (recallRisk) {
-            actualRiskScore += 30;
+            actualRiskScore += 20;
             reasons.add(
                     "사용 중인 미조치 리콜 제품"
             );
         } else if (recallUsageUnknown) {
-            actualRiskScore += 20;
+            actualRiskScore += 10;
             reasons.add(
                     "리콜 제품 사용 여부 미확인"
             );
         }
 
         if (weatherRisk) {
-            actualRiskScore += 20;
+            actualRiskScore += 10;
 
             if (
                     weatherAlertName != null
@@ -317,21 +317,21 @@ public class RiskAssessmentService {
         }
 
         if (safetyInspectionNeeded) {
-            actualRiskScore += 25;
+            actualRiskScore += 15;
             reasons.add(
                     "전기·가스 점검 미완료"
             );
         }
 
         if (aiNoResponse) {
-            actualRiskScore += 30;
+            actualRiskScore += 15;
             reasons.add(
                     "AI 안부 확인 연속 미응답"
             );
         }
 
         if (locationAnomaly) {
-            actualRiskScore += 20;
+            actualRiskScore += 10;
             reasons.add(
                     "안전반경 이탈 후 상태 미확인"
             );
@@ -349,12 +349,6 @@ public class RiskAssessmentService {
         ) {
             reasons.add(
                     "현재 낙상 의심"
-            );
-        }
-
-        if (fallRisk.activeSos()) {
-            reasons.add(
-                    "현재 SOS 긴급 호출"
             );
         }
 
@@ -384,14 +378,14 @@ public class RiskAssessmentService {
         }
 
         if (delayedVisit) {
-            delayScore += 15;
+            delayScore += 7;
             reasons.add(
                     "예정 방문·상담 7일 이상 지연"
             );
         }
 
         if (repeatedIssue) {
-            delayScore += 10;
+            delayScore += 5;
             reasons.add(
                     "최근 30일 내 동일 미처리 문제 반복"
             );
@@ -407,7 +401,7 @@ public class RiskAssessmentService {
         }
 
         delayScore =
-                Math.min(delayScore, 40);
+                Math.min(delayScore, 20);
 
         /*
          * C. 기본 취약성 점수
@@ -415,42 +409,42 @@ public class RiskAssessmentService {
         int vulnerabilityScore = 0;
 
         if (livingAlone) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
             reasons.add(
                     "독거 가구"
             );
         }
 
         if (guardianMissing) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
             reasons.add(
                     "보호자 미등록"
             );
         }
 
         if (longTermCare) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
             reasons.add(
                     "장기요양 대상"
             );
         }
 
         if (severeDisability) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
             reasons.add(
                     "중증 장애"
             );
         }
 
         if (voucherUnapplied) {
-            vulnerabilityScore += 5;
+            vulnerabilityScore += 3;
             reasons.add(
                     "에너지바우처 대상 미신청"
             );
         }
 
         if (discountUnapplied) {
-            vulnerabilityScore += 5;
+            vulnerabilityScore += 2;
             reasons.add(
                     "전기·가스요금 복지할인 대상 미신청"
             );
@@ -468,26 +462,26 @@ public class RiskAssessmentService {
         vulnerabilityScore =
                 Math.min(
                         vulnerabilityScore,
-                        25
+                        15
                 );
+
+        actualRiskScore =
+                Math.min(actualRiskScore, 65);
 
         /*
          * 최종 점수
          *
          * 총점 =
          * A 실제 위험
-         * + min(B 조치 지연, 40)
-         * + min(C 기본 취약성, 25)
+         * + min(B 조치 지연, 20)
+         * + min(C 기본 취약성, 15)
          */
         int totalScore =
-                actualRiskScore
-                        + Math.min(
-                        delayScore,
-                        40
-                )
-                        + Math.min(
-                        vulnerabilityScore,
-                        25
+                Math.min(
+                        actualRiskScore
+                                + delayScore
+                                + vulnerabilityScore,
+                        100
                 );
 
         /*
@@ -506,22 +500,10 @@ public class RiskAssessmentService {
 
         RiskAssessment.RiskLevel level;
 
-        if (
-                totalScore >= 50
-                        && hasActionableRisk
-        ) {
+        if (totalScore >= 40) {
             level =
                     RiskAssessment.RiskLevel.HIGH;
-        } else if (
-                totalScore >= 30
-                        || (
-                        (
-                                fallRisk.actualRiskScore() > 0
-                                        || fallEnvironmentScore > 0
-                        )
-                                && totalScore >= 20
-                )
-        ) {
+        } else if (totalScore >= 20) {
             level =
                     RiskAssessment.RiskLevel.MEDIUM;
         } else {
@@ -684,34 +666,10 @@ public class RiskAssessmentService {
                         assessment.getRecallRisk()
                 )
         ) {
-            actualRiskScore += 30;
+            actualRiskScore += 20;
         } else if (
                 Boolean.TRUE.equals(
                         assessment.getRecallUsageUnknown()
-                )
-        ) {
-            actualRiskScore += 20;
-        }
-
-        if (
-                Boolean.TRUE.equals(
-                        assessment.getWeatherRisk()
-                )
-        ) {
-            actualRiskScore += 20;
-        }
-
-        if (
-                Boolean.TRUE.equals(
-                        assessment.getSafetyRisk()
-                )
-        ) {
-            actualRiskScore += 25;
-        }
-
-        if (
-                Boolean.TRUE.equals(
-                        assessment.getSafetyInspectionOverdue()
                 )
         ) {
             actualRiskScore += 10;
@@ -719,10 +677,37 @@ public class RiskAssessmentService {
 
         if (
                 Boolean.TRUE.equals(
+                        assessment.getWeatherRisk()
+                )
+        ) {
+            actualRiskScore += 10;
+        }
+
+        if (
+                Boolean.TRUE.equals(
+                        assessment.getSafetyRisk()
+                )
+        ) {
+            actualRiskScore += 15;
+        }
+
+        if (
+                Boolean.TRUE.equals(
+                        assessment.getSafetyInspectionOverdue()
+                )
+                        && !Boolean.TRUE.equals(
+                        assessment.getSafetyRisk()
+                )
+        ) {
+            actualRiskScore += 15;
+        }
+
+        if (
+                Boolean.TRUE.equals(
                         assessment.getAiNoResponse()
                 )
         ) {
-            actualRiskScore += 30;
+            actualRiskScore += 15;
         }
 
         if (
@@ -730,7 +715,7 @@ public class RiskAssessmentService {
                         assessment.getLocationAnomaly()
                 )
         ) {
-            actualRiskScore += 20;
+            actualRiskScore += 10;
         }
 
         actualRiskScore +=
@@ -742,68 +727,25 @@ public class RiskAssessmentService {
         /*
          * B. 조치 지연 점수
          */
-        int delayScore;
+        int delayScore = 0;
 
-        if (assessment.getDelayScore() != null) {
-            FallRiskCalculator.Result assessedFallRisk =
-                    FallRiskCalculator.calculate(
-                            careEventRepository
-                                    .findBySeniorIdOrderByOccurredAtDesc(
-                                            assessment.getSeniorId()
-                                    ),
-                            assessment.getAssessedAt() != null
-                                    ? assessment.getAssessedAt()
-                                    : LocalDateTime.now()
-                    );
+        if (Boolean.TRUE.equals(assessment.getOverdueAction())) {
+            delayScore += 3;
+        }
 
-            delayScore =
-                    Math.min(
-                            Math.max(
-                                    assessment.getDelayScore()
-                                            - assessedFallRisk.delayScore(),
-                                    0
-                            ),
-                            40
-                    );
-        } else {
-            int fallbackDelayScore = 0;
+        if (Boolean.TRUE.equals(assessment.getDelayedVisit())) {
+            delayScore += 7;
+        }
 
-            if (
-                    Boolean.TRUE.equals(
-                            assessment.getOverdueAction()
-                    )
-            ) {
-                fallbackDelayScore += 10;
-            }
-
-            if (
-                    Boolean.TRUE.equals(
-                            assessment.getDelayedVisit()
-                    )
-            ) {
-                fallbackDelayScore += 15;
-            }
-
-            if (
-                    Boolean.TRUE.equals(
-                            assessment.getRepeatedIssue()
-                    )
-            ) {
-                fallbackDelayScore += 10;
-            }
-
-            delayScore =
-                    Math.min(
-                            fallbackDelayScore,
-                            40
-                    );
+        if (Boolean.TRUE.equals(assessment.getRepeatedIssue())) {
+            delayScore += 5;
         }
 
         delayScore =
                 Math.min(
                         delayScore
                                 + fallRisk.delayScore(),
-                        40
+                        20
                 );
 
         /*
@@ -816,11 +758,11 @@ public class RiskAssessmentService {
                         assessment.getLivingAlone()
                 )
         ) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
         }
 
         if (guardianMissing) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
         }
 
         if (
@@ -828,7 +770,7 @@ public class RiskAssessmentService {
                         assessment.getLongTermCare()
                 )
         ) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
         }
 
         if (
@@ -836,7 +778,7 @@ public class RiskAssessmentService {
                         assessment.getSevereDisability()
                 )
         ) {
-            vulnerabilityScore += 10;
+            vulnerabilityScore += 5;
         }
 
         if (
@@ -844,7 +786,7 @@ public class RiskAssessmentService {
                         assessment.getVoucherUnapplied()
                 )
         ) {
-            vulnerabilityScore += 5;
+            vulnerabilityScore += 3;
         }
 
         if (
@@ -852,7 +794,7 @@ public class RiskAssessmentService {
                         assessment.getDiscountUnapplied()
                 )
         ) {
-            vulnerabilityScore += 5;
+            vulnerabilityScore += 2;
         }
 
         vulnerabilityScore +=
@@ -861,18 +803,18 @@ public class RiskAssessmentService {
         vulnerabilityScore =
                 Math.min(
                         vulnerabilityScore,
-                        25
+                        15
                 );
 
+        actualRiskScore =
+                Math.min(actualRiskScore, 65);
+
         int totalScore =
-                actualRiskScore
-                        + Math.min(
-                        delayScore,
-                        40
-                )
-                        + Math.min(
-                        vulnerabilityScore,
-                        25
+                Math.min(
+                        actualRiskScore
+                                + delayScore
+                                + vulnerabilityScore,
+                        100
                 );
 
         boolean hasActionableRisk =
@@ -907,22 +849,10 @@ public class RiskAssessmentService {
 
         RiskAssessment.RiskLevel level;
 
-        if (
-                totalScore >= 50
-                        && hasActionableRisk
-        ) {
+        if (totalScore >= 40) {
             level =
                     RiskAssessment.RiskLevel.HIGH;
-        } else if (
-                totalScore >= 30
-                        || (
-                        (
-                                fallRisk.actualRiskScore() > 0
-                                        || fallEnvironmentScore > 0
-                        )
-                                && totalScore >= 20
-                )
-        ) {
+        } else if (totalScore >= 20) {
             level =
                     RiskAssessment.RiskLevel.MEDIUM;
         } else {
@@ -1055,8 +985,8 @@ public class RiskAssessmentService {
                 )
                 .mapToInt(risk ->
                         switch (risk) {
-                            case DANGER -> 20;
-                            case CAUTION -> 10;
+                            case DANGER -> 10;
+                            case CAUTION -> 5;
                             case GOOD, UNCHECKED -> 0;
                         }
                 )
@@ -1156,15 +1086,15 @@ public class RiskAssessmentService {
             long overdueDays
     ) {
         if (overdueDays >= 14) {
-            return 20;
-        }
-
-        if (overdueDays >= 7) {
             return 10;
         }
 
+        if (overdueDays >= 7) {
+            return 7;
+        }
+
         if (overdueDays >= 1) {
-            return 5;
+            return 3;
         }
 
         return 0;

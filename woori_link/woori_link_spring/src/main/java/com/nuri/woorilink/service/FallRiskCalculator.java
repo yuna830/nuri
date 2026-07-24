@@ -23,7 +23,6 @@ final class FallRiskCalculator {
         int historyScore = 0;
         boolean actionableRisk = false;
         boolean activeDetectedFall = false;
-        boolean activeSos = false;
 
         for (List<CareEvent> incident : incidents) {
             int incidentActualScore = 0;
@@ -33,18 +32,13 @@ final class FallRiskCalculator {
 
             for (CareEvent event : incident) {
                 if (isActive(event)) {
-                    if (event.getType() == CareEvent.EventType.FALL_DETECTED
-                            || event.getType() == CareEvent.EventType.SOS) {
-                        incidentActualScore = Math.max(incidentActualScore, 50);
-                        if (event.getType() == CareEvent.EventType.FALL_DETECTED) {
-                            activeDetectedFall = true;
-                            incidentDelayScore = Math.max(
-                                    incidentDelayScore,
-                                    delayScore(event.getOccurredAt(), now)
-                            );
-                        } else {
-                            activeSos = true;
-                        }
+                    if (event.getType() == CareEvent.EventType.FALL_DETECTED) {
+                        incidentActualScore = Math.max(incidentActualScore, 30);
+                        activeDetectedFall = true;
+                        incidentDelayScore = Math.max(
+                                incidentDelayScore,
+                                delayScore(event.getOccurredAt(), now)
+                        );
                         incidentActionable = true;
                     } else if (event.getType() == CareEvent.EventType.FALL_SUSPECTED) {
                         incidentActualScore = Math.max(incidentActualScore, 20);
@@ -61,19 +55,18 @@ final class FallRiskCalculator {
                 incidentHistoryScore = 0;
             }
 
-            actualRiskScore += incidentActualScore;
-            delayScore += incidentDelayScore;
-            historyScore += incidentHistoryScore;
+            actualRiskScore = Math.max(actualRiskScore, incidentActualScore);
+            delayScore = Math.max(delayScore, incidentDelayScore);
+            historyScore = Math.max(historyScore, incidentHistoryScore);
             actionableRisk = actionableRisk || incidentActionable;
         }
 
         return new Result(
                 actualRiskScore,
-                Math.min(delayScore, 40),
-                Math.min(historyScore, 25),
+                Math.min(delayScore, 15),
+                Math.min(historyScore, 5),
                 actionableRisk,
-                activeDetectedFall,
-                activeSos
+                activeDetectedFall
         );
     }
 
@@ -111,7 +104,7 @@ final class FallRiskCalculator {
     }
 
     private static boolean isRiskIncident(CareEvent event) {
-        return isFall(event) || event.getType() == CareEvent.EventType.SOS;
+        return isFall(event);
     }
 
     private static boolean isActive(CareEvent event) {
@@ -131,13 +124,13 @@ final class FallRiskCalculator {
 
         long minutes = Duration.between(occurredAt, now).toMinutes();
         if (minutes >= 60) {
-            return 40;
+            return 15;
         }
         if (minutes >= 30) {
-            return 20;
+            return 10;
         }
         if (minutes >= 10) {
-            return 10;
+            return 5;
         }
         return 0;
     }
@@ -149,10 +142,10 @@ final class FallRiskCalculator {
 
         long days = ChronoUnit.DAYS.between(occurredAt.toLocalDate(), now.toLocalDate());
         if (days <= 30) {
-            return 10;
+            return 5;
         }
         if (days <= 90) {
-            return 5;
+            return 3;
         }
         return 0;
     }
@@ -162,8 +155,7 @@ final class FallRiskCalculator {
             int delayScore,
             int historyScore,
             boolean actionableRisk,
-            boolean activeDetectedFall,
-            boolean activeSos
+            boolean activeDetectedFall
     ) {
     }
 }

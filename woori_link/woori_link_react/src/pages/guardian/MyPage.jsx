@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import GuardianLayout from './GuardianLayout.jsx';
+import EnergyInformationModal from './EnergyInformationModal.jsx';
 
 import {
   deleteGuardianAccount,
@@ -22,6 +23,11 @@ import {
 import {
   searchAddresses,
 } from '../../api/addressApi.js';
+
+import {
+  getActiveEnergySupportConsultation,
+  getEnergySupportCompletion,
+} from '../../api/energySupportApi.js';
 
 import {
   clearUser,
@@ -181,6 +187,7 @@ function getAddressTitle(item) {
   );
 }
 
+
 function getInviteCodeStatus(
   expiresAt,
 ) {
@@ -229,100 +236,39 @@ function getInviteCodeStatus(
   return '사용 가능';
 }
 
-const SENIOR_REQUIRED_INFORMATION = [
-  {
-    key: 'age',
-    label: '나이',
-    isFilled: (senior) => (
-      senior?.age !== null
-      && senior?.age !== undefined
-      && senior?.age !== ''
-    ),
-  },
-  {
-    key: 'householdType',
-    label: '가구 유형',
-    isFilled: (senior) => (
-      Boolean(
-        String(
-          senior?.householdType ?? '',
-        ).trim(),
-      )
-    ),
-  },
-  {
-    key: 'livingAlone',
-    label: '독거 여부',
-    isFilled: (senior) => (
-      typeof senior?.livingAlone
-      === 'boolean'
-    ),
-  },
-  {
-    key: 'incomeLevel',
-    label: '소득 정보',
-    isFilled: (senior) => {
-      const value = String(
-        senior?.incomeLevel ?? '',
-      ).trim();
 
-      return (
-        value !== ''
-        && value !== 'NONE'
-        && value !== 'UNKNOWN'
-      );
-    },
-  },
-  {
-    key: 'basicBenefit',
-    label: '기초생활보장 수급 여부',
-    isFilled: (senior) => (
-      typeof senior?.livelihoodBenefit
-      === 'boolean'
-      || typeof senior?.medicalBenefit
-      === 'boolean'
-      || typeof senior?.housingBenefit
-      === 'boolean'
-      || typeof senior?.educationBenefit
-      === 'boolean'
-    ),
-  },
-  {
-    key: 'energyVoucherApplied',
-    label: '에너지바우처 신청 여부',
-    isFilled: (senior) => (
-      typeof senior?.energyVoucherApplied
-      === 'boolean'
-    ),
-  },
-  {
-    key: 'electricityDiscountApplied',
-    label: '전기요금 할인 신청 여부',
-    isFilled: (senior) => (
-      typeof senior?.electricityDiscountApplied
-      === 'boolean'
-    ),
-  },
-  {
-    key: 'gasDiscountApplied',
-    label: '도시가스 경감 신청 여부',
-    isFilled: (senior) => (
-      typeof senior?.gasDiscountApplied
-      === 'boolean'
-    ),
-  },
-];
-
-
-function getSeniorMissingInformation(
-  senior,
-) {
-  return SENIOR_REQUIRED_INFORMATION
-    .filter((item) => (
-      !item.isFilled(senior)
-    ))
-    .map((item) => item.label);
+function isConsultationActive(status) {
+  return (
+    status === 'REQUESTED'
+    || status === 'IN_PROGRESS'
+  );
 }
+
+
+function getSeniorEnergyStatus(
+  energyStatus,
+) {
+  if (energyStatus?.completed === true) {
+    return 'COMPLETED';
+  }
+
+  if (
+    energyStatus?.consultationStatus
+    === 'IN_PROGRESS'
+  ) {
+    return 'IN_PROGRESS';
+  }
+
+  if (
+    energyStatus?.consultationStatus
+    === 'REQUESTED'
+  ) {
+    return 'REQUESTED';
+  }
+
+  return 'INCOMPLETE';
+}
+
 
 export default function GuardianMyPage() {
   const navigate = useNavigate();
@@ -338,6 +284,11 @@ export default function GuardianMyPage() {
     seniors,
     setSeniors,
   ] = useState([]);
+
+  const [
+    energyInformationStatus,
+    setEnergyInformationStatus,
+  ] = useState({});
 
   const [
     loading,
@@ -384,44 +335,58 @@ export default function GuardianMyPage() {
     setAddressSearching,
   ] = useState(false);
 
+  const [
+    selectedEnergySenior,
+    setSelectedEnergySenior,
+  ] = useState(null);
+
+
   const seniorInformationSummary = useMemo(() => {
-    const seniorItems = seniors.map((senior) => {
-      const missingInformation =
-        getSeniorMissingInformation(
-          senior,
+    const completedCount =
+      seniors.filter((senior) => (
+        energyInformationStatus[
+          senior.id
+        ]?.completed === true
+      )).length;
+
+    const consultationCount =
+      seniors.filter((senior) => {
+        const status =
+          energyInformationStatus[
+          senior.id
+          ];
+
+        return (
+          status?.completed !== true
+          && isConsultationActive(
+            status?.consultationStatus,
+          )
         );
+      }).length;
 
-      return {
-        ...senior,
-        missingInformation,
-        missingCount:
-          missingInformation.length,
-        completed:
-          missingInformation.length === 0,
-      };
-    });
-
-    const incompleteSeniors =
-      seniorItems.filter(
-        (senior) => !senior.completed,
-      );
-
-    const completedSeniors =
-      seniorItems.filter(
-        (senior) => senior.completed,
-      );
+    const incompleteCount =
+      seniors.length
+      - completedCount
+      - consultationCount;
 
     return {
-      totalCount: seniorItems.length,
+      totalCount:
+        seniors.length,
+
+      completedCount,
+
+      consultationCount,
+
       incompleteCount:
-        incompleteSeniors.length,
-      completedCount:
-        completedSeniors.length,
-      seniors: seniorItems,
-      incompleteSeniors,
-      completedSeniors,
+        Math.max(
+          incompleteCount,
+          0,
+        ),
     };
-  }, [seniors]);
+  }, [
+    seniors,
+    energyInformationStatus,
+  ]);
 
 
   function showMessage(
@@ -435,7 +400,148 @@ export default function GuardianMyPage() {
       () => {
         setMessage('');
       },
-      2500,
+      3000,
+    );
+  }
+
+
+  function openEnergyInformationModal(
+    senior,
+  ) {
+    setSelectedEnergySenior(
+      senior,
+    );
+  }
+
+
+  function closeEnergyInformationModal() {
+    setSelectedEnergySenior(
+      null,
+    );
+  }
+
+
+  function handleEnergyInformationSaved(
+    savedData,
+  ) {
+    const seniorId =
+      savedData?.seniorId;
+
+    if (!seniorId) {
+      return;
+    }
+
+    const remainingMissingCount =
+      typeof savedData
+        ?.remainingMissingCount
+        === 'number'
+        ? savedData.remainingMissingCount
+        : null;
+
+    const completed =
+      savedData?.completed === true
+      && remainingMissingCount === 0;
+
+    setEnergyInformationStatus(
+      (current) => {
+        const previousStatus =
+          current[seniorId]
+          ?? {};
+
+        const receivedConsultation =
+          savedData?.consultation
+          ?? null;
+
+        const consultationRequested =
+          savedData
+            ?.consultationRequested
+          === true;
+
+        let nextConsultationStatus =
+          previousStatus
+            .consultationStatus
+          ?? null;
+
+        let nextConsultation =
+          previousStatus
+            .consultation
+          ?? null;
+
+        if (receivedConsultation) {
+          nextConsultationStatus =
+            receivedConsultation.status
+            ?? nextConsultationStatus;
+
+          nextConsultation =
+            receivedConsultation;
+        } else if (
+          consultationRequested
+          && !isConsultationActive(
+            nextConsultationStatus,
+          )
+        ) {
+          nextConsultationStatus =
+            'REQUESTED';
+        }
+
+        if (completed) {
+          nextConsultationStatus = null;
+          nextConsultation = null;
+        }
+
+        return {
+          ...current,
+
+          [seniorId]: {
+            ...previousStatus,
+
+            remainingMissingCount,
+            completed,
+
+            consultationRequested:
+              !completed
+              && isConsultationActive(
+                nextConsultationStatus,
+              ),
+
+            consultationStatus:
+              nextConsultationStatus,
+
+            consultation:
+              nextConsultation,
+          },
+        };
+      },
+    );
+
+    if (completed) {
+      showMessage(
+        '에너지복지 필수 정보 입력을 완료했습니다.',
+      );
+
+      return;
+    }
+
+    if (
+      savedData
+        ?.consultationRequested
+      === true
+    ) {
+      showMessage(
+        typeof remainingMissingCount
+          === 'number'
+          ? `입력한 정보를 저장하고 담당 복지사에게 미입력 ${remainingMissingCount}개 항목의 확인을 요청했습니다.`
+          : '입력한 정보를 저장하고 담당 복지사에게 확인을 요청했습니다.',
+      );
+
+      return;
+    }
+
+    showMessage(
+      typeof remainingMissingCount
+        === 'number'
+        ? `입력한 정보를 저장했습니다. 필수 미입력 ${remainingMissingCount}개 항목은 보완 필요 상태로 유지됩니다.`
+        : '입력한 에너지복지 정보를 저장했습니다.',
     );
   }
 
@@ -459,15 +565,117 @@ export default function GuardianMyPage() {
           return;
         }
 
+        const seniorItems =
+          normalizeArray(
+            seniorsResponse?.data,
+          );
+
         setProfile({
           ...DEFAULT_PROFILE,
           ...(profileResponse?.data ?? {}),
         });
 
         setSeniors(
-          normalizeArray(
-            seniorsResponse?.data,
-          ),
+          seniorItems,
+        );
+
+        /*
+         * 어르신별 진행 중인 상담 요청 상태 조회
+         *
+         * 한 명의 요청 조회가 실패해도
+         * 마이페이지 전체가 실패하지 않도록
+         * Promise.allSettled를 사용한다.
+         */
+        const energyStatusResults =
+          await Promise.all(
+            seniorItems.map(
+              async (senior) => {
+                const [
+                  completionResult,
+                  consultationResult,
+                ] = await Promise.allSettled([
+                  getEnergySupportCompletion(
+                    senior.id,
+                  ),
+
+                  getActiveEnergySupportConsultation(
+                    senior.id,
+                  ),
+                ]);
+
+                return {
+                  completion:
+                    completionResult.status
+                      === 'fulfilled'
+                      ? completionResult.value
+                      : null,
+
+                  consultation:
+                    consultationResult.status
+                      === 'fulfilled'
+                      ? consultationResult.value
+                      : null,
+                };
+              },
+            ),
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextStatus =
+          seniorItems.reduce(
+            (
+              result,
+              senior,
+              index,
+            ) => {
+              const statusData =
+                energyStatusResults[index]
+                ?? {
+                  completion: null,
+                  consultation: null,
+                };
+
+              const completion =
+                statusData.completion;
+
+              const consultation =
+                statusData.consultation;
+
+              result[senior.id] = {
+                remainingMissingCount:
+                  typeof completion?.missingCount
+                    === 'number'
+                    ? completion.missingCount
+                    : null,
+
+                completed:
+                  completion?.completed
+                  === true,
+
+                consultationRequested:
+                  isConsultationActive(
+                    consultation?.status,
+                  ),
+
+                consultationStatus:
+                  consultation?.status
+                  ?? null,
+
+                consultation:
+                  consultation
+                  ?? null,
+              };
+
+              return result;
+            },
+            {},
+          );
+
+        setEnergyInformationStatus(
+          nextStatus,
         );
       } catch (error) {
         if (cancelled) {
@@ -494,6 +702,7 @@ export default function GuardianMyPage() {
       cancelled = true;
     };
   }, []);
+
 
   async function saveProfile(event) {
     event.preventDefault();
@@ -855,6 +1064,7 @@ export default function GuardianMyPage() {
     setAddressResults([]);
   }
 
+
   return (
     <GuardianLayout
       activeMenu="mypage"
@@ -891,7 +1101,8 @@ export default function GuardianMyPage() {
                         setProfile(
                           (current) => ({
                             ...current,
-                            name: event.target.value,
+                            name:
+                              event.target.value,
                           }),
                         );
                       }}
@@ -909,7 +1120,8 @@ export default function GuardianMyPage() {
                         setProfile(
                           (current) => ({
                             ...current,
-                            email: event.target.value,
+                            email:
+                              event.target.value,
                           }),
                         );
                       }}
@@ -1083,7 +1295,9 @@ export default function GuardianMyPage() {
 
                 <dl>
                   <div>
-                    <dt>유효 기간</dt>
+                    <dt>
+                      유효 기간
+                    </dt>
 
                     <dd>
                       {profile.inviteCodeExpiresAt
@@ -1095,7 +1309,9 @@ export default function GuardianMyPage() {
                   </div>
 
                   <div>
-                    <dt>코드 상태</dt>
+                    <dt>
+                      코드 상태
+                    </dt>
 
                     <dd
                       className={[
@@ -1152,16 +1368,16 @@ export default function GuardianMyPage() {
               <div className="guardian-mypage__card-title">
                 <div>
                   <h2>
-                    연결된 어르신 정보
+                    연결된 어르신 에너지 정보
                   </h2>
 
                   <p>
-                    복지 혜택 확인에 필요한 어르신 정보를 관리합니다.
+                    에너지복지 필수 정보와 담당 복지사 확인 요청 상태를 관리합니다.
                   </p>
                 </div>
 
                 <span>
-                  정보 관리
+                  에너지복지 관리
                 </span>
               </div>
 
@@ -1200,6 +1416,16 @@ export default function GuardianMyPage() {
 
                     <article>
                       <span>
+                        복지사 확인 요청
+                      </span>
+
+                      <strong className="required">
+                        {seniorInformationSummary.consultationCount}명
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>
                         정보 보완 필요
                       </span>
 
@@ -1210,88 +1436,138 @@ export default function GuardianMyPage() {
                   </div>
 
                   <div className="guardian-senior-information-list">
-                    {seniorInformationSummary.seniors.map(
-                      (senior) => (
-                        <article
-                          key={senior.id}
-                          className={[
-                            'guardian-senior-information-item',
-                            senior.completed
-                              ? 'guardian-senior-information-item--complete'
-                              : 'guardian-senior-information-item--required',
-                          ].join(' ')}
-                        >
-                          <div className="guardian-senior-information-item__person">
-                            <span>
-                              {senior.name?.slice(0, 1)
-                                || '어'}
-                            </span>
+                    {seniors.map(
+                      (senior) => {
+                        const energyStatus =
+                          energyInformationStatus[
+                          senior.id
+                          ] ?? {};
 
-                            <div>
-                              <strong>
-                                {senior.name || '이름 미확인'} 님
-                              </strong>
+                        const displayStatus =
+                          getSeniorEnergyStatus(
+                            energyStatus,
+                          );
 
-                              <small>
-                                {senior.guardianRelationship
-                                  || '관계 미설정'}
-                              </small>
+                        const remainingMissingCount =
+                          energyStatus
+                            .remainingMissingCount;
+
+                        return (
+                          <article
+                            key={senior.id}
+                            className={[
+                              'guardian-senior-information-item',
+
+                              displayStatus
+                                === 'COMPLETED'
+                                ? 'guardian-senior-information-item--complete'
+                                : 'guardian-senior-information-item--required',
+                            ].join(' ')}
+                          >
+                            <div className="guardian-senior-information-item__person">
+                              <span>
+                                {senior.name
+                                  ?.slice(
+                                    0,
+                                    1,
+                                  )
+                                  || '어'}
+                              </span>
+
+                              <div>
+                                <strong>
+                                  {senior.name
+                                    || '이름 미확인'} 님
+                                </strong>
+
+                                <small>
+                                  {senior.guardianRelationship
+                                    || '관계 미설정'}
+                                </small>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="guardian-senior-information-item__status">
-                            {senior.completed ? (
-                              <>
-                                <strong className="complete">
-                                  정보 입력 완료
-                                </strong>
+                            <div className="guardian-senior-information-item__status">
+                              {displayStatus === 'COMPLETED' && (
+                                <>
+                                  <strong className="complete">
+                                    정보 입력 완료
+                                  </strong>
 
-                                <small>
-                                  복지 혜택 검토에 필요한 정보가 입력되어 있습니다.
-                                </small>
-                              </>
-                            ) : (
-                              <>
-                                <strong className="required">
-                                  {senior.missingCount}개 항목 보완 필요
-                                </strong>
+                                  <small>
+                                    에너지복지 검토에 필요한 필수 정보가 모두 입력되었습니다.
+                                  </small>
+                                </>
+                              )}
 
-                                <small>
-                                  {senior.missingInformation
-                                    .slice(0, 3)
-                                    .join(' · ')}
+                              {displayStatus === 'REQUESTED' && (
+                                <>
+                                  <strong className="required">
+                                    복지사 확인 요청 완료
+                                  </strong>
 
-                                  {senior.missingCount > 3
-                                    ? ` 외 ${senior.missingCount - 3}개`
-                                    : ''}
-                                </small>
-                              </>
-                            )}
-                          </div>
+                                  <small>
+                                    담당 복지사가 확인 요청을 검토할 예정입니다.
+                                  </small>
+                                </>
+                              )}
 
-                          <div className="guardian-senior-information-item__actions">
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => {
-                                navigate(
-                                  `/guardian/seniors?seniorId=${senior.id}`,
-                                );
-                              }}
-                            >
-                              {senior.completed
-                                ? '정보 확인'
-                                : '정보 보완'}
-                            </button>
-                          </div>
-                        </article>
-                      ),
+                              {displayStatus === 'IN_PROGRESS' && (
+                                <>
+                                  <strong className="required">
+                                    복지사 확인 중
+                                  </strong>
+
+                                  <small>
+                                    담당 복지사가 미입력 필수 정보를 확인하고 있습니다.
+                                  </small>
+                                </>
+                              )}
+
+                              {displayStatus === 'INCOMPLETE' && (
+                                <>
+                                  <strong className="required">
+                                    {typeof remainingMissingCount
+                                      === 'number'
+                                      ? `필수 ${remainingMissingCount}개 항목 보완 필요`
+                                      : '에너지복지 정보 확인 필요'}
+                                  </strong>
+
+                                  <small>
+                                    확인 가능한 정보를 입력하고, 모르는 필수 항목은 복지사에게 요청할 수 있습니다.
+                                  </small>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="guardian-senior-information-item__actions">
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => {
+                                  openEnergyInformationModal(
+                                    senior,
+                                  );
+                                }}
+                              >
+                                {displayStatus === 'COMPLETED'
+                                  ? '정보 수정'
+                                  : displayStatus === 'REQUESTED'
+                                    ? '요청 내용 확인'
+                                    : displayStatus === 'IN_PROGRESS'
+                                      ? '진행 상태 확인'
+                                      : '정보 보완'}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      },
                     )}
                   </div>
 
                   <div className="guardian-senior-information-footer">
                     <p>
-                      보호자가 입력한 정보는 어르신 앱 정보와 함께 복지 혜택 검토에 사용됩니다.
+                      정보 저장만으로 복지사에게 알림이 전달되지는 않습니다. 보호자가 상담 요청을 선택한 경우에만 담당 복지사에게 확인 요청이 전달됩니다.
                     </p>
                   </div>
                 </>
@@ -1384,6 +1660,18 @@ export default function GuardianMyPage() {
               </div>
             </section>
           </div>
+        )}
+
+        {selectedEnergySenior && (
+          <EnergyInformationModal
+            senior={selectedEnergySenior}
+            onClose={
+              closeEnergyInformationModal
+            }
+            onSaved={
+              handleEnergyInformationSaved
+            }
+          />
         )}
 
         {message && (

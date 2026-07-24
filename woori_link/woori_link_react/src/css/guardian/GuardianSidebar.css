@@ -421,6 +421,12 @@
   font-size: 11px;
 }
 
+.guardian-notification-panel__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 
 .guardian-notification-panel__toolbar button {
   padding: 7px 9px;
@@ -446,6 +452,14 @@
 .guardian-notification-panel__toolbar button:disabled {
   color: #aab2ac;
   cursor: not-allowed;
+}
+
+.guardian-notification-panel__toolbar .guardian-notification-panel__delete-all {
+  color: #a85b52;
+}
+
+.guardian-notification-panel__toolbar .guardian-notification-panel__delete-all:hover:not(:disabled) {
+  background: #fff0ed;
 }
 
 
@@ -537,7 +551,7 @@
 
 
 .guardian-notification-item {
-  padding: 18px 20px;
+  padding: 15px 20px;
 
   border-bottom: 1px solid #edf1ed;
   background: #ffffff;
@@ -549,16 +563,39 @@
   background: #fbfdfb;
 }
 
+.guardian-notification-item--read {
+  background: #fafbfa;
+}
+
+.guardian-notification-item--read .guardian-notification-item__top h3,
+.guardian-notification-item--read .guardian-notification-item__copy p,
+.guardian-notification-item--read .guardian-notification-item__top time {
+  color: #a5ada7;
+}
 
 .guardian-notification-item__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 
-  margin-bottom: 11px;
+  margin-bottom: 7px;
 }
 
+.guardian-notification-item__top h3 {
+  margin: 0;
+  color: #2b382e;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 900;
+}
+
+.guardian-notification-item__meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
 
 .guardian-notification-item__labels {
   display: flex;
@@ -631,17 +668,90 @@
   -webkit-line-clamp: 2;
 }
 
+.welfare-notification-item {
+  border-left: 0;
+  background: #ffffff;
+}
 
-.guardian-notification-item__score {
-  display: inline-flex;
-  margin-top: 9px;
-  padding: 4px 7px;
+.welfare-notification-item--unread {
+  background: #ffffff;
+}
 
-  border-radius: 999px;
-  background: #fff0ed;
-  color: #b34c3d;
-  font-size: 10px;
+.welfare-notification-item--read {
+  background: #fafbfa;
+}
+
+.welfare-notification-item--read .welfare-notification-item__heading h3,
+.welfare-notification-item--read .welfare-notification-item__heading time,
+.welfare-notification-item--read .guardian-notification-item__copy p {
+  color: #a6aea8;
+}
+
+.welfare-notification-item--danger {
+  background: #ffffff;
+  border-right: 5px solid #c96f64;
+}
+
+.welfare-notification-item--read.welfare-notification-item--danger {
+  background: #fafbfa;
+  border-right-color: #d9b6b1;
+}
+
+.welfare-notification-item--action {
+  background: #ffffff;
+}
+
+.welfare-notification-item__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.welfare-notification-item__heading h3 {
+  margin: 0;
+  color: #2b382e;
+  font-size: 14px;
   font-weight: 900;
+  line-height: 1.45;
+}
+
+.welfare-notification-item__heading time {
+  flex-shrink: 0;
+  color: #9aa49d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.welfare-notification-item__meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.welfare-notification-item__read-button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid #dfe5df;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #6f7d72;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.welfare-notification-item .guardian-notification-item__copy p {
+  margin-top: 8px;
+}
+
+
+.guardian-notification-item__score-text {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 
@@ -676,8 +786,8 @@
 
 .guardian-notification-item__read-button,
 .guardian-notification-item__action-button {
-  min-height: 34px;
-  padding: 0 11px;
+  min-height: 28px;
+  padding: 0 9px;
 
   border-radius: 8px;
 
@@ -697,9 +807,14 @@
 
 
 .guardian-notification-item__action-button {
-  border: 1px solid #8fa88c;
-  background: #8fa88c;
-  color: #ffffff;
+  border: 1px solid #dce3dc;
+  background: #ffffff;
+  color: #6f7c72;
+}
+
+
+.guardian-notification-item__action-button:hover {
+  background: #f6f8f5;
 }
 
 
@@ -713,6 +828,78 @@
 
 .guardian-sidebar-overlay {
   display: none;
+}
+
+/* =========================================================
+ * 복지사 알림 업무 버튼
+ * ========================================================= */
+
+.welfare-notification-item__action-button {
+  display: inline-flex;
+
+  min-width: 44px;
+  height: 28px;
+
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  padding: 0 9px;
+
+  border: 1px solid #d8dfd6;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #667068;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.welfare-notification-item__action-button:hover {
+  border-color: #a8b7a4;
+
+  background: #f4f7f2;
+  color: #50634d;
+}
+
+
+/* 에너지복지 상담 조율 버튼 */
+.welfare-notification-item__action-button--consultation {
+  min-width: 67px;
+
+  border-color: #9caf96;
+
+  background: #f3f7f1;
+  color: #587053;
+}
+
+.welfare-notification-item__action-button--consultation:hover {
+  border-color: #7f9979;
+
+  background: #e8f0e5;
+  color: #456140;
+}
+
+
+/* 에너지복지 상담 요청 알림 */
+.welfare-notification-item--consultation {
+  border-left-color: #8da287;
+}
+
+.welfare-notification-item--consultation
+.welfare-notification-item__heading h3 {
+  color: #42553f;
 }
 
 

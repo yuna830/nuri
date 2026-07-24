@@ -19,6 +19,8 @@ public interface CareAlertRepository
             Long guardianId
     );
 
+    void deleteByGuardianId(Long guardianId);
+
     /**
      * 보호자에게 생성된 특정 상태의 알림을 최신순으로 조회한다.
      *
@@ -78,6 +80,10 @@ public interface CareAlertRepository
     List<CareAlert> findBySeniorIdInAndTypeOrderByCreatedAtDesc(
             List<Long> seniorIds,
             CareEvent.EventType type
+    );
+
+    List<CareAlert> findBySeniorIdInOrderByCreatedAtDesc(
+            List<Long> seniorIds
     );
 
     /**
