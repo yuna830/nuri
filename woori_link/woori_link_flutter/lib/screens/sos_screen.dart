@@ -101,13 +101,6 @@ class _SosScreenState extends State<SosScreen> {
 
             // SOS 버튼들
             _sosButton(
-              icon: Icons.personal_injury,
-              label: '낙상 신고',
-              subtitle: '넘어지거나 다쳤을 때',
-              color: kDanger,
-              onTap: () => _confirmSos('낙상 신고', '님 낙상 발생 — 즉각 조치 필요'),
-            ),
-            _sosButton(
               icon: Icons.monitor_heart,
               label: '건강 이상',
               subtitle: '몸이 갑자기 불편할 때',

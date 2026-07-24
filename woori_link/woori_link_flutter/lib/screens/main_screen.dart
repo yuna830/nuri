@@ -4,7 +4,6 @@ import 'home_screen.dart';
 import 'energy_voucher_screen.dart';
 import 'recall_screen.dart';
 import 'profile_screen.dart';
-import '../services/care_monitoring_service.dart';
 import '../services/fcm_service.dart';
 
 class MainScreen extends StatefulWidget {
@@ -17,13 +16,11 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   int _recallInitialTab = 0;
-  final _careMonitoring = CareMonitoringService();
   late final FcmService _fcmService;
 
   @override
   void initState() {
     super.initState();
-    _careMonitoring.start();
     _fcmService = FcmService(
       onForegroundMessage: _showRecallNotification,
       onNotificationOpened: _openRecallNotification,
@@ -58,7 +55,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _fcmService.dispose();
-    _careMonitoring.dispose();
     super.dispose();
   }
 
