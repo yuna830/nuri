@@ -10,9 +10,10 @@ import {
   getUser,
 } from './utils/auth.js';
 
+
 /* =========================================================
-   보호자 페이지
-   ========================================================= */
+ * 보호자 페이지
+ * ========================================================= */
 
 import GuardianHome from './pages/guardian/Home.jsx';
 import SeniorStatus from './pages/guardian/SeniorStatus.jsx';
@@ -22,9 +23,10 @@ import GuardianLogin from './pages/guardian/Login.jsx';
 import GuardianRegister from './pages/guardian/Register.jsx';
 import GuardianMyPage from './pages/guardian/MyPage.jsx';
 
+
 /* =========================================================
-   복지사 페이지
-   ========================================================= */
+ * 복지사 페이지
+ * ========================================================= */
 
 import WelfareLogin from './pages/welfare/Login.jsx';
 import WelfareRegister from './pages/welfare/Register.jsx';
@@ -37,11 +39,13 @@ import WelfareSidebar from './pages/welfare/WelfareSidebar.jsx';
 
 
 /* =========================================================
-   복지사 인증 및 공통 레이아웃
-   ========================================================= */
+ * 복지사 인증 및 공통 레이아웃
+ * ========================================================= */
 
 function WelfareProtectedLayout() {
-  const user = getUser();
+  const user =
+    getUser('WELFARE_WORKER')
+    || getUser();
 
   if (!user) {
     return (
@@ -52,7 +56,10 @@ function WelfareProtectedLayout() {
     );
   }
 
-  if (user.role !== 'WELFARE_WORKER') {
+  if (
+    user.role
+    !== 'WELFARE_WORKER'
+  ) {
     return (
       <Navigate
         to="/welfare/login"
@@ -63,47 +70,7 @@ function WelfareProtectedLayout() {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <h1>WOORI</h1>
-          <p>복지사 관리 시스템</p>
-        </div>
-
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/welfare"
-            end
-          >
-            대시보드
-          </NavLink>
-
-          <NavLink to="/welfare/seniors">
-            대상자 목록
-          </NavLink>
-
-          <NavLink to="/welfare/energy-voucher">
-            에너지복지 신청 지원
-          </NavLink>
-
-          <NavLink to="/welfare/recalled">
-            리콜 제품 조치 관리
-          </NavLink>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            {user.name || '담당자'} 복지사
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="sidebar-logout"
-          >
-            로그아웃
-          </button>
-        </div>
-      </aside>
+      <WelfareSidebar />
 
       <main className="main-content">
         <div className="welfare-content-container">
@@ -116,17 +83,13 @@ function WelfareProtectedLayout() {
 
 
 /* =========================================================
-   보호자 인증
-   ========================================================= */
+ * 보호자 인증
+ * ========================================================= */
 
-/*
- * 보호자 페이지의 화면 레이아웃과 사이드바는
- * Home.jsx와 SeniorStatus.jsx 내부의 GuardianLayout이 담당한다.
- *
- * 따라서 App.jsx에서는 인증만 처리하고 Outlet만 반환한다.
- */
 function GuardianProtectedRoute() {
-  const user = getUser();
+  const user =
+    getUser('GUARDIAN')
+    || getUser();
 
   if (!user) {
     return (
@@ -137,7 +100,10 @@ function GuardianProtectedRoute() {
     );
   }
 
-  if (user.role !== 'GUARDIAN') {
+  if (
+    user.role
+    !== 'GUARDIAN'
+  ) {
     return (
       <Navigate
         to="/guardian/login"
@@ -151,12 +117,17 @@ function GuardianProtectedRoute() {
 
 
 /* =========================================================
-   전체 라우터
-   ========================================================= */
+ * 전체 라우터
+ * ========================================================= */
 
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         {/* 최초 접속 */}
         <Route
@@ -190,9 +161,10 @@ export default function App() {
           )}
         />
 
+
         {/* =================================================
-            복지사 공개 경로
-            ================================================= */}
+         * 복지사 공개 경로
+         * ========================================================= */}
 
         <Route
           path="/welfare/login"
@@ -204,11 +176,16 @@ export default function App() {
           element={<WelfareRegister />}
         />
 
-        {/* =================================================
-            복지사 인증 필요 경로
-            ================================================= */}
 
-        <Route element={<WelfareProtectedLayout />}>
+        {/* =================================================
+         * 복지사 인증 필요 경로
+         * ========================================================= */}
+
+        <Route
+          element={
+            <WelfareProtectedLayout />
+          }
+        >
           <Route
             path="/welfare"
             element={<Dashboard />}
@@ -235,9 +212,10 @@ export default function App() {
           />
         </Route>
 
+
         {/* =================================================
-            보호자 공개 경로
-            ================================================= */}
+         * 보호자 공개 경로
+         * ========================================================= */}
 
         <Route
           path="/guardian/login"
@@ -249,35 +227,55 @@ export default function App() {
           element={<GuardianRegister />}
         />
 
-        {/* =================================================
-            보호자 인증 필요 경로
-            ================================================= */}
 
-        <Route element={<GuardianProtectedRoute />}>
-          {/* 담당 님 전체 요약 홈 */}
+        {/* =================================================
+         * 보호자 인증 필요 경로
+         * ========================================================= */}
+
+        <Route
+          element={
+            <GuardianProtectedRoute />
+          }
+        >
           <Route
             path="/guardian"
             element={<GuardianHome />}
           />
 
-          {/* 선택한 님 상세 현황 */}
           <Route
             path="/guardian/seniors"
             element={<SeniorStatus />}
           />
+
           <Route
             path="/guardian/safety"
             element={<GuardianSafety />}
           />
+
           <Route
             path="/guardian/welfare"
-            element={<GuardianWelfareAssistant />}
+            element={
+              <GuardianWelfareAssistant />
+            }
           />
+
           <Route
             path="/guardian/mypage"
             element={<GuardianMyPage />}
           />
         </Route>
+
+
+        {/* 존재하지 않는 주소 */}
+        <Route
+          path="*"
+          element={(
+            <Navigate
+              to="/"
+              replace
+            />
+          )}
+        />
       </Routes>
     </BrowserRouter>
   );

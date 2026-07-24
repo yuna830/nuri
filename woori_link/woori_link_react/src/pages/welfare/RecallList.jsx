@@ -108,13 +108,11 @@ function cleanRecallText(value) {
   if (!value) return ''
 
   return String(value)
-    .replace(/\s+[-–—•·▪▫■□◆◇▶▷※○◯〇oO]\s+/g, '\n')
-    .split(/\r?\n/)
-    .map(line =>
-      line
-        .replace(/^\s*[-–—•·▪▫■□◆◇▶▷※○◯〇oO]+\s*/g, '')
-        .trim()
-    )
+    .replace(/\r/g, '')
+    .replace(/(^|\n|\s)[-–—•·▪▫■□◆◇▶▷※○◯〇oO]\s*/g, '$1')
+    .replace(/[ \t]+/g, ' ')
+    .split('\n')
+    .map(line => line.trim())
     .filter(Boolean)
     .join('\n')
 }
