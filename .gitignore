@@ -7,7 +7,9 @@ stt_server/
 woorispring/uploads/
 .venv
 
-# Flutter 앱 환경변수 (커밋 금지)
+**/__pycache__/
+*.pyc
+
+# Flutter 환경변수
 woori_guardian_app/.env
 woori_senior_app/.env
-

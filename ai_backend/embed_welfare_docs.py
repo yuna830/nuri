@@ -4,13 +4,14 @@ woori-vault의 복지·요금감면·제품안전 문서를 RAG에 임베딩하�
 
 사용법:
   python embed_welfare_docs.py
-  python embed_welfare_docs.py --url http://localhost:8001
+  RAG_API_BASE_URL 환경변수를 설정하거나 --url 옵션을 사용
   python embed_welfare_docs.py --file 당뇨병_관련복지.md  (특정 파일만)
   python embed_welfare_docs.py --delete  (기존 문서 삭제 후 재임베딩)
 """
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -24,7 +25,6 @@ DOCUMENT_DIRS = [
     VAULT_ROOT / "utility-discount",
     VAULT_ROOT / "product-safety",
 ]
-DEFAULT_URL = "http://localhost:8001"
 EMBED_ENDPOINT = "/api/rag-documents/embed-document"
 DELETE_ENDPOINT = "/api/rag-documents/delete-documents"
 COUNT_ENDPOINT = "/api/rag-documents/count-by-document-id"
@@ -121,11 +121,17 @@ def embed_file(base_url: str, md_path: Path, delete_first: bool = False) -> dict
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default=DEFAULT_URL, help="백엔드 URL")
+    parser.add_argument(
+        "--url",
+        default=os.getenv("RAG_API_BASE_URL"),
+        help="백엔드 URL (기본값: RAG_API_BASE_URL 환경변수)",
+    )
     parser.add_argument("--file", default=None, help="특정 파일 이름만 임베딩")
     parser.add_argument("--delete", action="store_true", help="기존 임베딩 삭제 후 재임베딩")
     args = parser.parse_args()
 
+    if not args.url:
+        parser.error("--url 또는 RAG_API_BASE_URL 환경변수가 필요합니다.")
     base_url = args.url.rstrip("/")
 
     try:
