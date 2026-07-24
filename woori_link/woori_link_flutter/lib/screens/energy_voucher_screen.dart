@@ -336,7 +336,7 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
           bottom: const TabBar(
             tabs: [
               Tab(text: '내 정보'),
-              Tab(text: '신청 현황'),
+              Tab(text: '입력 현황'),
             ],
           ),
         ),
@@ -351,7 +351,6 @@ class _EnergyVoucherScreenState extends State<EnergyVoucherScreen> {
               ),
               _StatusTab(
                 info: _info,
-                onEdit: _openEditor,
               ),
             ],
           ),
@@ -620,30 +619,35 @@ class _MyInfoTab extends StatelessWidget {
 class _StatusTab extends StatelessWidget {
   const _StatusTab({
     required this.info,
-    required this.onEdit,
   });
 
   final Map<String, dynamic> info;
-  final ValueChanged<_Benefit> onEdit;
 
   @override
   Widget build(BuildContext context) {
+    final enteredBenefits = _benefits
+        .where((benefit) => _completedCount(benefit.fields, info) > 0)
+        .toList();
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        ..._benefits.map(
-          (benefit) {
-            final status = _evaluateBenefit(benefit, info);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _StatusCard(
-                benefit: benefit,
-                status: status,
-                onEdit: () => onEdit(benefit),
-              ),
-            );
-          },
-        ),
+        if (enteredBenefits.isEmpty) ...[
+          const _EmptyInputStatusCard(),
+        ] else ...[
+          ...enteredBenefits.map(
+            (benefit) {
+              final status = _evaluateBenefit(benefit, info);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _StatusCard(
+                  benefit: benefit,
+                  status: status,
+                ),
+              );
+            },
+          ),
+        ],
         const SizedBox(height: 4),
         const _NoticeCard(),
       ],
@@ -693,7 +697,7 @@ class _GuideCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              '수급 자격과 실제 신청 여부는 따로 확인합니다. 모르는 항목은 비워두면 신청 현황에서 확인이 필요한 항목으로 남습니다.',
+              '수급 자격과 실제 신청 여부는 따로 확인합니다. 모르는 항목은 비워두면 입력 현황에서 확인이 필요한 항목으로 남습니다.',
               style: TextStyle(
                 color: kTextMuted,
                 height: 1.45,
@@ -809,12 +813,10 @@ class _StatusCard extends StatelessWidget {
   const _StatusCard({
     required this.benefit,
     required this.status,
-    required this.onEdit,
   });
 
   final _Benefit benefit;
   final _BenefitStatus status;
-  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -851,11 +853,6 @@ class _StatusCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('수정'),
                 ),
               ],
             ),
@@ -898,12 +895,49 @@ class _NoticeCard extends StatelessWidget {
         border: Border.all(color: kBorder),
       ),
       child: const Text(
-        '신청 현황은 자동 확정이 아니라 준비 상태입니다. 고객번호, 계약 명의, 최근 고지서처럼 확인이 필요한 항목은 보호자 또는 담당 복지사가 최종 확인해야 합니다.',
+        '입력 현황은 실제 신청 완료가 아니라 현재 입력된 정보와 확인이 필요한 항목을 보여줍니다. 수정은 내 정보 탭에서 할 수 있습니다.',
         style: TextStyle(
           color: kTextMuted,
           height: 1.45,
           fontSize: 12,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyInputStatusCard extends StatelessWidget {
+  const _EmptyInputStatusCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.edit_note, color: kPrimary),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                '아직 입력된 복지 정보가 없습니다. 내 정보 탭에서 필요한 항목을 먼저 입력해 주세요.',
+                style: TextStyle(
+                  color: kTextMuted,
+                  height: 1.45,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1004,6 +1038,11 @@ class _BenefitEditorState extends State<_BenefitEditor> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (widget.benefit.fields
+                  .any((field) => field.type == _FieldType.toggle)) ...[
+                const SizedBox(height: 10),
+                const _UnknownAnswerNotice(),
+              ],
               const SizedBox(height: 14),
               ...widget.benefit.fields.map(_field),
               const SizedBox(height: 12),
@@ -1029,12 +1068,11 @@ class _BenefitEditorState extends State<_BenefitEditor> {
   Widget _field(_InputField field) {
     switch (field.type) {
       case _FieldType.toggle:
-        return SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _draft[field.key] == true,
+        return _YesNoUnknownField(
+          label: field.label,
+          hint: field.hint,
+          value: _draft[field.key] is bool ? _draft[field.key] as bool : null,
           onChanged: (value) => setState(() => _draft[field.key] = value),
-          title: Text(field.label),
-          subtitle: field.hint == null ? null : Text(field.hint!),
         );
       case _FieldType.text:
         return Padding(
@@ -1116,10 +1154,10 @@ class _BenefitEditorState extends State<_BenefitEditor> {
               padding: const EdgeInsets.only(bottom: 10),
               child: TextField(
                 controller: _controllers[key],
-                keyboardType: TextInputType.datetime,
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: '${index + 1}번째 세대원 생년월일',
-                  hintText: '예: 1945.03.01',
+                  hintText: '예: 19450301',
                   filled: true,
                   fillColor: kBg,
                 ),
@@ -1132,7 +1170,8 @@ class _BenefitEditorState extends State<_BenefitEditor> {
   }
 
   int _householdCount() {
-    final raw = _controllers['householdCount']?.text ?? '${_draft['householdCount'] ?? ''}';
+    final raw = _controllers['householdCount']?.text ??
+        '${_draft['householdCount'] ?? ''}';
     final count = int.tryParse(raw.trim()) ?? 0;
     return count.clamp(0, 10).toInt();
   }
@@ -1153,6 +1192,185 @@ class _BenefitEditorState extends State<_BenefitEditor> {
     return List.generate(_householdCount(), (index) {
       return _controllers['householdBirthDate_$index']?.text.trim() ?? '';
     });
+  }
+}
+
+class _YesNoUnknownField extends StatelessWidget {
+  const _YesNoUnknownField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.hint,
+  });
+
+  final String label;
+  final String? hint;
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, right: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  if (hint != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      hint!,
+                      style: const TextStyle(
+                        color: kTextMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 152,
+            height: 44,
+            child: _YesNoPill(
+              value: value,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _YesNoPill extends StatelessWidget {
+  const _YesNoPill({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: kBorder.withOpacity(0.9), width: 1.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            _YesNoPillSegment(
+              selected: value == true,
+              label: '예',
+              icon: Icons.check,
+              onTap: () => onChanged(value == true ? null : true),
+            ),
+            Container(width: 1, color: kBorder.withOpacity(0.9)),
+            _YesNoPillSegment(
+              selected: value == false,
+              label: '아니요',
+              icon: Icons.close,
+              onTap: () => onChanged(value == false ? null : false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _YesNoPillSegment extends StatelessWidget {
+  const _YesNoPillSegment({
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColor = label == '아니요' ? kDanger : kPrimaryDark;
+    final selectedBackground =
+        label == '아니요' ? kDanger.withOpacity(0.11) : kPrimary.withOpacity(0.16);
+    final color = selected ? selectedColor : kTextPrimary;
+
+    return Expanded(
+      child: Material(
+        color: selected ? selectedBackground : Colors.white,
+        child: InkWell(
+          onTap: onTap,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 17, color: color),
+                    const SizedBox(width: 4),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnknownAnswerNotice extends StatelessWidget {
+  const _UnknownAnswerNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: kPrimary.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kPrimary.withOpacity(0.16)),
+      ),
+      child: const Text(
+        '예/아니요를 선택하지 않은 항목은 모름으로 전달됩니다.',
+        style: TextStyle(
+          color: kTextMuted,
+          fontSize: 12,
+          height: 1.35,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
