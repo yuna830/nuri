@@ -1,42 +1,88 @@
 @import '../welfare/Register.css';
 
+
 .guardian-register-card .form-row > .auth-field {
   flex: 1;
 }
 
+
 .guardian-register-card .guardian-register-name {
-  flex: 0 0 38%;
+  flex: 0 0 48%;
 }
+
+
+/* =========================================================
+ * 초대 코드 완료 화면
+ * ========================================================= */
 
 .invite-code-card {
   text-align: center;
 }
 
-.invite-code-card h2 {
-  margin: 28px 0 8px;
+
+.invite-code-content {
+  margin: 28px 0 22px;
+  padding: 22px;
+
+  border: 1px solid #e4eae2;
+  border-radius: 12px;
+
+  background: #f8faf7;
 }
 
-.invite-code-card p {
-  color: #64748b;
+
+.invite-code-content > span {
+  display: block;
+
+  margin-bottom: 12px;
+
+  color: #667265;
+
+  font-size: 13px;
+  font-weight: 700;
 }
+
+
+.invite-code-content p {
+  margin: 14px 0 0;
+
+  color: #778176;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 
 .invite-code-value {
   display: block;
-  margin: 28px 0;
-  font-size: 36px;
-  letter-spacing: 8px;
+
+  color: #647e61;
+
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 7px;
 }
 
-.invite-code-login {
-  margin-top: 12px;
-  border: 0;
-  background: transparent;
-  color: #475569;
-  cursor: pointer;
+
+.invite-code-card .auth-login-text-button {
+  display: inline-flex;
+
+  margin-top: 16px;
 }
+
 
 @media (max-width: 640px) {
   .guardian-register-card .form-row {
-    display: block;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-register-card .guardian-register-name {
+    flex-basis: auto;
+  }
+
+  .invite-code-value {
+    font-size: 28px;
+    letter-spacing: 5px;
   }
 }

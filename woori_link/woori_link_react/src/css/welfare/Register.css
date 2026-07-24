@@ -1,89 +1,304 @@
 @import './Login.css';
 
+
 .auth-card-wide {
+  width: min(600px, calc(100% - 40px));
   max-width: 600px;
-  width: 90%;
 }
+
+
+/* =========================================================
+ * 회원가입 제목
+ * ========================================================= */
+
+.auth-register-heading {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+
+.auth-register-heading__brand {
+  display: block;
+
+  margin-bottom: 10px;
+
+  color: #829c7e;
+
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+}
+
+
+.auth-register-heading h1 {
+  margin: 0;
+
+  color: #1f2920;
+
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+
+.auth-register-heading p {
+  margin: 8px 0 0;
+
+  color: #879086;
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+ * 폼 배치
+ * ========================================================= */
 
 .form-row {
   display: flex;
   gap: 12px;
 }
 
+
+.form-row > .auth-field {
+  flex: 1;
+  min-width: 0;
+}
+
+
 .form-row-inline {
   display: flex;
+  align-items: stretch;
   gap: 8px;
 }
 
+
 .form-row-inline .auth-input {
   flex: 1;
+  min-width: 0;
 }
+
+
+/*
+ * 로그인 공통 CSS의 input 높이가 달라도
+ * 중복확인 버튼과 입력칸이 정확히 같은 높이가 되도록 고정
+ */
+.form-row-inline .auth-input,
+.form-row-inline .inline-btn {
+  box-sizing: border-box;
+  height: 52px;
+  min-height: 52px;
+}
+
 
 .inline-btn {
-  height: 42px;
-  padding: 0 16px;
+  display: inline-flex;
+  flex: 0 0 92px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 14px;
+
   white-space: nowrap;
-  flex-shrink: 0;
 }
+
 
 .register-btn-outline {
-  background: #fff;
-  border: 1.5px solid #86a788;
-  color: #86a788;
+  border: 1px solid #8ea98a;
   border-radius: 8px;
-  cursor: pointer;
+
+  background: #fff;
+  color: #718c6d;
+
   font-size: 13px;
-  font-weight: 600;
-  transition: background 0.15s, color 0.15s;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.register-btn-outline:hover {
-  background: #86a788;
+
+.register-btn-outline:hover:not(:disabled) {
+  border-color: #779473;
+
+  background: #779473;
   color: #fff;
 }
 
+
 .register-btn-outline:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-.id-check-ok {
-  display: block;
-  font-size: 12px;
-  color: #3a7d44;
-  margin-top: 4px;
-}
 
+/* =========================================================
+ * 아이디 중복확인 결과
+ * ========================================================= */
+
+.id-check-ok,
 .id-check-fail {
   display: block;
+
+  margin-top: 6px;
+
   font-size: 12px;
-  color: #C93A32;
-  margin-top: 4px;
+  font-weight: 600;
 }
+
+
+.id-check-ok {
+  color: #3a7d44;
+}
+
+
+.id-check-fail {
+  color: #c64b43;
+}
+
+
+/* =========================================================
+ * 로그인 이동
+ * ========================================================= */
+
+.auth-register-login {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  margin-top: 20px;
+
+  color: #8a9289;
+
+  font-size: 13px;
+}
+
+
+.auth-login-text-button {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+  color: #6f8c6b;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+
+  text-decoration: none;
+  cursor: pointer;
+}
+
+
+.auth-login-text-button:hover {
+  color: #587455;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+
+/* =========================================================
+ * 기존 기관 검색 드롭다운
+ * ========================================================= */
 
 .org-dropdown {
   position: absolute;
+  z-index: 100;
+
   top: 100%;
-  left: 0;
   right: 0;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  left: 0;
+
   max-height: 200px;
   overflow-y: auto;
-  z-index: 100;
+
+  border: 1px solid #ddd;
+  border-radius: 8px;
+
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
+
 
 .org-dropdown-item {
   padding: 10px 14px;
-  cursor: pointer;
+
   border-bottom: 1px solid #f0f0f0;
+
+  cursor: pointer;
 }
 
-.org-dropdown-item:last-child { border-bottom: none; }
-.org-dropdown-item:hover { background: #f5f5f5; }
 
-.org-dropdown-item-name { font-size: 14px; font-weight: 600; color: #333; }
-.org-dropdown-item-sub { font-size: 12px; color: #888; margin-top: 2px; }
-.org-dropdown-empty { padding: 14px; text-align: center; color: #aaa; font-size: 14px; }
+.org-dropdown-item:last-child {
+  border-bottom: 0;
+}
+
+
+.org-dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+
+.org-dropdown-item-name {
+  color: #333;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+
+.org-dropdown-item-sub {
+  margin-top: 2px;
+
+  color: #888;
+
+  font-size: 12px;
+}
+
+
+.org-dropdown-empty {
+  padding: 14px;
+
+  color: #aaa;
+
+  font-size: 14px;
+  text-align: center;
+}
+
+
+@media (max-width: 640px) {
+  .auth-card-wide {
+    width: calc(100% - 28px);
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .form-row-inline {
+    grid-template-columns: minmax(0, 1fr) 88px;
+  }
+
+  .inline-btn {
+    flex-basis: 88px;
+  }
+
+  .auth-register-heading h1 {
+    font-size: 22px;
+  }
+}
