@@ -1022,7 +1022,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             '기상특보 확인',
                             _risk?['weatherRisk'] == true,
                             _risk?['weatherRisk'] == true
-                                ? '⚠️ 특보 발효 중'
+                                ? '특보 발효 중'
                                 : '이상 없음',
                           ),
                           _checkItem(
