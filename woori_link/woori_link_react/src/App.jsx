@@ -34,7 +34,6 @@ import WelfareRegister from './pages/welfare/Register.jsx';
 import Dashboard from './pages/welfare/Dashboard.jsx';
 import EnergyVoucher from './pages/welfare/EnergyVoucher.jsx';
 import RecallList from './pages/welfare/RecallList.jsx';
-import Schedule from './pages/welfare/Schedule.jsx';
 import SeniorDetail from './pages/welfare/SeniorDetail.jsx';
 import SeniorList from './pages/welfare/SeniorList.jsx';
 
@@ -111,10 +110,6 @@ function WelfareProtectedLayout() {
 
           <NavLink to="/welfare/recalled">
             리콜 제품 조치 관리
-          </NavLink>
-
-          <NavLink to="/welfare/schedule">
-            방문 일정
           </NavLink>
         </nav>
 
@@ -260,11 +255,6 @@ export default function App() {
           <Route
             path="/welfare/recalled"
             element={<RecallList />}
-          />
-
-          <Route
-            path="/welfare/schedule"
-            element={<Schedule />}
           />
         </Route>
 

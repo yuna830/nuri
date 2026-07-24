@@ -3,13 +3,24 @@ import { useNavigate } from 'react-router-dom'
 import '../../css/welfare/Dashboard.css'
 import { getSeniorsByWelfareWorker } from '../../api/seniorApi'
 import { getHighRisk, assessAll } from '../../api/riskApi'
-import { getActionsByWelfareWorker } from '../../api/actionApi'
+import {
+  createAction,
+  deleteAction,
+  getActionsByWelfareWorker,
+  updateAction,
+} from '../../api/actionApi'
 import { getProductsBySenior, getRecalledProductsByWelfareWorker } from '../../api/recallApi'
 import { getEnergySupportCandidates } from '../../api/energySupportApi'
 import { getUserId } from '../../utils/auth'
 import { filterProductsByRecallRequests } from '../../utils/recallRequestFilter'
 
 const TERMINAL_STATUSES = ['COMPLETED', 'CANCELLED']
+const EMPTY_SCHEDULE_FORM = {
+  seniorId: '',
+  dueDate: '',
+  visitTime: '',
+  note: '',
+}
 const TYPE_LABEL = {
   RECALL: '리콜 조치',
   VOUCHER: '에너지바우처',
@@ -22,6 +33,7 @@ const TYPE_LABEL = {
 }
 
 const dateOnly = value => value ? String(value).slice(0, 10) : ''
+const timeNotePattern = /^\[방문시간:(\d{2}:\d{2})]\s*(.*)$/
 const todayString = () => {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -51,8 +63,51 @@ function activityTime(value, today) {
   return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
 }
 
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  )
+}
+
+function noteParts(note) {
+  const match = String(note || '').match(timeNotePattern)
+  return {
+    time: match?.[1] || '',
+    text: match ? match[2] : (note || ''),
+  }
+}
+
+function scheduleTime(action) {
+  return action.visitTime || noteParts(action.note).time || ''
+}
+
+function scheduleNote(action) {
+  return noteParts(action.note).text || '방문 일정'
+}
+
+function buildScheduleNote(note, time) {
+  const cleanNote = noteParts(note).text || '방문 일정'
+  return time ? `[방문시간:${time}] ${cleanNote}` : cleanNote
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
+  const welfareWorkerId = getUserId()
   const [seniors, setSeniors] = useState([])
   const [highRisk, setHighRisk] = useState([])
   const [actions, setActions] = useState([])
@@ -65,6 +120,53 @@ export default function Dashboard() {
   const [calendarMonth, setCalendarMonth] = useState(initialDate.getMonth() + 1)
   const [selectedDate, setSelectedDate] = useState(today)
   const [openScheduleDate, setOpenScheduleDate] = useState(null)
+  const [scheduleModal, setScheduleModal] = useState(null)
+  const [scheduleForm, setScheduleForm] = useState({
+    ...EMPTY_SCHEDULE_FORM,
+    dueDate: today,
+  })
+
+  async function loadDashboardData() {
+    if (!welfareWorkerId) return
+
+    const [seniorResult, actionResult, riskResult, energyResults] = await Promise.all([
+      getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] })),
+      getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] })),
+      getHighRisk().catch(() => ({ data: [] })),
+      Promise.all(
+        ['VOUCHER', 'ELECTRICITY', 'GAS'].map(type =>
+          getEnergySupportCandidates(welfareWorkerId, type, 'ACTIVE')
+            .then(response => (Array.isArray(response.data) ? response.data : [])
+              .map(item => ({ ...item, supportType: item.supportType || type })))
+            .catch(() => []),
+        ),
+      ),
+    ])
+
+    const loadedSeniors = Array.isArray(seniorResult.data) ? seniorResult.data : []
+    const loadedActions = Array.isArray(actionResult.data) ? actionResult.data : []
+    setSeniors(loadedSeniors)
+    setActions(loadedActions)
+    setHighRisk(Array.isArray(riskResult.data) ? riskResult.data : [])
+    setEnergyCandidates(energyResults.flat())
+
+    const recalledResult = await getRecalledProductsByWelfareWorker(welfareWorkerId)
+      .catch(() => ({ data: [] }))
+    if (Array.isArray(recalledResult.data) && recalledResult.data.length > 0) {
+      setRecalled(filterProductsByRecallRequests(recalledResult.data, loadedActions))
+      return
+    }
+    const productResults = await Promise.all(
+      loadedSeniors.map(senior =>
+        getProductsBySenior(senior.id).catch(() => ({ data: [] }))),
+    )
+    const products = productResults
+      .flatMap(result => Array.isArray(result.data) ? result.data : [])
+      .filter(product =>
+        product.recallDecisionStatus === 'RECALL_CONFIRMED'
+        || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
+    setRecalled(filterProductsByRecallRequests(products, loadedActions))
+  }
 
   useEffect(() => {
     if (!openScheduleDate) return undefined
@@ -86,51 +188,8 @@ export default function Dashboard() {
   }, [openScheduleDate])
 
   useEffect(() => {
-    const welfareWorkerId = getUserId()
-    if (!welfareWorkerId) return
-
-    async function loadDashboard() {
-      const [seniorResult, actionResult, riskResult, energyResults] = await Promise.all([
-        getSeniorsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] })),
-        getActionsByWelfareWorker(welfareWorkerId).catch(() => ({ data: [] })),
-        getHighRisk().catch(() => ({ data: [] })),
-        Promise.all(
-          ['VOUCHER', 'ELECTRICITY', 'GAS'].map(type =>
-            getEnergySupportCandidates(welfareWorkerId, type, 'ACTIVE')
-              .then(response => (Array.isArray(response.data) ? response.data : [])
-                .map(item => ({ ...item, supportType: item.supportType || type })))
-              .catch(() => []),
-          ),
-        ),
-      ])
-
-      const loadedSeniors = Array.isArray(seniorResult.data) ? seniorResult.data : []
-      const loadedActions = Array.isArray(actionResult.data) ? actionResult.data : []
-      setSeniors(loadedSeniors)
-      setActions(loadedActions)
-      setHighRisk(Array.isArray(riskResult.data) ? riskResult.data : [])
-      setEnergyCandidates(energyResults.flat())
-
-      const recalledResult = await getRecalledProductsByWelfareWorker(welfareWorkerId)
-        .catch(() => ({ data: [] }))
-      if (Array.isArray(recalledResult.data) && recalledResult.data.length > 0) {
-        setRecalled(filterProductsByRecallRequests(recalledResult.data, loadedActions))
-        return
-      }
-      const productResults = await Promise.all(
-        loadedSeniors.map(senior =>
-          getProductsBySenior(senior.id).catch(() => ({ data: [] }))),
-      )
-      const products = productResults
-        .flatMap(result => Array.isArray(result.data) ? result.data : [])
-        .filter(product =>
-          product.recallDecisionStatus === 'RECALL_CONFIRMED'
-          || (!product.recallDecisionStatus && product.recallStatus === 'RECALLED'))
-      setRecalled(filterProductsByRecallRequests(products, loadedActions))
-    }
-
-    loadDashboard()
-  }, [])
+    loadDashboardData()
+  }, [welfareWorkerId])
 
   const seniorById = useMemo(
     () => new Map(seniors.map(senior => [Number(senior.id), senior])),
@@ -160,8 +219,13 @@ export default function Dashboard() {
     !candidate.status || candidate.status === 'CONFIRMATION_NEEDED')
   const visitActions = actions.filter(action =>
     action.actionType === 'VISIT' && action.dueDate)
-  const selectedVisits = visitActions.filter(action =>
-    dateOnly(action.dueDate) === selectedDate)
+  const selectedVisits = visitActions
+    .filter(action => dateOnly(action.dueDate) === selectedDate)
+    .sort((a, b) => {
+      const timeCompare = (scheduleTime(a) || '23:59').localeCompare(scheduleTime(b) || '23:59')
+      if (timeCompare !== 0) return timeCompare
+      return Number(b.id || 0) - Number(a.id || 0)
+    })
   const firstWeekday = new Date(calendarYear, calendarMonth - 1, 1).getDay()
   const daysInMonth = new Date(calendarYear, calendarMonth, 0).getDate()
   const calendarCells = [
@@ -174,8 +238,14 @@ export default function Dashboard() {
   }
 
   function goToAction(action) {
-    if (action.actionType === 'VISIT') navigate('/welfare/schedule')
-    else if (action.actionType === 'RECALL') navigate('/welfare/recalled')
+    if (action.actionType === 'VISIT') {
+      const date = dateOnly(action.dueDate) || today
+      const next = new Date(`${date}T00:00:00`)
+      setCalendarYear(next.getFullYear())
+      setCalendarMonth(next.getMonth() + 1)
+      setSelectedDate(date)
+      setOpenScheduleDate(date)
+    } else if (action.actionType === 'RECALL') navigate('/welfare/recalled')
     else if (['VOUCHER', 'ELECTRICITY_DISCOUNT'].includes(action.actionType)) {
       navigate('/welfare/energy-voucher')
     } else if (action.seniorId) navigate(`/welfare/seniors/${action.seniorId}`)
@@ -193,7 +263,13 @@ export default function Dashboard() {
   }
 
   const workItems = [
-    ['오늘 방문', todayVisits.length, '오늘 예정된 방문 일정', () => navigate('/welfare/schedule')],
+    ['오늘 방문', todayVisits.length, '오늘 예정된 방문 일정', () => {
+      setSelectedDate(today)
+      setOpenScheduleDate(today)
+      const current = new Date(`${today}T00:00:00`)
+      setCalendarYear(current.getFullYear())
+      setCalendarMonth(current.getMonth() + 1)
+    }],
     ['오늘 연락', todayContacts.length, '오늘 연락하거나 확인할 대상', () => navigate('/welfare/energy-voucher')],
     ['기한 지난 업무', overdueActions.length, '예정일이 지난 미완료 조치', () => overdueActions[0] && goToAction(overdueActions[0])],
     ['신규 확인 업무', newCandidates.length, '처음 확인해야 하는 에너지복지 업무', () => navigate('/welfare/energy-voucher')],
@@ -219,6 +295,68 @@ export default function Dashboard() {
     if (visits.some(action => action.immediateRisk === true || action.priority === 'HIGH')) return 'urgent'
     if (visits.some(action => !TERMINAL_STATUSES.includes(action.status) && date < today)) return 'overdue'
     return visits.length > 0 ? 'scheduled' : ''
+  }
+
+  function openCreateSchedule(date = selectedDate) {
+    setScheduleForm({
+      ...EMPTY_SCHEDULE_FORM,
+      dueDate: date,
+    })
+    setScheduleModal({ mode: 'create' })
+  }
+
+  function openEditSchedule(action) {
+    setScheduleForm({
+      seniorId: action.seniorId ? String(action.seniorId) : '',
+      dueDate: dateOnly(action.dueDate) || selectedDate,
+      visitTime: scheduleTime(action),
+      note: scheduleNote(action),
+    })
+    setScheduleModal({ mode: 'edit', action })
+  }
+
+  function closeScheduleModal() {
+    setScheduleModal(null)
+    setScheduleForm({
+      ...EMPTY_SCHEDULE_FORM,
+      dueDate: selectedDate,
+    })
+  }
+
+  async function handleScheduleSubmit(event) {
+    event.preventDefault()
+    const payload = {
+      welfareWorkerId,
+      seniorId: Number(scheduleForm.seniorId),
+      actionType: 'VISIT',
+      actionSubject: 'WELFARE_WORKER',
+      status: scheduleModal?.action?.status || 'PENDING',
+      dueDate: scheduleForm.dueDate,
+      visitTime: scheduleForm.visitTime,
+      note: buildScheduleNote(scheduleForm.note, scheduleForm.visitTime),
+    }
+
+    if (scheduleModal?.mode === 'edit') {
+      try {
+        await updateAction(scheduleModal.action.id, payload)
+      } catch (error) {
+        await createAction(payload)
+        await deleteAction(scheduleModal.action.id)
+      }
+    } else {
+      await createAction(payload)
+    }
+
+    setSelectedDate(scheduleForm.dueDate)
+    setOpenScheduleDate(scheduleForm.dueDate)
+    closeScheduleModal()
+    await loadDashboardData()
+  }
+
+  async function handleScheduleDelete(action) {
+    if (!window.confirm(`${seniorName(action)}님의 방문 일정을 삭제할까요?`)) return
+    await deleteAction(action.id)
+    await loadDashboardData()
   }
 
   return (
@@ -290,14 +428,29 @@ export default function Dashboard() {
 
                   {openScheduleDate === calendarDate(day) && (
                     <div className="calendar-popover">
-                      <strong>{calendarMonth}월 {day}일 일정</strong>
+                      <div className="calendar-popover__heading">
+                        <strong>{calendarMonth}월 {day}일 일정</strong>
+                        <button type="button" onClick={() => openCreateSchedule(calendarDate(day))}>
+                          추가
+                        </button>
+                      </div>
                       {selectedVisits.length === 0 ? (
                         <p>방문 일정이 없습니다.</p>
                       ) : selectedVisits.map(action => (
-                        <button type="button" key={action.id} onClick={() => goToAction(action)}>
-                          <b>{action.visitTime || '시간 미정'}</b>
-                          <span>{seniorName(action)} · {action.note || '방문 일정'}</span>
-                        </button>
+                        <article className="calendar-popover__item" key={action.id}>
+                          <div>
+                            <b>{scheduleTime(action) || '-'}</b>
+                            <span>{seniorName(action)} · {scheduleNote(action)}</span>
+                          </div>
+                          <div className="calendar-popover__actions">
+                            <button type="button" aria-label="일정 수정" title="수정" onClick={() => openEditSchedule(action)}>
+                              <PencilIcon />
+                            </button>
+                            <button type="button" className="danger" aria-label="일정 삭제" title="삭제" onClick={() => handleScheduleDelete(action)}>
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </article>
                       ))}
                     </div>
                   )}
@@ -360,6 +513,76 @@ export default function Dashboard() {
           )}
         </div>
       </section>
+
+      {scheduleModal && (
+        <div className="modal-overlay" onClick={closeScheduleModal}>
+          <div className="modal dashboard-schedule-modal" onClick={event => event.stopPropagation()}>
+            <h2>{scheduleModal.mode === 'edit' ? '방문 일정 수정' : '방문 일정 추가'}</h2>
+            <form onSubmit={handleScheduleSubmit}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="schedule-senior">대상자</label>
+                <select
+                  id="schedule-senior"
+                  className="form-input"
+                  value={scheduleForm.seniorId}
+                  onChange={event => setScheduleForm(previous => ({ ...previous, seniorId: event.target.value }))}
+                  required
+                >
+                  <option value="">대상자를 선택하세요</option>
+                  {seniors.map(senior => (
+                    <option key={senior.id} value={senior.id}>
+                      {senior.name} {senior.age ? `· ${senior.age}세` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="dashboard-schedule-modal__row">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="schedule-date">방문일</label>
+                  <input
+                    id="schedule-date"
+                    className="form-input"
+                    type="date"
+                    value={scheduleForm.dueDate}
+                    onChange={event => setScheduleForm(previous => ({ ...previous, dueDate: event.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="schedule-time">방문 시간</label>
+                  <input
+                    id="schedule-time"
+                    className="form-input"
+                    type="time"
+                    value={scheduleForm.visitTime}
+                    onChange={event => setScheduleForm(previous => ({ ...previous, visitTime: event.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="schedule-note">메모</label>
+                <input
+                  id="schedule-note"
+                  className="form-input"
+                  value={scheduleForm.note}
+                  onChange={event => setScheduleForm(previous => ({ ...previous, note: event.target.value }))}
+                  placeholder="방문 목적이나 확인할 내용을 입력하세요"
+                />
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={closeScheduleModal}>취소</button>
+                <button type="submit" className="btn-primary">
+                  {scheduleModal.mode === 'edit' ? '저장' : '추가'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
