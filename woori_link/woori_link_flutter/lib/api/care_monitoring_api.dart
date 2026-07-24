@@ -61,16 +61,4 @@ class CareMonitoringApi {
       throw Exception('Consultation request failed');
     }
   }
-
-  static Future<void> reportFall(int seniorId, {double? latitude, double? longitude}) async {
-    final response = await http.post(Uri.parse('$baseUrl/care/seniors/$seniorId/events'), headers: await authHeaders(),
-      body: jsonEncode({'type': 'FALL_DETECTED', 'latitude': latitude, 'longitude': longitude}));
-    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Fall report failed');
-  }
-
-  static Future<void> sendLocation(int seniorId, double latitude, double longitude) async {
-    final response = await http.post(Uri.parse('$baseUrl/care/seniors/$seniorId/locations'), headers: await authHeaders(),
-      body: jsonEncode({'latitude': latitude, 'longitude': longitude}));
-    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Location upload failed');
-  }
 }

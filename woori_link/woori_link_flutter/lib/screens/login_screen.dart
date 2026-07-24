@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                'WOORI LINK',
+                'WOORI',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,

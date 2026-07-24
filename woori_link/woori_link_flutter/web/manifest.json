@@ -1,6 +1,6 @@
 {
-    "name": "woori_link_flutter",
-    "short_name": "woori_link_flutter",
+    "name": "woori",
+    "short_name": "woori",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

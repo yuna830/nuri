@@ -37,7 +37,7 @@ class WooriLinkApp extends StatelessWidget {
       valueListenable: AppTextScaleController.scale,
       builder: (context, textScale, child) {
         return MaterialApp(
-          title: '우리 LINK',
+          title: 'WOORI',
           theme: appTheme(),
           home: const SplashRouter(),
           debugShowCheckedModeBanner: false,
