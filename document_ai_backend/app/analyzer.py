@@ -113,47 +113,86 @@ def _group_words_into_lines(words: list[OcrLine]) -> list[OcrLine]:
     return lines
 
 
-def _extract_text(content: bytes) -> tuple[str, float, list[OcrLine]]:
+def _extract_text(
+    content: bytes,
+) -> tuple[str, float, list[OcrLine]]:
     client = _vision_client()
-    response = client.document_text_detection(
-        image=vision.Image(content=content),
-        image_context=vision.ImageContext(language_hints=["ko", "en"]),
+
+    image = vision.Image(content=content)
+
+    response = client.text_detection(
+        image=image,
+        image_context=vision.ImageContext(
+            language_hints=["ko", "en"],
+        ),
     )
 
     if response.error.message:
-        raise RuntimeError(response.error.message)
+        raise RuntimeError(
+            response.error.message
+        )
 
-    annotation = response.full_text_annotation
-    raw_text = (annotation.text or "").strip()
+    raw_text = ""
+
+    if response.full_text_annotation:
+        raw_text = (
+            response.full_text_annotation.text
+            or ""
+        ).strip()
+
+    if (
+        not raw_text
+        and response.text_annotations
+    ):
+        raw_text = (
+            response.text_annotations[0].description
+            or ""
+        ).strip()
+
     words: list[OcrLine] = []
 
-    for page in annotation.pages:
-        for block in page.blocks:
-            for paragraph in block.paragraphs:
-                for word in paragraph.words:
-                    text = _word_text(word)
-                    if not text:
-                        continue
-                    left, right, top, bottom = _vertices(word)
-                    words.append(
-                        OcrLine(
-                            text=text,
-                            confidence=float(word.confidence or 0.0),
-                            left=left,
-                            right=right,
-                            top=top,
-                            bottom=bottom,
-                        )
-                    )
+    for annotation in response.text_annotations[1:]:
+        text = (
+            annotation.description
+            or ""
+        ).strip()
 
-    lines = _group_words_into_lines(words)
-    confidence_values = [word.confidence for word in words if word.confidence > 0]
-    average = (
-        sum(confidence_values) / len(confidence_values)
-        if confidence_values
-        else 0.0
+        if not text:
+            continue
+
+        vertices = list(
+            annotation.bounding_poly.vertices
+            or []
+        )
+
+        xs = [
+            float(vertex.x or 0)
+            for vertex in vertices
+        ]
+        ys = [
+            float(vertex.y or 0)
+            for vertex in vertices
+        ]
+
+        if not xs or not ys:
+            continue
+
+        words.append(
+            OcrLine(
+                text=text,
+                confidence=0.0,
+                left=min(xs),
+                right=max(xs),
+                top=min(ys),
+                bottom=max(ys),
+            )
+        )
+
+    lines = _group_words_into_lines(
+        words
     )
-    return raw_text, average, lines
+
+    return raw_text, 0.0, lines
 
 def _field(value=None, source_text=None, confidence=0.0, warning=None) -> dict:
     return {
