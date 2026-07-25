@@ -623,47 +623,100 @@ def _extract_certifications(
     raw_text: str,
 ) -> list[str]:
     """
-    전체 OCR 문자열에서 인증번호를 직접 찾는다.
+    OCR 전체 텍스트에서 KC 및 방송통신 기자재 인증번호를 찾는다.
 
-    지원 예:
+    예:
     XU104036-25001
+    HU071234-24001
     R-R-MMC-STH-600G
     """
-    compact_text = re.sub(
-        r"\s+",
-        "",
-        raw_text,
-    ).upper()
+    # 줄바꿈은 유지하고 인증번호 내부의 불필요한 공백만 허용한다.
+    normalized_text = raw_text.upper()
 
     results: list[str] = []
 
     patterns = (
-        (
-            r"\b"
-            r"(?:XU|HU|JU|CB)"
-            r"\d{6,}-\d{4,6}"
-            r"\b"
-        ),
-        (
-            r"\b"
-            r"R-R-"
-            r"[A-Z0-9]+-"
-            r"[A-Z0-9-]+"
-            r"\b"
-        ),
+        # XU104036-25001
+        r"(?<![A-Z0-9])"
+        r"((?:XU|HU|JU|CB)\s*\d{6,}\s*-\s*\d{4,6})",
+
+        # R-R-MMC-STH-600G
+        r"(?<![A-Z0-9])"
+        r"(R\s*-\s*R\s*-\s*[A-Z0-9]+\s*-\s*[A-Z0-9-]+)",
     )
 
     for pattern in patterns:
-        results.extend(
-            match.group(0)
-            for match in re.finditer(
-                pattern,
-                compact_text,
+        for match in re.finditer(
+            pattern,
+            normalized_text,
+            flags=re.IGNORECASE,
+        ):
+            results.append(
+                _normalize_identifier(
+                    match.group(1)
+                )
             )
-        )
 
     return list(
         dict.fromkeys(results)
+    )
+
+def _extract_serial_number(
+    raw_text: str,
+) -> tuple[str, str] | None:
+    """
+    제품 라벨의 제조번호 또는 일련번호를 찾는다.
+
+    표 OCR 순서가 뒤섞여 라벨과 값이 떨어져 있어도
+    숫자 후보 중 제조번호로 적절한 값을 선택한다.
+    """
+    direct_patterns = (
+        r"(?:제조번호|일련번호|시리얼번호|SERIAL\s*NO|S/N)"
+        r"\s*[:：]?\s*(\d{8,14})",
+    )
+
+    for pattern in direct_patterns:
+        match = re.search(
+            pattern,
+            raw_text,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return (
+                match.group(1),
+                match.group(0).strip(),
+            )
+
+    numeric_candidates = re.findall(
+        r"(?<!\d)(\d{8,14})(?!\d)",
+        raw_text,
+    )
+
+    excluded_numbers = {
+        # 전화번호와 같이 제조번호가 아닌 숫자를 제외
+        re.sub(r"\D", "", value)
+        for value in re.findall(
+            r"\d{2,4}[-\s]\d{3,4}[-\s]\d{4}",
+            raw_text,
+        )
+    }
+
+    candidates = [
+        value
+        for value in numeric_candidates
+        if value not in excluded_numbers
+    ]
+
+    if not candidates:
+        return None
+
+    # 제조번호는 라벨 하단 또는 OCR 결과 끝부분에 있는 경우가 많다.
+    selected = candidates[-1]
+
+    return (
+        selected,
+        selected,
     )
 
 
@@ -779,11 +832,7 @@ def _infer_product_name_before_model(
 
 
 def _as_field(
-    result: tuple[
-        str,
-        str,
-        float,
-    ] | None,
+    result: tuple[str, str, float] | None,
     default_confidence: float,
 ) -> dict:
     if not result:
@@ -792,16 +841,10 @@ def _as_field(
     value, source, confidence = result
 
     return _field(
-        value=value,
+        value=_normalize_display_value(value),
         source_text=source,
-        confidence=(
-            confidence
-            or default_confidence
-        ),
-        warning=(
-            "제품 라벨과 다시 "
-            "비교해 주세요."
-        ),
+        confidence=confidence or default_confidence,
+        warning="제품 라벨과 다시 비교해 주세요.",
     )
 
 
@@ -1022,31 +1065,44 @@ def _rule_fields(
             )
 
     # 제조연월 전체 문자열 검색
-    if not fields[
-        "manufacturingDate"
-    ]["value"]:
-        manufacturing_date = (
-            _match_general_value(
-                raw_text,
-                (
-                    (
-                        r"\b("
-                        r"20\d{2}"
-                        r"\s*년\s*"
-                        r"(?:1[0-2]|[1-9])"
-                        r"\s*월"
-                        r")\b"
-                    ),
-                    (
-                        r"\b("
-                        r"20\d{2}"
-                        r"[./-]"
-                        r"(?:1[0-2]|0?[1-9])"
-                        r")\b"
-                    ),
-                ),
-            )
+    if not fields["manufacturingDate"]["value"]:
+        manufacturing_date = _match_general_value(
+            raw_text,
+            (
+                r"\b(20\d{2}\s*년\s*(?:1[0-2]|[1-9])\s*월)\b",
+                r"\b(20\d{2}[./-](?:1[0-2]|0?[1-9]))\b",
+            ),
         )
+
+        if manufacturing_date:
+            normalized_date = re.sub(
+                r"\s+",
+                " ",
+                manufacturing_date[0],
+            )
+
+            fields["manufacturingDate"] = _field(
+                value=normalized_date,
+                source_text=manufacturing_date[1],
+                confidence=confidence,
+                warning="제품 라벨과 다시 비교해 주세요.",
+            )
+
+
+    # 제조번호 전체 문자열 검색
+    # 제조연월 추출 여부와 관계없이 항상 별도로 실행해야 함
+    if not fields["serialNumber"]["value"]:
+        serial_number = _extract_serial_number(
+            raw_text
+        )
+
+        if serial_number:
+            fields["serialNumber"] = _field(
+                value=serial_number[0],
+                source_text=serial_number[1],
+                confidence=confidence,
+                warning="제품 라벨과 다시 비교해 주세요.",
+            )
 
         if manufacturing_date:
             normalized_date = re.sub(
@@ -1234,3 +1290,41 @@ def analyze_product_label(
         fields,
         warnings,
     )
+
+def _normalize_display_value(
+    value: str,
+) -> str:
+    """
+    OCR이 한글과 괄호 사이에 삽입한 불필요한 공백을 정리한다.
+    """
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        value,
+    ).strip()
+
+    normalized = re.sub(
+        r"\(\s*주\s*\)",
+        "(주)",
+        normalized,
+    )
+
+    normalized = re.sub(
+        r"\s*_\s*",
+        "_",
+        normalized,
+    )
+
+    normalized = re.sub(
+        r"\s*\+\s*",
+        "+",
+        normalized,
+    )
+
+    normalized = re.sub(
+        r"(?<=[가-힣])\s+(?=[가-힣])",
+        "",
+        normalized,
+    )
+
+    return normalized
