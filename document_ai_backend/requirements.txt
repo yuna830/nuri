@@ -2,7 +2,6 @@ fastapi
 uvicorn[standard]
 python-multipart
 pydantic-settings
+python-dotenv
 Pillow
-numpy
-paddlepaddle>=2.6,<3
-paddleocr>=2.7,<3
+google-cloud-vision>=3.7,<4

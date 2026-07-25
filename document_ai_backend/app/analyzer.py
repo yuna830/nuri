@@ -3,8 +3,7 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
-import numpy as np
-from paddleocr import PaddleOCR
+from google.cloud import vision
 from PIL import Image, ImageStat
 
 
@@ -47,29 +46,114 @@ def inspect_image(content: bytes) -> QualityResult:
 
 
 @lru_cache(maxsize=1)
-def _ocr() -> PaddleOCR:
-    return PaddleOCR(use_angle_cls=True, lang="korean", show_log=False)
+def _vision_client() -> vision.ImageAnnotatorClient:
+    """GOOGLE_APPLICATION_CREDENTIALS가 가리키는 서비스 계정으로 클라이언트를 생성한다."""
+    return vision.ImageAnnotatorClient()
+
+
+def _vertices(word) -> tuple[float, float, float, float]:
+    vertices = list(word.bounding_box.vertices or [])
+    xs = [float(vertex.x or 0) for vertex in vertices]
+    ys = [float(vertex.y or 0) for vertex in vertices]
+    if not xs or not ys:
+        return 0.0, 0.0, 0.0, 0.0
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def _word_text(word) -> str:
+    return "".join(symbol.text for symbol in word.symbols).strip()
+
+
+def _group_words_into_lines(words: list[OcrLine]) -> list[OcrLine]:
+    """Vision의 단어 박스를 기존 필드 추출기가 사용할 수 있는 행 단위로 결합한다."""
+    if not words:
+        return []
+
+    words = sorted(words, key=lambda line: (line.center_y, line.left))
+    rows: list[list[OcrLine]] = []
+
+    for word in words:
+        matched_row = None
+        for row in rows:
+            row_center = sum(item.center_y for item in row) / len(row)
+            row_height = max(sum(item.height for item in row) / len(row), 1)
+            if abs(word.center_y - row_center) <= max(row_height * 0.65, word.height * 0.65, 8):
+                matched_row = row
+                break
+
+        if matched_row is None:
+            rows.append([word])
+        else:
+            matched_row.append(word)
+
+    lines: list[OcrLine] = []
+    for row in rows:
+        row.sort(key=lambda line: line.left)
+        text = " ".join(item.text for item in row if item.text).strip()
+        if not text:
+            continue
+        confidence_values = [item.confidence for item in row if item.confidence > 0]
+        confidence = (
+            sum(confidence_values) / len(confidence_values)
+            if confidence_values
+            else 0.0
+        )
+        lines.append(
+            OcrLine(
+                text=text,
+                confidence=confidence,
+                left=min(item.left for item in row),
+                right=max(item.right for item in row),
+                top=min(item.top for item in row),
+                bottom=max(item.bottom for item in row),
+            )
+        )
+
+    lines.sort(key=lambda line: (line.center_y, line.left))
+    return lines
 
 
 def _extract_text(content: bytes) -> tuple[str, float, list[OcrLine]]:
-    image = np.array(Image.open(io.BytesIO(content)).convert("RGB"))
-    result = _ocr().ocr(image, cls=True)
-    lines = []
-    for page in result or []:
-        for item in page or []:
-            if not item or len(item) < 2:
-                continue
-            box, recognition = item[0], item[1]
-            text, confidence = recognition
-            if not text or not box:
-                continue
-            xs = [float(point[0]) for point in box]
-            ys = [float(point[1]) for point in box]
-            lines.append(OcrLine(str(text).strip(), float(confidence), min(xs), max(xs), min(ys), max(ys)))
-    lines.sort(key=lambda line: (line.center_y, line.left))
-    average = sum(line.confidence for line in lines) / len(lines) if lines else 0.0
-    return "\n".join(line.text for line in lines), average, lines
+    client = _vision_client()
+    response = client.document_text_detection(
+        image=vision.Image(content=content),
+        image_context=vision.ImageContext(language_hints=["ko", "en"]),
+    )
 
+    if response.error.message:
+        raise RuntimeError(response.error.message)
+
+    annotation = response.full_text_annotation
+    raw_text = (annotation.text or "").strip()
+    words: list[OcrLine] = []
+
+    for page in annotation.pages:
+        for block in page.blocks:
+            for paragraph in block.paragraphs:
+                for word in paragraph.words:
+                    text = _word_text(word)
+                    if not text:
+                        continue
+                    left, right, top, bottom = _vertices(word)
+                    words.append(
+                        OcrLine(
+                            text=text,
+                            confidence=float(word.confidence or 0.0),
+                            left=left,
+                            right=right,
+                            top=top,
+                            bottom=bottom,
+                        )
+                    )
+
+    lines = _group_words_into_lines(words)
+    confidence_values = [word.confidence for word in words if word.confidence > 0]
+    average = (
+        sum(confidence_values) / len(confidence_values)
+        if confidence_values
+        else 0.0
+    )
+    return raw_text, average, lines
 
 def _field(value=None, source_text=None, confidence=0.0, warning=None) -> dict:
     return {

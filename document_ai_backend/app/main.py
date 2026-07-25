@@ -16,7 +16,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Nuri Product Label PaddleOCR", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Nuri Product Label Google Vision OCR", version="0.3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -33,7 +33,7 @@ class ConfirmationRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "engine": "PaddleOCR", "enabled": settings.product_label_ocr_enabled, "port": 8002}
+    return {"status": "ok", "engine": "GOOGLE_CLOUD_VISION", "enabled": settings.product_label_ocr_enabled, "port": 8002}
 
 
 @app.post("/api/document-ai/product-label/analyze")
@@ -53,10 +53,10 @@ async def analyze(image: UploadFile = File(...), source: str = Form(...), senior
     try:
         raw_text, fields, warnings = analyze_product_label(content, image.content_type)
     except Exception as error:
-        raise HTTPException(status_code=502, detail=f"PaddleOCR 제품 라벨 분석에 실패했습니다: {error}") from error
+        raise HTTPException(status_code=502, detail=f"Google Cloud Vision 제품 라벨 분석에 실패했습니다: {error}") from error
 
     payload = {
-        "analysisId": analysis_id, "engine": "PADDLE_OCR", "documentType": "PRODUCT_LABEL", "seniorId": seniorId,
+        "analysisId": analysis_id, "engine": "GOOGLE_CLOUD_VISION", "documentType": "PRODUCT_LABEL", "seniorId": seniorId,
         "source": source, "rawText": raw_text, "fields": fields,
         "missingFields": [key for key, field in fields.items() if not field["value"]],
         "warnings": warnings, "requiresUserReview": True, "success": True,
