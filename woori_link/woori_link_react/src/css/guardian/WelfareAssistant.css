@@ -773,8 +773,8 @@
 }
 
 .welfare-benefits__notice {
-    max-width: 620px;
-    margin: 12px auto 0;
+    max-width: none;
+    margin: 12px 0 0;
     text-align: left;
 }
 
@@ -1300,9 +1300,21 @@
 
 .welfare-chat__notice {
     flex: 0 0 auto;
-    border-width: 1px 0 0;
-    border-radius: 0;
-    padding: 10px 14px 12px;
+    width: auto;
+    margin: 10px 13px 12px;
+    padding: 9px 11px;
+    border-color: #e3e8df;
+    border-radius: 9px;
+    background: #f7f8f3;
+}
+
+.welfare-chat__notice .ai-decision-notice__label {
+    font-size: 9px;
+}
+
+.welfare-chat__notice p {
+    font-size: 9px;
+    line-height: 1.5;
 }
 
 
