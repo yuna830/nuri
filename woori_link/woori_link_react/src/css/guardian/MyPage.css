@@ -404,7 +404,7 @@
 .guardian-senior-information-summary {
   display: grid;
   grid-template-columns:
-    repeat(3, minmax(0, 1fr));
+    repeat(4, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid #e1e7e0;
   border-radius: 14px;

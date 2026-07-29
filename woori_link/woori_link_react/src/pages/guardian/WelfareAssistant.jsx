@@ -1211,10 +1211,6 @@ export default function WelfareAssistant() {
               <section className="welfare-benefits">
                 <header className="welfare-benefits__header">
                   <div>
-                    <span className="welfare-section-label">
-                      맞춤 혜택
-                    </span>
-
                     <h2>
                       {selectedSenior.name} 님이 확인할 수 있는 혜택
                     </h2>
@@ -1319,10 +1315,6 @@ export default function WelfareAssistant() {
               <section className="welfare-benefits welfare-benefits--overview">
                 <header className="welfare-benefits__header">
                   <div>
-                    <span className="welfare-section-label">
-                      전체 현황
-                    </span>
-
                     <h2>
                       전체 어르신 복지 혜택 현황
                     </h2>
@@ -1521,10 +1513,6 @@ export default function WelfareAssistant() {
           <section className="welfare-chat-section">
             <header className="welfare-chat-section__header">
               <div>
-                <span className="welfare-section-label">
-                  추가 질문
-                </span>
-
                 <h2>
                   궁금한 내용을 물어보세요.
                 </h2>
