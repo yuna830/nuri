@@ -1371,10 +1371,6 @@ export default function GuardianMyPage() {
                   <h2>
                     연결된 어르신 에너지 정보
                   </h2>
-
-                  <p>
-                    에너지복지 필수 정보와 담당 복지사 확인 요청 상태를 관리합니다.
-                  </p>
                 </div>
 
                 <span>

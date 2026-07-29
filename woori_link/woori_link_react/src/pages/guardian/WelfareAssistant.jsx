@@ -1165,11 +1165,6 @@ export default function WelfareAssistant() {
         <header className="welfare-assistant-page__header">
           <div>
             <h1>복지·안전 도우미</h1>
-
-            <p>
-              등록 정보를 바탕으로 받을 수 있는 혜택을 확인하고,
-              필요한 내용을 바로 질문할 수 있습니다.
-            </p>
           </div>
 
           <div className="welfare-assistant-page__actions">
@@ -1215,11 +1210,6 @@ export default function WelfareAssistant() {
                     <h2>
                       {selectedSenior.name} 님이 확인할 수 있는 혜택
                     </h2>
-
-                    <p>
-                      사용자 앱에 등록된 정보를 바탕으로
-                      신청 가능성과 추가 확인 항목을 검토했습니다.
-                    </p>
                   </div>
 
                   <div className="welfare-benefits__profile">
@@ -1318,10 +1308,6 @@ export default function WelfareAssistant() {
                     <h2>
                       전체 어르신 복지 혜택 현황
                     </h2>
-
-                    <p>
-                      등록된 어르신의 신청 상태와 추가 확인이 필요한 혜택을 보여줍니다.
-                    </p>
                   </div>
 
                   <span className="welfare-overview-count">
@@ -1516,10 +1502,6 @@ export default function WelfareAssistant() {
                 <h2>
                   궁금한 내용을 물어보세요.
                 </h2>
-
-                <p>
-                  등록 정보와 공식 문서를 바탕으로 답변합니다.
-                </p>
               </div>
 
               {selectedSenior && (

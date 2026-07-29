@@ -4,6 +4,7 @@ import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.entity.*;
 import com.nuri.woorilink.dto.WelfareWorkAlertDto;
 import com.nuri.woorilink.service.CareMonitoringService;
+import com.nuri.woorilink.service.SeniorAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -18,6 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CareMonitoringController {
     private final CareMonitoringService careMonitoringService;
+    private final SeniorAccessService seniorAccessService;
 
     @PostMapping("/seniors/{seniorId}/events")
     @ResponseStatus(HttpStatus.CREATED)
@@ -26,7 +28,13 @@ public class CareMonitoringController {
     }
 
     @GetMapping("/seniors/{seniorId}/events")
-    public List<CareEvent> events(@PathVariable Long seniorId) { return careMonitoringService.events(seniorId); }
+    public List<CareEvent> events(
+            @PathVariable Long seniorId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireReadableSenior(user, seniorId);
+        return careMonitoringService.events(seniorId);
+    }
 
     @PatchMapping("/events/{eventId}/fall-status")
     public CareEvent updateFallStatus(@PathVariable Long eventId,
@@ -38,10 +46,22 @@ public class CareMonitoringController {
 
     @PostMapping("/seniors/{seniorId}/check-ins")
     @ResponseStatus(HttpStatus.CREATED)
-    public CheckIn requestCheckIn(@PathVariable Long seniorId) { return careMonitoringService.requestCheckIn(seniorId); }
+    public CheckIn requestCheckIn(
+            @PathVariable Long seniorId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireGuardianSenior(user, seniorId);
+        return careMonitoringService.requestCheckIn(seniorId);
+    }
 
     @GetMapping("/seniors/{seniorId}/check-ins")
-    public List<CheckIn> checkIns(@PathVariable Long seniorId) { return careMonitoringService.checkIns(seniorId); }
+    public List<CheckIn> checkIns(
+            @PathVariable Long seniorId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireReadableSenior(user, seniorId);
+        return careMonitoringService.checkIns(seniorId);
+    }
 
     @PatchMapping("/check-ins/{checkInId}/response")
     public CheckIn respondCheckIn(@PathVariable Long checkInId, @RequestBody CheckInResponse request) {
@@ -55,23 +75,43 @@ public class CareMonitoringController {
     }
 
     @GetMapping("/seniors/{seniorId}/locations/latest")
-    public SeniorLocation latestLocation(@PathVariable Long seniorId) {
+    public SeniorLocation latestLocation(
+            @PathVariable Long seniorId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireReadableSenior(user, seniorId);
         return careMonitoringService.latestLocation(seniorId).orElse(null);
     }
 
     @PutMapping("/seniors/{seniorId}/safety-zone")
-    public SafetyZone saveSafetyZone(@PathVariable Long seniorId, @RequestBody SafetyZoneRequest request) {
+    public SafetyZone saveSafetyZone(
+            @PathVariable Long seniorId,
+            @RequestBody SafetyZoneRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireGuardianSenior(user, seniorId);
         return careMonitoringService.saveSafetyZone(seniorId, request.id(), request.slotNumber(), request.name(), request.latitude(), request.longitude(), request.radiusMeters());
     }
 
     @DeleteMapping("/seniors/{seniorId}/safety-zone/{zoneId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteSafetyZone(@PathVariable Long seniorId, @PathVariable Long zoneId) {
+    public void deleteSafetyZone(
+            @PathVariable Long seniorId,
+            @PathVariable Long zoneId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireGuardianSenior(user, seniorId);
         careMonitoringService.deleteSafetyZone(seniorId, zoneId);
     }
 
     @GetMapping("/seniors/{seniorId}/safety-zone")
-    public List<SafetyZone> safetyZones(@PathVariable Long seniorId) { return careMonitoringService.safetyZones(seniorId); }
+    public List<SafetyZone> safetyZones(
+            @PathVariable Long seniorId,
+            @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        seniorAccessService.requireReadableSenior(user, seniorId);
+        return careMonitoringService.safetyZones(seniorId);
+    }
 
     @PostMapping("/seniors/{seniorId}/notifications")
     @ResponseStatus(HttpStatus.CREATED)

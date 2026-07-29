@@ -1,5 +1,6 @@
 package com.nuri.woorilink.service;
 
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.dto.EnergyVoucherEvaluationResult;
 import com.nuri.woorilink.dto.SeniorProfileUpdateRequest;
 import com.nuri.woorilink.entity.Senior;
@@ -17,6 +18,7 @@ public class SeniorService {
 
     private final SeniorRepository seniorRepository;
     private final EnergyVoucherEligibilityService energyVoucherEligibilityService;
+    private final SeniorAccessService seniorAccessService;
 
     public List<Senior> getAll() {
         return seniorRepository.findAll();
@@ -318,12 +320,8 @@ public class SeniorService {
     }
 
     @Transactional
-    public void disconnectGuardian(Long guardianId, Long seniorId) {
-        Senior senior = getById(seniorId);
-
-        if (!guardianId.equals(senior.getGuardianId())) {
-            throw new IllegalArgumentException("연결된 보호자 정보가 일치하지 않습니다.");
-        }
+    public void disconnectGuardian(AuthenticatedUser user, Long seniorId) {
+        Senior senior = seniorAccessService.requireGuardianSenior(user, seniorId);
 
         senior.setGuardianId(null);
         senior.setGuardianRelationship(null);

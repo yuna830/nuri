@@ -26,6 +26,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenProvider tokenProvider;
+    private final AccountExistenceService accountExistenceService;
 
     @Value(
             "#{'${app.cors.allowed-origin-patterns}'.split(',')}"
@@ -88,7 +89,6 @@ public class SecurityConfig {
                                 "/api/welfare-facilities/**",
                                 "/api/health",
                                 "/api/alerts/fall",
-                                "/api/actions/**",
                                 "/error"
                         )
                         .permitAll()
@@ -301,7 +301,8 @@ public class SecurityConfig {
 
                 .addFilterBefore(
                         new JwtAuthenticationFilter(
-                                tokenProvider
+                                tokenProvider,
+                                accountExistenceService
                         ),
                         UsernamePasswordAuthenticationFilter.class
                 );
