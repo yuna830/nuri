@@ -3,6 +3,7 @@ package com.nuri.woorilink.controller;
 import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.entity.CareAlert;
 import com.nuri.woorilink.service.CareMonitoringService;
+import com.nuri.woorilink.service.SeniorAccessService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,7 +17,9 @@ import static org.mockito.Mockito.when;
 
 class CareMonitoringControllerTest {
     private final CareMonitoringService service = mock(CareMonitoringService.class);
-    private final CareMonitoringController controller = new CareMonitoringController(service);
+    private final SeniorAccessService seniorAccessService = mock(SeniorAccessService.class);
+    private final CareMonitoringController controller =
+            new CareMonitoringController(service, seniorAccessService);
 
     @Test
     void guardianCanOnlyReadOwnAlerts() {
