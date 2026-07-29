@@ -1588,7 +1588,6 @@ export default function GuardianMyPage() {
                 <div className="guardian-mypage__card-title">
                   <div>
                     <h2>알림 설정</h2>
-                    <p>돌봄 상황별 알림 수신 여부를 설정할 수 있습니다.</p>
                   </div>
                 </div>
 

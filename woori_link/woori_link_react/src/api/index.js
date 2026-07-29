@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getToken } from '../utils/auth.js';
+import { clearUser, getToken } from '../utils/auth.js';
 import { SPRING_API_BASE_URL } from '../config/api.js';
 
 const api = axios.create({
@@ -27,6 +27,7 @@ api.interceptors.response.use(
 
       if (!isAuthPage) {
         const isGuardianPage = window.location.pathname.startsWith('/guardian')
+        clearUser()
         window.location.href = isGuardianPage ? '/guardian/login' : '/welfare/login'
       }
     }

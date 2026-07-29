@@ -62,7 +62,9 @@ export default function ConsentManagement({ role = 'guardian', embedded = false 
       <header className="consent-management__header">
         <div>
           <h2 id={`${role}-consent-title`}>개인정보 및 동의 관리</h2>
-          <p>수집 목적과 이용 범위를 확인하고 선택 동의를 변경할 수 있습니다.</p>
+          {!embedded && (
+            <p>수집 목적과 이용 범위를 확인하고 선택 동의를 변경할 수 있습니다.</p>
+          )}
         </div>
         <span>약관 버전 2026.07</span>
       </header>

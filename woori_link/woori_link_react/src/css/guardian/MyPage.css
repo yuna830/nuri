@@ -645,16 +645,11 @@
   margin-bottom: 18px;
 }
 
-.guardian-preference-card__column--notifications .guardian-mypage__card-title p {
-  margin: 6px 0 0;
-  color: #7a867d;
-  font-size: 12px;
-}
-
 .guardian-notification-settings {
   display: grid;
   grid-template-columns: 1fr;
   row-gap: 0;
+  border-top: 1px solid #edf0eb;
 }
 
 .guardian-notification-setting {
