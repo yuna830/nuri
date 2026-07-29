@@ -25,6 +25,7 @@ import GuardianLayout from './GuardianLayout.jsx';
 import DisconnectSeniorButton from './DisconnectSeniorButton.jsx';
 import KakaoSafetyMap from './KakaoSafetyMap.jsx';
 import CheckInScheduleModal from './CheckInScheduleModal.jsx';
+import AiDecisionNotice from '../../components/common/AiDecisionNotice.jsx';
 import {
   connectGuardianSenior,
 } from '../../api/guardianRelationshipApi.js';
@@ -2270,6 +2271,9 @@ export default function SeniorStatus() {
               </div>
             </section>
 
+            <AiDecisionNotice
+              className="guardian-senior-page__ai-notice"
+            />
 
             <section
               className={[

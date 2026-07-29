@@ -89,6 +89,10 @@
   flex-direction: column;
 }
 
+.detail-risk-ai-notice {
+  margin-bottom: 20px;
+}
+
 .detail-section-header {
   display: flex;
   align-items: flex-start;

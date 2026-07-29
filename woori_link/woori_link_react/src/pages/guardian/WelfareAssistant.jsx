@@ -10,6 +10,7 @@ import {
 } from 'react-router-dom';
 
 import GuardianLayout from './GuardianLayout.jsx';
+import AiDecisionNotice from '../../components/common/AiDecisionNotice.jsx';
 
 import {
   askGuardianRag,
@@ -1305,11 +1306,10 @@ export default function WelfareAssistant() {
                   </>
                 )}
 
-                <p className="welfare-benefits__notice">
-                  현재 등록 정보와 공식 문서를 기준으로 검토한 결과입니다.
-                  실제 신청 가능 여부는 행정복지센터 또는 담당 기관에서
-                  최종 확인해 주세요.
-                </p>
+                <AiDecisionNotice
+                  type="welfare"
+                  className="welfare-benefits__notice"
+                />
               </section>
             ) : (
               <section className="welfare-benefits welfare-benefits--overview">
@@ -1648,10 +1648,10 @@ export default function WelfareAssistant() {
                   </button>
                 </form>
 
-                <small className="welfare-chat__caption">
-                  정확한 자격 판정은 행정복지센터 또는 해당 기관에서
-                  최종 확인해 주세요.
-                </small>
+                <AiDecisionNotice
+                  type="welfare"
+                  className="welfare-chat__notice"
+                />
               </div>
             </div>
           </section>

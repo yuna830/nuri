@@ -1,0 +1,47 @@
+.ai-decision-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid #dce5dc;
+  border-radius: 12px;
+  background: #f7faf6;
+  color: #526057;
+}
+
+.ai-decision-notice__label {
+  flex: 0 0 auto;
+  color: #526b55;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.ai-decision-notice p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.ai-decision-notice--welfare {
+  border-color: #e4e6dc;
+  background: #fafaf5;
+}
+
+.ai-decision-notice--welfare .ai-decision-notice__label {
+  color: #6d704f;
+}
+
+@media (max-width: 600px) {
+  .ai-decision-notice {
+    display: block;
+    padding: 12px 14px;
+  }
+
+  .ai-decision-notice p {
+    margin-top: 3px;
+  }
+}

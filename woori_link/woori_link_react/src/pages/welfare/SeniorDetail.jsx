@@ -10,6 +10,7 @@ import {
 } from 'react-router-dom'
 
 import '../../css/welfare/SeniorDetail.css'
+import AiDecisionNotice from '../../components/common/AiDecisionNotice.jsx'
 
 import {
   getSeniorById,
@@ -1514,6 +1515,10 @@ export default function SeniorDetail() {
             </button>
           </div>
         </div>
+
+        <AiDecisionNotice
+          className="detail-risk-ai-notice"
+        />
 
         {!risk ? (
           <div className="detail-empty-message">
