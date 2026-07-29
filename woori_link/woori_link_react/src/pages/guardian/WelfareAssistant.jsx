@@ -1494,12 +1494,12 @@ export default function WelfareAssistant() {
                         </div>
                       </section>
                     </div>
+
+                    <p className="welfare-overview-selection-guide">
+                      이름을 선택하면 해당 어르신의 맞춤 혜택과 추가 확인 항목을 볼 수 있습니다.
+                    </p>
                   </section>
                 )}
-
-                <p className="welfare-overview-selection-guide">
-                  이름을 선택하면 해당 어르신의 맞춤 혜택과 추가 확인 항목을 볼 수 있습니다.
-                </p>
 
                 <AiDecisionNotice
                   type="welfare"

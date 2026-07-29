@@ -589,9 +589,10 @@
 
 .welfare-overview-selection-guide {
     margin: 12px 0 0;
-    padding: 10px 12px;
-    border-radius: 9px;
-    background: #f5f8f4;
+    padding: 10px 12px 0;
+    border-top: 1px solid #e1e7e0;
+    border-radius: 0;
+    background: transparent;
     color: #68766c;
     font-size: 10px;
     font-weight: 500;
