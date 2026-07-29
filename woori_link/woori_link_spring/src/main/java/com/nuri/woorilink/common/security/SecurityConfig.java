@@ -88,7 +88,8 @@ public class SecurityConfig {
                                 "/api/welfare-facilities/**",
                                 "/api/health",
                                 "/api/alerts/fall",
-                                "/api/actions/**"
+                                "/api/actions/**",
+                                "/error"
                         )
                         .permitAll()
 

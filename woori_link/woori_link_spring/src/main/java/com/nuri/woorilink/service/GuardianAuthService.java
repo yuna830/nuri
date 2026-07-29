@@ -136,14 +136,30 @@ public class GuardianAuthService {
     public GuardianProfileResponse updateNotificationSettings(
             Long guardianId, GuardianNotificationSettingsRequest request) {
         Guardian guardian = findGuardian(guardianId);
-        guardian.setCheckInAlertEnabled(request.getCheckInAlertEnabled());
-        guardian.setFallAlertEnabled(request.getFallAlertEnabled());
-        guardian.setSafetyZoneAlertEnabled(request.getSafetyZoneAlertEnabled());
-        guardian.setRecallAlertEnabled(request.getRecallAlertEnabled());
-        guardian.setWeatherAlertEnabled(request.getWeatherAlertEnabled());
-        guardian.setWelfareAlertEnabled(request.getWelfareAlertEnabled());
-        guardian.setAppNotificationEnabled(request.getAppNotificationEnabled());
-        guardian.setWebNotificationEnabled(request.getWebNotificationEnabled());
+        if (request.getCheckInAlertEnabled() != null) {
+            guardian.setCheckInAlertEnabled(request.getCheckInAlertEnabled());
+        }
+        if (request.getFallAlertEnabled() != null) {
+            guardian.setFallAlertEnabled(request.getFallAlertEnabled());
+        }
+        if (request.getSafetyZoneAlertEnabled() != null) {
+            guardian.setSafetyZoneAlertEnabled(request.getSafetyZoneAlertEnabled());
+        }
+        if (request.getRecallAlertEnabled() != null) {
+            guardian.setRecallAlertEnabled(request.getRecallAlertEnabled());
+        }
+        if (request.getWeatherAlertEnabled() != null) {
+            guardian.setWeatherAlertEnabled(request.getWeatherAlertEnabled());
+        }
+        if (request.getWelfareAlertEnabled() != null) {
+            guardian.setWelfareAlertEnabled(request.getWelfareAlertEnabled());
+        }
+        if (request.getAppNotificationEnabled() != null) {
+            guardian.setAppNotificationEnabled(request.getAppNotificationEnabled());
+        }
+        if (request.getWebNotificationEnabled() != null) {
+            guardian.setWebNotificationEnabled(request.getWebNotificationEnabled());
+        }
         return GuardianProfileResponse.from(guardian);
     }
 
