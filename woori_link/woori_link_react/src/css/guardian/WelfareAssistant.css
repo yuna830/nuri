@@ -1244,7 +1244,7 @@
     align-items: flex-end;
     flex: 0 0 auto;
     gap: 7px;
-    margin: 0 13px;
+    margin: 0 13px 14px;
     padding: 6px 6px 6px 10px;
     border: 1px solid #dce5dc;
     border-radius: 10px;
@@ -1297,26 +1297,6 @@
     line-height: 1.5;
     text-align: center;
 }
-
-.welfare-chat__notice {
-    flex: 0 0 auto;
-    width: auto;
-    margin: 10px 13px 12px;
-    padding: 9px 11px;
-    border-color: #e3e8df;
-    border-radius: 9px;
-    background: #f7f8f3;
-}
-
-.welfare-chat__notice .ai-decision-notice__label {
-    font-size: 9px;
-}
-
-.welfare-chat__notice p {
-    font-size: 9px;
-    line-height: 1.5;
-}
-
 
 /* =========================
    반응형

@@ -1501,10 +1501,10 @@ export default function WelfareAssistant() {
                   이름을 선택하면 해당 어르신의 맞춤 혜택과 추가 확인 항목을 볼 수 있습니다.
                 </p>
 
-                <p className="welfare-benefits__notice">
-                  신청 완료 여부는 등록된 정보를 기준으로 표시됩니다.
-                  정확한 적용 상태는 요금 고지서 또는 담당 기관에서 확인해 주세요.
-                </p>
+                <AiDecisionNotice
+                  type="welfare"
+                  className="welfare-benefits__notice"
+                />
               </section>
             )}
           </div>
@@ -1648,12 +1648,6 @@ export default function WelfareAssistant() {
                   </button>
                 </form>
 
-                {!selectedSenior && (
-                  <AiDecisionNotice
-                    type="welfare"
-                    className="welfare-chat__notice"
-                  />
-                )}
               </div>
             </div>
           </section>
