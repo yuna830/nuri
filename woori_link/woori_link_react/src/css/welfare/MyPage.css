@@ -1,0 +1,84 @@
+.welfare-mypage {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 32px;
+}
+
+.welfare-mypage__heading h1 {
+  margin: 0 0 7px;
+  color: #263229;
+  font-size: 30px;
+}
+
+.welfare-mypage__heading p {
+  margin: 0;
+  color: #859087;
+  font-size: 13px;
+}
+
+.welfare-mypage__profile,
+.welfare-mypage__access {
+  padding: 22px 26px;
+  border: 1px solid #e1e6df;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.welfare-mypage__profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.welfare-mypage__avatar {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 16px;
+  background: #9caf94;
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.welfare-mypage__profile span,
+.welfare-mypage__profile p,
+.welfare-mypage__access span {
+  color: #7d897f;
+  font-size: 12px;
+}
+
+.welfare-mypage__profile h2 {
+  margin: 3px 0 5px;
+  font-size: 19px;
+}
+
+.welfare-mypage__profile p {
+  margin: 0;
+}
+
+.welfare-mypage__access h2 {
+  margin: 0 0 15px;
+  font-size: 18px;
+}
+
+.welfare-mypage__access > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.welfare-mypage__access p {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f7f9f5;
+}
+
+.welfare-mypage__access strong {
+  color: #445047;
+  font-size: 13px;
+}

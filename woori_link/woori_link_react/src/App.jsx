@@ -36,6 +36,7 @@ import RecallList from './pages/welfare/RecallList.jsx';
 import SeniorDetail from './pages/welfare/SeniorDetail.jsx';
 import SeniorList from './pages/welfare/SeniorList.jsx';
 import WelfareSidebar from './pages/welfare/WelfareSidebar.jsx';
+import WelfareMyPage from './pages/welfare/MyPage.jsx';
 
 
 /* =========================================================
@@ -209,6 +210,11 @@ export default function App() {
           <Route
             path="/welfare/recalled"
             element={<RecallList />}
+          />
+
+          <Route
+            path="/welfare/mypage"
+            element={<WelfareMyPage />}
           />
         </Route>
 

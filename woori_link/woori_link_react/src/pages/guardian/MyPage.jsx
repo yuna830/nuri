@@ -10,6 +10,7 @@ import {
 
 import GuardianLayout from './GuardianLayout.jsx';
 import EnergyInformationModal from './EnergyInformationModal.jsx';
+import ConsentManagement from '../../components/common/ConsentManagement.jsx';
 
 import {
   deleteGuardianAccount,
@@ -1663,6 +1664,8 @@ export default function GuardianMyPage() {
                 )}
               </div>
             </section>
+
+            <ConsentManagement role="guardian" />
           </div>
         )}
 
