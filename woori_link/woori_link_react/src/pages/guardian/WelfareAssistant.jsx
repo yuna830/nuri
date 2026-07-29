@@ -1648,10 +1648,12 @@ export default function WelfareAssistant() {
                   </button>
                 </form>
 
-                <AiDecisionNotice
-                  type="welfare"
-                  className="welfare-chat__notice"
-                />
+                {!selectedSenior && (
+                  <AiDecisionNotice
+                    type="welfare"
+                    className="welfare-chat__notice"
+                  />
+                )}
               </div>
             </div>
           </section>

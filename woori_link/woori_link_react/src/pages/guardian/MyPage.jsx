@@ -1566,6 +1566,10 @@ export default function GuardianMyPage() {
                   </div>
 
                   <div className="guardian-senior-information-footer">
+                    <strong>
+                      안내
+                    </strong>
+
                     <p>
                       정보 저장만으로 복지사에게 알림이 전달되지는 않습니다. 보호자가 상담 요청을 선택한 경우에만 담당 복지사에게 확인 요청이 전달됩니다.
                     </p>
