@@ -623,11 +623,37 @@
  * 알림 설정
  * ========================================================= */
 
+.guardian-preference-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  padding: 26px 28px;
+}
+
+.guardian-preference-card__column {
+  min-width: 0;
+  padding-right: 28px;
+}
+
+.guardian-preference-card__column--notifications {
+  padding-right: 0;
+  padding-left: 28px;
+  border-left: 1px solid #e4e9e2;
+}
+
+.guardian-preference-card__column--notifications .guardian-mypage__card-title {
+  margin-bottom: 18px;
+}
+
+.guardian-preference-card__column--notifications .guardian-mypage__card-title p {
+  margin: 6px 0 0;
+  color: #7a867d;
+  font-size: 12px;
+}
+
 .guardian-notification-settings {
   display: grid;
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-  column-gap: 26px;
+  grid-template-columns: 1fr;
   row-gap: 0;
 }
 
@@ -741,6 +767,24 @@
 
 .guardian-toggle--saving {
   cursor: wait;
+}
+
+@media (max-width: 980px) {
+  .guardian-preference-card {
+    grid-template-columns: 1fr;
+  }
+
+  .guardian-preference-card__column {
+    padding-right: 0;
+  }
+
+  .guardian-preference-card__column--notifications {
+    margin-top: 24px;
+    padding-top: 24px;
+    padding-left: 0;
+    border-top: 1px solid #e4e9e2;
+    border-left: 0;
+  }
 }
 
 

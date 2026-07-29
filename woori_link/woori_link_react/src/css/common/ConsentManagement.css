@@ -6,6 +6,29 @@
   box-shadow: 0 8px 24px rgba(53, 67, 54, 0.05);
 }
 
+.consent-management--embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.consent-management--embedded .consent-management__header > span {
+  display: none;
+}
+
+.consent-management--embedded .consent-management__header h2 {
+  font-size: 18px;
+}
+
+.consent-management--embedded .consent-management__item {
+  padding: 13px 2px;
+}
+
+.consent-management--embedded .consent-management__footer {
+  margin-top: 13px;
+}
+
 .consent-management__header {
   display: flex;
   align-items: flex-start;

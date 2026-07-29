@@ -29,7 +29,7 @@ function readStored(role, items) {
   }
 }
 
-export default function ConsentManagement({ role = 'guardian' }) {
+export default function ConsentManagement({ role = 'guardian', embedded = false }) {
   const items = useMemo(() => ROLE_ITEMS[role] ?? ROLE_ITEMS.guardian, [role]);
   const [values, setValues] = useState(() => readStored(role, items));
   const [updatedAt, setUpdatedAt] = useState('');
@@ -55,7 +55,10 @@ export default function ConsentManagement({ role = 'guardian' }) {
   }
 
   return (
-    <section className="consent-management" aria-labelledby={`${role}-consent-title`}>
+    <section
+      className={`consent-management ${embedded ? 'consent-management--embedded' : ''}`}
+      aria-labelledby={`${role}-consent-title`}
+    >
       <header className="consent-management__header">
         <div>
           <h2 id={`${role}-consent-title`}>개인정보 및 동의 관리</h2>
