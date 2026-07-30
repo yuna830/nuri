@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 
 import '../api/care_monitoring_api.dart';
@@ -28,6 +29,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _recallReminder = true;
   bool _scheduleReminder = true;
   bool _voiceAnswer = true;
+  final FlutterSecureStorage _consentStorage = const FlutterSecureStorage();
+  bool _aiAnalysisConsent = true;
+  bool _externalAiConsent = true;
+  bool _guardianSharingConsent = true;
+  bool _workerSharingConsent = true;
 
   @override
   void initState() {
@@ -55,6 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _applySettingsFromSenior(senior);
         _loading = false;
       });
+      await _loadConsentSettings();
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -62,6 +69,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SnackBar(content: Text('내 정보를 불러오지 못했습니다.')),
       );
     }
+  }
+
+  Future<void> _loadConsentSettings() async {
+    final values = await Future.wait([
+      _consentStorage.read(key: 'consent_ai_analysis'),
+      _consentStorage.read(key: 'consent_external_ai'),
+      _consentStorage.read(key: 'consent_guardian_sharing'),
+      _consentStorage.read(key: 'consent_worker_sharing'),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _aiAnalysisConsent = values[0] != 'false';
+      _externalAiConsent = values[1] != 'false';
+      _guardianSharingConsent = values[2] != 'false';
+      _workerSharingConsent = values[3] != 'false';
+    });
+  }
+
+  Future<void> _updateConsent(String key, bool value) async {
+    await _consentStorage.write(key: key, value: value.toString());
+    await _consentStorage.write(
+      key: '${key}_updated_at',
+      value: DateTime.now().toIso8601String(),
+    );
+    if (!mounted) return;
+    setState(() {
+      if (key == 'consent_ai_analysis') _aiAnalysisConsent = value;
+      if (key == 'consent_external_ai') _externalAiConsent = value;
+      if (key == 'consent_guardian_sharing') _guardianSharingConsent = value;
+      if (key == 'consent_worker_sharing') _workerSharingConsent = value;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('동의 설정을 저장했습니다.')),
+    );
   }
 
   int? _intValue(dynamic value) {
@@ -479,6 +520,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _InfoRow('에너지 복지', '에너지 탭에서 입력 현황 확인'),
             ]),
             const SizedBox(height: 18),
+            _sectionTitle('개인정보 및 동의 관리'),
+            _consentCard(),
+            const SizedBox(height: 18),
             _sectionTitle('앱 설정'),
             _settingsCard(),
             const SizedBox(height: 18),
@@ -700,6 +744,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _consentCard() {
+    return Card(
+      child: Column(
+        children: [
+          _consentTile(
+            title: '개인정보 수집·이용',
+            subtitle: '서비스 제공과 계정 운영에 필요한 기본 정보를 처리합니다.',
+            value: true,
+            isRequired: true,
+          ),
+          const Divider(height: 1),
+          _consentTile(
+            title: '건강·위치 등 민감정보 처리',
+            subtitle: '돌봄과 안전 확인에 필요한 정보만 처리합니다.',
+            value: true,
+            isRequired: true,
+          ),
+          const Divider(height: 1),
+          _consentTile(
+            title: 'AI 안부·위험 신호 분석',
+            subtitle: 'AI 결과는 참고 정보이며 최종 판단은 사람이 수행합니다.',
+            value: _aiAnalysisConsent,
+            onChanged: (value) => _updateConsent('consent_ai_analysis', value),
+          ),
+          const Divider(height: 1),
+          _consentTile(
+            title: '외부 AI 서비스 전송',
+            subtitle: '분석에 필요한 최소 정보만 비식별화하여 전송합니다.',
+            value: _externalAiConsent,
+            onChanged: (value) => _updateConsent('consent_external_ai', value),
+          ),
+          const Divider(height: 1),
+          _consentTile(
+            title: '보호자에게 정보 공유',
+            subtitle: '안부, 위치, 위험 알림을 연결된 보호자에게 제공합니다.',
+            value: _guardianSharingConsent,
+            onChanged: (value) => _updateConsent('consent_guardian_sharing', value),
+          ),
+          const Divider(height: 1),
+          _consentTile(
+            title: '담당 복지사에게 정보 공유',
+            subtitle: '상담과 후속조치에 필요한 범위에서 담당자에게 제공합니다.',
+            value: _workerSharingConsent,
+            onChanged: (value) => _updateConsent('consent_worker_sharing', value),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            color: kBg,
+            child: const Text(
+              '선택 동의는 언제든 철회할 수 있습니다. 필수 동의 철회와 개인정보 삭제는 계정 탈퇴 절차에서 처리됩니다.',
+              style: TextStyle(color: kTextMuted, fontSize: 12, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _consentTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    bool isRequired = false,
+    ValueChanged<bool>? onChanged,
+  }) {
+    return SwitchListTile(
+      value: value,
+      onChanged: isRequired ? null : onChanged,
+      title: Row(
+        children: [
+          Flexible(child: Text(title)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: isRequired ? const Color(0xFFEDF3EA) : const Color(0xFFFAF3E5),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              isRequired ? '필수' : '선택',
+              style: TextStyle(
+                color: isRequired ? kPrimary : const Color(0xFF9A6D28),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+      subtitle: Text(subtitle),
     );
   }
 

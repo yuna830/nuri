@@ -2137,10 +2137,6 @@ export default function Safety() {
         <header className="guardian-safety-page__header">
           <div>
             <h1>제품·생활안전</h1>
-
-            <p>
-              등록 제품의 리콜 상태와 생활안전 점검 결과를 관리합니다.
-            </p>
           </div>
 
           <div className="guardian-safety-page__header-seniors">

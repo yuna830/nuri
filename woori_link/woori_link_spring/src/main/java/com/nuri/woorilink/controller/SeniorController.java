@@ -7,8 +7,9 @@ import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.service.SeniorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -76,9 +77,17 @@ public class SeniorController {
     @DeleteMapping("/guardian/{guardianId}/{seniorId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void disconnectGuardian(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Long guardianId,
             @PathVariable Long seniorId
     ) {
-        seniorService.disconnectGuardian(guardianId, seniorId);
+        if (user == null
+                || !"GUARDIAN".equals(user.getRole())
+                || !guardianId.equals(user.getUserId())) {
+            throw new AccessDeniedException(
+                    "Only the authenticated guardian can disconnect this senior."
+            );
+        }
+        seniorService.disconnectGuardian(user, seniorId);
     }
 }

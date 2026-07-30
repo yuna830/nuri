@@ -46,7 +46,12 @@ const MENUS = [
     label: '리콜 제품 조치 관리',
     path: '/welfare/recalled',
     icon: 'product',
-  }
+  },
+  {
+    label: '마이페이지',
+    path: '/welfare/mypage',
+    icon: 'senior',
+  },
 ];
 
 

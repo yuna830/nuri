@@ -10,6 +10,7 @@ import {
 
 import GuardianLayout from './GuardianLayout.jsx';
 import EnergyInformationModal from './EnergyInformationModal.jsx';
+import ConsentManagement from '../../components/common/ConsentManagement.jsx';
 
 import {
   deleteGuardianAccount,
@@ -1370,10 +1371,6 @@ export default function GuardianMyPage() {
                   <h2>
                     연결된 어르신 에너지 정보
                   </h2>
-
-                  <p>
-                    에너지복지 필수 정보와 담당 복지사 확인 요청 상태를 관리합니다.
-                  </p>
                 </div>
 
                 <span>
@@ -1566,6 +1563,10 @@ export default function GuardianMyPage() {
                   </div>
 
                   <div className="guardian-senior-information-footer">
+                    <strong>
+                      안내
+                    </strong>
+
                     <p>
                       정보 저장만으로 복지사에게 알림이 전달되지는 않습니다. 보호자가 상담 요청을 선택한 경우에만 담당 복지사에게 확인 요청이 전달됩니다.
                     </p>
@@ -1574,89 +1575,54 @@ export default function GuardianMyPage() {
               )}
             </section>
 
-            <section className="guardian-mypage__card">
-              <div className="guardian-mypage__card-title">
-                <h2>
-                  알림 설정
-                </h2>
+            <section className="guardian-mypage__card guardian-preference-card">
+              <div className="guardian-preference-card__column">
+                <ConsentManagement role="guardian" embedded />
               </div>
 
-              <div className="guardian-notification-settings">
-                {ALERT_SETTINGS.map(
-                  (setting) => {
-                    const enabled =
-                      profile[
-                      setting.key
-                      ] !== false;
+              <div className="guardian-preference-card__column guardian-preference-card__column--notifications">
+                <div className="guardian-mypage__card-title">
+                  <div>
+                    <h2>알림 설정</h2>
+                  </div>
+                </div>
 
-                    const saving =
-                      notificationSavingKey
-                      === setting.key;
+                <div className="guardian-notification-settings">
+                  {ALERT_SETTINGS.map((setting) => {
+                    const enabled = profile[setting.key] !== false;
+                    const saving = notificationSavingKey === setting.key;
 
                     return (
-                      <div
-                        key={setting.key}
-                        className="guardian-notification-setting"
-                      >
+                      <div key={setting.key} className="guardian-notification-setting">
                         <div className="guardian-notification-setting__copy">
-                          <strong>
-                            {setting.label}
-                          </strong>
-
-                          <p>
-                            {setting.description}
-                          </p>
+                          <strong>{setting.label}</strong>
+                          <p>{setting.description}</p>
                         </div>
 
                         <label
                           className={[
                             'guardian-toggle',
-
-                            enabled
-                              ? 'guardian-toggle--enabled'
-                              : '',
-
-                            saving
-                              ? 'guardian-toggle--saving'
-                              : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                            enabled ? 'guardian-toggle--enabled' : '',
+                            saving ? 'guardian-toggle--saving' : '',
+                          ].filter(Boolean).join(' ')}
                         >
                           <input
                             type="checkbox"
                             checked={enabled}
-                            disabled={
-                              Boolean(
-                                notificationSavingKey,
-                              )
-                            }
-                            aria-label={[
-                              setting.label,
-
-                              enabled
-                                ? '사용 중'
-                                : '사용 안 함',
-                            ].join(' ')}
+                            disabled={Boolean(notificationSavingKey)}
+                            aria-label={`${setting.label} ${enabled ? '사용 중' : '사용 안 함'}`}
                             onChange={(event) => {
-                              saveNotificationSetting(
-                                setting.key,
-                                event.target.checked,
-                              );
+                              saveNotificationSetting(setting.key, event.target.checked);
                             }}
                           />
-
-                          <span
-                            className="guardian-toggle__track"
-                            aria-hidden="true"
-                          >
+                          <span className="guardian-toggle__track" aria-hidden="true">
                             <span className="guardian-toggle__thumb" />
                           </span>
                         </label>
                       </div>
                     );
-                  },
-                )}
+                  })}
+                </div>
               </div>
             </section>
           </div>

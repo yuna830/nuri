@@ -10,6 +10,7 @@ import {
 } from 'react-router-dom';
 
 import GuardianLayout from './GuardianLayout.jsx';
+import AiDecisionNotice from '../../components/common/AiDecisionNotice.jsx';
 
 import {
   askGuardianRag,
@@ -1164,11 +1165,6 @@ export default function WelfareAssistant() {
         <header className="welfare-assistant-page__header">
           <div>
             <h1>복지·안전 도우미</h1>
-
-            <p>
-              등록 정보를 바탕으로 받을 수 있는 혜택을 확인하고,
-              필요한 내용을 바로 질문할 수 있습니다.
-            </p>
           </div>
 
           <div className="welfare-assistant-page__actions">
@@ -1211,18 +1207,9 @@ export default function WelfareAssistant() {
               <section className="welfare-benefits">
                 <header className="welfare-benefits__header">
                   <div>
-                    <span className="welfare-section-label">
-                      맞춤 혜택
-                    </span>
-
                     <h2>
                       {selectedSenior.name} 님이 확인할 수 있는 혜택
                     </h2>
-
-                    <p>
-                      사용자 앱에 등록된 정보를 바탕으로
-                      신청 가능성과 추가 확인 항목을 검토했습니다.
-                    </p>
                   </div>
 
                   <div className="welfare-benefits__profile">
@@ -1309,27 +1296,18 @@ export default function WelfareAssistant() {
                   </>
                 )}
 
-                <p className="welfare-benefits__notice">
-                  현재 등록 정보와 공식 문서를 기준으로 검토한 결과입니다.
-                  실제 신청 가능 여부는 행정복지센터 또는 담당 기관에서
-                  최종 확인해 주세요.
-                </p>
+                <AiDecisionNotice
+                  type="welfare"
+                  className="welfare-benefits__notice"
+                />
               </section>
             ) : (
               <section className="welfare-benefits welfare-benefits--overview">
                 <header className="welfare-benefits__header">
                   <div>
-                    <span className="welfare-section-label">
-                      전체 현황
-                    </span>
-
                     <h2>
                       전체 어르신 복지 혜택 현황
                     </h2>
-
-                    <p>
-                      등록된 어르신의 신청 상태와 추가 확인이 필요한 혜택을 보여줍니다.
-                    </p>
                   </div>
 
                   <span className="welfare-overview-count">
@@ -1502,17 +1480,17 @@ export default function WelfareAssistant() {
                         </div>
                       </section>
                     </div>
+
+                    <p className="welfare-overview-selection-guide">
+                      이름을 선택하면 해당 어르신의 맞춤 혜택과 추가 확인 항목을 볼 수 있습니다.
+                    </p>
                   </section>
                 )}
 
-                <p className="welfare-overview-selection-guide">
-                  이름을 선택하면 해당 어르신의 맞춤 혜택과 추가 확인 항목을 볼 수 있습니다.
-                </p>
-
-                <p className="welfare-benefits__notice">
-                  신청 완료 여부는 등록된 정보를 기준으로 표시됩니다.
-                  정확한 적용 상태는 요금 고지서 또는 담당 기관에서 확인해 주세요.
-                </p>
+                <AiDecisionNotice
+                  type="welfare"
+                  className="welfare-benefits__notice"
+                />
               </section>
             )}
           </div>
@@ -1521,17 +1499,9 @@ export default function WelfareAssistant() {
           <section className="welfare-chat-section">
             <header className="welfare-chat-section__header">
               <div>
-                <span className="welfare-section-label">
-                  추가 질문
-                </span>
-
                 <h2>
                   궁금한 내용을 물어보세요.
                 </h2>
-
-                <p>
-                  등록 정보와 공식 문서를 바탕으로 답변합니다.
-                </p>
               </div>
 
               {selectedSenior && (
@@ -1660,10 +1630,6 @@ export default function WelfareAssistant() {
                   </button>
                 </form>
 
-                <small className="welfare-chat__caption">
-                  정확한 자격 판정은 행정복지센터 또는 해당 기관에서
-                  최종 확인해 주세요.
-                </small>
               </div>
             </div>
           </section>

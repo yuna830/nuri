@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,6 +26,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenProvider tokenProvider;
+    private final AccountExistenceService accountExistenceService;
 
     @Value(
             "#{'${app.cors.allowed-origin-patterns}'.split(',')}"
@@ -60,6 +62,21 @@ public class SecurityConfig {
                         )
                 )
 
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) ->
+                                response.sendError(
+                                        HttpStatus.UNAUTHORIZED.value(),
+                                        "Authentication is required or the access token is invalid."
+                                )
+                        )
+                        .accessDeniedHandler((request, response, exception) ->
+                                response.sendError(
+                                        HttpStatus.FORBIDDEN.value(),
+                                        "You do not have permission to access this resource."
+                                )
+                        )
+                )
+
                 .authorizeHttpRequests(auth -> auth
 
                         /* =========================================
@@ -72,7 +89,7 @@ public class SecurityConfig {
                                 "/api/welfare-facilities/**",
                                 "/api/health",
                                 "/api/alerts/fall",
-                                "/api/actions/**"
+                                "/error"
                         )
                         .permitAll()
 
@@ -284,7 +301,8 @@ public class SecurityConfig {
 
                 .addFilterBefore(
                         new JwtAuthenticationFilter(
-                                tokenProvider
+                                tokenProvider,
+                                accountExistenceService
                         ),
                         UsernamePasswordAuthenticationFilter.class
                 );

@@ -20,6 +20,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
+    private final AccountExistenceService accountExistenceService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -33,6 +34,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String phone = tokenProvider.getPhone(token);
             String role = tokenProvider.getRole(token);
             Long userId = tokenProvider.getUserId(token);
+
+            if (!accountExistenceService.exists(role, userId)) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             var auth = new UsernamePasswordAuthenticationToken(
                     new AuthenticatedUser(phone, role, userId),
