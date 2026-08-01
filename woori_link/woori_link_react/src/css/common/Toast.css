@@ -1,0 +1,135 @@
+.app-toast {
+  position: fixed;
+  right: 28px;
+  bottom: 98px;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  width: min(380px, calc(100vw - 32px));
+  min-height: 52px;
+  padding: 12px 14px;
+
+  border: 1px solid #d9e2ec;
+  border-radius: 11px;
+
+  background: #ffffff;
+  color: #1f2933;
+
+  box-shadow:
+    0 16px 40px rgba(15, 23, 42, 0.18),
+    0 2px 8px rgba(15, 23, 42, 0.08);
+
+  box-sizing: border-box;
+
+  animation: app-toast-enter 0.2s ease-out;
+}
+
+.app-toast__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  width: 25px;
+  height: 25px;
+
+  border-radius: 50%;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.app-toast__message {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  margin: 0;
+
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+.app-toast__close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #8a98aa;
+
+  font-size: 20px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.app-toast__close:hover {
+  background: #f3f6f8;
+  color: #526173;
+}
+
+.app-toast--success {
+  border-color: #cfded2;
+  background: #fbfdfb;
+}
+
+.app-toast--success .app-toast__icon {
+  background: #e8f2e7;
+  color: #506a51;
+}
+
+.app-toast--error {
+  border-color: #efc7c0;
+  background: #fff8f6;
+}
+
+.app-toast--error .app-toast__icon {
+  background: #fce4df;
+  color: #a95044;
+}
+
+.app-toast--warning {
+  border-color: #ecd9ac;
+  background: #fffaf0;
+}
+
+.app-toast--warning .app-toast__icon {
+  background: #fff0c9;
+  color: #8a681f;
+}
+
+@keyframes app-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 700px) {
+  .app-toast {
+    right: 16px;
+    bottom: 84px;
+    left: 16px;
+    width: auto;
+  }
+}

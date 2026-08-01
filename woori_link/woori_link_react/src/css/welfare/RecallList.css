@@ -2010,7 +2010,7 @@
   padding: 14px 16px;
 }
 
-.recall-overview__item + .recall-overview__item {
+.recall-overview__item+.recall-overview__item {
   border-left: 1px solid #e7edf3;
 }
 
@@ -2044,18 +2044,18 @@
   gap: 16px;
 }
 
-.recall-section-header > div:first-child span,
-.recall-section-header > div:first-child strong {
+.recall-section-header>div:first-child span,
+.recall-section-header>div:first-child strong {
   display: block;
 }
 
-.recall-section-header > div:first-child span {
+.recall-section-header>div:first-child span {
   margin-bottom: 5px;
   color: #64748b;
   font-size: 12px;
 }
 
-.recall-section-header > div:first-child strong {
+.recall-section-header>div:first-child strong {
   color: #506a51;
   font-size: 17px;
 }
@@ -2080,14 +2080,14 @@
   margin: 18px 0 0;
 }
 
-.recall-official-info__list > div {
+.recall-official-info__list>div {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
   gap: 14px;
   padding: 10px 0;
 }
 
-.recall-official-info__list > div + div {
+.recall-official-info__list>div+div {
   border-top: 1px solid #f0f3f6;
 }
 
@@ -2179,7 +2179,7 @@
     grid-template-columns: 1fr;
   }
 
-  .recall-overview__item + .recall-overview__item {
+  .recall-overview__item+.recall-overview__item {
     border-top: 1px solid #e7edf3;
     border-left: 0;
   }
@@ -2196,7 +2196,7 @@
     flex: 1;
   }
 
-  .recall-official-info__list > div {
+  .recall-official-info__list>div {
     grid-template-columns: 1fr;
     gap: 5px;
   }
@@ -2205,3 +2205,484 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ===== Recall follow-up history ===== */
+
+.recall-history-section {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #e7edf3;
+}
+
+.recall-history-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recall-history-title>div {
+  min-width: 0;
+}
+
+.recall-history-count {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f1f5f2;
+  color: #5f7464 !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.recall-history-empty {
+  display: grid;
+  min-height: 86px;
+  place-items: center;
+  padding: 16px;
+  border: 1px dashed #d7e0e8;
+  border-radius: 10px;
+  background: #fbfcfd;
+  color: #8a98aa;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.recall-history-list {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recall-history-list::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 8px;
+  width: 1px;
+  background: #dce5dc;
+}
+
+.recall-history-list li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 0 18px;
+}
+
+.recall-history-list li:last-child {
+  padding-bottom: 0;
+}
+
+.recall-history-marker {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  margin-left: 4px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #8fa78b;
+  box-shadow: 0 0 0 1px #b9cbb6;
+  box-sizing: content-box;
+}
+
+.recall-history-content {
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid #e1e8ef;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.recall-history-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recall-history-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.recall-history-title-row strong {
+  min-width: 0;
+  color: #1f2933;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recall-history-worker {
+  flex: 0 0 auto;
+  color: #6f7f72;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.recall-history-row time {
+  flex: 0 0 auto;
+  color: #8a98aa;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recall-history-memo {
+  margin: 10px 0 0;
+  color: #526173;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.recall-history-content p {
+  margin: 9px 0 0;
+  color: #526173;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.recall-history-item:last-child {
+  border-color: #a9bca6;
+  background: #f6faf5;
+}
+
+.recall-history-item:last-child::after {
+  content: '최신';
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf4eb;
+  color: #506a51;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.recall-exclusion-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 42px;
+}
+
+.recall-exclusion-toggle {
+  display: inline-flex !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 9px !important;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.recall-exclusion-toggle>input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.recall-exclusion-toggle__box {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.recall-exclusion-toggle__box span {
+  color: transparent;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.recall-exclusion-toggle>input:checked+.recall-exclusion-toggle__box {
+  border-color: #8fa78b;
+  background: #8fa78b;
+}
+
+.recall-exclusion-toggle>input:checked+.recall-exclusion-toggle__box span {
+  color: #fff;
+}
+
+.recall-exclusion-toggle>input:focus-visible+.recall-exclusion-toggle__box {
+  outline: 3px solid rgba(125, 162, 135, 0.16);
+  outline-offset: 2px;
+}
+
+.recall-exclusion-toggle__text {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.recall-exclusion-toggle__text strong {
+  flex: 0 0 auto;
+  color: #526173;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.recall-exclusion-toggle__text small {
+  min-width: 0;
+  color: #94a0af;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.recall-exclusion-select {
+  flex: 0 0 220px;
+  width: 220px;
+  padding: 9px 11px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2933;
+  font: inherit;
+}
+
+.recall-exclusion-select:focus {
+  border-color: #7da287;
+  box-shadow: 0 0 0 3px rgba(125, 162, 135, 0.12);
+  outline: none;
+}
+
+.recall-modal-actions .btn-primary[aria-busy='true'] {
+  position: relative;
+  cursor: wait;
+}
+
+.recall-modal-actions button:disabled,
+.recall-modal-close:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.recall-modal-close:disabled:hover {
+  background: transparent;
+  color: #8a98aa;
+}
+
+.recall-plan-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.recall-plan-fieldset:disabled {
+  opacity: 1;
+}
+
+.recall-plan-fieldset:disabled input,
+.recall-plan-fieldset:disabled select,
+.recall-plan-fieldset:disabled textarea {
+  border-color: #e2e8ef;
+  background: #f7f9fb;
+  color: #526173;
+  cursor: default;
+}
+
+.recall-plan-fieldset:disabled textarea {
+  resize: none;
+}
+
+.recall-plan-fieldset:disabled .recall-exclusion-toggle {
+  cursor: default;
+}
+
+.recall-completed-readonly-notice,
+.recall-completed-edit-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border-radius: 10px;
+}
+
+.recall-completed-readonly-notice {
+  border: 1px solid #dce8df;
+  background: #f8faf7;
+}
+
+.recall-completed-edit-notice {
+  border: 1px solid #eadab5;
+  background: #fffbf2;
+}
+
+.recall-completed-readonly-notice strong,
+.recall-completed-readonly-notice span,
+.recall-completed-edit-notice strong,
+.recall-completed-edit-notice span {
+  display: block;
+}
+
+.recall-completed-readonly-notice strong {
+  color: #506a51;
+  font-size: 13px;
+}
+
+.recall-completed-readonly-notice span {
+  margin-top: 3px;
+  color: #738195;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.recall-completed-edit-notice strong {
+  color: #7d641f;
+  font-size: 13px;
+}
+
+.recall-completed-edit-notice span {
+  margin-top: 3px;
+  color: #88784f;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.recall-completed-readonly-notice button {
+  flex: 0 0 auto;
+  min-width: 88px;
+  min-height: 36px;
+}
+
+.recall-completed-edit-notice button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #80671f;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.recall-completed-edit-notice button:hover {
+  text-decoration: underline;
+}
+
+.recall-stage-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.recall-exclusion-summary {
+  color: #8a98aa;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.recall-due-date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.recall-due-date__value {
+  color: #394656;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.recall-due-date__label {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.recall-due-date__label.tone-overdue {
+  color: #a95044;
+}
+
+.recall-due-date__label.tone-today {
+  color: #8a681f;
+}
+
+.recall-due-date__label.tone-upcoming {
+  color: #506a51;
+}
+
+@media (max-width: 700px) {
+  .recall-history-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .recall-history-row time {
+    white-space: normal;
+  }
+
+  .recall-exclusion-field {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .recall-exclusion-toggle__text {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .recall-exclusion-select {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .recall-completed-readonly-notice,
+  .recall-completed-edit-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .recall-completed-readonly-notice button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {}
