@@ -720,9 +720,6 @@ export default function RecallList() {
           : product.currentUseStatus ||
             'UNKNOWN',
 
-      contactMethod:
-        product.contactMethod || '',
-
       stopGuidanceCompleted:
         product.stopGuidanceCompleted || false,
 

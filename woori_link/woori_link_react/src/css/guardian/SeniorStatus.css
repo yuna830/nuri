@@ -1053,7 +1053,7 @@
 .guardian-safety-zone-editor__results {
   position: absolute;
   z-index: 10;
-  top: calc(100%+5px);
+  top: calc(100% + 5px);
   right: 0;
   left: 0;
   overflow: hidden;
