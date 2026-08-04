@@ -1,5 +1,6 @@
 package com.nuri.woorilink.controller;
 
+import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.dto.RecallFollowUpCreateRequest;
 import com.nuri.woorilink.dto.RecallFollowUpRecordUpdateRequest;
 import com.nuri.woorilink.dto.RecallFollowUpResponse;
@@ -9,6 +10,7 @@ import com.nuri.woorilink.service.RecallFollowUpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,38 +20,51 @@ import java.util.List;
 @RequestMapping("/api/recall-follow-ups")
 public class RecallFollowUpController {
 
-    private final RecallFollowUpService recallFollowUpService;
+    private final RecallFollowUpService
+            recallFollowUpService;
 
-    /*
-     * 후속조치 생성 및 담당자 배정
+    /**
+     * 후속조치를 생성하고
+     * 현재 로그인한 복지사를 담당자로 배정합니다.
      *
      * POST /api/recall-follow-ups
      */
     @PostMapping
     public ResponseEntity<RecallFollowUpResponse> create(
-            @RequestBody RecallFollowUpCreateRequest request
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
+
+            @RequestBody
+            RecallFollowUpCreateRequest request
     ) {
         RecallFollowUpResponse response =
-                recallFollowUpService.create(request);
+                recallFollowUpService.create(
+                        authenticatedUser,
+                        request
+                );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
 
-    /*
-     * 후속조치 목록 조회
+    /**
+     * 현재 로그인한 복지사가 담당하는
+     * 어르신의 후속조치만 조회합니다.
      *
      * GET /api/recall-follow-ups
-     * GET /api/recall-follow-ups?welfareWorkerId=3
      * GET /api/recall-follow-ups?seniorId=5
      * GET /api/recall-follow-ups?status=CONTACTING
+     *
+     * welfareWorkerId 쿼리 값은 받지 않습니다.
+     * 로그인한 JWT 사용자를 기준으로 조회합니다.
      */
     @GetMapping
-    public ResponseEntity<List<RecallFollowUpResponse>>
-    getList(
-            @RequestParam(required = false)
-            Long welfareWorkerId,
+    public ResponseEntity<
+            List<RecallFollowUpResponse>
+            > getList(
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
 
             @RequestParam(required = false)
             Long seniorId,
@@ -59,85 +74,104 @@ public class RecallFollowUpController {
     ) {
         List<RecallFollowUpResponse> responses =
                 recallFollowUpService.getList(
-                        welfareWorkerId,
+                        authenticatedUser,
                         seniorId,
                         status
                 );
 
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(
+                responses
+        );
     }
 
-    /*
-     * 후속조치 상세 조회
-     *
-     * GET /api/recall-follow-ups/{registeredProductId}
+    /**
+     * 현재 복지사가 담당하는 대상의
+     * 후속조치 상세만 조회합니다.
      */
     @GetMapping("/{registeredProductId}")
-    public ResponseEntity<RecallFollowUpResponse> getDetail(
-            @PathVariable Long registeredProductId
+    public ResponseEntity<RecallFollowUpResponse>
+    getDetail(
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
+
+            @PathVariable
+            Long registeredProductId
     ) {
         return ResponseEntity.ok(
                 recallFollowUpService.getDetail(
+                        authenticatedUser,
                         registeredProductId
                 )
         );
     }
 
-    /*
-     * 후속조치 상태 변경
-     *
-     * PATCH /api/recall-follow-ups/{registeredProductId}/status
+    /**
+     * 현재 복지사가 담당하는 대상의
+     * 후속조치 상태만 변경할 수 있습니다.
      */
     @PatchMapping("/{registeredProductId}/status")
     public ResponseEntity<RecallFollowUpResponse>
     updateStatus(
-            @PathVariable Long registeredProductId,
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
+
+            @PathVariable
+            Long registeredProductId,
 
             @RequestBody
             RecallFollowUpStatusUpdateRequest request
     ) {
         return ResponseEntity.ok(
                 recallFollowUpService.updateStatus(
+                        authenticatedUser,
                         registeredProductId,
                         request
                 )
         );
     }
 
-    /*
-     * 상태를 유지한 채 상세 기록 수정
-     *
-     * PATCH /api/recall-follow-ups/{registeredProductId}
+    /**
+     * 현재 복지사가 담당하는 대상의
+     * 상세 기록만 수정할 수 있습니다.
      */
     @PatchMapping("/{registeredProductId}")
     public ResponseEntity<RecallFollowUpResponse>
     updateRecord(
-            @PathVariable Long registeredProductId,
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
+
+            @PathVariable
+            Long registeredProductId,
 
             @RequestBody
             RecallFollowUpRecordUpdateRequest request
     ) {
         return ResponseEntity.ok(
                 recallFollowUpService.updateRecord(
+                        authenticatedUser,
                         registeredProductId,
                         request
                 )
         );
     }
 
-    /*
-     * 후속조치 변경 이력 조회
-     *
-     * GET /api/recall-follow-ups/{registeredProductId}/histories
+    /**
+     * 현재 복지사가 담당하는 대상의
+     * 처리 이력만 조회할 수 있습니다.
      */
     @GetMapping("/{registeredProductId}/histories")
     public ResponseEntity<
             List<RecallFollowUpResponse.HistoryResponse>
             > getHistories(
-            @PathVariable Long registeredProductId
+            @AuthenticationPrincipal
+            AuthenticatedUser authenticatedUser,
+
+            @PathVariable
+            Long registeredProductId
     ) {
         return ResponseEntity.ok(
                 recallFollowUpService.getHistories(
+                        authenticatedUser,
                         registeredProductId
                 )
         );

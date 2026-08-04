@@ -2,9 +2,13 @@ import io
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from google.cloud import vision
+from google.oauth2 import service_account
 from PIL import Image, ImageStat
+
+from app.config import settings
 
 
 @dataclass
@@ -68,7 +72,20 @@ def _vision_client() -> vision.ImageAnnotatorClient:
     GOOGLE_APPLICATION_CREDENTIALS가 가리키는 서비스 계정으로
     Google Cloud Vision 클라이언트를 생성한다.
     """
-    return vision.ImageAnnotatorClient()
+    credentials_path = settings.google_application_credentials
+    if not credentials_path:
+        return vision.ImageAnnotatorClient()
+
+    path = Path(credentials_path).expanduser()
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parents[1] / path).resolve()
+    if not path.is_file():
+        raise RuntimeError(
+            f"Google Cloud Vision credential file was not found: {path}"
+        )
+
+    credentials = service_account.Credentials.from_service_account_file(str(path))
+    return vision.ImageAnnotatorClient(credentials=credentials)
 
 
 def _group_words_into_lines(

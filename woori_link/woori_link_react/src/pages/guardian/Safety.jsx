@@ -21,6 +21,7 @@ import {
   getProductsBySenior,
   registerProduct,
   sendRecallNotification,
+  updateProductSenior,
 } from '../../api/recallApi.js';
 
 import {
@@ -267,6 +268,36 @@ const ACTION_UI = {
   },
 };
 
+const GUARDIAN_SIMPLE_STEPS = [
+  {
+    key: 'RECEIVED',
+    label: '접수 완료',
+  },
+  {
+    key: 'ASSIGNED',
+    label: '담당자 배정',
+  },
+  {
+    key: 'IN_PROGRESS',
+    label: '확인·일정 진행',
+  },
+  {
+    key: 'COMPLETED',
+    label: '처리 완료',
+  },
+];
+
+
+const FOLLOW_UP_STEP_INDEX = {
+  RECEIVED: 0,
+  WORKER_ASSIGNED: 1,
+  CONTACT_IN_PROGRESS: 2,
+  PRODUCT_CONFIRMED: 3,
+  SCHEDULED: 4,
+  AGENCY_LINKED: 5,
+  COMPLETED: 6,
+  RESULT_NOTIFIED: 7,
+};
 
 const GUIDANCE_COPY = {
   IMMEDIATE_STOP: {
@@ -422,6 +453,81 @@ function formatDate(value) {
   ].join('.');
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  const dateText = [
+    date.getFullYear(),
+    String(
+      date.getMonth() + 1,
+    ).padStart(2, '0'),
+    String(
+      date.getDate(),
+    ).padStart(2, '0'),
+  ].join('.');
+
+  const timeText = [
+    String(
+      date.getHours(),
+    ).padStart(2, '0'),
+    String(
+      date.getMinutes(),
+    ).padStart(2, '0'),
+  ].join(':');
+
+  return `${dateText} ${timeText}`;
+}
+
+
+function getSpringApiBaseUrl() {
+  const configuredUrl =
+    import.meta.env
+      .VITE_SPRING_API_BASE_URL;
+
+  if (
+    configuredUrl
+    && configuredUrl.trim()
+  ) {
+    return configuredUrl
+      .trim()
+      .replace(/\/$/, '');
+  }
+
+  return 'http://127.0.0.1:8090/api';
+}
+
+function getGuardianSimpleStepIndex(
+  publicStatus,
+) {
+  switch (publicStatus) {
+    case 'RECEIVED':
+      return 0;
+
+    case 'WORKER_ASSIGNED':
+      return 1;
+
+    case 'CONTACT_IN_PROGRESS':
+    case 'PRODUCT_CONFIRMED':
+    case 'SCHEDULED':
+    case 'AGENCY_LINKED':
+      return 2;
+
+    case 'COMPLETED':
+    case 'RESULT_NOTIFIED':
+      return 3;
+
+    default:
+      return 0;
+  }
+}
 
 function matchedEvidence(product) {
   const fields =
@@ -929,6 +1035,41 @@ export default function Safety() {
   ] = useState(null);
 
   const [
+    productSeniorEditOpen,
+    setProductSeniorEditOpen,
+  ] = useState(false);
+
+  const [
+    productSeniorId,
+    setProductSeniorId,
+  ] = useState('');
+
+  const [
+    productSeniorSaving,
+    setProductSeniorSaving,
+  ] = useState(false);
+
+  const [
+    productSeniorError,
+    setProductSeniorError,
+  ] = useState('');
+
+  const [
+    followUpDetail,
+    setFollowUpDetail,
+  ] = useState(null);
+
+  const [
+    followUpLoading,
+    setFollowUpLoading,
+  ] = useState(false);
+
+  const [
+    followUpError,
+    setFollowUpError,
+  ] = useState('');
+
+  const [
     guidanceTarget,
     setGuidanceTarget,
   ] = useState(null);
@@ -1127,6 +1268,130 @@ export default function Safety() {
     [],
   );
 
+  const loadGuardianRecallFollowUp =
+    useCallback(
+      async (
+        registeredProductId,
+      ) => {
+        if (!registeredProductId) {
+          setFollowUpDetail(null);
+          setFollowUpError('');
+          return;
+        }
+
+        setFollowUpLoading(true);
+        setFollowUpError('');
+
+        try {
+          const apiBaseUrl =
+            getSpringApiBaseUrl();
+
+          const response = await fetch(
+            (
+              `${apiBaseUrl}`
+              + '/guardian/recall-follow-ups/'
+              + registeredProductId
+            ),
+            {
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                Accept: 'application/json',
+              },
+            },
+          );
+
+          if (response.status === 401) {
+            throw new Error(
+              '보호자 로그인이 만료되었습니다.',
+            );
+          }
+
+          if (response.status === 403) {
+            throw new Error(
+              '이 제품의 진행 상태를 조회할 권한이 없습니다.',
+            );
+          }
+
+          if (response.status === 404) {
+            throw new Error(
+              '후속조치 진행 정보를 찾을 수 없습니다.',
+            );
+          }
+
+          if (!response.ok) {
+            let message =
+              '후속조치 진행 상태를 불러오지 못했습니다.';
+
+            try {
+              const errorBody =
+                await response.json();
+
+              message =
+                errorBody.message
+                || errorBody.error
+                || message;
+            } catch {
+              // JSON 응답이 아니면 기본 문구 사용
+            }
+
+            throw new Error(message);
+          }
+
+          const data =
+            await response.json();
+
+          setFollowUpDetail(data);
+        } catch (requestError) {
+          const status =
+            requestError
+              ?.response
+              ?.status;
+
+          const responseData =
+            requestError
+              ?.response
+              ?.data;
+
+          const serverMessage =
+            typeof responseData === 'string'
+              ? responseData
+              : (
+                responseData?.message
+                || responseData?.detail
+                || responseData?.error
+                || ''
+              );
+
+          if (status === 404) {
+            setFollowUpDetail(null);
+            setFollowUpError('');
+          } else if (status === 403) {
+            setFollowUpDetail(null);
+
+            setFollowUpError(
+              serverMessage
+              || '현재 로그인한 보호자와 연결된 제품인지 확인해 주세요.',
+            );
+          } else {
+            setFollowUpDetail(null);
+
+            setFollowUpError(
+              serverMessage
+              || '리콜 처리 진행 상태를 불러오지 못했습니다.',
+            );
+          }
+
+          console.error(
+            '보호자 리콜 후속조치 조회 실패:',
+            requestError,
+          );
+        } finally {
+          setFollowUpLoading(false);
+        }
+      },
+      [],
+    );
 
   useEffect(
     () => {
@@ -1145,6 +1410,22 @@ export default function Safety() {
       selectedId,
     ],
   );
+
+  useEffect(() => {
+    if (!detail?.id) {
+      setFollowUpDetail(null);
+      setFollowUpError('');
+      setFollowUpLoading(false);
+      return;
+    }
+
+    loadGuardianRecallFollowUp(
+      detail.id,
+    );
+  }, [
+    detail?.id,
+    loadGuardianRecallFollowUp,
+  ]);
 
   const visibleProducts =
     useMemo(
@@ -1948,6 +2229,140 @@ export default function Safety() {
     }
   }
 
+  function closeRecallDetail() {
+    setDetail(null);
+    setFollowUpDetail(null);
+    setFollowUpError('');
+    setFollowUpLoading(false);
+  }
+
+  function openProductSeniorEdit() {
+    if (!detail?.id) {
+      return;
+    }
+
+    setProductSeniorId(
+      String(
+        detail.seniorId
+        ?? '',
+      ),
+    );
+
+    setProductSeniorError('');
+    setProductSeniorEditOpen(true);
+  }
+
+
+  function closeProductSeniorEdit() {
+    if (productSeniorSaving) {
+      return;
+    }
+
+    setProductSeniorEditOpen(false);
+    setProductSeniorId('');
+    setProductSeniorError('');
+  }
+
+
+  async function handleSaveProductSenior() {
+    if (
+      !detail?.id
+      || !productSeniorId
+      || productSeniorSaving
+    ) {
+      return;
+    }
+
+    const targetSeniorId =
+      Number(productSeniorId);
+
+    if (
+      !Number.isInteger(targetSeniorId)
+      || targetSeniorId <= 0
+    ) {
+      setProductSeniorError(
+        '제품을 사용하는 어르신을 선택해 주세요.',
+      );
+
+      return;
+    }
+
+    if (
+      String(detail.seniorId)
+      === String(targetSeniorId)
+    ) {
+      setProductSeniorEditOpen(false);
+      setProductSeniorError('');
+
+      return;
+    }
+
+    setProductSeniorSaving(true);
+    setProductSeniorError('');
+
+    try {
+      const response =
+        await updateProductSenior(
+          detail.id,
+          targetSeniorId,
+        );
+
+      const updatedProduct =
+        response.data;
+
+      /*
+       * 상세 화면 즉시 갱신
+       */
+      setDetail(
+        updatedProduct,
+      );
+
+      /*
+       * 목록도 서버 재조회 전에 즉시 갱신
+       */
+      setProducts(
+        (previous) =>
+          previous.map(
+            (product) => (
+              String(product.id)
+                === String(updatedProduct.id)
+                ? updatedProduct
+                : product
+            ),
+          ),
+      );
+
+      setProductSeniorEditOpen(false);
+      setProductSeniorId('');
+      setProductSeniorError('');
+
+      /*
+       * 연결 어르신별 제품 목록을 다시 조회해
+       * 화면 전체 상태를 서버 데이터와 동기화
+       */
+      await load();
+    } catch (requestError) {
+      setProductSeniorError(
+        requestError
+          ?.response
+          ?.data
+          ?.message
+        || requestError
+          ?.response
+          ?.data
+          ?.error
+        || requestError
+          ?.response
+          ?.data
+          ?.detail
+        || requestError.message
+        || '제품 사용자를 변경하지 못했습니다.',
+      );
+    } finally {
+      setProductSeniorSaving(false);
+    }
+  }
+
   function openGuidance(
     product,
   ) {
@@ -2614,7 +3029,7 @@ export default function Safety() {
                   event.target
                   === event.currentTarget
                 ) {
-                  setDetail(null);
+                  closeRecallDetail();
                 }
               }}
             >
@@ -2635,11 +3050,8 @@ export default function Safety() {
 
                   <button
                     type="button"
-                    className="recall-detail-close"
-                    aria-label="상세 정보 닫기"
-                    onClick={() => {
-                      setDetail(null);
-                    }}
+                    onClick={closeRecallDetail}
+                    aria-label="제품 상세 닫기"
                   >
                     ×
                   </button>
@@ -2723,6 +3135,208 @@ export default function Safety() {
                         {detail.inquiryTel}
                       </b>
                     </span>
+                  )}
+                </section>
+
+                <section className="guardian-follow-up-section">
+                  <div className="guardian-follow-up-section__heading">
+                    <strong>
+                      리콜 처리 진행 상태
+                    </strong>
+                  </div>
+
+                  {followUpLoading ? (
+                    <div className="guardian-follow-up-loading">
+                      진행 상태를 불러오는 중입니다.
+                    </div>
+                  ) : followUpError ? (
+                    <div className="guardian-follow-up-error">
+                      <p>
+                        {followUpError}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (detail?.id) {
+                            loadGuardianRecallFollowUp(
+                              detail.id,
+                            );
+                          }
+                        }}
+                      >
+                        다시 불러오기
+                      </button>
+                    </div>
+                  ) : followUpDetail ? (
+                    <>
+                      <div className="guardian-follow-up-simple-steps">
+                        {[
+                          {
+                            key: 'RECEIVED',
+                            label: '접수 완료',
+                          },
+                          {
+                            key: 'ASSIGNED',
+                            label: '담당자 배정',
+                          },
+                          {
+                            key: 'IN_PROGRESS',
+                            label: '조치 진행',
+                          },
+                          {
+                            key: 'COMPLETED',
+                            label: '처리 완료',
+                          },
+                        ].map((step, index) => {
+                          const currentIndex =
+                            getGuardianSimpleStepIndex(
+                              followUpDetail.publicStatus,
+                            );
+
+                          const completed =
+                            index < currentIndex;
+
+                          const current =
+                            index === currentIndex;
+
+                          return (
+                            <div
+                              key={step.key}
+                              className={[
+                                'guardian-follow-up-simple-step',
+                                completed
+                                  ? 'completed'
+                                  : '',
+                                current
+                                  ? 'current'
+                                  : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                            >
+                              <span>
+                                {completed
+                                  ? '✓'
+                                  : index + 1}
+                              </span>
+
+                              <strong>
+                                {step.label}
+                              </strong>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <p className="guardian-follow-up-status-note">
+                        {followUpDetail.publicStatusDescription
+                          || '후속조치 정보를 확인하고 있습니다.'}
+                      </p>
+
+                      {(
+                        followUpDetail.nextActionDate
+                        || followUpDetail.scheduledAt
+                        || followUpDetail.referralAgency
+                        || followUpDetail.finalResultLabel
+                      ) && (
+                          <div className="guardian-follow-up-details">
+                            {followUpDetail.nextActionDate && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  다음 확인 예정일
+                                </span>
+
+                                <strong>
+                                  {formatDate(
+                                    followUpDetail.nextActionDate,
+                                  )}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.scheduledAt && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  상담·방문 일정
+                                </span>
+
+                                <strong>
+                                  {formatDateTime(
+                                    followUpDetail.scheduledAt,
+                                  )}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.scheduleType && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  일정 유형
+                                </span>
+
+                                <strong>
+                                  {followUpDetail.scheduleType}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.schedulePlace && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  일정 장소
+                                </span>
+
+                                <strong>
+                                  {followUpDetail.schedulePlace}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.referralAgency && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  연계 기관
+                                </span>
+
+                                <strong>
+                                  {followUpDetail.referralAgency}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.finalResultLabel && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  처리 결과
+                                </span>
+
+                                <strong>
+                                  {followUpDetail.finalResultLabel}
+                                </strong>
+                              </div>
+                            )}
+
+                            {followUpDetail.completedAt && (
+                              <div className="guardian-follow-up-detail-row">
+                                <span>
+                                  조치 완료일
+                                </span>
+
+                                <strong>
+                                  {formatDate(
+                                    followUpDetail.completedAt,
+                                  )}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                    </>
+                  ) : (
+                    <div className="guardian-follow-up-empty">
+                      아직 등록된 후속조치 진행 정보가 없습니다.
+                    </div>
                   )}
                 </section>
 
@@ -2858,6 +3472,16 @@ export default function Safety() {
                   <div className="recall-detail-footer">
                     <button
                       type="button"
+                      className="recall-product-senior-edit-button"
+                      onClick={
+                        openProductSeniorEdit
+                      }
+                    >
+                      수정하기
+                    </button>
+
+                    <button
+                      type="button"
                       className="recall-guidance-button"
                       onClick={() => {
                         openGuidance(detail);
@@ -2871,6 +3495,144 @@ export default function Safety() {
             </div>
           );
         })()}
+
+        {productSeniorEditOpen && detail && (
+          <div
+            className="guardian-safety-modal-backdrop"
+            onMouseDown={(event) => {
+              if (
+                event.target
+                === event.currentTarget
+              ) {
+                closeProductSeniorEdit();
+              }
+            }}
+          >
+            <section className="guardian-safety-modal product-senior-edit-modal">
+              <header className="product-senior-edit-modal__header">
+                <div>
+                  <h2>
+                    제품 사용자 변경
+                  </h2>
+
+                  <p>
+                    이 제품을 실제로 사용하는 어르신을 선택해 주세요.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="제품 사용자 변경 닫기"
+                  disabled={
+                    productSeniorSaving
+                  }
+                  onClick={
+                    closeProductSeniorEdit
+                  }
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="product-senior-edit-product">
+                <span>
+                  변경할 제품
+                </span>
+
+                <strong>
+                  {displayProductName(detail)}
+                </strong>
+
+                {detail.modelNumber && (
+                  <small>
+                    모델번호 {detail.modelNumber}
+                  </small>
+                )}
+              </div>
+
+              <div className="product-senior-edit-field">
+                <label htmlFor="product-senior-select">
+                  실제 사용 어르신
+                </label>
+
+                <select
+                  id="product-senior-select"
+                  value={
+                    productSeniorId
+                  }
+                  disabled={
+                    productSeniorSaving
+                  }
+                  onChange={(event) => {
+                    setProductSeniorId(
+                      event.target.value,
+                    );
+
+                    setProductSeniorError('');
+                  }}
+                >
+                  <option value="">
+                    어르신을 선택해 주세요.
+                  </option>
+
+                  {seniors.map((senior) => (
+                    <option
+                      key={senior.id}
+                      value={senior.id}
+                    >
+                      {senior.name} 님
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <p className="product-senior-edit-notice">
+                사용자가 변경되면 기존 복지사 후속조치는 새 대상 기준으로 다시 접수됩니다.
+              </p>
+
+              {productSeniorError && (
+                <div className="product-senior-edit-error">
+                  {productSeniorError}
+                </div>
+              )}
+
+              <div className="product-senior-edit-actions">
+                <button
+                  type="button"
+                  className="cancel"
+                  disabled={
+                    productSeniorSaving
+                  }
+                  onClick={
+                    closeProductSeniorEdit
+                  }
+                >
+                  취소
+                </button>
+
+                <button
+                  type="button"
+                  className="submit"
+                  disabled={
+                    productSeniorSaving
+                    || !productSeniorId
+                    || (
+                      String(detail.seniorId)
+                      === String(productSeniorId)
+                    )
+                  }
+                  onClick={
+                    handleSaveProductSenior
+                  }
+                >
+                  {productSeniorSaving
+                    ? '저장 중...'
+                    : '변경 저장'}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {guidanceTarget && (
           <div

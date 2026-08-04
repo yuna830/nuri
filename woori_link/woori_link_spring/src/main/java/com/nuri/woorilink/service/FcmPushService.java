@@ -23,7 +23,8 @@ import java.util.NoSuchElementException;
 @RequiredArgsConstructor
 public class FcmPushService {
 
-    private static final String SENIOR_ROLE = "SENIOR";
+    private static final String SENIOR_ROLE =
+            "SENIOR";
 
     private final PushTokenRepository repository;
 
@@ -63,30 +64,50 @@ public class FcmPushService {
                 token.trim();
 
         PushToken value =
-                repository.findByToken(normalizedToken)
-                        .orElseGet(PushToken::new);
+                repository.findByToken(
+                                normalizedToken
+                        )
+                        .orElseGet(
+                                PushToken::new
+                        );
 
-        value.setRole(normalizedRole);
-        value.setUserId(userId);
-        value.setToken(normalizedToken);
+        value.setRole(
+                normalizedRole
+        );
+
+        value.setUserId(
+                userId
+        );
+
+        value.setToken(
+                normalizedToken
+        );
 
         PushToken saved =
-                repository.save(value);
+                repository.save(
+                        value
+                );
 
         log.info(
                 "[FCM 토큰 등록 완료] role={}, userId={}, token={}",
                 normalizedRole,
                 userId,
-                maskToken(normalizedToken)
+                maskToken(
+                        normalizedToken
+                )
         );
 
         return saved;
     }
 
     /**
-     * 특정 어르신이 등록한 모든 기기로 앱 푸시 알림을 전송합니다.
+     * 특정 어르신이 등록한 모든 기기로
+     * 앱 푸시 알림을 전송합니다.
+     *
+     * 외부 Firebase 요청 실패가
+     * 상위 업무 트랜잭션을 롤백시키지 않도록
+     * 이 메서드에는 @Transactional을 사용하지 않습니다.
      */
-    @Transactional
     public SendResult sendToSenior(
             Long seniorId,
             String title,
@@ -99,19 +120,29 @@ public class FcmPushService {
             );
         }
 
-        if (title == null || title.isBlank()) {
+        if (
+                title == null ||
+                        title.isBlank()
+        ) {
             throw new IllegalArgumentException(
                     "알림 제목이 필요합니다."
             );
         }
 
-        if (body == null || body.isBlank()) {
+        if (
+                body == null ||
+                        body.isBlank()
+        ) {
             throw new IllegalArgumentException(
                     "알림 내용이 필요합니다."
             );
         }
 
-        if (FirebaseApp.getApps().isEmpty()) {
+        if (
+                FirebaseApp
+                        .getApps()
+                        .isEmpty()
+        ) {
             log.error(
                     "[FCM 발송 실패] Firebase Admin SDK가 초기화되지 않았습니다."
             );
@@ -147,13 +178,22 @@ public class FcmPushService {
         List<PushToken> invalidTokens =
                 new ArrayList<>();
 
-        for (PushToken pushToken : tokens) {
+        for (
+                PushToken pushToken
+                : tokens
+        ) {
             String token =
                     pushToken.getToken();
 
-            if (token == null || token.isBlank()) {
+            if (
+                    token == null ||
+                            token.isBlank()
+            ) {
                 failureCount++;
-                invalidTokens.add(pushToken);
+
+                invalidTokens.add(
+                        pushToken
+                );
 
                 log.warn(
                         "[FCM 발송 제외] 비어 있는 토큰. tokenId={}, seniorId={}",
@@ -167,23 +207,36 @@ public class FcmPushService {
             try {
                 Message.Builder messageBuilder =
                         Message.builder()
-                                .setToken(token)
+                                .setToken(
+                                        token
+                                )
                                 .setNotification(
-                                        Notification.builder()
-                                                .setTitle(title.trim())
-                                                .setBody(body.trim())
+                                        Notification
+                                                .builder()
+                                                .setTitle(
+                                                        title.trim()
+                                                )
+                                                .setBody(
+                                                        body.trim()
+                                                )
                                                 .build()
                                 );
 
-                if (data != null && !data.isEmpty()) {
-                    messageBuilder.putAllData(data);
+                if (
+                        data != null &&
+                                !data.isEmpty()
+                ) {
+                    messageBuilder.putAllData(
+                            data
+                    );
                 }
 
                 String messageId =
                         FirebaseMessaging
                                 .getInstance()
                                 .send(
-                                        messageBuilder.build()
+                                        messageBuilder
+                                                .build()
                                 );
 
                 successCount++;
@@ -191,51 +244,78 @@ public class FcmPushService {
                 log.info(
                         "[FCM 발송 성공] seniorId={}, token={}, messageId={}",
                         seniorId,
-                        maskToken(token),
+                        maskToken(
+                                token
+                        ),
                         messageId
                 );
-            } catch (FirebaseMessagingException exception) {
+
+            } catch (
+                    FirebaseMessagingException exception
+            ) {
                 failureCount++;
-                lastException = exception;
+
+                lastException =
+                        exception;
 
                 MessagingErrorCode errorCode =
-                        exception.getMessagingErrorCode();
+                        exception
+                                .getMessagingErrorCode();
 
                 log.error(
                         "[FCM 발송 실패] seniorId={}, token={}, errorCode={}, message={}",
                         seniorId,
-                        maskToken(token),
+                        maskToken(
+                                token
+                        ),
                         errorCode,
                         exception.getMessage(),
                         exception
                 );
 
                 if (
-                        errorCode
-                                == MessagingErrorCode.UNREGISTERED
+                        errorCode ==
+                                MessagingErrorCode.UNREGISTERED
                 ) {
-                    invalidTokens.add(pushToken);
+                    invalidTokens.add(
+                            pushToken
+                    );
 
                     log.warn(
                             "[FCM 만료 토큰 삭제 예정] tokenId={}, seniorId={}, token={}",
                             pushToken.getId(),
                             seniorId,
-                            maskToken(token)
+                            maskToken(
+                                    token
+                            )
                     );
                 }
-            } catch (RuntimeException exception) {
+
+            } catch (
+                    RuntimeException exception
+            ) {
                 failureCount++;
 
                 log.error(
                         "[FCM 처리 오류] seniorId={}, token={}, message={}",
                         seniorId,
-                        maskToken(token),
+                        maskToken(
+                                token
+                        ),
                         exception.getMessage(),
                         exception
                 );
             }
         }
 
+        /*
+         * Spring Data Repository의 deleteAll 자체가
+         * 필요한 트랜잭션을 처리합니다.
+         *
+         * sendToSenior 전체를 트랜잭션으로 묶지 않으므로
+         * 이후 예외가 발생해도 상위 CheckIn 생성 트랜잭션을
+         * rollback-only로 변경하지 않습니다.
+         */
         if (!invalidTokens.isEmpty()) {
             repository.deleteAll(
                     invalidTokens
@@ -277,8 +357,8 @@ public class FcmPushService {
                 exception.getMessagingErrorCode();
 
         if (
-                errorCode
-                        == MessagingErrorCode.UNREGISTERED
+                errorCode ==
+                        MessagingErrorCode.UNREGISTERED
         ) {
             return (
                     "어르신 앱의 알림 토큰이 만료되었습니다. "
@@ -287,8 +367,9 @@ public class FcmPushService {
         }
 
         if (
-                errorCode
-                        == MessagingErrorCode.SENDER_ID_MISMATCH
+                errorCode ==
+                        MessagingErrorCode
+                                .SENDER_ID_MISMATCH
         ) {
             return (
                     "앱과 서버의 Firebase 프로젝트가 일치하지 않습니다."
@@ -296,8 +377,9 @@ public class FcmPushService {
         }
 
         if (
-                errorCode
-                        == MessagingErrorCode.THIRD_PARTY_AUTH_ERROR
+                errorCode ==
+                        MessagingErrorCode
+                                .THIRD_PARTY_AUTH_ERROR
         ) {
             return (
                     "Firebase 인증 설정을 확인해 주세요."
@@ -305,8 +387,9 @@ public class FcmPushService {
         }
 
         if (
-                errorCode
-                        == MessagingErrorCode.INVALID_ARGUMENT
+                errorCode ==
+                        MessagingErrorCode
+                                .INVALID_ARGUMENT
         ) {
             return (
                     "FCM 토큰 또는 알림 요청 값이 올바르지 않습니다."
@@ -314,8 +397,9 @@ public class FcmPushService {
         }
 
         if (
-                errorCode
-                        == MessagingErrorCode.QUOTA_EXCEEDED
+                errorCode ==
+                        MessagingErrorCode
+                                .QUOTA_EXCEEDED
         ) {
             return (
                     "Firebase 발송 한도를 초과했습니다."
@@ -323,8 +407,9 @@ public class FcmPushService {
         }
 
         if (
-                errorCode
-                        == MessagingErrorCode.UNAVAILABLE
+                errorCode ==
+                        MessagingErrorCode
+                                .UNAVAILABLE
         ) {
             return (
                     "Firebase 서버에 일시적으로 연결할 수 없습니다."
@@ -348,7 +433,10 @@ public class FcmPushService {
     private String maskToken(
             String token
     ) {
-        if (token == null || token.isBlank()) {
+        if (
+                token == null ||
+                        token.isBlank()
+        ) {
             return "EMPTY";
         }
 
@@ -356,7 +444,10 @@ public class FcmPushService {
             return "***";
         }
 
-        return token.substring(0, 6)
+        return token.substring(
+                0,
+                6
+        )
                 + "..."
                 + token.substring(
                 token.length() - 6

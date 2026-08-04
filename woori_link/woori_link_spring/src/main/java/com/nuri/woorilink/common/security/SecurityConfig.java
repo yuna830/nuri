@@ -33,12 +33,10 @@ public class SecurityConfig {
     )
     private List<String> allowedOriginPatterns;
 
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
 
     @Bean
     public SecurityFilterChain filterChain(
@@ -63,17 +61,19 @@ public class SecurityConfig {
                 )
 
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, exception) ->
-                                response.sendError(
-                                        HttpStatus.UNAUTHORIZED.value(),
-                                        "Authentication is required or the access token is invalid."
-                                )
+                        .authenticationEntryPoint(
+                                (request, response, exception) ->
+                                        response.sendError(
+                                                HttpStatus.UNAUTHORIZED.value(),
+                                                "Authentication is required or the access token is invalid."
+                                        )
                         )
-                        .accessDeniedHandler((request, response, exception) ->
-                                response.sendError(
-                                        HttpStatus.FORBIDDEN.value(),
-                                        "You do not have permission to access this resource."
-                                )
+                        .accessDeniedHandler(
+                                (request, response, exception) ->
+                                        response.sendError(
+                                                HttpStatus.FORBIDDEN.value(),
+                                                "You do not have permission to access this resource."
+                                        )
                         )
                 )
 
@@ -93,7 +93,6 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
-
                         /* =========================================
                          * Swagger
                          * ========================================= */
@@ -103,9 +102,8 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
-
                         /* =========================================
-                         * 제품 API
+                         * 제품 등록 API
                          * ========================================= */
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -119,6 +117,18 @@ public class SecurityConfig {
                         )
                         .permitAll()
 
+                        /* =========================================
+                         * 리콜 후속조치 API
+                         *
+                         * 로그인한 복지사만 접근할 수 있다.
+                         * 세부 담당자 권한은 Service에서 다시 검증한다.
+                         * ========================================= */
+                        .requestMatchers(
+                                "/api/recall-follow-ups/**"
+                        )
+                        .hasRole(
+                                "WELFARE_WORKER"
+                        )
 
                         /* =========================================
                          * 보호자 알림
@@ -139,7 +149,6 @@ public class SecurityConfig {
                                 "GUARDIAN"
                         )
 
-
                         /* =========================================
                          * 복지사 알림
                          * ========================================= */
@@ -151,17 +160,9 @@ public class SecurityConfig {
                                 "WELFARE_WORKER"
                         )
 
-
                         /* =========================================
                          * 에너지복지 상담 요청
-                         *
-                         * 반드시 /api/energy-support/**
-                         * 포괄 규칙보다 위에 있어야 한다.
                          * ========================================= */
-
-                        /*
-                         * 보호자가 상담 요청 생성
-                         */
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/energy-support/consultations/seniors/*"
@@ -170,9 +171,6 @@ public class SecurityConfig {
                                 "GUARDIAN"
                         )
 
-                        /*
-                         * 보호자 또는 복지사가 현재 상담 요청 상태 조회
-                         */
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/energy-support/consultations/seniors/*/active"
@@ -182,9 +180,6 @@ public class SecurityConfig {
                                 "WELFARE_WORKER"
                         )
 
-                        /*
-                         * 복지사가 자신에게 배정된 상담 요청 목록 조회
-                         */
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/energy-support/consultations/worker"
@@ -193,9 +188,6 @@ public class SecurityConfig {
                                 "WELFARE_WORKER"
                         )
 
-                        /*
-                         * 복지사가 상담 처리 시작 또는 완료
-                         */
                         .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/energy-support/consultations/*/start",
@@ -204,7 +196,6 @@ public class SecurityConfig {
                         .hasRole(
                                 "WELFARE_WORKER"
                         )
-
 
                         /* =========================================
                          * 에너지복지 완료 및 상세 조회
@@ -223,7 +214,6 @@ public class SecurityConfig {
                                 "WELFARE_WORKER"
                         )
 
-
                         /* =========================================
                          * 에너지바우처 저장
                          * ========================================= */
@@ -236,7 +226,6 @@ public class SecurityConfig {
                                 "GUARDIAN",
                                 "WELFARE_WORKER"
                         )
-
 
                         /* =========================================
                          * 공통·전기·가스 정보 저장
@@ -277,12 +266,9 @@ public class SecurityConfig {
                         .hasRole(
                                 "GUARDIAN"
                         )
-                        
+
                         /* =========================================
                          * 나머지 에너지복지 API
-                         *
-                         * 복지사 전용
-                         * 반드시 세부 규칙보다 아래에 둔다.
                          * ========================================= */
                         .requestMatchers(
                                 "/api/energy-support/**"
@@ -290,8 +276,37 @@ public class SecurityConfig {
                         .hasRole(
                                 "WELFARE_WORKER"
                         )
-
-
+                        // 보호자 본인 조회 권한 추가
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/seniors/by-guardian/me"
+                        )
+                        .hasRole(
+                                "GUARDIAN"
+                        )
+                        // 제품 사용자 변결
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/products/*/senior"
+                        )
+                        .hasRole(
+                                "GUARDIAN"
+                        )
+                        /* =========================================
+                         * 보호자 리콜 후속조치 공개 조회
+                         *
+                         * 보호자는 자신과 연결된 어르신의
+                         * 공개 가능한 진행 상태만 조회할 수 있습니다.
+                         * 실제 연결 관계는 Service에서 다시 검증합니다.
+                         * ========================================= */
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/guardian/recall-follow-ups",
+                                "/api/guardian/recall-follow-ups/*"
+                        )
+                        .hasRole(
+                                "GUARDIAN"
+                        )
                         /* =========================================
                          * 그 외 API
                          * ========================================= */
@@ -309,7 +324,6 @@ public class SecurityConfig {
 
         return http.build();
     }
-
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

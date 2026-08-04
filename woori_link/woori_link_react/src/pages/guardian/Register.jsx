@@ -72,6 +72,11 @@ export default function GuardianRegister() {
     setInviteCode,
   ] = useState('');
 
+  const [
+    copied,
+    setCopied,
+  ] = useState(false);
+
 
   const set =
     (field) => (event) => {
@@ -145,9 +150,33 @@ export default function GuardianRegister() {
   }
 
 
+  async function handleCopyInviteCode() {
+    try {
+      await navigator.clipboard.writeText(
+        inviteCode,
+      );
+
+      setCopied(true);
+
+      window.setTimeout(
+        () => {
+          setCopied(false);
+        },
+        1800,
+      );
+    } catch {
+      setCopied(false);
+
+      setError(
+        '초대 코드를 복사하지 못했습니다.',
+      );
+    }
+  }
+
+
   if (inviteCode) {
     return (
-      <div className="auth-page">
+      <div className="auth-page guardian-register-complete-page">
         <div className="auth-card guardian-register-card invite-code-card">
           <div className="auth-register-heading">
             <span className="auth-register-heading__brand">
@@ -177,21 +206,27 @@ export default function GuardianRegister() {
             </p>
           </div>
 
+          {error && (
+            <div className="auth-alert-error">
+              {error}
+            </div>
+          )}
+
           <button
             type="button"
-            className="btn-primary auth-submit"
-            onClick={() => {
-              navigator.clipboard.writeText(
-                inviteCode,
-              );
-            }}
+            className="btn-primary auth-submit invite-code-copy-button"
+            onClick={
+              handleCopyInviteCode
+            }
           >
-            코드 복사하기
+            {copied
+              ? '복사 완료'
+              : '코드 복사하기'}
           </button>
 
           <button
             type="button"
-            className="auth-login-text-button"
+            className="auth-login-text-button invite-code-login-button"
             onClick={() => {
               navigate(
                 '/guardian/login',

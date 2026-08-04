@@ -3,6 +3,7 @@ package com.nuri.woorilink.controller;
 import com.nuri.woorilink.common.security.AuthenticatedUser;
 import com.nuri.woorilink.dto.ProductRecallResponse;
 import com.nuri.woorilink.dto.RecallWorkflowUpdateRequest;
+import com.nuri.woorilink.dto.ProductSeniorUpdateRequest;
 import com.nuri.woorilink.entity.RegisteredProduct;
 import com.nuri.woorilink.service.FcmPushService;
 import com.nuri.woorilink.service.ProductRecallService;
@@ -276,6 +277,43 @@ public class ProductRecallController {
         return productRecallService.updateCurrentUseStatus(
                 id,
                 status,
+                user.getUserId()
+        );
+    }
+
+    @PatchMapping("/{id}/senior")
+    public ProductRecallResponse updateProductSenior(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @RequestBody ProductSeniorUpdateRequest request
+    ) {
+        if (user == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "로그인이 필요합니다."
+            );
+        }
+
+        if (!isGuardian(user)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "보호자 계정으로 로그인해 주세요."
+            );
+        }
+
+        if (
+                request == null
+                        || request.getSeniorId() == null
+        ) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "변경할 어르신을 선택해 주세요."
+            );
+        }
+
+        return productRecallService.updateProductSenior(
+                id,
+                request.getSeniorId(),
                 user.getUserId()
         );
     }

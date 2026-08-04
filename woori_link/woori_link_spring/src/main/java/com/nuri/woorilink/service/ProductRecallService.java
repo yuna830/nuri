@@ -608,6 +608,234 @@ public class ProductRecallService {
     }
 
     @Transactional
+    public ProductRecallResponse updateProductSenior(
+            Long productId,
+            Long targetSeniorId,
+            Long guardianId
+    ) {
+        if (productId == null) {
+            throw new IllegalArgumentException(
+                    "등록 제품 ID가 필요합니다."
+            );
+        }
+
+        if (targetSeniorId == null) {
+            throw new IllegalArgumentException(
+                    "변경할 어르신 ID가 필요합니다."
+            );
+        }
+
+        if (guardianId == null) {
+            throw new IllegalArgumentException(
+                    "보호자 정보가 필요합니다."
+            );
+        }
+
+        RegisteredProduct product =
+                productRepository.findById(productId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "등록 제품을 찾을 수 없습니다: "
+                                                + productId
+                                )
+                        );
+
+        Long previousSeniorId =
+                product.getSeniorId();
+
+        /*
+         * 현재 제품이 로그인한 보호자와 연결된
+         * 어르신의 제품인지 먼저 확인합니다.
+         */
+        validateGuardianAccess(
+                guardianId,
+                previousSeniorId
+        );
+
+        Senior targetSenior =
+                seniorRepository.findById(targetSeniorId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "변경할 어르신을 찾을 수 없습니다: "
+                                                + targetSeniorId
+                                )
+                        );
+
+        /*
+         * 변경 대상도 반드시 로그인한 보호자와
+         * 연결된 어르신이어야 합니다.
+         */
+        if (
+                targetSenior.getGuardianId() == null
+                        || !guardianId.equals(
+                        targetSenior.getGuardianId()
+                )
+        ) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "연결된 어르신으로만 제품 사용자를 변경할 수 있습니다."
+            );
+        }
+
+        /*
+         * 동일한 어르신을 다시 선택한 경우
+         * 별도 변경 없이 현재 응답을 반환합니다.
+         */
+        if (
+                previousSeniorId != null
+                        && previousSeniorId.equals(
+                        targetSeniorId
+                )
+        ) {
+            return toRecallResponse(product);
+        }
+
+        /*
+         * 기존 어르신에게 생성된 리콜 업무 기록을 제거합니다.
+         *
+         * 현재 ProductRecallService.delete()에서도
+         * 동일하게 제품 ID가 포함된 리콜 ActionRecord를
+         * 정리하고 있으므로 같은 기준을 사용합니다.
+         */
+        if (previousSeniorId != null) {
+            actionRecordRepository
+                    .deleteBySeniorIdAndActionTypeAndNoteContaining(
+                            previousSeniorId,
+                            ActionRecord.ActionType.RECALL,
+                            "제품ID: " + productId
+                    );
+        }
+
+        product.setSeniorId(
+                targetSeniorId
+        );
+
+        /*
+         * 제품 자체의 리콜 판정 결과는 유지합니다.
+         *
+         * 다만 담당 대상이 변경되었으므로
+         * 기존 복지사 배정과 연락·일정·완료 기록은
+         * 새 대상에게 그대로 넘기지 않습니다.
+         */
+        resetFollowUpForSeniorChange(
+                product
+        );
+
+        RegisteredProduct saved =
+                productRepository.save(
+                        product
+                );
+
+        return toRecallResponse(saved);
+    }
+
+    private void resetFollowUpForSeniorChange(
+            RegisteredProduct product
+    ) {
+        LocalDateTime now =
+                LocalDateTime.now();
+
+        product.setFollowUpStatus(
+                RegisteredProduct.FollowUpStatus.RECEIVED
+        );
+
+        product.setFollowUpOutcome(
+                RegisteredProduct.FollowUpOutcome.NONE
+        );
+
+        product.setReceivedAt(
+                now
+        );
+
+        /*
+         * 담당 복지사 배정
+         */
+        product.setAssignedWorkerId(null);
+        product.setAssignedAt(null);
+
+        /*
+         * 연락 기록
+         */
+        product.setContactTarget(null);
+        product.setContactMethod(null);
+        product.setContactedAt(null);
+        product.setContactResult(null);
+        product.setContactMemo(null);
+
+        /*
+         * 제품 사용 상태 확인 기록
+         */
+        product.setCurrentUseStatus(
+                RegisteredProduct.CurrentUseStatus.UNKNOWN
+        );
+
+        product.setConfirmedAt(null);
+        product.setConfirmationMemo(null);
+
+        /*
+         * 일정 정보
+         */
+        product.setScheduledAt(null);
+        product.setScheduleType(null);
+        product.setSchedulePlace(null);
+        product.setScheduleMemo(null);
+
+        /*
+         * 기관 연계 정보
+         */
+        product.setReferralAgency(null);
+        product.setReferralContactName(null);
+        product.setReferralContactPhone(null);
+        product.setReferredAt(null);
+        product.setReferralMemo(null);
+
+        /*
+         * 완료 정보
+         */
+        product.setCompletedAt(null);
+        product.setCompletionMemo(null);
+        product.setFinalResult(null);
+
+        /*
+         * 보호자 최종 통보 정보
+         */
+        product.setGuardianNotificationMethod(null);
+        product.setGuardianNotifiedAt(null);
+        product.setGuardianNotificationMemo(null);
+
+        /*
+         * 다음 업무 계획
+         */
+        product.setFollowUpType(null);
+        product.setNextActionDate(null);
+
+        /*
+         * 기존 보호자 연락 상태
+         */
+        product.setGuardianContactStatus(
+                RegisteredProduct.GuardianContactStatus.UNKNOWN
+        );
+
+        product.setGuardianContactMethod(null);
+        product.setGuardianContactedAt(null);
+        product.setGuardianContactMemo(null);
+
+        /*
+         * 사용 중지 안내는 새 실제 사용자 기준으로
+         * 다시 확인해야 합니다.
+         */
+        product.setStopGuidanceCompleted(false);
+        product.setStopGuidanceCompletedAt(null);
+        product.setStopGuidanceMethod(null);
+        product.setStopGuidanceTarget(null);
+        product.setStopGuidanceWorkerId(null);
+        product.setStopGuidanceMemo(null);
+
+        product.setNote(
+                "제품 실제 사용자가 변경되어 후속조치가 다시 접수되었습니다."
+        );
+    }
+
+    @Transactional
     public RegisteredProduct updateWorkflow(
             Long id,
             RecallWorkflowUpdateRequest request

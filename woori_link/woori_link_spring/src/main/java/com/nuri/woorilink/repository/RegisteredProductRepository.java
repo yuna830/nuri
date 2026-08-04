@@ -23,12 +23,25 @@ public interface RegisteredProductRepository
     );
 
     /*
-     * 복지사의 담당 어르신 목록에 포함된 리콜 제품 조회
+     * 복지사의 담당 어르신 목록에 포함된
+     * 리콜 제품 조회
      */
     List<RegisteredProduct>
     findBySeniorIdInAndRecallStatus(
             List<Long> seniorIds,
             RegisteredProduct.RecallStatus recallStatus
+    );
+
+    /*
+     * 여러 어르신의 등록 제품을
+     * 최근 수정된 순서로 조회
+     *
+     * 보호자와 연결된 어르신들의
+     * 리콜 진행 상태 목록에서 사용합니다.
+     */
+    List<RegisteredProduct>
+    findBySeniorIdInOrderByUpdatedAtDesc(
+            List<Long> seniorIds
     );
 
     /*

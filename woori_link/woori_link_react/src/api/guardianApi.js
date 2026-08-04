@@ -1,23 +1,54 @@
 import api from './index.js';
-import { getUserId } from '../utils/auth.js';
+
+import {
+  getUserId,
+} from '../utils/auth.js';
+
 
 export const getGuardians = () =>
-  api.get('/guardians');
+  api.get(
+    '/guardians',
+  );
+
 
 export const getGuardianProfile = () =>
-  api.get('/guardians/me');
+  api.get(
+    '/guardians/me',
+  );
 
-export const updateGuardianProfile = (data) =>
-  api.patch('/guardians/me', data);
+
+export const updateGuardianProfile = (
+  data,
+) =>
+  api.patch(
+    '/guardians/me',
+    data,
+  );
+
 
 export const regenerateGuardianInviteCode = () =>
-  api.post('/guardians/me/invite-code/regenerate');
+  api.post(
+    '/guardians/me/invite-code/regenerate',
+  );
 
-export const updateGuardianNotifications = (data) =>
-  api.patch('/guardians/me/notifications', data);
 
-export const changeGuardianPassword = (data) =>
-  api.patch('/guardians/me/password', data);
+export const updateGuardianNotifications = (
+  data,
+) =>
+  api.patch(
+    '/guardians/me/notifications',
+    data,
+  );
+
+
+export const changeGuardianPassword = (
+  data,
+) =>
+  api.patch(
+    '/guardians/me/password',
+    data,
+  );
+
 
 export const updateGuardianSeniorRelationship = (
   seniorId,
@@ -25,38 +56,84 @@ export const updateGuardianSeniorRelationship = (
 ) =>
   api.patch(
     `/guardians/me/seniors/${seniorId}/relationship`,
-    { relationship },
+    {
+      relationship,
+    },
   );
 
+
 export const deleteGuardianAccount = () =>
-  api.delete('/guardians/me');
+  api.delete(
+    '/guardians/me',
+  );
 
+
+/**
+ * 로그인한 보호자와 연결된 어르신 목록 조회
+ *
+ * localStorage의 userId를 URL에 넣지 않고,
+ * Spring이 JWT에서 보호자 ID를 확인합니다.
+ */
 export const getSeniorsByGuardian = () =>
-  api.get(`/seniors/by-guardian/${getUserId()}`);
+  api.get(
+    '/seniors/by-guardian/me',
+  );
 
-export const getSenior = (id) =>
-  api.get(`/seniors/${id}`);
 
-export const getLatestRisk = (seniorId) =>
-  api.get(`/risk/senior/${seniorId}/latest`);
+export const getSenior = (
+  id,
+) =>
+  api.get(
+    `/seniors/${id}`,
+  );
 
-export const assessRisk = (seniorId) =>
-  api.post(`/risk/assess/${seniorId}`);
 
-export const getProductsBySenior = (seniorId) =>
-  api.get(`/products/senior/${seniorId}`);
+export const getLatestRisk = (
+  seniorId,
+) =>
+  api.get(
+    `/risk/senior/${seniorId}/latest`,
+  );
 
-export const getActionsBySenior = (seniorId) =>
-  api.get(`/actions/senior/${seniorId}`);
+
+export const assessRisk = (
+  seniorId,
+) =>
+  api.post(
+    `/risk/assess/${seniorId}`,
+  );
+
+
+export const getProductsBySenior = (
+  seniorId,
+) =>
+  api.get(
+    `/products/senior/${seniorId}`,
+  );
+
+
+export const getActionsBySenior = (
+  seniorId,
+) =>
+  api.get(
+    `/actions/senior/${seniorId}`,
+  );
+
 
 export const getGuardianAlerts = () =>
-  api.get(`/care/guardians/${getUserId()}/alerts`);
+  api.get(
+    `/care/guardians/${getUserId()}/alerts`,
+  );
+
 
 /**
  * 오늘 안부 요청·응답·미응답 요약
  */
 export const getGuardianTodayCheckInSummary = () =>
-  api.get('/guardians/me/check-in-summary/today');
+  api.get(
+    '/guardians/me/check-in-summary/today',
+  );
+
 
 /**
  * 보호자 홈 긴급 확인 요약
@@ -72,7 +149,10 @@ export const getGuardianTodayCheckInSummary = () =>
  * - 심각한 기상특보
  */
 export const getGuardianUrgentSummary = () =>
-  api.get('/guardians/me/urgent-summary');
+  api.get(
+    '/guardians/me/urgent-summary',
+  );
+
 
 export const acknowledgeAlert = (
   alertId,
@@ -80,21 +160,35 @@ export const acknowledgeAlert = (
 ) =>
   api.patch(
     `/care/alerts/${alertId}`,
-    { resolved },
+    {
+      resolved,
+    },
   );
 
-export const deleteAllGuardianAlerts = (guardianId) =>
-  api.delete(`/care/guardians/${guardianId}/alerts`);
 
-export const getLatestLocation = (seniorId) =>
+export const deleteAllGuardianAlerts = (
+  guardianId,
+) =>
+  api.delete(
+    `/care/guardians/${guardianId}/alerts`,
+  );
+
+
+export const getLatestLocation = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/locations/latest`,
   );
 
-export const getSafetyZone = (seniorId) =>
+
+export const getSafetyZone = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/safety-zone`,
   );
+
 
 export const saveSafetyZone = (
   seniorId,
@@ -105,6 +199,7 @@ export const saveSafetyZone = (
     data,
   );
 
+
 export const deleteSafetyZone = (
   seniorId,
   zoneId,
@@ -113,45 +208,58 @@ export const deleteSafetyZone = (
     `/care/seniors/${seniorId}/safety-zone/${zoneId}`,
   );
 
+
 /**
- * 어르신의 안부 확인 기록을 조회한다.
+ * 어르신의 안부 확인 기록을 조회합니다.
  */
-export const getCheckIns = (seniorId) =>
+export const getCheckIns = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/check-ins`,
   );
 
+
 /**
  * 최근 7일 안부 응답 통계와
- * 규칙 기반 상태 판정 결과를 조회한다.
+ * 규칙 기반 상태 판정 결과를 조회합니다.
  */
-export const getCheckInAnalysis = (seniorId) =>
+export const getCheckInAnalysis = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/check-in-analysis`,
   );
 
+
 /**
- * 보호자가 수동으로 즉시 안부 확인을 요청한다.
+ * 보호자가 수동으로 즉시 안부 확인을 요청합니다.
  */
-export const requestCheckIn = (seniorId) =>
+export const requestCheckIn = (
+  seniorId,
+) =>
   api.post(
     `/care/seniors/${seniorId}/check-ins`,
   );
 
+
 /**
- * 어르신의 자동 안부 확인 설정을 조회한다.
+ * 어르신의 자동 안부 확인 설정을 조회합니다.
  *
  * 아직 설정을 저장하지 않은 경우에도
- * 서버에서 기본값을 반환한다.
+ * 서버에서 기본값을 반환합니다.
  */
-export const getCheckInSchedule = (seniorId) =>
+export const getCheckInSchedule = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/check-in-schedule`,
   );
 
+
 /**
  * 어르신의 자동 안부 확인 설정을
- * 새로 저장하거나 기존 설정을 수정한다.
+ * 새로 저장하거나 기존 설정을 수정합니다.
  *
  * data 예시:
  * {
@@ -170,7 +278,10 @@ export const saveCheckInSchedule = (
     data,
   );
 
-export const getCareEvents = (seniorId) =>
+
+export const getCareEvents = (
+  seniorId,
+) =>
   api.get(
     `/care/seniors/${seniorId}/events`,
   );
